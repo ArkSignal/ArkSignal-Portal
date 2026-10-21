@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Sign-Ins{% endblock %}
+{% block content %}
+<h1><span>Admin</span> Sign-Ins</h1>
+<div class="sub">Every sign-in attempt, successful or not. Times are shown in the display timezone.</div>
+{% include "partials/_admin_subnav.html" %}
+{% call sec('filter', 'Filter', True, False) %}<form class="filters" method="get">
+  <div><label for="q">Search</label><input type="text" id="q" name="q" value="{{ q }}" placeholder="Username, IP or detail"></div>
+  <div><label for="result">Result</label>
+    <select id="result" name="result">
+      <option value="">All results</option>
+      <option value="ok" {{ 'selected' if result == 'ok' }}>Successful</option>
+      <option value="failed" {{ 'selected' if result == 'failed' }}>Failed</option></select></div>
+  <div><label for="days">Period</label>
+    <select id="days" name="days">{% for k, l in day_choices %}<option value="{{ k }}" {{ 'selected' if k == days }}>{{ l }}</option>{% endfor %}</select></div>
+  <button class="btn small" type="submit">Apply Filters</button>
+  <a class="btn small" href="?{{ (pager.args | urlencode) ~ '&' if pager.args else '' }}format=csv">Export CSV</a>
+</form>{% endcall %}
+{% call sec('signins', 'Sign-Ins', True, True) %}
+  <table>
+    <tr><th>When</th><th>Username</th><th>Result</th><th>IP</th><th>Detail</th></tr>
+    {% for r in rows %}
+    <tr><td class="dim" style="white-space:nowrap">{{ r.ts | localtime("%Y-%m-%d %H:%M:%S") }}</td><td>{{ r.username }}</td>
+      <td>{% if r.success %}<span class="tag">ok</span>{% else %}<span class="tag off">failed</span>{% endif %}</td>
+      <td class="dim mono">{{ r.ip or '' }}</td><td class="dim">{{ r.detail or '' }}</td></tr>
+    {% else %}<tr><td colspan="5" class="dim">No records match these filters.</td></tr>{% endfor %}
+  </table>
+  {% include "partials/_pager.html" %}
+{% endcall %}
+{% endblock %}

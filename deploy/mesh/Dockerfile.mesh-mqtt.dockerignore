@@ -1,0 +1,11 @@
+.git
+.github
+data
+.env
+app
+tests
+tools
+*.md
+__pycache__
+*.pyc
+TEST_CREDENTIALS.md

@@ -1,0 +1,30 @@
+{# The fields of a repeater, for a member submitting one, a keeper editing theirs, and an administrator adding one. f = the current values (a dict) or {}. #}
+{% macro fields(f, kinds, statuses, modes, full=True) %}
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
+  <div><label for="rf-freq">Output frequency (MHz)</label><input type="text" id="rf-freq" name="freq" value="{{ (f.freq_hz / 1e6) | round(4) if f.freq_hz else '' }}" required placeholder="146.94"></div>
+  <div><label for="rf-offset">Offset (MHz)</label><input type="text" id="rf-offset" name="offset" value="{{ ('%+g' % (f.offset_hz / 1e6)) if f.offset_hz else '' }}" placeholder="-0.6 (blank is simplex)"></div>
+  <div><label for="rf-tone">Tone (CTCSS or DCS)</label><input type="text" id="rf-tone" name="tone" value="{{ f.tone or '' }}" placeholder="100.0"></div>
+  <div><label for="rf-callsign">Call sign</label><input type="text" id="rf-callsign" name="callsign" value="{{ f.callsign or '' }}" maxlength="20" placeholder="W5ABC"></div>
+  <div><label for="rf-city">City</label><input type="text" id="rf-city" name="city" value="{{ f.city or '' }}" maxlength="80"></div>
+  <div><label for="rf-lat">Latitude</label><input type="text" id="rf-lat" name="lat" value="{{ f.lat if f.lat is not none else '' }}" required placeholder="34.7465"></div>
+  <div><label for="rf-lon">Longitude</label><input type="text" id="rf-lon" name="lon" value="{{ f.lon if f.lon is not none else '' }}" required placeholder="-92.2896"></div>
+  <div><label for="rf-kind">Kind</label><select id="rf-kind" name="kind">{% for k, l in kinds %}<option value="{{ k }}" {{ 'selected' if f.kind == k }}>{{ l }}</option>{% endfor %}</select></div>
+  <div><label for="rf-status">Status</label><select id="rf-status" name="status">{% for k, l in statuses %}<option value="{{ k }}" {{ 'selected' if (f.status or 'active') == k }}>{{ l }}</option>{% endfor %}</select></div>
+  <div><label for="rf-cc">DMR color code</label><input type="text" id="rf-cc" name="color_code" value="{{ f.color_code or '' }}" maxlength="2" placeholder="1"></div>
+  <div><label for="rf-net">Network (DMR, linked systems)</label><input type="text" id="rf-net" name="network" value="{{ f.network or '' }}" maxlength="40" placeholder="Brandmeister"></div>
+  <div><label for="rf-power">Power</label><input type="text" id="rf-power" name="power" value="{{ f.power or '' }}" maxlength="20" placeholder="50 W"></div>
+</div>
+{% set at = (f.attrs | fromjson) if f.attrs else {} %}
+<details style="margin-top:12px" {{ 'open' if (f.dmr_id or at or f.color_code or f.tgtext) }}><summary style="cursor:pointer"><b>Digital voice and radio details</b> <span class="dim" style="font-size:.82rem">DMR ID, talkgroups, D-STAR, Fusion, P25, NXDN</span></summary>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:10px">
+    <div><label for="rf-dmrid">Repeater DMR ID</label><input type="text" id="rf-dmrid" name="dmr_id" value="{{ f.dmr_id if f.dmr_id else '' }}" maxlength="9" placeholder="310123401"></div>
+    {% for k, label, hint in rp_attr_keys %}<div><label for="rf-a-{{ k }}">{{ label }}</label><input type="text" id="rf-a-{{ k }}" name="a_{{ k }}" value="{{ at.get(k, '') }}" maxlength="120" placeholder="{{ hint }}"></div>{% endfor %}
+  </div>
+  <div style="margin-top:10px"><label for="rf-tg">Talkgroups (one per line: slot, ID, name, static / dynamic / timed)</label>
+    <textarea id="rf-tg" name="talkgroups" rows="5" style="width:100%;font-family:'JetBrains Mono',monospace" placeholder="1, 3105, Arkansas, static&#10;2, 10501, ARWX, dynamic">{{ f.tgtext or '' }}</textarea>
+    <div class="help">The slot (1 or 2) and the mode are optional. A radio's code plug can be imported by an editor under Admin &gt; Repeaters.</div></div>
+</details>
+<div style="margin-top:10px"><label>Modes</label><div style="display:flex;gap:14px;flex-wrap:wrap">{% set cur = (f.modes or 'FM').split(',') %}{% for m in modes %}<label class="check" style="margin:0"><input type="checkbox" name="modes" value="{{ m }}" {{ 'checked' if m in cur }}><span>{{ m }}</span></label>{% endfor %}</div></div>
+<div style="margin-top:10px"><label for="rf-restriction">Access (open, closed, membership)</label><input type="text" id="rf-restriction" name="restriction" value="{{ f.restriction or '' }}" maxlength="200" style="width:100%"></div>
+<div style="margin-top:10px"><label for="rf-desc">Notes</label><textarea id="rf-desc" name="description" rows="3" maxlength="600" style="width:100%">{{ f.description or '' }}</textarea></div>
+{% endmacro %}

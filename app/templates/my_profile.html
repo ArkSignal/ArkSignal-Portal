@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Profile{% endblock %}
+{% block content %}
+<h1><span>Profile</span></h1>
+<div class="sub">How you appear on the network. Your email address is never shown publicly.</div>
+{% with active = 'profile' %}{% include "partials/_my_subnav.html" %}{% endwith %}
+<form class="panel narrow" method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <label>Username</label>
+  <input type="text" value="{{ current_user.username }}" readonly>
+  <label>Email address</label>
+  <input type="text" value="{{ current_user.email }}" readonly>
+  <div class="help">To change it, use Change Email Address below.</div>
+  <label for="display_name">Display name</label>
+  <input type="text" id="display_name" name="display_name" value="{{ current_user.display_name or '' }}" maxlength="60">
+  <div class="help">Shown next to your feeders on public pages. Leave blank to show your username.</div>
+  <label for="callsign">Amateur radio callsign</label>
+  <input type="text" id="callsign" name="callsign" value="{{ current_user.callsign or '' }}" maxlength="8" style="max-width:160px;text-transform:uppercase">
+  <div class="help">Optional, for example KD5VCF. It can be used as the basis for your station IDs.</div>
+  <label for="landing">After I sign in, take me to</label>
+  <select id="landing" name="landing">
+    <option value="">The site default{% if landing_site %} ({{ (landing_choices | selectattr(0, 'equalto', landing_site) | list | first or ('', 'My Feeders'))[1] }}){% endif %}</option>
+    {% for p, l in landing_choices %}<option value="{{ p }}" {{ 'selected' if p == landing_mine }}>{{ l }}</option>{% endfor %}
+  </select>
+  <div class="help">If you were heading to a particular page when you were asked to sign in, you still go there.</div>
+  <label for="pf-width-profile">Page width</label>
+  <select id="pf-width-profile"><option value="">The site default ({{ 'limited' if page_width_mode == 'limited' else 'full width' }})</option><option value="limited">Limited, for wide monitors</option><option value="full">Full width</option></select>
+  <div class="help">Limited keeps page content to a comfortable width on an ultra-wide monitor. Full width uses the whole window. Maps always use the whole window. This is saved as soon as you choose, and follows you to every device.</div>
+  <button class="btn" type="submit">Save Profile</button>
+</form>
+<details class="panel setsec" id="sec-change-email-address" style="margin-top:14px"><summary><span class="role-name">Change Email Address</span></summary>
+<form method="post" action="/my/profile/email">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <label for="new_email">New email address</label>
+  <input type="text" id="new_email" name="new_email" autocomplete="off" inputmode="email" maxlength="254">
+  <label for="current_password">Current password</label>
+  <input type="password" id="current_password" name="current_password" autocomplete="current-password">
+  <div class="help">Your password is asked for because the email address is how an account is recovered. Each address can belong to one account only.</div>
+  <button class="btn" type="submit">Change Email Address</button>
+</form></details>
+{% if delete_enabled %}
+<details class="panel setsec" id="sec-delete-my-account" style="margin-top:14px"><summary><span class="role-name">Delete My Account</span></summary>
+<form method="post" action="/my/profile/delete" data-confirm="Delete your account permanently? This cannot be undone.">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <p class="dim" style="margin:0 0 8px">This permanently removes your account, your alert rules and their history. Any stations you have claimed are released (their names and station IDs are cleared) so they can be claimed again. Nothing about the aircraft data changes.</p>
+  <label for="del_pw">Current password</label>
+  <input type="password" id="del_pw" name="current_password" autocomplete="current-password">
+  <label for="del_txt">Type DELETE to confirm</label>
+  <input type="text" id="del_txt" name="confirm_text" autocomplete="off" style="max-width:200px">
+  <button class="btn warn" type="submit">Delete My Account</button>
+</form></details>
+{% endif %}
+{% endblock %}

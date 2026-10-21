@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Roadmap{% endblock %}
+{% block content %}
+<h1>{% if admin_view %}<span>Admin</span> Full {% endif %}<span>Roadmap</span></h1>
+{% if admin_view %}{% include "partials/_admin_subnav.html" %}{% endif %}
+<div class="sub">{% if admin_view %}Everything on the list, including the items marked <b>Admin only</b>, which the public Roadmap does not show. {% endif %}What is coming, what is being built and what has just arrived. This page reads the project's own list and stays current while the work goes on. See the <a href="/release-notes">Release Notes</a> for what each version changed.</div>
+
+<div style="display:flex;gap:6px;flex-wrap:wrap;margin:12px 0" id="rm-areas">
+  <button type="button" class="tag live" data-area="">All areas</button>
+  {% for a in areas %}<button type="button" class="tag" data-area="{{ a }}">{{ a }}</button>{% endfor %}
+</div>
+
+{% for key, label, blurb, items in groups %}
+<details class="panel setsec" id="rm-{{ key }}" {{ 'open' if key in ('next', 'progress', 'planned') }} style="margin-top:14px"><summary>
+  <span class="role-name">{{ label }}</span><span class="dim" style="margin-left:10px;font-size:.84rem">{{ blurb }}</span><span class="dim" style="margin-left:auto;font-size:.82rem">{{ items | length }}</span>
+</summary><div class="secbody">
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px">
+    {% for i in items %}
+    <div class="rmitem{{ ' rmdone' if key == 'done' else '' }}" data-area="{{ i.area }}" style="border:1px solid {{ 'var(--acc)' if key == 'done' else 'var(--line)' }};border-radius:12px;padding:10px 12px{{ ';background:rgba(62,230,168,.08)' if key == 'done' else '' }}">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><b>{{ i.title }}</b>{% if i.audience == "admin" %}<span class="tag live" style="font-size:.68rem">Admin only</span>{% endif %}<span class="tag" style="font-size:.68rem">{{ i.area }}</span></div>
+      <div class="dim" style="font-size:.86rem;margin-top:4px">{{ i.summary }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div></details>
+{% endfor %}
+
+<p class="dim" style="margin-top:14px;font-size:.82rem">
+  {% if meta.source == 'github' %}Live from the project repository, fetched {{ fetched | localtime }}.{% else %}Showing the list built into this release{% if meta.error %} (the live copy could not be reached: {{ meta.error }}){% endif %}.{% endif %}
+  {% if updated %} List dated {{ updated }}.{% endif %}</p>
+<script>
+(function () {
+  var chips = document.querySelectorAll("#rm-areas [data-area]");
+  chips.forEach(function (c) {
+    c.addEventListener("click", function () {
+      chips.forEach(function (x) { x.classList.toggle("live", x === c); });
+      var a = c.dataset.area;
+      document.querySelectorAll(".rmitem").forEach(function (el) { el.style.display = !a || el.dataset.area === a ? "" : "none"; });
+    });
+  });
+})();
+</script>
+{% endblock %}

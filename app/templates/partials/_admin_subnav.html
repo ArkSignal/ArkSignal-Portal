@@ -1,0 +1,62 @@
+<div class="subnav adminnav" role="navigation" aria-label="Admin sections">
+  {% for group, items in admin_nav(current_user) %}
+  <div class="ag{{ ' has-active' if items | selectattr(0, 'equalto', active) | list }}"><span class="agl">{{ group }}</span>
+    <div class="agi">{% for key, label, href in items %}<a class="{{ 'active' if active == key }}" href="{{ href }}"{% if active == key %} aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}</div>
+  </div>
+  {% endfor %}
+</div><!-- /adminnav -->
+{% if current_user.has_permission('manage_settings') %}<div class="adminfind" style="position:relative;margin:0 0 12px"><input type="search" id="adminfind" placeholder="Find any setting on the site (for example retention, rings, email, map)" aria-label="Find a setting" autocomplete="off" style="width:100%;max-width:520px">
+  <div id="adminfind-box" role="listbox" style="display:none;position:absolute;z-index:40;left:0;top:100%;margin-top:4px;max-width:min(640px,100%);width:100%;max-height:60vh;overflow:auto;background:var(--card-bg);border:1px solid var(--line);border-radius:12px"></div></div>
+<script>
+(function () {
+  var inp = document.getElementById("adminfind"), box = document.getElementById("adminfind-box"); if (!inp || inp.dataset.ready) return; inp.dataset.ready = "1";
+  var timer, seq = 0;
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]; }); }
+  function ask() {
+    var t = inp.value.trim(); if (t.length < 2) { box.style.display = "none"; return; }
+    var me = ++seq;
+    fetch("/admin/settings/search.json?q=" + encodeURIComponent(t), {credentials: "same-origin"}).then(function (r) { return r.json(); }).then(function (d) {
+      if (me !== seq) return;
+      var rs = d.results || [];
+      box.innerHTML = rs.length ? rs.map(function (r) { return '<a href="' + esc(r.href) + '" style="display:block;padding:8px 12px;border-bottom:1px solid var(--line);color:var(--text);text-decoration:none"><b>' + esc(r.label) + '</b> <span class="dim" style="font-size:.78rem">' + esc(r.service) + " &rsaquo; " + esc(r.section) + '</span><div class="dim" style="font-size:.78rem">' + esc(r.help) + "</div></a>"; }).join("") + (d.total > rs.length ? '<div class="dim" style="padding:6px 12px;font-size:.78rem">' + d.total + " match; type more to narrow them.</div>" : "") : '<div class="dim" style="padding:10px 12px">No setting matches that.</div>';
+      box.style.display = "block";
+    }).catch(function () {});
+  }
+  inp.addEventListener("input", function () { clearTimeout(timer); timer = setTimeout(ask, 250); });
+  document.addEventListener("click", function (e) { if (!box.contains(e.target) && e.target !== inp) box.style.display = "none"; });
+})();
+</script>{% endif %}
+
+<script>
+// Long admin pages are split into tabs: every element with data-tab-title belongs to the tab of that name (several elements may share one); data-tab-default marks the tab opened first; a link such as #tab-claims opens a tab.
+function arkAdminTabs() {
+  var els = Array.prototype.slice.call(document.querySelectorAll("[data-tab-title]")); if (!els.length) return;
+  var titles = []; els.forEach(function (e) { if (titles.indexOf(e.dataset.tabTitle) < 0) titles.push(e.dataset.tabTitle); });
+  var order = {}; els.forEach(function (e) { if (e.dataset.tabOrder) order[e.dataset.tabTitle] = parseFloat(e.dataset.tabOrder); });
+  titles.sort(function (a, b) { return (order[a] != null ? order[a] : 50) - (order[b] != null ? order[b] : 50); });
+  function slug(t) { return t.toLowerCase().replace(/[^a-z0-9]+/g, "-"); }
+  var bar = document.createElement("div"); bar.className = "subnav admintabs"; bar.setAttribute("role", "tablist");
+  titles.forEach(function (t) { var a = document.createElement("a"); a.href = "#tab-" + slug(t); a.dataset.t = t; a.setAttribute("role", "tab"); a.textContent = t; bar.appendChild(a); });
+  els[0].parentNode.insertBefore(bar, els[0]);
+  function show(t) { els.forEach(function (e) { e.style.display = e.dataset.tabTitle === t ? "" : "none"; }); Array.prototype.forEach.call(bar.children, function (a) { var on = a.dataset.t === t; a.classList.toggle("active", on); a.setAttribute("aria-selected", on ? "true" : "false"); }); }
+  bar.addEventListener("click", function (e) { var a = e.target.closest("a"); if (!a) return; e.preventDefault(); show(a.dataset.t); history.replaceState(null, "", "#tab-" + slug(a.dataset.t)); });
+  var want = titles.filter(function (t) { return "#tab-" + slug(t) === location.hash; })[0];
+  var inner = location.hash.length > 1 && !want && document.querySelector(location.hash.replace(/[^#A-Za-z0-9_-]/g, ""));   // a link to something inside a tab opens that tab
+  if (inner) { var host = inner.closest("[data-tab-title]"); if (host) want = host.dataset.tabTitle; }
+  var def = els.filter(function (e) { return e.hasAttribute("data-tab-default"); })[0];
+  show(want || (def ? def.dataset.tabTitle : titles[0]));
+  if (inner) inner.scrollIntoView();
+}
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", arkAdminTabs); else arkAdminTabs();
+</script>
+<script>
+// every admin section starts collapsed (only the one a link points at with #section stays open, and one holding an error message)
+document.addEventListener("DOMContentLoaded", function () {
+  var h = (location.hash || "").slice(1);
+  document.querySelectorAll("details[open]").forEach(function (d) {
+    if (d.closest(".adminnav")) return;
+    if ((h && (d.id === h || (document.getElementById(h) && d.contains(document.getElementById(h))))) || d.querySelector(".flash.error, .field-error")) return;
+    d.removeAttribute("open");
+  });
+});
+</script>

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% from "partials/_repeater_form.html" import fields %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}My Repeaters{% endblock %}
+{% block content %}
+<h1>{% if is_new %}My <span>Repeaters</span>{% else %}Edit <span>{{ f.callsign or 'Repeater' }} {{ rp_mhz(f.freq_hz) }}</span>{% endif %}</h1>
+<div class="sub">{% if is_new %}Repeaters you submitted or look after. Add one that is missing: an editor checks it before it appears. For a listing that is wrong, open it and use Report a Problem.{% else %}Changes are saved with a history of who changed what.{% endif %}</div>
+{% include "partials/_my_subnav.html" %}
+{% if banner %}<div class="panel" style="border-color:var(--acc2);margin-bottom:14px"><b>{{ banner }}</b></div>{% endif %}
+{% if is_new and rows %}
+{% call sec('mine', 'Your Repeaters', True, True) %}<table><thead><tr><th>Output (MHz)</th><th>Call sign</th><th>City</th><th>State</th><th></th></tr></thead><tbody>
+{% for r in rows %}<tr><td class="mono"><a href="/repeaters/{{ r.id }}">{{ rp_mhz(r.freq_hz) }}</a></td><td class="mono">{{ r.callsign }}</td><td>{{ r.city }}</td>
+<td>{% if not r.approved %}Waiting for an editor{% elif r.claim_status == 'pending' %}Claim waiting for an administrator{% elif r.owner_id == current_user.id %}You look after it ({{ 'approved' if r.claim_status == 'approved' else '' }}){% else %}Submitted by you{% endif %}</td>
+<td>{% if r.owner_id == current_user.id and r.claim_status == 'approved' %}<a class="btn small" href="/my/repeaters/{{ r.id }}" style="margin:0">Edit</a>{% endif %}</td></tr>{% endfor %}
+</tbody></table>{% endcall %}
+{% endif %}
+{% call sec('details', 'Add a Repeater' if is_new else 'Details', True) %}
+<form method="post" action="{{ action }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  {{ fields(f, kinds, statuses, modes) }}
+  <p style="margin-bottom:0"><button class="btn" type="submit">{{ 'Submit Repeater' if is_new else 'Save Changes' }}</button></p>
+</form>
+{% endcall %}
+{% if history %}{% call sec('history', 'History', False, True) %}
+  <table><thead><tr><th>When</th><th>Who</th><th>What</th></tr></thead><tbody>{% for h in history %}<tr><td>{{ h.ts.strftime('%Y-%m-%d %H:%M') }}</td><td>{{ h.actor }}</td><td>{{ h.action }}{% if h.detail %}: <span class="dim">{{ h.detail }}</span>{% endif %}</td></tr>{% endfor %}</tbody></table>{% endcall %}{% endif %}
+{% endblock %}

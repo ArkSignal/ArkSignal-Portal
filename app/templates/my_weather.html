@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}My Weather Stations{% endblock %}
+{% block content %}
+<h1>My <span>Weather Stations</span></h1>
+<div class="sub">Signed in as {{ current_user.username }}. A weather station can belong to one of your ADS-B feeders (it then shares that feeder's station ID, location and privacy) or stand on its own.</div>
+{% set add_mode = request.args.get('add') == '1' %}
+{% with active = 'weather' %}{% include "partials/_my_subnav.html" %}{% endwith %}
+{% if rows %}
+<div class="tiles" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))">
+  {% for r in rows %}
+  <a class="panel tile" href="/my/weather/{{ r.id }}" style="text-decoration:none;color:inherit">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <div class="tv" style="font-size:1.2rem">{{ r.sid or 'No station ID' }}{% if r.aprs_on %} <span class="tag live" style="font-size:.6em;vertical-align:middle" title="Sends its readings to the APRS network">APRS</span>{% endif %}</div>
+      {% if r.disabled %}<span class="tag off">switched off</span>{% elif online(r) %}<span class="tag live">reporting</span>{% else %}<span class="tag off">no report yet</span>{% endif %}
+    </div>
+    <div class="tl">{{ r.name or 'Unnamed station' }} &middot; {{ kinds[r.kind] }}</div>
+    <div class="tl">{% if r.public %}Shown publicly{% else %}Private: only you can see it{% endif %}</div>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if full %}<div class="panel" style="margin-top:14px"><p class="dim" style="margin:0">You have {{ limit }} weather stations, the most one account may add.</p></div>
+{% else %}
+<details class="panel setsec" id="sec-add-a-weather-station" {{ 'open' if (not rows) or want or add_mode }} style="margin-top:14px"><summary><span class="role-name">Add a Weather Station</span></summary><form method="post" action="/my/weather/add">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  {% with fp = "w", admin = false %}{% include "partials/_wx_form_fields.html" %}{% endwith %}
+  <button class="btn" type="submit">Add Weather Station</button>
+</form></details>
+{% endif %}
+{% endblock %}

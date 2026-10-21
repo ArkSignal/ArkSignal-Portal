@@ -1,0 +1,182 @@
+{# The skeleton of an ArkSignal map page, identical to the live (aircraft) map and the Weather Map: the same element names (lv, lvmap, lv-left, lv-tools, lv-toolsbody, fsec, lv-card,
+   lv-list, lv-legend, lv-altbar) so static/mapshell.css gives it the same look and layout. A new map page (counties, radiosondes, repeaters...) calls shell() and puts its own folding
+   sections in the caller block; the Layers section, counters, details card and list come with it.
+   shell(search_placeholder, search_label, list_title, page_label, show_weather_btn) {% call %}the page's own <details class="fsec"> sections{% endcall %} #}
+{% macro shell(search_ph, search_label, list_title, page_label, weather_btn=True, search_attrs="", legbtn_extra="", head_extra="", display_top="", labels_extra="", display_extra="", display_bottom="", layers_extra="", left_extra="", card_head_buttons="", card_actions="", card_extra="", list_actions="", list_extra="", alt_label="Color scale", alt_name="", map_type="") -%}
+<link rel="stylesheet" href="{{ leaflet_base }}/leaflet.css" crossorigin="anonymous">
+<link rel="stylesheet" href="/static/mapshell.css?v={{ app_version }}">
+<script src="/static/maphost.js?v={{ app_version }}"></script>
+<div id="lv">
+  <div id="lvmap"></div>
+  <div id="lv-left">
+  <div class="lv-panel" id="lv-tools">
+    <div class="lv-head">{% if map_type %}<select id="lv-maptype" aria-label="Map type: which kind of map this is" title="Switch the kind of map; the view stays where it is">{% for k, l, h in map_types %}<option value="{{ h }}" {{ 'selected' if k == map_type }}>{{ l }}</option>{% endfor %}</select>{% endif %}<input type="text" id="q" placeholder="{{ search_ph }}" aria-label="{{ search_label }}" {{ search_attrs | safe }}>
+      {% if weather_btn %}<button class="btn small neutral" type="button" id="lv-wxbtn" style="margin:0">Weather</button>{% endif %}
+      <button class="btn small neutral" type="button" id="lv-filtbtn" style="margin:0">Layers &amp; Filters</button>
+      <button class="btn small neutral" type="button" id="lv-legbtn" aria-expanded="false" aria-controls="lv-legend" style="margin:0">Legend{{ legbtn_extra | safe }}</button></div>
+    {{ head_extra | safe }}
+    <div id="lv-chips" aria-label="Active filters"></div>
+    <div id="lv-toolsbody">
+    {{ caller() }}
+    <details class="fsec" data-k="display"><summary><span class="ic">◐</span>Display and View</summary><div class="fbody">
+      {{ display_top | safe }}
+      <div class="lv-sub">Map Style</div>
+      <select id="l-style" data-sat="{{ map_satellite() }}" data-hyb="{{ map_hybrid() }}" aria-label="Street map, satellite imagery or satellite with roads"><option value="std">Street map</option><option value="sat">Satellite</option><option value="hyb">Hybrid (satellite with roads)</option></select>
+      <div class="lv-sub" id="ark-units-h">Units</div>
+      <select id="ark-units-sel" aria-label="Units for this map: feet, meters and so on"></select>
+      <div class="lv-sub">Labels</div>
+      {{ labels_extra | safe }}
+      <div class="lv-row"><label>Size <select id="l-lscale"><option value="75">75%</option><option value="100">100%</option><option value="125">125%</option><option value="150">150%</option><option value="200">200%</option></select></label>
+        <label>Background <select id="l-lbg"><option value="dark">Dark</option><option value="light">Light</option><option value="yellow">Yellow</option><option value="none">None</option></select></label></div>
+      <div id="m-display"></div>
+      {{ display_extra | safe }}
+      {% if map_type != "counties" %}<div class="lv-row"><label title="A thin line around every county"><input type="checkbox" id="l-county"> County outlines</label></div><div id="l-county-note" class="dim" style="font-size:.78rem"></div>{% endif %}
+      <div class="lv-row"><label title="Draws where you are on the map. Your browser asks first; the position stays in your browser and is never sent to the site"><input type="checkbox" id="my-loc"> Show my location</label><button class="btn small neutral" type="button" id="my-loc-go" style="margin:0">Center on Me</button></div><div id="my-loc-note" class="dim" style="font-size:.78rem"></div>
+      <div class="lv-row"><button class="btn small neutral" type="button" id="lv-reset" style="margin:0" title="Put every map setting of this browser back to the site defaults">Reset My Map Settings</button></div>
+      <div class="lv-row"><button class="btn small neutral" type="button" id="lv-sharelink" style="margin:0">Copy Link to This View</button><span id="lv-sharenote" class="dim" style="font-size:.78rem"></span></div>
+      {{ display_bottom | safe }}
+    </div></details>
+    <details class="fsec" data-k="drive"><summary><span class="ic">⏱</span>Drive Times<span class="fbadge" data-fb="drive"></span></summary><div class="fbody">
+      <div class="lv-row"><label title="Click the map to pick a place, then ask for its drive times to the nearest hospitals, in order, with rings of 15, 30, 60 and 90 minutes"><input type="checkbox" id="dr-on"> Click the map to pick a place, then ask for its drive times</label></div>
+      <div class="lv-row" style="margin-top:6px"><button class="btn small neutral" type="button" id="dr-here" style="margin:0" title="Drive times from where you are now (your browser asks first; the position stays in your browser)">Drive Times From My Location</button></div>
+      <div class="help dim" style="font-size:.78rem;margin-top:6px">Or search a city or an address above and choose Drive Times. Hospitals are listed by drive time; hospitals within a couple of minutes of each other are ordered by trauma level, then services. Our own estimate, not an ambulance's route.</div>
+    </div></details>
+    <details class="fsec" data-k="layers" open><summary><span class="ic">▦</span>Layers</summary><div class="fbody"><div id="lv-layers"></div>{{ layers_extra | safe }}</div></details>
+    <div class="lv-row" style="justify-content:space-between"><span id="lv-count" style="color:var(--dim);font-size:.8rem">Loading...</span><span id="lv-status" class="dim" style="font-size:.78rem"></span></div>
+    </div>
+  </div>
+  <div class="lv-panel" id="lv-wx"></div>
+  <div class="lv-panel" id="lv-legend" aria-label="Map legend"><div id="lv-legbody"></div></div>
+  <button type="button" id="lv-fold" aria-label="Collapse the open panel" title="Collapse">&#9650;</button>
+  {{ left_extra | safe }}
+  <div class="lv-panel" id="lv-card">
+    <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
+      <div><h3 id="c-name"></h3><div class="dim" id="c-sub" style="font-size:.82rem"></div></div>
+      <span style="display:flex;gap:6px">{{ card_head_buttons | safe }}<button class="btn small neutral" type="button" id="c-min" style="margin:0" aria-expanded="true" title="Fold the details away to see more of the map">Collapse</button><button class="btn small" type="button" id="c-close" style="margin:0">Close</button></span>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      {% if card_actions %}{{ card_actions | safe }}{% else %}<a class="btn small" id="c-page" style="margin:0" href="#">{{ page_label }}</a>
+      <button class="btn small" type="button" id="c-follow" style="margin:0">Zoom To</button>{% endif %}
+    </div>
+    {{ card_extra | safe }}
+    <div id="c-body"></div>
+  </div>
+  <div class="lv-panel" id="lv-drive" aria-label="Drive times to hospitals"></div>
+  </div>
+  <button id="lv-hide" type="button">Show List</button>
+  <div class="lv-panel" id="lv-list">
+    <header><b>{{ list_title }}</b><span style="display:flex;gap:8px;align-items:center">{{ list_actions | safe }}<button class="btn small neutral" type="button" id="lv-listhide">Hide</button></span></header>
+    {{ list_extra | safe }}
+    <div id="lv-rows"><table id="lv-tbl"><thead></thead><tbody></tbody></table></div>
+  </div>
+</div>
+<script>
+(function () {
+  // sections tagged for other map types only are hidden here (Settings > Map Tiles and Weather > Map Sections By Map Type)
+  {% if map_type %}{{ map_sections_off(map_type) | tojson }}.forEach(function (k) { var e = document.querySelector('details.fsec[data-k="' + k + '"]'); if (e) e.style.display = "none"; });{% endif %}
+  // the details card folds to its title bar; on a phone, opening it folds Layers and Filters away so the two together never cover the map
+  var card = document.getElementById("lv-card"), cmin = document.getElementById("c-min");
+  // the one rule for every map: when something opens its own details (an item's card, the drive times of a place), Layers and Filters fold away so the result is what shows
+  function foldFilters() { var tb = document.getElementById("lv-toolsbody"), fb = document.getElementById("lv-filtbtn"); if (tb && tb.style.display !== "none" && fb) fb.click(); }
+  var drv = document.getElementById("lv-drive");
+  if (drv) { var drvSeen = ""; new MutationObserver(function () { var on = drv.style.display === "block", sig = on ? drv.textContent.slice(0, 80) : ""; if (on && sig !== drvSeen) foldFilters(); drvSeen = sig; }).observe(drv, {attributes: true, attributeFilter: ["style"], childList: true, subtree: true, characterData: true}); }
+  if (card && cmin) {
+    cmin.addEventListener("click", function () { var on = card.classList.toggle("min"); cmin.textContent = on ? "Expand" : "Collapse"; cmin.setAttribute("aria-expanded", on ? "false" : "true"); });
+    var wasShown = false, lastName = "";
+    // opening the card, or picking another item while it is open, folds Layers and Filters away on every screen size so the choice's details are what shows
+    function cardChanged() {
+      var shown = card.style.display !== "none" && card.style.display !== "";
+      var nm = (document.getElementById("c-name") || {}).textContent || "";
+      if (shown && (!wasShown || nm !== lastName)) { card.classList.remove("min"); cmin.textContent = "Collapse"; cmin.setAttribute("aria-expanded", "true"); foldFilters(); }
+      wasShown = shown; lastName = nm;
+    }
+    new MutationObserver(cardChanged).observe(card, {attributes: true, attributeFilter: ["style"], childList: true, subtree: true, characterData: true});
+  }
+  var s = document.getElementById("lv-maptype"); if (!s) return;
+  s.addEventListener("change", function () {
+    var m = window.arkMap, p = new URLSearchParams();
+    if (m) { var c = m.getCenter(); p.set("lat", c.lat.toFixed(3)); p.set("lon", c.lng.toFixed(3)); p.set("zoom", String(m.getZoom())); }
+    var to = s.value + (p.toString() ? "?" + p.toString() : "");
+    if (window.ArkMapHost) window.ArkMapHost.go(to); else location.href = to;   // in place when the host can (static/maphost.js), a normal visit otherwise
+  });
+})();
+</script>
+<div id="lv-altbar" aria-label="{{ alt_label }}"><span id="lv-altname">{{ alt_name }}</span><div class="alt-wrap"><div class="alt-bar" id="lv-altgrad"></div><div class="alt-ticks" id="lv-alticks"></div></div></div>
+{%- endmacro %}
+
+{# The script every map page shares: label size/background choices, the Layers panel (static/maplayers.js), Filters and Legend buttons, list show/hide, the share link, reset. The page gives
+   its own map object and a few hooks: returns the AL (ArkLayers) object so the page can sync it. #}
+{% macro boot(url, storekey) -%}
+<script src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script>
+<script src="/static/touchhit.js"></script>
+<script src="/static/colocate.js"></script>
+<script src="/static/maplayers.js"></script>
+<script src="/static/drivetimes.js?v={{ app_version }}"></script>
+<script src="/static/mylocation.js?v={{ app_version }}"></script>
+<script src="/static/countyoutline.js?v={{ app_version }}"></script>
+<script src="/static/mapfold.js?v={{ app_version }}"></script>
+<script src="/static/mapfull.js?v={{ app_version }}" data-ark-rerun></script>
+<script src="/static/mapfit.js?v={{ app_version }}" data-ark-rerun></script>
+<script src="/static/mapfs.js?v={{ app_version }}" data-ark-rerun></script>
+<script src="/static/mapheadfold.js?v={{ app_version }}" data-ark-rerun></script>
+<script src="/static/unitsel.js?v={{ app_version }}" data-ark-rerun></script>
+<script>
+window.ArkShell = (function () {
+  var $ = function (id) { return document.getElementById(id); };
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]; }); }
+  function pref(k, v) { try { if (v === undefined) return localStorage.getItem("lv." + k); localStorage.setItem("lv." + k, v); } catch (e) { return null; } }
+  return {$: $, esc: esc, pref: pref, start: function (o) {
+    // o: {map, layers, cfg: {tile, attr, labelScale, labelBg, wxRefresh}, url, reset: [prefixes], share: function () {params}, legend: function () {html}, onLegend: fn}
+    var map = o.map, C = o.cfg;
+    function applyLabelLook() {
+      var sc = parseInt(pref("lscale") || (window.innerWidth < 700 ? Math.min(75, C.labelScale) : C.labelScale), 10) || 125, bg = pref("lbg") || C.labelBg;   // a phone starts with smaller labels
+      $("lv").style.setProperty("--ls", sc / 100);
+      ["dark", "light", "yellow", "none"].forEach(function (b) { $("lv").classList.toggle("lb-" + b, b === bg); });
+      $("l-lscale").value = String(sc); $("l-lbg").value = bg;
+    }
+    applyLabelLook();
+    $("l-lscale").addEventListener("change", function () { pref("lscale", this.value); applyLabelLook(); });
+    $("l-lbg").addEventListener("change", function () { pref("lbg", this.value); applyLabelLook(); });
+    if (window.ResizeObserver) new ResizeObserver(function () { map.invalidateSize(); }).observe($("lv"));
+    var legBtn = $("lv-legbtn"), AL;
+    function filtersShow(open) { $("lv-toolsbody").style.display = open ? "" : "none"; $("lv-filtbtn").textContent = open ? "Layers & Filters" : "Show Layers & Filters"; if (window.arkFoldSync) window.arkFoldSync(); }
+    function renderLegend() { if (legBtn.getAttribute("aria-expanded") === "true" && (o.legend || AL)) $("lv-legbody").innerHTML = (o.legend ? o.legend() : "") + (AL && AL.dataLegend ? AL.dataLegend() : ""); }
+    function legOpen(open) { if (open) { if (AL) AL.wxOpen(false); filtersShow(false); } legBtn.setAttribute("aria-expanded", open ? "true" : "false"); $("lv-legend").style.display = open ? "block" : "none"; try { localStorage.setItem("ark." + o.key + ".legend", open ? "1" : "0"); } catch (e) {} renderLegend(); if (window.arkFoldSync) window.arkFoldSync(); }
+    AL = ArkLayers.init({map: map, $: $, esc: esc, LAYERS: o.layers, M: {tile: C.tile, attr: C.attr, wxRefresh: C.wxRefresh || 3}, closeOthers: function () { filtersShow(false); legOpen(false); }, onLegend: function () { renderLegend(); }, foldSync: function () { if (window.arkFoldSync) window.arkFoldSync(); }});
+    map.on("popupopen", function () { if ($("lv-toolsbody").style.display !== "none") filtersShow(false); });   // a popup is an item's details too: Layers and Filters fold away, on every map
+    ArkFold.init({filtersShow: filtersShow, legOpen: legOpen, wxOpen: function (v) { AL.wxOpen(v); }});
+    $("lv-filtbtn").addEventListener("click", function () { var open = $("lv-toolsbody").style.display === "none"; if (open) { AL.wxOpen(false); legOpen(false); } filtersShow(open); });
+    legBtn.addEventListener("click", function () { legOpen(legBtn.getAttribute("aria-expanded") !== "true"); });
+    var panelsOpen = {{ 'true' if map_panels_open else 'false' }};   // Settings > Map Tiles and Weather: list, filters and legend closed or open when the page loads
+    filtersShow(panelsOpen && window.innerWidth > 700);   // on a phone the filters fill the screen when open, so a map never opens that way
+    try { if (panelsOpen && localStorage.getItem("ark." + o.key + ".legend") === "1" && window.innerWidth > 720) legOpen(true); } catch (e) {}
+    $("lv-reset").addEventListener("click", function () {
+      if (!window.confirm("Reset all of your map settings in this browser (layers, markers, units) to the site defaults?")) return;
+      var keep = o.reset || ["ark." + o.key]; try { Object.keys(localStorage).filter(function (k) { return k.indexOf("lv.") === 0 || keep.some(function (p) { return k.indexOf(p) === 0; }); }).forEach(function (k) { localStorage.removeItem(k); }); } catch (e) {}
+      location.href = o.url;
+    });
+    function viewUrl() {
+      var c = map.getCenter(), p = new URLSearchParams(); p.set("lat", c.lat.toFixed(3)); p.set("lon", c.lng.toFixed(3)); p.set("zoom", String(map.getZoom()));
+      var extra = o.share ? o.share() : {}; Object.keys(extra).forEach(function (k) { if (extra[k] !== "" && extra[k] != null) p.set(k, extra[k]); });
+      return location.origin + o.url + "?" + p.toString();
+    }
+    if (window.ArkDrive) ArkDrive.init({map: map});
+    if (window.ArkLocate) ArkLocate.init({map: map});
+    if (window.ArkCounties) ArkCounties.init({map: map, box: $("l-county")});
+    window.arkMap = map; window.arkViewURL = viewUrl;   // for the one search and the saved views (static/mapsearch.js, static/mapviews.js)
+    $("lv-sharelink").addEventListener("click", function () {
+      var url = viewUrl(), note = $("lv-sharenote");
+      var done = function () { note.textContent = "Link copied."; setTimeout(function () { note.textContent = ""; }, 3000); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, function () { window.prompt("Copy this link:", url); }); else window.prompt("Copy this link:", url);
+    });
+    function listVisible(show) { $("lv-list").style.display = show ? "flex" : "none"; $("lv-hide").style.display = show ? "none" : "block"; }
+    $("lv-listhide").addEventListener("click", function () { listVisible(false); });
+    $("lv-hide").addEventListener("click", function () { listVisible(true); });
+    listVisible({{ 'true' if map_panels_open else 'false' }});   // closed or open when the page loads: Settings > Map Tiles and Weather (list, filters and legend)
+    return {AL: AL, renderLegend: renderLegend, legOpen: legOpen, filtersShow: filtersShow, listVisible: listVisible};
+  }};
+})();
+</script>
+<script src="/static/mapsearch.js?v={{ app_version }}" data-ark-rerun></script>
+<script src="/static/mapviews.js?v={{ app_version }}" data-ark-rerun></script>
+{%- endmacro %}

@@ -1,0 +1,41 @@
+{% from "partials/_alert_form.html" import rule_form with context %}
+<div id="alerts-list">
+<div class="grp">Your Alerts ({{ rules | length }} of {{ limit }})</div>
+{% for r in rules %}
+<details class="panel role" id="rule-{{ r.id }}">
+  <summary>
+    <span class="role-name">{{ r.name }}</span>
+    {% if r.enabled %}<span class="tag live">on</span>{% else %}<span class="tag off">off</span>{% endif %}
+    {% if r.notify_email %}<span class="tag">email</span>{% endif %}{% if r.notify_webhook %}<span class="tag">webhook</span>{% endif %}
+    <span class="dim role-sum">{{ kinds[r.kind] }}{% if r.value %}: {{ r.value }}{% endif %} &middot; {{ r.event_count }} match{{ '' if r.event_count == 1 else 'es' }}</span>
+  </summary>
+  <div style="padding:0 22px 22px">
+    {{ rule_form(r, kinds, needs_value, r.id) }}
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <form class="inline" method="post" action="/my/alerts/{{ r.id }}/toggle" data-async data-async-target="#alerts-list">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn small" type="submit">{{ 'Turn Off' if r.enabled else 'Turn On' }}</button>
+      </form>
+      <form class="inline" method="post" action="/my/alerts/{{ r.id }}/delete" data-async data-async-target="#alerts-list"
+            data-confirm="Delete the alert {{ r.name }}? Its match history is deleted too.">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn small warn" type="submit">Delete</button>
+      </form>
+    </div>
+  </div>
+</details>
+{% else %}<div class="panel"><p class="dim" style="margin:0">You have no alerts yet. Add one below.</p></div>{% endfor %}
+
+<div class="grp">Recent Matches</div>
+<div class="panel" style="overflow-x:auto">
+  <table>
+    <tr><th>When</th><th>Alert</th><th>Aircraft</th><th>Type</th><th>Altitude</th><th>Position</th></tr>
+    {% for e in events %}
+    <tr><td class="dim" style="white-space:nowrap">{{ e.ts | localtime("%Y-%m-%d %H:%M:%S") }}{% if since is defined and since and e.ts > since %} <span class="tag live">New</span>{% endif %}</td><td>{{ e.rule_name }}</td>
+      <td><a href="/live?icao={{ e.hex }}" class="mono">{{ e.callsign or e.registration or e.hex | upper }}</a><br><span class="dim mono" style="font-size:.75rem">{{ e.hex | upper }}{% if e.registration %} {{ e.registration }}{% endif %}</span></td>
+      <td class="dim">{{ e.type or '' }}</td><td class="dim mono">{{ (e.alt_ft | round | int) if e.alt_ft is not none else '' }}{{ ' ft' if e.alt_ft is not none }}</td>
+      <td class="dim mono">{% if e.lat is not none %}{{ '%.3f' % e.lat }}, {{ '%.3f' % e.lon }}{% endif %}</td></tr>
+    {% else %}<tr><td colspan="6" class="dim">No matches yet. Matches appear here as soon as a watched aircraft is seen.</td></tr>{% endfor %}
+  </table>
+</div>
+</div>

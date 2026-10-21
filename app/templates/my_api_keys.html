@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}API Keys{% endblock %}
+{% block content %}
+<h1>My <span>API Keys</span></h1>
+<div class="sub">A key lets a program of yours read the network's public data through the documented <a href="/api/docs">API</a>, with fair limits. Make one key for each project, so you can stop one without touching the others.</div>
+{% with active = 'apikeys' %}{% include "partials/_my_subnav.html" %}{% endwith %}
+
+{% if can_make %}
+{% call sec('make', 'Make a Key', True) %}
+  <form method="post" action="/my/api-keys/create" data-async data-async-target="#apikeys-list" data-reset>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="ak-name">What Is It For?</label>
+    <input type="text" id="ak-name" name="name" maxlength="60" required style="max-width:340px" placeholder="For example Club wall display">
+    <label for="ak-note">Notes (Optional)</label>
+    <input type="text" id="ak-note" name="note" maxlength="200" style="max-width:520px" placeholder="Where it runs, or who else uses it">
+    <button class="btn" type="submit">Make the Key</button>
+    <div class="help">You can have {{ per_user }} working keys. Each key may make {{ per_min }} requests a minute and {{ '{:,}'.format(per_day) }} a day unless an administrator has set it differently.</div>
+  </form>
+{% endcall %}
+{% else %}
+{% call sec('make', 'Getting a Key', True) %}
+  <p style="margin:0">On this site an administrator makes the API keys. Ask through <a href="/contact">Contact</a> and say what the key is for; it then appears under Your Keys below.</p>
+{% endcall %}
+{% endif %}
+
+{% call sec('keys', 'Your Keys', True) %}
+  {% include "partials/_api_keys_list.html" %}
+{% endcall %}
+
+{% call sec('use', 'Using a Key', False) %}
+  <p style="margin-top:0">Send the key with every request in the Authorization header:</p>
+  <pre class="code mono">curl -H "Authorization: Bearer YOUR_KEY" {{ request.host_url.rstrip("/") }}/api/v1/me</pre>
+  <p class="dim" style="margin-bottom:0">The full list of what you can ask for, the limits and the rules of use are on the <a href="/api/docs">API page</a>. Keep a key private: anyone who has it can use up your limits. If one leaks, revoke it here and make another.</p>
+{% endcall %}
+{% endblock %}

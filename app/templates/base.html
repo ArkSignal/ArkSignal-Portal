@@ -1,0 +1,760 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+{%- set _t = self.title() | trim -%}
+<title>{{ (_t ~ ' | ' ~ site_name) if _t else site_name }}</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<meta name="theme-color" content="#070d17">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<script src="/static/arkunits.js"></script>
+<script src="/static/callsign.js" defer></script>
+<script>window.ARK_THEMES = {{ ark_themes | tojson }};</script>
+<script src="/static/themes.js?v={{ app_version }}"></script>
+<script>
+(function () {
+  var p = {};
+  try { p = JSON.parse(localStorage.getItem("adsb.prefs") || "{}"); } catch (e) {}
+  {% if server_prefs %}p = Object.assign(p, {{ server_prefs | tojson }}); try { localStorage.setItem("adsb.prefs", JSON.stringify(p)); } catch (e) {}{% endif %}
+  try { document.cookie = "ark_units=" + (p.units || "") + "; path=/; max-age=" + (p.units ? 31536000 : 0) + "; samesite=lax"; } catch (e) {}   // lets server-built pages follow the units chosen in this browser
+  try { var ua = Object.keys(p).filter(function (k) { return k.indexOf("u_") === 0 && p[k]; }).map(function (k) { return k.slice(2) + ":" + p[k]; }).join("|"); document.cookie = "ark_ua=" + ua + "; path=/; max-age=" + (ua ? 31536000 : 0) + "; samesite=lax"; } catch (e) {}   // the same for each service
+  window.PREFS = p; window.SITE_TZ = {{ site_tz | tojson }}; window.SITE_PW = {{ page_width_mode | tojson }}; window.SITE_UNITS = {{ site_units | tojson }}; window.SITE_UNITS_BY = {{ unit_site_by | tojson }}; window.ARK_AREA = {{ unit_area | tojson }}; window.ARK_AREAS = {{ unit_areas | tojson }};
+  window.ARK_SIGNED_IN = {{ 'true' if current_user.is_authenticated else 'false' }}; window.CSRF_TOKEN = {{ csrf_token() | tojson }};
+  document.documentElement.setAttribute("data-pw", p.pageWidth || window.SITE_PW);
+  ArkThemes.apply(p);   // the person's theme, else the site's (a seasonal one on its days); the colors go on before the page is drawn
+})();
+</script>
+<style>
+:root{--maxw:{{ page_max_width }}px}
+:root{--bg:#070d17;--panel:rgba(18,28,44,.72);--line:rgba(120,160,210,.14);--text:#e8eef7;--dim:#8a9bb3;--acc:#3ee6a8;--acc2:#4fb3ff;--err:#ff6b6b;
+  --input-bg:rgba(7,13,23,.7);--input-bg-soft:rgba(7,13,23,.45);--pop-bg:#17253d;--card-bg:rgba(10,18,32,.88);--map-bg:#0a1220;
+  --map-filter:brightness(.62) contrast(1.05) saturate(.8);--g1:rgba(79,179,255,.14);--g2:rgba(62,230,168,.10);color-scheme:dark}
+html[data-theme=light]{--bg:#eef3f9;--panel:rgba(255,255,255,.8);--line:rgba(40,70,110,.18);--text:#0f1c2e;--dim:#566880;--acc:#0b9a6e;--acc2:#1769c2;--err:#d23a3a;
+  --input-bg:rgba(255,255,255,.95);--input-bg-soft:rgba(240,245,252,.8);--pop-bg:#ffffff;--card-bg:rgba(255,255,255,.92);--map-bg:#dfe7f1;
+  --map-filter:none;--g1:rgba(23,105,194,.10);--g2:rgba(11,154,110,.08);color-scheme:light}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{overflow-x:clip;min-height:100vh;color:var(--text);font:15px/1.55 Inter,system-ui,sans-serif;background:var(--bg)}
+/* The picture and glows sit on their own fixed layer. As a "fixed" body background they were repainted on every scroll step, which made scrolling jerky on phones; a promoted layer is only moved by the compositor. */
+body::before{content:"";position:fixed;left:0;top:0;width:100%;height:100vh;height:100lvh;z-index:-1;pointer-events:none;transform:translateZ(0);
+  background:url(/background.svg?u={{ units_system() }}) center/cover no-repeat,
+             radial-gradient(1200px 600px at 70% -10%,var(--g1),transparent 60%),
+             radial-gradient(900px 500px at -10% 110%,var(--g2),transparent 60%)}
+html{scroll-padding-top:72px;scroll-padding-bottom:48px}
+main{--px:24px;--pt:28px;--w:100vw;display:flex;flex-direction:column;min-height:100vh;min-height:100dvh;position:relative;max-width:var(--maxw,1800px);margin:0 auto;padding:var(--pt) var(--px) 0}   /* page content is limited to the site's width (Settings > Display) and centred; no section sets its own width (tests/sitewidth_test.py) */
+html[data-pw=full] main,main.wide{max-width:none}   /* a person who chose full width, and the map pages, use the whole window */
+nav{--P:var(--px);display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:calc(-1 * var(--pt)) calc(50% - var(--vw,100vw) / 2) 24px;padding:10px var(--P);position:sticky;top:0;z-index:3000;background:var(--bg);border-bottom:1px solid var(--line)}
+nav .brand{font-weight:700;font-size:1.1rem;margin-right:14px;color:var(--text);text-decoration:none}
+nav .brand span{color:var(--acc)}
+nav a,nav button{color:var(--dim);text-decoration:none;padding:6px 10px;border-radius:999px;border:1px solid transparent;background:none;font:inherit;cursor:pointer}
+nav a:hover,nav button:hover{color:var(--text);border-color:var(--line)}
+nav .sp{flex:1}
+nav .mapbtn{display:inline-flex;align-items:center;gap:7px;color:var(--text);border-color:var(--line)}
+nav .mapbtn:hover{color:var(--acc);border-color:var(--acc)}
+nav .mapbtn.here{color:var(--acc);border-color:var(--acc);background:rgba(62,230,168,.08)}
+h1{margin:0 0 6px;font-size:clamp(1.6rem,3.5vw,2.2rem);font-weight:700;letter-spacing:-.02em}
+h1 span{color:var(--acc)}
+.sub{color:var(--dim);margin-bottom:22px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:22px;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.narrow{max-width:none}
+/* sign-in, register, password reset and two-factor sign-in hold very little: a small centred column, not the width of the page */
+.authpage{max-width:480px;width:100%;margin:36px auto 0}
+main>*{min-width:0}
+main>footer{margin-top:auto}   /* a short page keeps the footer at the bottom of the window instead of in the middle of it */
+main>footer{flex:none}
+main>:nth-last-child(2){margin-bottom:28px}
+.authpage.wide{max-width:620px}
+.authpage .panel.narrow input:not([type=checkbox]):not([type=radio]),.authpage .panel.narrow select{max-width:none}
+.panel.narrow input:not([type=checkbox]):not([type=radio]),.panel.narrow select{max-width:420px}   /* a sign-in form is as wide as every other section; its fields stay a sensible size */
+label{display:block;color:var(--dim);font-size:.85rem;margin:14px 0 4px}
+input[type=text],input[type=password],input[type=search]{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--input-bg);color:var(--text);font:inherit}
+input:focus{outline:none;border-color:var(--acc)}
+.btn{display:inline-block;margin-top:18px;padding:10px 18px;border-radius:10px;border:1px solid var(--acc);background:rgba(62,230,168,.12);color:var(--acc);font:600 .95rem Inter,sans-serif;cursor:pointer;text-decoration:none}
+.btn:hover{background:rgba(62,230,168,.22)}
+.btn,button.btn{white-space:nowrap}
+.btn.small{margin:0;padding:4px 10px;font-size:.8rem;border-radius:8px}
+.btn.warn{border-color:var(--err);color:var(--err);background:rgba(255,107,107,.1)}
+.flash{padding:10px 14px;border-radius:10px;margin-bottom:14px;border:1px solid var(--line);background:var(--panel)}
+.flash.error{border-color:var(--err);color:var(--err)}
+.flash.success{border-color:var(--acc);color:var(--acc)}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);font-size:.9rem;vertical-align:middle}
+th{color:var(--dim);font-weight:600;font-size:.75rem;text-transform:uppercase;letter-spacing:.1em}
+.mono{font-family:'JetBrains Mono',monospace}
+.dim{color:var(--dim)}
+form.inline{display:inline;margin:0}
+.pwreq{list-style:none;margin:6px 0 0;padding:0;font-size:.84rem;color:var(--dim)}
+.pwreq li::before{content:"○";display:inline-block;width:1.4em;color:var(--dim)}
+.pwreq li.ok{color:var(--acc)}.pwreq li.ok::before{content:"✓";color:var(--acc)}
+.pwreq li.bad{color:var(--err)}.pwreq li.bad::before{content:"✗";color:var(--err)}
+.tag{display:inline-block;padding:1px 8px;border-radius:999px;border:1px solid var(--line);font-size:.75rem;color:var(--dim)}
+.tag.admin{color:var(--acc2);border-color:var(--acc2)}
+.tag.off{color:var(--err);border-color:var(--err)}
+a{color:var(--acc2)}
+.subnav{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:22px;border-bottom:1px solid var(--line);padding-bottom:10px}
+.subnav a{color:var(--dim);text-decoration:none;padding:6px 14px;border-radius:999px;border:1px solid transparent}
+.subnav a:hover{color:var(--text);border-color:var(--line)}
+.subnav a.active{color:var(--acc);border-color:var(--acc);background:rgba(62,230,168,.08)}
+.subnav .sn-label{align-self:center;color:var(--dim);font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;padding:0 6px 0 2px;min-width:92px}
+.subnav .sn-break{flex-basis:100%;height:0}
+/* the admin menu: groups with a small label, always in the order defined in app/adminnav.py */
+.adminnav{gap:12px;align-items:stretch;margin-top:14px;padding-bottom:0;border-bottom:0}
+.adminnav .ag{display:flex;flex-direction:column;gap:6px;padding:8px 10px 10px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.025)}
+.adminnav .ag.has-active{border-color:var(--acc);background:rgba(62,230,168,.05)}
+.adminnav .agl{font:600 .64rem Inter,sans-serif;text-transform:uppercase;letter-spacing:.14em;color:var(--dim);padding-left:8px}
+.adminnav .ag.has-active .agl{color:var(--acc)}
+.adminnav .agi{display:flex;gap:4px;flex-wrap:wrap}
+.adminnav a{padding:5px 12px}
+.secbody{overflow-x:auto}   /* a wide table inside a section scrolls inside it instead of widening the page */
+.adminnav .agi a{border-color:var(--dim)}   /* every link is outlined like the active one, but in the grey of its text */
+.adminnav .agi a:hover{color:var(--text);border-color:var(--text)}
+.adminnav .agi a.active{color:var(--acc);border-color:var(--acc)}
+#action-feedback{display:none;padding:10px 14px;border-radius:10px;margin-bottom:14px;border:1px solid var(--line);background:var(--panel);word-break:break-word;position:sticky;top:calc(64px + var(--sub,0px));z-index:900;box-shadow:0 4px 18px rgba(0,0,0,.35)}   /* stays in view, so the page never has to scroll to show what happened */
+#action-feedback.success{display:block;border-color:var(--acc);color:var(--acc)}
+#action-feedback.error{display:block;border-color:var(--err);color:var(--err)}
+form.sending button{opacity:.5;pointer-events:none}
+details.setsec{margin-bottom:12px;padding:0;max-width:none}
+details.setsec>summary{cursor:pointer;list-style:none;padding:16px 22px;display:flex;gap:10px;align-items:center}
+details.setsec>summary::-webkit-details-marker{display:none}
+details.setsec>summary::before{content:"▸";color:var(--dim)}
+details.setsec[open]>summary::before{content:"▾"}
+details.setsec>form,details.setsec>.secbody{padding:0 22px 22px}
+details.setsec>summary .role-name{font-weight:600;font-size:1.05rem}
+.setsec-actions{display:flex;gap:10px;align-items:center;margin-top:18px}
+.setsec-actions .btn{margin-top:0}
+.btn.neutral{border-color:var(--line);color:var(--dim);background:transparent}
+.btn.neutral:hover{color:var(--text);border-color:var(--dim)}
+.setsec-tools{display:flex;gap:10px;margin-bottom:14px}
+details.role{margin-bottom:12px;padding:0}
+details.role>summary{cursor:pointer;list-style:none;padding:16px 22px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+details.role>summary::-webkit-details-marker{display:none}
+details.role>summary::before{content:"▸";color:var(--dim);margin-right:2px}
+details.role[open]>summary::before{content:"▾"}
+.role-name{font-weight:600;font-size:1.05rem}
+.role-sum{margin-left:auto;font-size:.85rem}
+details.role>form.role-body,details.role>div,details.role>form{padding:0 22px}
+details.role>form:last-child,details.role>div:last-child{padding-bottom:22px}
+.grp{margin:18px 0 6px;color:var(--dim);font-size:.75rem;text-transform:uppercase;letter-spacing:.12em;font-weight:600}
+label.check{display:flex;gap:10px;align-items:flex-start;margin:8px 0;color:var(--text);font-size:.92rem;cursor:pointer}
+label.check input{margin-top:4px}
+.members{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.tag.member{display:inline-flex;gap:6px;align-items:center}
+button.x{background:none;border:none;color:var(--dim);cursor:pointer;font-size:1rem;line-height:1;padding:0}
+button.x:hover{color:var(--err)}
+.inline-row{display:inline-flex;gap:8px;align-items:center;margin:4px 0}
+form.panel.inline-row{display:flex}
+form.panel.inline-row input[type=text]{flex:1}
+select,input[type=text].sm{padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:var(--input-bg);color:var(--text);font:inherit}
+input[readonly]{opacity:.6}
+.filters{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end}
+.filters label{margin:0 0 4px}
+.filters .btn.small{margin:0 0 2px}
+.pager{display:flex;gap:10px;align-items:center;margin-top:14px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.tile .tv{font:700 1.6rem/1.1 'JetBrains Mono',monospace}
+.tile .tl{color:var(--dim);font-size:.82rem;margin-top:6px}
+.tag.live{color:var(--acc);border-color:var(--acc)}
+.copywrap{position:relative;margin:0 0 12px}.copywrap pre.code{padding-right:76px}
+.copybtn{font:600 .72rem/1 inherit;font-family:inherit;color:var(--dim);background:var(--panel,transparent);border:1px solid var(--line);border-radius:999px;padding:5px 11px;cursor:pointer}
+.copybtn:hover{color:var(--text);border-color:var(--acc)}.copybtn.done{color:var(--acc);border-color:var(--acc)}
+.copywrap .copybtn{position:absolute;top:8px;right:8px}.copyinline{margin-left:8px;vertical-align:middle}
+pre.code{background:var(--input-bg);border:1px solid var(--line);border-radius:10px;padding:12px 14px;overflow-x:auto;font:500 .85rem/1.5 'JetBrains Mono',monospace;margin:0;white-space:pre}
+ul.plain,ol.plain{margin:0;padding-left:22px}
+ul.plain li,ol.plain li{margin:6px 0}
+details.navmenu{position:relative}
+details.navmenu>summary{list-style:none;cursor:pointer;color:var(--dim);padding:6px 12px;border-radius:999px;border:1px solid transparent}
+details.navmenu>summary::-webkit-details-marker{display:none}
+details.navmenu>summary:hover,details.navmenu[open]>summary{color:var(--text);border-color:var(--line)}
+details.navmenu.active>summary,details.navmenu.active>summary a.gl{color:var(--acc)}
+details.navmenu>summary a.gl{padding:0;border:0;color:inherit;background:none}
+details.navmenu>summary a.gl:hover{border:0}
+.navdrop a.here{color:var(--acc)}
+main.has-sub{--sub:38px}
+@media (max-width:900px){main.has-sub{--sub:56px}}   /* the phone section bar is one 44 px tap target, taller than the desktop strip */
+nav .subbar{order:99;flex:0 0 calc(100% + 2 * var(--P));box-sizing:border-box;display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin:6px calc(-1 * var(--P)) -10px;padding:5px var(--P);border-top:1px solid var(--line);background:rgba(120,160,210,.05)}
+.subdrop{display:contents}
+nav .subbar b{color:var(--dim);font:600 .7rem Inter,sans-serif;text-transform:uppercase;letter-spacing:.12em;margin-right:8px}
+nav .subbar a{padding:3px 11px;font-size:.88rem}
+nav .subbar a.here{color:var(--acc);border-color:var(--acc);background:rgba(62,230,168,.08)}
+details.navmenu>summary::after{content:" \25BE"}
+.navdrop{position:absolute;z-index:3001;top:38px;left:0;min-width:200px;background:var(--pop-bg);border:1px solid color-mix(in srgb, var(--acc) 40%, var(--line));border-top:3px solid var(--acc);border-radius:12px;padding:8px;gap:2px;display:flex;flex-direction:column;box-shadow:0 18px 40px rgba(0,0,0,.55),0 2px 8px rgba(0,0,0,.35)}
+.navdrop a{border-radius:8px;padding:8px 12px;color:var(--text);border:1px solid transparent}
+.navdrop a:hover,.navdrop a:focus-visible{background:rgba(62,230,168,.14);color:var(--acc);border-color:rgba(62,230,168,.35)}
+.navdrop a.here{background:rgba(62,230,168,.08)}
+.navdrop .navhead{display:block;padding:8px 12px 2px;margin-top:4px;color:var(--dim);font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;border-top:1px solid var(--line)}
+.navdrop .navhead:first-child{border-top:0;margin-top:0}
+.navdrop:has(.navhead){min-width:230px}
+.navdrop .menulink{display:block;width:100%;text-align:left;background:none;border:1px solid transparent;border-radius:8px;padding:8px 12px;color:var(--text);font:inherit;cursor:pointer}.navdrop .menulink:hover,.navdrop .menulink:focus-visible{background:rgba(62,230,168,.14);color:var(--acc);border-color:rgba(62,230,168,.35)}
+.navdrop .msgbadge{margin-left:6px}
+.msgbadge{display:inline-block;min-width:1.3em;padding:0 6px;border-radius:999px;background:var(--acc2);color:#000;font-size:.72rem;font-weight:700;text-align:center}
+.navdrop{max-height:calc(100vh - 76px);overflow-y:auto;overscroll-behavior:contain}
+/* while a menu is open the page behind it steps back, so the menu stands out (wide screens; the phone menu is a full-screen list) */
+@media (min-width:901px){
+  main>*:not(nav){transition:opacity .15s}
+  body:has(nav details.navmenu[open]) main>*:not(nav):not(footer){opacity:.45}
+}
+iframe.tool{width:100%;border:1px solid var(--line);border-radius:14px;background:#000;height:calc(100vh - 190px - var(--sub,0px));min-height:480px}
+main.wide{--px:16px;--pt:12px;--w:100vw;max-width:none;padding:var(--pt) var(--px) 14px}
+/* the admin area: the full width of the window, and every section in it the same width (no section sets its own; tests/adminwidth_test.py fails if one does) */
+main.admin{--px:24px;--w:100vw}
+main.admin details.setsec,main.admin form.panel,main.admin #updates-panel{max-width:none;width:100%;box-sizing:border-box}
+@media (max-width:720px){main.admin{--px:14px}}
+main.wide footer{position:static;margin-top:4px;padding-top:3px;padding-bottom:3px;font-size:.7rem;line-height:1.25}   /* on a map page the footer is one thin line: the map gets the room */
+main.wide footer #ark-greet{display:inline!important;margin:0 8px 0 0!important}
+main.wide nav{margin-bottom:10px}
+.help{color:var(--dim);font-size:.82rem;margin-top:4px}
+.alertbadge{color:var(--text)!important;border-color:var(--acc)!important}
+.alertbadge b{background:var(--acc);color:#04130d;border-radius:999px;padding:0 7px;font-size:.78rem;margin-left:4px}
+.prefs{padding:12px 16px;min-width:340px;max-width:min(420px,92vw);box-sizing:border-box}
+.prefs>*{flex:none}
+.prefs .pf-links{display:flex;flex-direction:column;gap:4px;margin:10px 0 0;padding-top:8px;border-top:1px solid var(--line)}
+.prefs .pf-links a{display:block;font-size:.88rem;line-height:1.3}
+.prefs label{display:block;margin:8px 0 3px;color:var(--dim);font-size:.75rem;text-transform:uppercase;letter-spacing:.08em}
+.prefs select{width:100%;padding:7px 9px;border-radius:9px;border:1px solid var(--line);background:var(--input-bg);color:var(--text);font:inherit}
+.prefs .note{color:var(--dim);font-size:.75rem;margin-top:8px}
+time.ts{white-space:nowrap}
+.tfilterbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 12px}
+.tfilterbar select{max-width:100%;min-width:0}
+.tfilterbar input{flex:1;max-width:380px}
+table.sortable th[data-sort]{cursor:pointer;user-select:none;white-space:nowrap}
+table.sortable th[data-sort]:hover{color:var(--text)}
+table.sortable th[data-dir=asc]::after{content:" ▲";font-size:.65rem}
+table.sortable th[data-dir=desc]::after{content:" ▼";font-size:.65rem}
+th.kvh{width:200px}
+.navfoot{display:none!important}
+footer{--P:var(--px);margin:44px calc(50% - var(--vw,100vw) / 2) 0;padding:10px var(--P);color:var(--dim);font-size:.8rem;text-align:center;position:sticky;bottom:0;z-index:2900;background:var(--bg);border-top:1px solid var(--line)}
+.foot-note{margin-top:44px;color:var(--dim);font-size:.8rem;text-align:center}
+#to-top{position:fixed;right:16px;bottom:64px;z-index:2950;width:46px;height:46px;border-radius:50%;border:1px solid var(--line);background:var(--pop-bg);color:var(--text);font-size:1.15rem;line-height:1;cursor:pointer;display:none;box-shadow:0 6px 18px rgba(0,0,0,.35);touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+#to-top.on{display:block}#to-top:hover,#to-top:focus-visible{color:var(--acc);border-color:var(--acc)}
+html.nav-lock #to-top{display:none}
+#nav-toggle{display:none;margin-left:auto;font-size:1.3rem;line-height:1;padding:6px 12px;min-height:40px;border-color:var(--line)}
+/* Phones and small tablets: the menu folds into a drawer, forms and tables fit the screen, tap targets grow. */
+/* Narrow windows: the menu folds into a drawer and the section bar into one button, so nothing is ever cut off. */
+@media (max-width:900px),(hover:none){.panel,.lv-panel{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}}   /* blurring what is behind a panel costs a lot on phones and is hardly visible on this background */
+@media (max-width:900px){
+  #nav-toggle{display:block}
+  nav>*:not(.brand):not(#nav-toggle):not(.mapbtn):not(.subbar){display:none}
+  nav .mapbtn{order:1;margin-left:auto}   /* the map stays in the bar next to the menu button, never folded away */
+  #nav-toggle{order:2;margin-left:6px}
+  nav.open .mapbtn{order:0;margin-left:0;display:flex}
+  nav.open #nav-toggle{order:0;margin-left:auto}
+  nav.open>*:not(.brand):not(#nav-toggle):not(.sp):not(.subbar){display:block}
+  nav.open form.inline{display:block}
+  nav.open{position:fixed;inset:0;margin:0;z-index:3500;background:var(--bg);max-height:none;overflow-y:auto;overscroll-behavior:contain;align-content:flex-start;padding-bottom:40px}   /* the open menu is a full-screen sheet */
+  nav.open a,nav.open button,nav.open details.navmenu>summary{display:block;width:100%;text-align:left;padding:12px 14px;border-radius:10px;min-height:44px}
+  nav.open details.navmenu{width:100%}
+  nav.open .navdrop{position:static;border:0;border-left:2px solid var(--line);border-radius:0;box-shadow:none;background:transparent;padding:0 0 6px 6px;margin:0 0 4px 16px;min-width:0}
+  nav.open .navdrop a{padding:12px 14px;min-height:44px;display:flex;align-items:center}
+  nav.open details.navmenu>summary{font-weight:600;color:var(--text)}
+  nav.open details.navmenu[open]>summary{color:var(--acc)}
+  nav.open a.mapbtn{border:0;color:var(--text);font-weight:600;padding:12px 14px;gap:10px}
+  nav.open>a:not(.brand):not(.mapbtn){color:var(--text)}
+  html.nav-lock,html.nav-lock body{overflow:hidden}   /* the page behind the open menu does not scroll */
+  nav.open .navdrop.prefs{padding:6px 14px 12px}
+  nav.open details.navmenu>summary{display:flex;align-items:center;justify-content:space-between;gap:8px}   /* the group name and its arrow on one line */
+  nav.open details.navmenu>summary a.gl{display:inline;width:auto;min-height:0;padding:0;flex:1}
+  nav.open details.navmenu>summary::after{flex:none}
+  nav.open a.mapbtn{display:flex;gap:12px;align-items:center}
+  nav .brand{margin-right:0;flex:1;padding-left:4px}
+  nav.open .brand{flex:1 1 60%}
+  nav.open #nav-toggle{flex:0 0 auto;width:auto}
+  /* the section bar is one full-width button; its links open as a sheet over the page instead of pushing it down */
+  nav .subbar{flex-direction:column;align-items:stretch;gap:0;position:static}
+  nav .subbar b{display:flex;align-items:center;justify-content:space-between;margin:0;padding:0 10px;min-height:44px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+  nav .subbar b::after{content:"\25BE";transition:transform .15s}
+  nav .subbar.open b::after{transform:rotate(180deg)}
+  nav .subdrop{display:none;position:absolute;left:0;right:0;top:100%;z-index:3100;flex-direction:column;max-height:calc(100dvh - 120px);overflow-y:auto;overscroll-behavior:contain;padding:6px 10px 10px;background:var(--pop-bg);border-bottom:1px solid var(--line);box-shadow:0 18px 30px rgba(0,0,0,.45)}
+  nav .subbar.open .subdrop{display:flex}
+  nav .subdrop a{display:flex;align-items:center;padding:10px 14px;min-height:46px;border-radius:10px;touch-action:manipulation}
+  nav.open .subbar{display:none}
+  nav a,nav button,nav summary{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+}
+@media (max-width:720px){
+  main{--px:14px;--pt:16px}
+  main.wide{--px:10px;--pt:8px}
+  nav{margin-bottom:16px;padding-top:8px;padding-bottom:8px}
+  .panel{padding:16px;border-radius:14px}
+  .narrow{max-width:none}
+  .btn{padding:12px 18px;min-height:44px}
+  .btn.small{padding:8px 12px;min-height:36px}
+  input[type=text],input[type=password],input[type=email],input[type=number],select{font-size:16px;min-height:42px}
+  .filters{gap:10px}
+  .filters>*{flex:1 1 100%;min-width:0}   /* each filter takes the whole row so long choices (launch sites) never run off the screen */
+  .filters>.btn,.filters>button,.filters>input[type=submit]{flex:0 0 auto}
+  .filters select,.filters input:not([type=checkbox]):not([type=radio]):not([type=submit]),.filters textarea{width:100%;max-width:100%;min-width:0}
+  .filters label{display:block}
+  /* the same for the many filter forms laid out with inline flex styles: every field takes the whole row and nothing can run off the screen */
+  form[style*="flex-wrap"]>div,form[style*="flex-wrap"]>label{flex:1 1 100%!important;min-width:0!important}
+  form[style*="flex-wrap"] select,form[style*="flex-wrap"] input:not([type=checkbox]):not([type=radio]):not([type=submit]):not([type=hidden]),form[style*="flex-wrap"] textarea{width:100%!important;max-width:100%!important;min-width:0!important}
+  .subnav a{padding:9px 14px}
+  .adminnav{gap:10px}
+  .adminnav .ag{width:100%;box-sizing:border-box}
+  details.setsec>summary,details.role>summary{padding:14px 16px}
+  details.setsec>form,details.setsec>.secbody{padding:0 16px 18px}
+  details.role>form.role-body,details.role>div,details.role>form{padding:0 16px}
+  .tiles{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+  pre.code{font-size:.78rem}
+  iframe.tool{height:calc(100vh - 120px - var(--sub,0px));min-height:360px}
+  .scrollx,.panel:has(>table){overflow-x:auto;-webkit-overflow-scrolling:touch}
+  /* tables on phones: a table with sortable headers scrolls sideways with cells kept on one line (no word-by-word wrapping); every other table turns each row into a small card with the column name beside each value */
+  table.stack{display:block;border:0}
+  table.stack thead{display:none}
+  table.stack tbody,table.stack tfoot{display:block}
+  table.stack tr{display:block;margin:0 0 10px;padding:6px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+  table.stack td{display:flex;justify-content:space-between;align-items:baseline;gap:14px;border:0;border-bottom:1px solid var(--line);padding:6px 0;text-align:right;word-break:break-word}
+  table.stack td:last-child{border-bottom:0}
+  table.stack td::before{content:attr(data-label);flex:none;max-width:42%;text-align:left;color:var(--dim);font:600 .68rem Inter,sans-serif;text-transform:uppercase;letter-spacing:.08em}
+  table.stack td:first-child{font-weight:600;font-size:1rem}
+  table.stack td:empty{display:none}
+  table.stack td[data-label=""]::before{display:none}
+  table.stack td>.cv{flex:1 1 auto;min-width:0;text-align:right}
+  table.stack td:first-child>.cv{text-align:right}
+  table.stack tr.span{padding:10px 12px}
+  table.stack tr.span td{display:block;text-align:left;border:0;padding:0}
+  /* a sortable table keeps its headers as a row of buttons above the cards */
+  table.stack.sortable thead,table.stack.hsort thead{display:block;margin:0 0 10px}
+  table.stack.sortable thead tr,table.stack.hsort thead tr{display:flex;flex-wrap:wrap;gap:6px;border:0;background:none;padding:0;margin:0}
+  table.stack tr.hrow{display:none}   /* a heading row that sits in the table body instead of a thead */
+  table.stack.sortable tr.hrow,table.stack.hsort tr.hrow{display:flex;flex-wrap:wrap;gap:6px;border:0;background:none;padding:0;margin:0 0 10px}
+  table.stack.sortable thead th,table.stack.sortable tr.hrow th,table.stack.hsort thead th,table.stack.hsort tr.hrow th{display:inline-flex;align-items:center;min-height:36px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--panel);text-transform:none;letter-spacing:0;font-size:.8rem;white-space:nowrap}
+  /* two-column tables of name and value (a heading cell in each row) */
+  table.kv{display:block}table.kv tbody,table.kv tr{display:block}
+  table.kv tr{display:flex;justify-content:space-between;align-items:baseline;gap:14px;border-bottom:1px solid var(--line);padding:2px 0}
+  table.kv th,table.kv td{border:0;padding:6px 0}table.kv th{flex:none;max-width:42%}table.kv td{text-align:right;word-break:break-word;min-width:0}
+  th,td{padding:8px 8px}
+  select{max-width:100%}
+  .setsec-actions,.setsec-tools{flex-wrap:wrap}
+  /* slimmer bars on a phone: the menu bar and the section bar together were about a fifth of the screen */
+  nav{padding-top:4px;padding-bottom:4px;margin-bottom:8px}
+  nav .brand{font-size:1rem}
+  nav a,nav button{padding-top:4px;padding-bottom:4px}
+  #nav-toggle{min-height:36px;padding:3px 10px;font-size:1.15rem}
+  nav .mapbtn{min-height:36px}
+  nav .subbar{margin-top:3px;margin-bottom:-4px;padding-top:1px;padding-bottom:1px}
+  nav .subbar b{min-height:34px}
+  main.has-sub{--sub:40px}
+  nav.open .navfoot{display:flex!important;flex-wrap:wrap;gap:6px 16px;padding:12px 14px;margin-top:6px;font-size:.88rem;border-top:1px solid var(--line)}   /* the footer links live in the phone menu: on a map page the footer is not drawn at all */
+  nav .navfoot a{padding:2px 0;border:0;min-height:0;width:auto}
+  main.wide>footer{display:none}
+  th.kvh{width:auto;max-width:38%}td.copyable{overflow-wrap:normal;word-break:normal;font-size:.82rem}   /* a long server name breaks at its dots, not in the middle of a word */
+  footer{margin-top:20px;padding-top:6px;padding-bottom:calc(8px + env(safe-area-inset-bottom));font-size:.72rem;line-height:1.4;position:static}   /* on a phone the footer is two short lines at the end of the page, not a bar that covers it, and clear of the home bar */
+}
+@media (max-width:420px){h1{font-size:1.5rem}.panel{padding:14px}}
+</style>
+<script>(function () {
+  var h = document.documentElement, q = location.search;
+  if (!/[?&]kiosk=1(&|$)/.test(q)) return;
+  h.classList.add("kiosk"); if (/[?&]kidle=1(&|$)/.test(q)) h.classList.add("kidle");
+  document.addEventListener("DOMContentLoaded", function () { var n = document.getElementById("mainnav"); function m() { if (n) h.style.setProperty("--kh", n.offsetHeight + "px"); } m(); addEventListener("resize", m); });
+  // opened on its own (not inside the Kiosk Display, which does this for its frame): the menus and controls hide after a time with no input and come back with any
+  if (window.parent === window) {
+    var secs = parseInt((/[?&]idle=(\d+)/.exec(q) || [])[1], 10) || 10, t = null;
+    function wake() { h.classList.remove("kidle"); clearTimeout(t); t = setTimeout(function () { h.classList.add("kidle"); }, secs * 1000); }
+    ["mousemove", "mousedown", "touchstart", "keydown", "wheel"].forEach(function (e) { document.addEventListener(e, wake, {passive: true}); });
+    if (!h.classList.contains("kidle")) wake();   // a page that is told to start hidden stays hidden until there is input
+  }
+})();</script>
+<style>html.kiosk #mainnav, html.kiosk .subnav, html.kiosk .subbar, html.kiosk nav.sub, html.kiosk footer, html.kiosk #ark-normal, html.kiosk #ark-normal-wrap, html.kiosk .navfoot, html.kiosk #to-top, html.kiosk #lv-left, html.kiosk #lv-hide, html.kiosk #lv-list, html.kiosk #lv-fullbtn, html.kiosk #lv-fold, html.kiosk #dr-clearmap, html.kiosk #fs-done, html.kiosk .lv-locate, html.kiosk .leaflet-control-zoom, html.kiosk #lv-replay, html.kiosk #lv-card, html.kiosk #ms-box, html.kiosk .lv-panel{transition:opacity .4s}
+html.kiosk main{padding:0!important;margin:0!important}
+html.kiosk #mainnav{position:fixed!important;top:0;left:0;right:0;z-index:3500}
+html.kiosk .subbar,html.kiosk .subnav,html.kiosk nav.sub{position:fixed!important;top:var(--kh,56px);left:0;right:0;z-index:3490}
+html.kiosk footer{position:fixed!important;bottom:0;left:0;right:0;margin:0!important;z-index:3500}
+html.kiosk.kidle #mainnav, html.kiosk.kidle .subnav, html.kiosk.kidle .subbar, html.kiosk.kidle nav.sub, html.kiosk.kidle footer, html.kiosk.kidle #ark-normal, html.kiosk.kidle #ark-normal-wrap, html.kiosk.kidle .navfoot, html.kiosk.kidle #to-top, html.kiosk.kidle #lv-left, html.kiosk.kidle #lv-hide, html.kiosk.kidle #lv-list, html.kiosk.kidle #lv-fullbtn, html.kiosk.kidle #lv-fold, html.kiosk.kidle #dr-clearmap, html.kiosk.kidle #fs-done, html.kiosk.kidle .lv-locate, html.kiosk.kidle .leaflet-control-zoom, html.kiosk.kidle #lv-replay, html.kiosk.kidle #lv-card, html.kiosk.kidle #ms-box, html.kiosk.kidle .lv-panel{opacity:0!important;pointer-events:none!important}
+html.kiosk.kidle,html.kiosk.kidle *{cursor:none!important}
+html.kiosk main.wide #lv{border-radius:0}
+/* a kiosk is a display, not the site: the site's top bar, its sub bars and the footer are never shown in it (the map controls hide after a time with no input and come back with any) */
+html.kiosk #mainnav, html.kiosk .subnav, html.kiosk .subbar, html.kiosk nav.sub, html.kiosk footer{display:none!important}
+html.kiosk main{padding-top:0!important}</style>
+<script>(function () { function w() { document.documentElement.style.setProperty("--vw", document.documentElement.clientWidth + "px"); } w(); addEventListener("resize", w); if (window.ResizeObserver) new ResizeObserver(w).observe(document.documentElement); })();</script>
+</head>
+<body>
+{% if false %}{% block title %}{% endblock %}{% endif %}
+<main class="{% block main_class %}{% endblock %}{{ ' has-sub' if nav_sub else '' }}{{ ' admin' if request.path.startswith('/admin') else '' }}">
+<nav id="mainnav">
+  <a class="brand" href="/">{{ brand_name }}<span>{{ brand_accent }}</span></a>
+  <button type="button" id="nav-toggle" aria-label="Menu" aria-expanded="false" aria-controls="mainnav">&#9776;</button>
+  {% for g in nav_groups %}
+  <details class="navmenu{{ ' active' if g.active }}"><summary><a class="gl" href="{{ g.home }}">{{ g.label }}</a></summary>
+    <div class="navdrop">{% for label, href in g['items'] %}{% if href %}<a href="{{ href }}"{% if request.path == href or request.path == href.rstrip('/') %} class="here"{% endif %}>{{ label }}</a>{% else %}<span class="navhead">{{ label }}</span>{% endif %}{% endfor %}</div>
+  </details>
+  {% endfor %}
+  <span class="sp"></span>
+  <a class="mapbtn{{ ' here' if request.path.startswith('/live') }}" href="/live" title="Open the live map" aria-label="Open the live map"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg><span>Map</span></a>
+  <details class="navmenu" id="prefs-menu"><summary>Display</summary>
+    <div class="navdrop prefs" style="left:auto;right:0">
+      <label for="pf-theme">Theme</label>
+      <select id="pf-theme"><option value="site">Site default</option><option value="dark">Dark</option><option value="light">Light</option><option value="auto">Match my device</option></select>
+      <label class="check" style="margin:6px 0"><input type="checkbox" id="pf-deco"><span>Seasonal decorations (ribbon, symbols, holiday pictures, map symbols)</span></label>
+      <label for="pf-hour">Clock</label>
+      <select id="pf-hour"><option value="auto">Browser default</option><option value="12">12-hour</option><option value="24">24-hour</option></select>
+      <label for="pf-width">Page width</label>
+      <select id="pf-width"><option value="">Site default ({{ 'limited' if page_width_mode == 'limited' else 'full width' }})</option><option value="limited">Limited, for wide monitors</option><option value="full">Full width</option></select>
+      <label for="pf-units">Units</label>
+      <select id="pf-units"><option value="">Site default</option><option value="imperial">Feet, mph, miles, &deg;F</option><option value="aero">Feet, knots, nautical miles</option><option value="metric">Meters, km/h, kilometers</option></select>
+      <details id="pf-ua" class="pf-ua"><summary>Units for each service</summary><div id="pf-ua-list"></div></details>
+      <label for="pf-tz">Time zone</label>
+      <select id="pf-tz"><option value="browser">My browser's time zone</option><option value="site">Site time zone ({{ site_tz }})</option><option value="utc">UTC (Zulu, as aviation uses)</option></select>
+      <div class="pf-links">
+        {% if kiosk_on %}<a href="/kiosk">Kiosk Display <span class="dim">(for a wall screen)</span></a>{% endif %}
+        {% if current_user.is_authenticated %}<a href="/my/display">All Display Choices and Saved Map Views</a>{% endif %}
+      </div>
+      <div class="note">{% if current_user.is_authenticated %}Saved to your account and used on every device.{% else %}Saved in this browser. Sign in to keep it on every device.{% endif %}</div>
+    </div>
+  </details>
+  {% if current_user.is_authenticated %}
+    {% if chat_on or pm_on or friends_on %}<script src="/static/chatbadge.js?v={{ app_version }}" data-seconds="{{ 30 }}" defer></script>{% endif %}
+    {% if current_user.has_admin_access %}<a href="/admin/">Admin</a>{% endif %}
+    <a href="/my/alerts" id="nav-alerts" style="{{ '' if alerts_unseen else 'display:none' }}" class="alertbadge">Alerts <b id="nav-alerts-n">{{ alerts_unseen }}</b></a>
+    {% set me_n = (chat_unread or 0) + (pm_unread or 0) + (friend_requests or 0) %}
+    <details class="navmenu" id="me-menu"><summary>{{ current_user.label }} <span class="msgbadge" id="nb-me" style="{{ '' if me_n else 'display:none' }}" title="New chats, messages or friend requests">{{ me_n }}</span></summary>
+      <div class="navdrop" style="left:auto;right:0">
+        <a href="/my/">My Account</a>
+        {% if chat_on %}<a href="/chat/">Chat <span class="msgbadge" id="nb-chat" style="{{ '' if chat_unread else 'display:none' }}">{{ chat_unread }}</span></a>{% endif %}
+        {% if pm_on %}<a href="/my/messages">Messages <span class="msgbadge" id="nb-mail" style="{{ '' if pm_unread else 'display:none' }}">{{ pm_unread }}</span></a>{% endif %}
+        {% if friends_on %}<a href="/my/friends">Friends <span class="msgbadge" data-badge="friends" style="{{ '' if friend_requests else 'display:none' }}">{{ friend_requests }}</span></a>{% endif %}
+        <form class="inline" method="post" action="/my/logout" style="margin:0">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="menulink">Sign out</button>
+        </form>
+      </div>
+    </details>
+  {% else %}
+    <a href="/my/login">Sign In</a>
+    {% if registration_open %}<a href="/my/register">Register</a>{% endif %}
+  {% endif %}
+  {% if nav_sub %}<div class="subbar" aria-label="{{ nav_sub.label }}"><b role="button" tabindex="0" aria-expanded="false">{{ nav_sub.label }}</b><div class="subdrop">{% for label, href in nav_sub['items'] %}{% if href %}<a href="{{ href }}"{% if request.path == href or request.path == href.rstrip('/') %} class="here"{% endif %}>{{ label }}</a>{% endif %}{% endfor %}</div></div>{% endif %}
+  <div class="navfoot"><a href="/about">About</a><a href="/status">Status</a><a href="/release-notes">Release Notes</a><a href="/roadmap">Roadmap</a>{% if support_on %}<a href="/support">Support</a>{% endif %}<a href="/contact">Contact</a>{% if current_user.is_authenticated and current_user.has_admin_access and app_version != 'unreleased' %}<span class="dim">v{{ app_version }}</span>{% endif %}</div>
+</nav>
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for cat, msg in messages %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}
+{% endwith %}
+{% if current_user.is_authenticated %}<div id="alert-banner" class="panel" style="{{ '' if alerts_unseen else 'display:none' }};margin-bottom:14px;padding:10px 16px;border-color:var(--acc)">
+  <b id="alert-banner-n">{{ alerts_unseen }}</b> new aircraft alert<span id="alert-banner-s">{{ '' if alerts_unseen == 1 else 's' }}</span> matched your rules. <a href="/my/alerts">View Alerts</a></div>{% endif %}
+<div id="action-feedback" role="status"></div>
+{% block content %}{% endblock %}
+<button type="button" id="to-top" aria-label="Back to the top of the page" title="Back to the top">&#9650;</button>
+<footer>{{ site_name }} &middot; <a href="/about">About</a> &middot; <a href="/status">Status</a> &middot; <a href="/release-notes">Release Notes</a> &middot; <a href="/roadmap">Roadmap</a>{% if support_on %} &middot; <a href="/support">Support</a>{% endif %} &middot; <a href="/contact">Contact</a>{% if current_user.is_authenticated and current_user.has_admin_access and app_version != 'unreleased' %} &middot; v{{ app_version }}{% endif %}</footer>
+<script>
+// Copy buttons: every code block and every value marked .copyable gets one.
+(function () {
+  function copy(text, btn) {
+    function ok() { var t = btn.textContent; btn.textContent = "Copied"; btn.classList.add("done"); setTimeout(function () { btn.textContent = t; btn.classList.remove("done"); }, 1600); }
+    function fallback() { var a = document.createElement("textarea"); a.value = text; a.style.position = "fixed"; a.style.opacity = "0"; document.body.appendChild(a); a.select(); try { document.execCommand("copy"); ok(); } catch (e) {} a.remove(); }
+    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(ok, fallback); else fallback();
+  }
+  function mk(getText) { var b = document.createElement("button"); b.type = "button"; b.className = "copybtn"; b.textContent = "Copy"; b.setAttribute("aria-label", "Copy to clipboard"); b.addEventListener("click", function () { copy(getText(), b); }); return b; }
+  document.querySelectorAll("pre.code").forEach(function (pre) {
+    var w = document.createElement("div"); w.className = "copywrap"; pre.parentNode.insertBefore(w, pre); w.appendChild(pre); w.appendChild(mk(function () { return pre.innerText.replace(/\s+$/, ""); }));
+  });
+  document.querySelectorAll(".copyable").forEach(function (el) {
+    var b = mk(function () { return (el.getAttribute("data-copy") || el.innerText).trim(); }); b.classList.add("copyinline"); el.insertAdjacentElement("afterend", b);
+  });
+})();
+</script>
+<script>
+// Automatic sign-out after inactivity: warn first, and let the person stay signed in.
+{% if current_user.is_authenticated and idle_seconds %}(function () {
+  var IDLE = {{ idle_seconds }}, WARN = Math.min({{ idle_warning }}, IDLE), last = Date.now(), pinged = Date.now(), bar = null;
+  function ping() { pinged = Date.now(); fetch("/my/keepalive", {method: "POST", credentials: "same-origin", headers: {"X-CSRFToken": "{{ csrf_token() }}"}}).catch(function () {}); }
+  function hide() { if (bar) { bar.remove(); bar = null; } }
+  function activity() { last = Date.now(); hide(); if (Date.now() - pinged > 60000) ping(); }
+  ["mousemove", "keydown", "click", "touchstart", "scroll"].forEach(function (ev) { addEventListener(ev, function () { if (!bar) activity(); }, {passive: true}); });
+  setInterval(function () {
+    var left = IDLE - (Date.now() - last) / 1000;
+    if (left <= 0) { location.href = "/my/login?next=" + encodeURIComponent(location.pathname + location.search); return; }
+    if (left <= WARN) {
+      if (!bar) {
+        bar = document.createElement("div");
+        bar.setAttribute("role", "alert");
+        bar.style.cssText = "position:fixed;z-index:9000;left:50%;top:14px;transform:translateX(-50%);padding:12px 18px;border-radius:12px;border:1px solid var(--acc);background:var(--card-bg);box-shadow:0 8px 30px rgba(0,0,0,.4);display:flex;gap:14px;align-items:center";
+        bar.innerHTML = '<span>You will be signed out in <b id="idle-left"></b> seconds for inactivity.</span><button class="btn small" type="button" style="margin:0">Stay Signed In</button>';
+        bar.querySelector("button").addEventListener("click", function () { last = Date.now(); hide(); ping(); });
+        document.body.appendChild(bar);
+      }
+      document.getElementById("idle-left").textContent = Math.ceil(left);
+    }
+  }, 1000);
+})();{% endif %}
+// Unseen alert matches: a badge in the menu and a banner, refreshed while the page is open.
+{% if current_user.is_authenticated %}(function () {
+  function show(n) {
+    var nav = document.getElementById("nav-alerts"), ban = document.getElementById("alert-banner");
+    if (nav) { nav.style.display = n > 0 ? "" : "none"; document.getElementById("nav-alerts-n").textContent = n; }
+    if (ban) { ban.style.display = n > 0 ? "" : "none"; document.getElementById("alert-banner-n").textContent = n; document.getElementById("alert-banner-s").textContent = n === 1 ? "" : "s"; }
+  }
+  async function poll() { try { var r = await fetch("/my/alerts/count.json", {cache: "no-store", credentials: "same-origin"}); if (r.ok) show((await r.json()).unseen); } catch (e) {} }
+  setInterval(poll, {{ alert_poll_seconds }} * 1000);
+})();{% endif %}
+// List helpers (U3/U4): input.tfilter[data-table] filters the rows of a table as you type; th[data-sort] on a table.sortable sorts it.
+(function () {
+  function rowsOf(t) { if (!t.matches("table")) return Array.prototype.slice.call(t.querySelectorAll("[data-item]")); return Array.prototype.filter.call(t.querySelectorAll("tbody > tr"), function (r) { return r.querySelector("td") && !r.querySelector("td[colspan]"); }); }
+  function apply(inp) {
+    var t = document.querySelector(inp.dataset.table); if (!t) return;
+    var q = inp.value.trim().toLowerCase().split(/\s+/).filter(Boolean), rows = rowsOf(t), shown = 0;
+    rows.forEach(function (r) {
+      var txt = (r.dataset.search || r.textContent).toLowerCase(), hit = q.every(function (w) { return txt.indexOf(w) >= 0; });
+      r.style.display = hit ? "" : "none"; if (hit) shown++;
+    });
+    var c = inp.parentNode.querySelector(".tcount"); if (c) c.textContent = q.length ? shown + " of " + rows.length : rows.length + " in all";
+    var none = t.querySelector("tr.tnone");
+    if (!t.matches("table")) return;
+    if (q.length && !shown && rows.length) { if (!none) { none = t.querySelector("tbody").insertRow(); none.className = "tnone"; none.innerHTML = '<td colspan="99" class="dim">Nothing matches that search.</td>'; } }
+    else if (none) none.remove();
+  }
+  function val(r, i, kind) {
+    var td = r.cells[i]; if (!td) return kind === "num" ? -Infinity : "";
+    var v = td.dataset.v !== undefined ? td.dataset.v : td.textContent.trim();
+    if (kind === "num") { var n = parseFloat(String(v).replace(/[^0-9.\-]/g, "")); return isNaN(n) ? -Infinity : n; }
+    return String(v).toLowerCase();
+  }
+  document.addEventListener("input", function (e) { if (e.target.classList && e.target.classList.contains("tfilter")) apply(e.target); });
+  document.addEventListener("click", function (e) {
+    var th = e.target.closest && e.target.closest("table.sortable th[data-sort]"); if (!th) return;
+    var t = th.closest("table"), i = th.cellIndex, kind = th.dataset.sort, dir = th.dataset.dir === "asc" ? "desc" : "asc";
+    Array.prototype.forEach.call(t.querySelectorAll("th[data-sort]"), function (h) { h.removeAttribute("data-dir"); h.removeAttribute("aria-sort"); });
+    th.dataset.dir = dir; th.setAttribute("aria-sort", dir === "asc" ? "ascending" : "descending");
+    var rows = rowsOf(t), body = rows[0] && rows[0].parentNode;
+    rows.map(function (r, n) { return [r, n]; }).sort(function (a, b) {
+      var x = val(a[0], i, kind), y = val(b[0], i, kind), c = x < y ? -1 : x > y ? 1 : 0; return (dir === "asc" ? c : -c) || a[1] - b[1];
+    }).forEach(function (p) { body.appendChild(p[0]); });
+    var none = t.querySelector("tr.tnone"); if (none) body.appendChild(none);
+  });
+  function init() { Array.prototype.forEach.call(document.querySelectorAll("input.tfilter"), apply); }
+  document.addEventListener("DOMContentLoaded", init);
+  new MutationObserver(function (list) { list.forEach(function (m) { m.addedNodes.forEach(function (n) { if (n.nodeType === 1 && (n.querySelector && n.querySelector("table"))) init(); }); }); }).observe(document.body, {childList: true, subtree: true});
+})();
+// Group menus: the label is a link to that service's home page; the arrow, or resting the mouse on it, opens the flyout.
+(function () {
+  var fine = matchMedia("(hover:hover) and (pointer:fine)").matches, t;
+  document.querySelectorAll("nav details.navmenu:not(#prefs-menu)").forEach(function (d) {
+    if (!fine) return;
+    d.addEventListener("mouseenter", function () { clearTimeout(t); document.querySelectorAll("nav details.navmenu[open]").forEach(function (o) { if (o !== d) o.removeAttribute("open"); }); if (innerWidth > 900) d.setAttribute("open", ""); });
+    d.addEventListener("mouseleave", function () { t = setTimeout(function () { d.removeAttribute("open"); }, 250); });
+  });
+})();
+// Section bar on narrow screens: its name is a button that shows or hides the pages.
+(function () {
+  var b = document.querySelector("nav .subbar b"); if (!b) return;
+  function flip(open) { var bar = b.parentNode; if (open === undefined) open = !bar.classList.contains("open"); bar.classList.toggle("open", open); b.setAttribute("aria-expanded", open ? "true" : "false"); }
+  b.addEventListener("click", function (e) { if (innerWidth <= 900) { e.stopPropagation(); flip(); } });
+  b.addEventListener("keydown", function (e) { if ((e.key === "Enter" || e.key === " ") && innerWidth <= 900) { e.preventDefault(); flip(); } });
+  document.addEventListener("click", function (e) { if (!b.parentNode.contains(e.target)) flip(false); });   // a tap anywhere else closes the sheet
+})();
+// In the phone drawer a tap anywhere on a group's row opens it (the group name is also a link, which used to take the tap and leave the page instead).
+document.addEventListener("click", function (e) {
+  var a = e.target.closest && e.target.closest("nav.open details.navmenu>summary a.gl");
+  if (a) { e.preventDefault(); var d = a.closest("details"); d.open = !d.open; }
+});
+// The bars run edge to edge: measure the window without its scroll bar so they line up exactly.
+(function () { function w() { document.documentElement.style.setProperty("--vw", document.documentElement.clientWidth + "px"); } w(); addEventListener("resize", w); addEventListener("load", w); })();
+// Phone menu drawer.
+(function () {
+  var nav = document.getElementById("mainnav"), b = document.getElementById("nav-toggle");
+  if (!nav || !b) return;
+  b.addEventListener("click", function (e) { e.stopPropagation(); var o = nav.classList.toggle("open"); b.setAttribute("aria-expanded", o ? "true" : "false"); Array.prototype.forEach.call(nav.querySelectorAll("details.navmenu:not(#prefs-menu)"), function (d) { d.open = o && d.classList.contains("active"); }); document.documentElement.classList.toggle("nav-lock", o); b.innerHTML = o ? "&#10005;" : "&#9776;"; });
+})();
+// Phone tables: label every cell with its column name so CSS can stack each row as a card (table.stack). Tables whose rows are a heading cell plus a value become table.kv.
+// Skipped: the map pages' own lists (#lv) and any table marked class="nostack".
+(function () {
+  function mark(root) {
+    root.querySelectorAll("table:not(.nostack):not(.kv)").forEach(function (t) {
+      if (t.closest("#lv,.leaflet-container")) return;
+      var rows = Array.prototype.slice.call(t.rows), head = null;
+      if (t.tHead && t.tHead.rows.length) head = t.tHead.rows[t.tHead.rows.length - 1];
+      else if (rows.length && Array.prototype.every.call(rows[0].cells, function (c) { return c.tagName === "TH"; }) && rows[0].cells.length > 1) head = rows[0];
+      var body = rows.filter(function (r) { return r !== head && !(t.tHead && t.tHead.contains(r)) && !(t.tFoot && t.tFoot.contains(r)); });
+      if (!head) {   // no column headings: a table of heading cell + value rows is a name/value list
+        if (body.length && body.every(function (r) { return r.cells.length === 2 && r.cells[0].tagName === "TH"; })) t.classList.add("kv");
+        return;
+      }
+      if (!(t.tHead && t.tHead.contains(head))) head.classList.add("hrow");
+      var names = [];
+      Array.prototype.forEach.call(head.cells, function (h) { var n = h.textContent.trim().replace(/\s+/g, " ").replace(/\s*[▲▼]$/, ""); for (var k = 0; k < (h.colSpan || 1); k++) names.push(n); });
+      body.forEach(function (tr) {
+        if (tr.cells.length === 1 && tr.cells[0].colSpan > 1) { tr.classList.add("span"); return; }   // an empty-state or detail row across the table
+        var col = 0;
+        Array.prototype.forEach.call(tr.cells, function (td) {
+          if (td.firstChild && !(td.children.length === 1 && td.firstElementChild.className === "cv")) { var w = document.createElement("span"); w.className = "cv"; while (td.firstChild) w.appendChild(td.firstChild); td.appendChild(w); }   // one box for the value, so several tags or links in a cell wrap together
+          if (!td.hasAttribute("data-label")) td.setAttribute("data-label", td.tagName === "TH" ? "" : (names[col] || "")); col += td.colSpan || 1; });
+      });
+      if (head.querySelector("[data-sort],a") && !t.classList.contains("sortable")) t.classList.add("hsort");   // headings that sort the table stay as buttons above the cards
+      t.classList.add("stack");
+    });
+  }
+  var timer; function soon() { clearTimeout(timer); timer = setTimeout(function () { mark(document); }, 150); }
+  mark(document);
+  if (window.MutationObserver) new MutationObserver(soon).observe(document.body, {childList: true, subtree: true});
+})();
+// The round arrow at the bottom right of a long page that takes you back to the top; it shows once you have scrolled a screenful down.
+(function () {
+  var b = document.getElementById("to-top"); if (!b) return;
+  function show() { b.classList.toggle("on", (window.pageYOffset || document.documentElement.scrollTop) > Math.max(500, window.innerHeight * 0.6)); }
+  window.addEventListener("scroll", show, {passive: true}); window.addEventListener("resize", show); show();
+  b.addEventListener("click", function () { var calm = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches; window.scrollTo({top: 0, behavior: calm ? "auto" : "smooth"}); });
+})();
+// In the phone drawer one group is open at a time.
+(function () {
+  var nav = document.getElementById("mainnav"); if (!nav) return;
+  nav.addEventListener("toggle", function (e) {
+    if (!nav.classList.contains("open") || !e.target.open || !e.target.classList.contains("navmenu")) return;   // only a menu group closes the others: the Units for each service box inside Display is not one
+    nav.querySelectorAll("details.navmenu[open]").forEach(function (d) { if (d !== e.target) d.open = false; });
+  }, true);
+})();
+// Dropdown menus (Tools, Display) close when you click anywhere else or press Escape.
+document.addEventListener("click", function (e) {
+  document.querySelectorAll("details.navmenu[open]").forEach(function (d) { if (!d.contains(e.target)) d.removeAttribute("open"); });
+});
+document.addEventListener("keydown", function (e) {
+  if (e.key === "Escape") document.querySelectorAll("details.navmenu[open]").forEach(function (d) { d.removeAttribute("open"); });
+});
+// Display preferences (theme, clock, time zone) and browser-local times.
+(function () {
+  var P = window.PREFS || {};
+  function save(change) {
+    if ("theme" in change) change.themeV = "2";   // from now on the pick is the person's own (older saved looks follow the site once)
+    P = Object.assign({}, window.PREFS || {}, change); window.PREFS = P;
+    try { localStorage.setItem("adsb.prefs", JSON.stringify(P)); } catch (e) {}
+    try { document.cookie = "ark_units=" + (P.units || "") + "; path=/; max-age=" + (P.units ? 31536000 : 0) + "; samesite=lax"; } catch (e) {}
+    try { var ua = Object.keys(P).filter(function (k) { return k.indexOf("u_") === 0 && P[k]; }).map(function (k) { return k.slice(2) + ":" + P[k]; }).join("|"); document.cookie = "ark_ua=" + ua + "; path=/; max-age=" + (ua ? 31536000 : 0) + "; samesite=lax"; } catch (e) {}
+    applyTheme(); renderTimes(document);
+    document.documentElement.setAttribute("data-pw", P.pageWidth || window.SITE_PW);
+    document.querySelectorAll("#pf-width,#pf-width-profile").forEach(function (e) { e.value = P.pageWidth || ""; });
+    {% if current_user.is_authenticated %}
+    fetch("/my/prefs", {method: "POST", credentials: "same-origin", headers: {"Content-Type": "application/json", "X-CSRFToken": "{{ csrf_token() }}"}, body: JSON.stringify(change)}).catch(function () {});
+    {% endif %}
+  }
+  function applyTheme() {
+    ArkThemes.apply(P);
+    document.dispatchEvent(new CustomEvent("adsb-prefs"));
+  }
+  function zone() { return P.tz === "site" ? window.SITE_TZ : P.tz === "utc" ? "UTC" : undefined; }
+  window.fmtZone = zone;   // the display time zone, for pages that read times typed by the visitor (the Replay bar)
+  function clockOpts() { return P.hour === "12" ? {hour12: true} : P.hour === "24" ? {hourCycle: "h23"} : {}; }
+  // 2026-10-04 and 7:40 PM or 19:40, in the chosen zone and clock; flags: d = date, dt = date and time, dts = with seconds
+  window.fmtTime = function (d, flag) {
+    var date = new Intl.DateTimeFormat("en-CA", {timeZone: zone(), year: "numeric", month: "2-digit", day: "2-digit"}).format(d);
+    if (flag === "d") return date;
+    var o = Object.assign({timeZone: zone(), hour: "numeric", minute: "2-digit"}, clockOpts());
+    if (flag === "dts" || flag === "ts") o.second = "2-digit";
+    var time = new Intl.DateTimeFormat(undefined, o).format(d);
+    return flag === "ts" ? time : date + " " + time;
+  };
+  function renderTimes(root) {
+    root.querySelectorAll("time.ts").forEach(function (el) {
+      var d = new Date(el.getAttribute("datetime"));
+      if (!isNaN(d)) el.textContent = window.fmtTime(d, el.dataset.fmt || "dt");
+    });
+  }
+  window.renderTimes = renderTimes; window.adsbSavePrefs = save;
+  var map = {"pf-theme": "theme", "pf-hour": "hour", "pf-tz": "tz", "pf-width": "pageWidth", "pf-width-profile": "pageWidth", "pf-units": "units"}, defaults = {theme: "site", hour: "auto", tz: "browser", pageWidth: "", units: ""};
+  ArkThemes.fillSelect(document.getElementById("pf-theme"), P);
+  // units for each service: the person's own choice, else the site's default for the service, else the standard unit
+  (function () {
+    var box = document.getElementById("pf-ua-list"); if (!box) return;
+    var NAMES = {imperial: "Feet, mph, miles, \u00b0F", aero: "Feet, knots, nautical miles", metric: "Meters, km/h, kilometers"}, html = "";
+    (window.ARK_AREAS || []).forEach(function (a) {
+      var site = (window.PREFS && window.PREFS.units) || (window.SITE_UNITS_BY || {})[a[0]], dflt = site ? "Default (" + NAMES[site] + ")" : "Standard";
+      html += '<label for="pf-u-' + a[0] + '">' + a[1] + '</label><select id="pf-u-' + a[0] + '" data-area="' + a[0] + '"><option value="">' + dflt + '</option><option value="imperial">' + NAMES.imperial + '</option><option value="aero">' + NAMES.aero + '</option><option value="metric">' + NAMES.metric + "</option></select>";
+    });
+    box.innerHTML = html;
+    box.querySelectorAll("select").forEach(function (s) {
+      s.value = P["u_" + s.dataset.area] || "";
+      s.addEventListener("change", function () { var c = {}; c["u_" + s.dataset.area] = s.value; save(c); });
+    });
+  })();
+  var deco = document.getElementById("pf-deco");
+  if (deco) { deco.checked = P.deco !== "0"; deco.addEventListener("change", function () { save({deco: deco.checked ? "1" : "0"}); }); }
+  Object.keys(map).forEach(function (id) {
+    var el = document.getElementById(id); if (!el) return;
+    el.value = P[map[id]] || defaults[map[id]];
+    el.addEventListener("change", function () { var c = {}; c[map[id]] = el.value; save(c); });
+  });
+  renderTimes(document);
+  ArkThemes.ready(P);   // the chip that goes back to the normal look, and the decorations
+  // fragments swapped in by in-page actions
+  new MutationObserver(function (list) {
+    list.forEach(function (m) { m.addedNodes.forEach(function (n) { if (n.nodeType === 1) { if (n.matches && n.matches("time.ts")) renderTimes(n.parentNode); else renderTimes(n); } }); });
+  }).observe(document.body, {childList: true, subtree: true});
+  matchMedia("(prefers-color-scheme: light)").addEventListener("change", function () { if (P.theme === "auto") applyTheme(); });
+})();
+</script>
+<script>
+// A plain form that carries data-confirm asks first (the in-page ones below ask for themselves).
+document.addEventListener("submit", function (e) {
+  var f = e.target;
+  if (f && f.dataset && f.dataset.confirm && !f.hasAttribute("data-async") && !window.confirm(f.dataset.confirm)) e.preventDefault();
+});
+// A form that does reload the page (no data-async) must not send the visitor back to the top: where they were scrolled to, and which sections were open, are kept for the page that loads next.
+document.addEventListener("submit", function (e) {
+  var f = e.target;
+  if (!f || f.hasAttribute("data-async") || (f.method || "").toLowerCase() !== "post" || e.defaultPrevented) return;
+  try { sessionStorage.setItem("ark.keepplace", JSON.stringify({path: location.pathname, y: window.scrollY, t: Date.now(), open: Array.prototype.map.call(document.querySelectorAll("main details"), function (d, i) { return d.hasAttribute("open") ? i : -1; }).filter(function (i) { return i >= 0; }), form: f.getAttribute("action") || ""})); } catch (x) {}
+});
+document.addEventListener("DOMContentLoaded", function () {
+  try {
+    var k = JSON.parse(sessionStorage.getItem("ark.keepplace") || "null"); sessionStorage.removeItem("ark.keepplace");
+    if (!k || k.path !== location.pathname || Date.now() - k.t > 20000 || location.hash) return;
+    var all = document.querySelectorAll("main details"); (k.open || []).forEach(function (i) { if (all[i]) all[i].setAttribute("open", ""); });   // by position on the page: most sections have no id
+    window.scrollTo(0, k.y);
+    setTimeout(function () { window.scrollTo(0, k.y); }, 150);
+  } catch (x) {}
+});
+// In-page actions: forms marked data-async submit without a reload, show the result in
+// #action-feedback, and swap in the fresh fragment named by data-async-target.
+document.addEventListener("submit", async function (e) {
+  var form = e.target.closest("form[data-async]");
+  if (!form) return;
+  e.preventDefault();
+  if (form.dataset.confirm && !window.confirm(form.dataset.confirm)) return;
+  var box = document.getElementById("action-feedback");
+  form.classList.add("sending");
+  try {
+    var resp = await fetch(form.getAttribute("action") || location.href, {method: "POST", body: (e.submitter && e.submitter.name ? new FormData(form, e.submitter) : new FormData(form)),
+      headers: {"X-Requested-With": "XMLHttpRequest"}, credentials: "same-origin"});
+    var data = null;
+    try { data = await resp.json(); } catch (parseError) { /* not the JSON answer an in-page action returns */ }
+    if (!data) {
+      var why = resp.status === 400 ? "This page has been open too long or its security token no longer matches. Reload the page and try again."
+        : resp.status === 401 || resp.redirected ? "You have been signed out. Sign in again and retry."
+        : resp.status === 403 ? "You do not have permission to do that."
+        : "The server could not complete the request (error " + resp.status + "). Reload the page and try again.";
+      box.textContent = why; box.className = "error"; form.classList.remove("sending"); return;
+    }
+    box.textContent = data.message;
+    box.className = data.ok ? "success" : "error";
+    form.dispatchEvent(new CustomEvent("asyncdone", {bubbles: true, detail: data}));   // pages that need to react to a saved action (for example to refresh the values they show) listen for this
+    if (data.ok && form.hasAttribute("data-reset")) form.reset();
+    if (data.ok && form.hasAttribute("data-commit")) {
+      // the saved values become what a Reset button returns to
+      Array.prototype.forEach.call(form.elements, function (el) {
+        if (el.tagName === "SELECT") Array.prototype.forEach.call(el.options, function (o) { o.defaultSelected = o.selected; });
+        else if (el.type === "checkbox" || el.type === "radio") el.defaultChecked = el.checked;
+        else if (el.type !== "hidden") el.defaultValue = el.value;
+      });
+    }
+    if (data.html && form.dataset.asyncTarget) {
+      var t = document.querySelector(form.dataset.asyncTarget);
+      if (t) {
+        // keep any expanded sections open across the refresh
+        var open = Array.prototype.map.call(t.querySelectorAll("details[open][id]"), function (d) { return d.id; });
+        t.outerHTML = data.html;
+        open.forEach(function (id) { var d = document.getElementById(id); if (d) d.setAttribute("open", ""); });
+      }
+    }
+  } catch (err) {
+    box.textContent = "The request could not be completed. Please try again.";
+    box.className = "error";
+  }
+  form.classList.remove("sending");
+});
+</script>
+</main>
+</body>
+</html>

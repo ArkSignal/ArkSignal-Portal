@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Airports{% endblock %}
+{% block content %}
+{% from "partials/_sorthead.html" import sorthead %}
+<h1><span>Airports</span></h1>
+<div class="sub">Locations, radio frequencies and runways. Search by name, city or identifier.</div>
+<form class="panel filters" method="get">
+  <div><label for="q">Search</label><input type="text" id="q" name="q" value="{{ q }}" placeholder="Name, city or identifier"></div>
+  <div><label for="region">State or Region</label>
+    <select id="region" name="region"><option value="">All</option>{% for r in regions %}<option value="{{ r }}" {{ 'selected' if r == region }}>{{ r }}</option>{% endfor %}</select></div>
+  <div><label for="kind">Type</label>
+    <select id="kind" name="kind"><option value="">All types</option>{% for k, l in kinds.items() %}<option value="{{ k }}" {{ 'selected' if k == kind }}>{{ l }}</option>{% endfor %}</select></div>
+  <button class="btn small" type="submit">Search</button>
+</form>
+<div class="panel" style="margin-top:12px;overflow-x:auto">
+  <table>
+    <tr>{{ sorthead("Identifier", "ident", sort, direction, pager.args) }}{{ sorthead("Name", "name", sort, direction, pager.args) }}{{ sorthead("City", "city", sort, direction, pager.args) }}{{ sorthead("Type", "type", sort, direction, pager.args) }}{{ sorthead("Elevation", "elev", sort, direction, pager.args) }}</tr>
+    {% for a in rows %}
+    <tr><td class="mono"><a href="/airports/{{ a.ident }}">{{ a.ident }}</a></td><td>{{ a.name }}</td><td class="dim">{{ a.municipality or '' }}, {{ a.region[-2:] }}</td>
+      <td class="dim">{{ kinds.get(a.type, a.type) }}</td><td class="dim mono">{{ (a.elevation_ft | u_ft) if a.elevation_ft is not none else '' }}</td></tr>
+    {% else %}<tr><td colspan="5" class="dim">No airports found. If this is a new install, an administrator needs to load the airport data first.</td></tr>{% endfor %}
+  </table>
+  {% include "partials/_pager.html" %}
+</div>
+{% endblock %}

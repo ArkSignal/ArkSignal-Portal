@@ -1,0 +1,66 @@
+# Mesh service: /opt/adsb/mesh/compose.yaml on the hub VM, applied by the stack updater (adsb-stack) like every other service.
+#
+# mesh-mqtt is our own Mosquitto broker for Meshtastic and MeshCore (image adsb-mesh-mqtt: Mosquitto with the dynamic security plugin). It has two listeners:
+#   * 1883, internal only (never published): the mesh service reads the mesh topics here and makes and removes members' logins here. Nothing else can reach it.
+#   * 8883, TLS, for nodes: published on the VM's port 8883. The broker starts it by itself once a certificate (fullchain.pem and privkey.pem) is in /opt/adsb/mesh/mqtt/certs.
+# Every member gets their own login (username and password) from My Mesh Nodes in the portal; the mesh service makes it in the broker through the plugin, so nobody types a command. A login may publish
+# to the mesh topics and can read nothing. What the administrator does once: have the proxy (Nginx Proxy Manager) hold a certificate for the feed name (MESH_CERT_HOST) and forward TCP 8883 on the router to this VM; the broker finds the certificate and its renewals by itself.
+# The mesh service keeps the nodes in its own Postgres database (mesh-db, /opt/adsb/mesh/db); nodes refill within minutes, so it is NOT part of the off-site backup. The logins are in the portal's database
+# (and backup) and are sent to the broker again whenever the portal's Apply button or a restore runs.
+services:
+  mesh:
+    image: mallison01/adsb-mesh:stable
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
+    container_name: mesh
+    restart: unless-stopped
+    init: true
+    depends_on:
+      mesh-db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgresql://mesh:${MESH_DB_PASSWORD:-mesh}@mesh-db:5432/mesh"
+    volumes:
+      - /opt/adsb/mesh/mqtt:/broker:ro      # the broker's control password (admin.pass): how the service makes and removes members' logins
+    networks:
+      - proxy
+      - mesh_internal
+
+  mesh-mqtt:
+    image: mallison01/adsb-mesh-mqtt:stable
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
+    container_name: mesh-mqtt
+    restart: unless-stopped
+    ports:
+      - "8883:8883"      # TLS for nodes; the broker only listens on it once a certificate is in /opt/adsb/mesh/mqtt/certs
+    environment:
+      MESH_CERT_HOST: "${MESH_CERT_HOST:-feed.arksignal.net}"   # the name nodes connect to; its certificate is taken from the proxy's store below
+    volumes:
+      - /opt/adsb/mesh/mqtt:/mosquitto/config
+      - /opt/adsb/npm/letsencrypt:/letsencrypt:ro      # Nginx Proxy Manager's certificates: the broker finds the one for MESH_CERT_HOST and follows its renewals
+    networks:
+      - mesh_internal
+
+  mesh-db:
+    image: postgres:17-alpine
+    container_name: mesh-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mesh
+      POSTGRES_PASSWORD: "${MESH_DB_PASSWORD:-mesh}"
+      POSTGRES_DB: mesh
+    volumes:
+      - /opt/adsb/mesh/db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mesh -d mesh"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - mesh_internal
+
+networks:
+  proxy:
+    external: true
+  mesh_internal:

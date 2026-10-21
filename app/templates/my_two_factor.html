@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Two-Factor{% endblock %}
+{% block content %}
+<h1>My <span>Two-Factor</span> Sign-In</h1>
+<div class="sub">Protect your account with a code from an authenticator app, in addition to your password.</div>
+{% with active = 'twofactor' %}{% include "partials/_my_subnav.html" %}{% endwith %}
+{% if new_codes %}
+{% call sec('codes', 'Your Recovery Codes', True) %}
+  <b>Save these now</b>
+  <p class="dim" style="margin:6px 0 10px">Save these somewhere safe now (a password manager is ideal). Each works once if you lose your phone. They are shown only this one time.</p>
+  <pre class="code">{% for c in new_codes %}{{ c }}
+{% endfor %}</pre>
+{% endcall %}
+{% elif enabled %}
+{% call sec('status', 'Two-Factor Sign-In Is On', True) %}
+  <p style="margin-top:0"><span class="tag live">on</span> Two-factor sign-in is on. You have <b>{{ codes_left }}</b> unused recovery code{{ '' if codes_left == 1 else 's' }}.</p>
+  <form method="post" style="margin-top:12px">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="new_codes">
+    <label for="p1">Your password</label><input type="password" id="p1" name="password" autocomplete="current-password" required style="max-width:260px">
+    <button class="btn small" type="submit">Make New Recovery Codes</button>
+    <div class="help">This replaces your old codes.</div>
+  </form>
+  {% if not required %}
+  <form method="post" style="margin-top:18px">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="disable">
+    <label for="p2">Your password</label><input type="password" id="p2" name="password" autocomplete="current-password" required style="max-width:260px">
+    <button class="btn small warn" type="submit" data-confirm="Turn off two-factor sign-in?">Turn Off Two-Factor</button>
+  </form>
+  {% else %}<p class="dim" style="margin:14px 0 0">This site requires two-factor sign-in for administrators, so it cannot be turned off.</p>{% endif %}
+{% endcall %}
+{% elif secret %}
+{% call sec('setup', 'Set Up Your Authenticator App', True) %}
+  <ol class="plain">
+    <li>Open your authenticator app (Google Authenticator, Microsoft Authenticator, Authy, 1Password, Bitwarden...) and add an account.</li>
+    <li>Scan this code, or choose "enter a setup key" and type the key below.</li>
+  </ol>
+  <div id="qr" style="margin:12px 0;background:#fff;padding:10px;display:inline-block;border-radius:10px"></div>
+  <div class="mono" style="font-size:1.05rem;letter-spacing:.06em;margin:6px 0 14px">{{ secret_grouped }}</div>
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="confirm">
+    <label for="c1">Then enter the 6-digit code it shows</label>
+    <input type="text" id="c1" name="code" inputmode="numeric" autocomplete="one-time-code" required maxlength="8" style="max-width:160px" placeholder="123456">
+    <button class="btn" type="submit">Turn On Two-Factor</button>
+  </form>
+{% endcall %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" crossorigin="anonymous"></script>
+<script>try { new QRCode(document.getElementById("qr"), {text: {{ otpauth | tojson }}, width: 180, height: 180}); } catch (e) { document.getElementById("qr").style.display = "none"; }</script>
+{% else %}
+{% call sec('start', 'Set Up Two-Factor', True) %}
+  {% if required %}<div class="flash error">This site requires administrators to use two-factor sign-in. Set it up now to continue.</div>{% endif %}
+  <p style="margin-top:0">Two-factor sign-in asks for a 6-digit code from an app on your phone after your password, so a stolen password alone cannot open your account.</p>
+  <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="start"><button class="btn" type="submit">Set Up Two-Factor</button></form>
+{% endcall %}
+{% endif %}
+{% endblock %}

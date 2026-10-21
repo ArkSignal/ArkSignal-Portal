@@ -1,0 +1,63 @@
+{# The fields of the Add a Weather Station form, shared by the member's page (My Weather Stations) and the administrator's form for another account, so they always offer the same options.
+   Context: fp (id prefix), admin (true on the administrator's form: the "Belongs to" list is filled from the chosen member), kinds, pull, privacy, feeders (the member's free feeders), want. #}
+<label for="{{ fp }}kind">How does it send its readings?</label>
+<select id="{{ fp }}kind" name="kind">
+  {% for k, v in kinds.items() %}{% if k not in pull or pull[k] %}<option value="{{ k }}">{{ v }}</option>{% endif %}{% endfor %}
+</select>
+<div class="help">The <a href="/feed/weather">How to Feed: Weather</a> page explains each one. Push is the simplest: an address goes into the gateway and readings arrive by themselves. <b>Home Assistant users:</b> choose <i>Home Assistant, a Tempest bridge or a script</i>, then install the ArkSignal Weather integration from HACS. <b>Tempest without Home Assistant:</b> choose the same, and the station's page gives a ready-made Docker compose file for the Tempest bridge container.</div>
+<label for="{{ fp }}name">Station Name</label>
+<input type="text" id="{{ fp }}name" name="name" maxlength="60" placeholder="For example Backyard Station">
+<label for="{{ fp }}feeder">Belongs to</label>
+<select id="{{ fp }}feeder" name="feeder">
+  <option value="">A weather-only station (its own ID and location)</option>
+  {% for f in feeders %}<option value="{{ f.uuid }}" {{ 'selected' if want == f.uuid }}>{{ f.station_id or f.uuid[:8] }} {{ f.name or '' }} (ADS-B feeder)</option>{% endfor %}
+</select>
+{% if admin %}<div class="help">Once a member is chosen, their ADS-B feeders that have no weather station yet are offered here; a station on a feeder shares its station ID, location and privacy.</div>{% endif %}
+<div id="{{ fp }}solo">
+  <label for="{{ fp }}sid">Station ID</label>
+  <input type="text" id="{{ fp }}sid" name="station_id" maxlength="16" placeholder="For example KD5VCF-WX" style="max-width:240px">
+  <div class="help">3 to 16 letters, numbers and dashes. It names the station on the public pages.</div>
+  <div style="display:flex;gap:14px;flex-wrap:wrap">
+    <div><label for="{{ fp }}lat">Latitude</label><input type="text" id="{{ fp }}lat" name="lat" style="max-width:170px"></div>
+    <div><label for="{{ fp }}lon">Longitude</label><input type="text" id="{{ fp }}lon" name="lon" style="max-width:170px"></div>
+  </div>
+  <label for="{{ fp }}privacy">Location Privacy</label>
+  <select id="{{ fp }}privacy" name="privacy">{% for k, v in privacy.items() %}<option value="{{ k }}" {{ 'selected' if k == 'general' }}>{{ v }}</option>{% endfor %}</select>
+</div>
+<div id="{{ fp }}cloud-ecowitt_cloud" class="{{ fp }}cloud" style="display:none">
+  <label for="{{ fp }}app">Application Key</label><input type="text" id="{{ fp }}app" name="application_key" maxlength="80" autocomplete="off">
+  <label for="{{ fp }}api">API Key</label><input type="text" id="{{ fp }}api" name="api_key" maxlength="80" autocomplete="off">
+  <label for="{{ fp }}mac">Device MAC Address</label><input type="text" id="{{ fp }}mac" name="mac" maxlength="40" placeholder="AA:BB:CC:DD:EE:FF" style="max-width:260px">
+  <div class="help">From the owner's own Ecowitt.net account (Profile, API keys). They are stored sealed and used only to read the station.</div>
+</div>
+<div id="{{ fp }}cloud-tempest_cloud" class="{{ fp }}cloud" style="display:none">
+  <label for="{{ fp }}tsid">Tempest Station Number</label><input type="text" id="{{ fp }}tsid" name="tempest_station" maxlength="20" style="max-width:200px" disabled>
+  <label for="{{ fp }}ttok">Personal Access Token</label><input type="text" id="{{ fp }}ttok" name="token" maxlength="80" autocomplete="off">
+</div>
+<label for="{{ fp }}hw">Hardware (optional)</label>
+<input type="text" id="{{ fp }}hw" name="hardware" maxlength="200" placeholder="For example Ecowitt GW2000 with WS90">
+<label for="{{ fp }}desc">About the Station (optional)</label>
+<input type="text" id="{{ fp }}desc" name="description" maxlength="500">
+<label class="check"><input type="checkbox" name="public" value="1"><span><b>Show this station publicly</b><br><span class="dim">Adds it to the Weather pages and the maps, at the position the privacy choice allows. Leave it off to keep readings private for now.</span></span></label>
+<script>
+(function () {
+  var fp = {{ fp | tojson }}, kind = document.getElementById(fp + "kind"), feeder = document.getElementById(fp + "feeder"), solo = document.getElementById(fp + "solo");
+  function sync() {
+    solo.style.display = feeder.value ? "none" : "";
+    document.querySelectorAll("." + fp + "cloud").forEach(function (el) { var on = el.id === fp + "cloud-" + kind.value; el.style.display = on ? "" : "none"; el.querySelectorAll("input").forEach(function (i) { i.disabled = !on; }); });
+    solo.querySelectorAll("input,select").forEach(function (i) { i.disabled = !!feeder.value; });
+  }
+  kind.addEventListener("change", sync); feeder.addEventListener("change", sync); sync();
+  {% if admin %}
+  document.addEventListener("memberpicked", function (e) {
+    if (!feeder.form.contains(e.target)) return;
+    feeder.length = 1;
+    ((e.detail && e.detail.feeders) || []).forEach(function (f) {
+      if (f.has_wx) return;
+      var o = document.createElement("option"); o.value = f.uuid; o.textContent = (f.station_id || f.uuid.slice(0, 8)) + " " + (f.name || "") + " (ADS-B feeder)"; feeder.appendChild(o);
+    });
+    feeder.value = ""; sync();
+  });
+  {% endif %}
+})();
+</script>

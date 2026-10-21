@@ -1,0 +1,310 @@
+{% extends "base.html" %}
+{% block title %}Sky View{% endblock %}
+{% block main_class %}wide{% endblock %}
+{% block content %}
+{% include "partials/_airline_mark.html" %}
+<link rel="stylesheet" href="{{ c.lib }}/maplibre-gl.css" crossorigin="anonymous">
+<style>
+#ck{position:relative;height:calc(100vh - 118px - var(--sub,0px));height:calc(100dvh - 118px - var(--sub,0px));min-height:420px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:linear-gradient(#5a8fd0 0%,#a9c8e8 46%,#d9e6f2 50%,#2b3a2c 51%);touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}
+#ck.dragging{cursor:grabbing}
+#ckmap{position:absolute;inset:0}
+#ckcmp{position:absolute;z-index:4;left:50%;top:10px;transform:translateX(-50%);pointer-events:none}
+#ckov{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:3}
+.ck-ac{position:absolute;left:0;top:0;display:flex;align-items:center;gap:5px;pointer-events:auto;cursor:pointer;will-change:transform;white-space:nowrap}
+.ck-ac svg{flex:none;filter:drop-shadow(0 0 2px rgba(0,0,0,.85))}
+.ck-ac .t{background:rgba(10,18,32,.86);color:#fff;border-radius:8px;padding:2px 7px;font:700 .72rem Inter,sans-serif;display:flex;align-items:center}
+.ck-ac .t small{opacity:.75;font-weight:600;margin-left:5px}
+.ck-ac .t .lv-logo{--mk:18px;margin-right:5px}
+.ck-ac:hover .t{background:var(--acc);color:#04130d}
+#ckhud{position:absolute;z-index:5;left:12px;top:12px;padding:10px 14px;border-radius:12px;background:var(--card-bg);border:1px solid var(--line);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);font:600 .85rem 'JetBrains Mono',monospace;min-width:190px;cursor:default}
+#ckhud b{font-size:1.15rem;display:block;margin-bottom:2px}
+#ckhud .k{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;color:var(--text)}
+#ckhud .k span:nth-child(odd){color:var(--dim);font-family:Inter,sans-serif;font-weight:500}
+#ckhud .links{margin-top:8px;display:flex;gap:8px;flex-wrap:wrap}
+#ckhud .links a{font:600 .78rem Inter,sans-serif}
+#ckctl{position:absolute;z-index:5;right:12px;top:12px;width:250px;max-width:calc(100% - 24px);padding:10px 14px;border-radius:12px;background:var(--card-bg);border:1px solid var(--line);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);cursor:default}
+#ckctl summary{cursor:pointer;font:600 .85rem Inter,sans-serif}
+#ckctl label{margin:10px 0 2px;font-size:.78rem}
+#ckctl input[type=range]{width:100%;accent-color:var(--acc)}
+#ckctl select{width:100%}
+#ckctl .help{margin-top:8px}
+#ckmsg{position:absolute;z-index:6;left:50%;top:50%;transform:translate(-50%,-50%);padding:16px 22px;border-radius:14px;background:var(--card-bg);border:1px solid var(--line);text-align:center;max-width:80%}
+#ckfps{position:absolute;z-index:5;left:12px;bottom:8px;color:#fff;font:600 .7rem 'JetBrains Mono',monospace;text-shadow:0 0 3px #000;opacity:.85}
+@media(max-width:700px){ #ck{height:calc(100dvh - 76px)} #ckhud{min-width:0;padding:8px 10px;font-size:.78rem} #ckctl{top:auto;bottom:34px;width:calc(100% - 24px)} }
+</style>
+<div id="ck">
+  <div id="ckmap"></div>
+  <div id="ckov"></div>
+  <canvas id="ckcmp"></canvas>
+  <div id="ckhud"><b id="ck-name">Sky View</b>
+    <div class="k"><span>Altitude</span><span id="ck-alt">-</span><span>Speed</span><span id="ck-gs">-</span><span>Heading</span><span id="ck-hdg">-</span></div>
+    <div class="links"><a id="ck-map" href="/live?icao={{ hex }}">Map</a><a id="ck-prog" href="/flight/{{ hex }}">Flight Progress</a></div></div>
+  <details id="ckctl" open><summary>View Controls</summary>
+    <div class="help">The tape at the top shows which way you are looking; the green marker is the nose of the aircraft. Drag to look around. Click an aircraft to fly along with it. Double-click or double-tap to look straight ahead again.</div>
+    <label for="ck-mode">Camera</label>
+    <select id="ck-mode"><option value="eye">From the aircraft</option><option value="chase">Behind and above</option></select>
+    <label for="ck-pitch">Look up / down <span class="dim" id="ck-pitch-v"></span></label><input type="range" id="ck-pitch" min="20" max="85" value="78">
+    <label for="ck-yaw">Look left / right <span class="dim" id="ck-yaw-v"></span></label><input type="range" id="ck-yaw" min="-180" max="180" value="0">
+    <label for="ck-exag">Terrain exaggeration <span class="dim" id="ck-exag-v"></span></label><input type="range" id="ck-exag" min="1" max="5" step="0.5" value="{{ c.exag }}">
+    <label for="ck-img">Imagery</label>
+    <select id="ck-img"><option value="sat">Aerial</option><option value="map">Street map</option></select>
+    <label class="check" style="margin-top:10px"><input type="checkbox" id="ck-others" checked><span>Show other aircraft</span></label>
+  </details>
+  <div id="ckfps"></div>
+  <div id="ckmsg">Loading the 3D view...</div>
+</div>
+<script src="{{ c.lib }}/maplibre-gl.js" crossorigin="anonymous"></script>
+<script>
+(function () {
+  var HEX = {{ hex | tojson }}, C = {{ c | tojson }}, M = {{ m | tojson }};
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (v) { return String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;"); };
+  function say(t) { var m = $("ckmsg"); if (!t) { m.style.display = "none"; return; } m.style.display = "block"; m.innerHTML = t; }
+  function webgl() { try { var c = document.createElement("canvas"); return !!(c.getContext("webgl2") || c.getContext("webgl")); } catch (e) { return false; } }
+  if (typeof maplibregl === "undefined" || !webgl()) { say("The 3D view needs a browser with WebGL.<br><a href=\"/live?icao=" + HEX + "\">Back to the map</a>"); return; }
+  var FT = 0.3048, NM = 1852, R = 6371008.8, MDEG = 111194.9, RAD = Math.PI / 180;
+  var ac = null, got = 0, others = [], tags = {};     // ac: the latest report of the aircraft we ride; got: when it arrived
+  var sim = null;                                      // what the camera shows: moves on continuously and eases toward the prediction
+  var imagery = {sat: C.imagery, map: C.street};
+
+  function style(img) {
+    return {version: 8, sources: {
+        img: {type: "raster", tiles: [imagery[img].replace("{s}", "a")], tileSize: 256, maxzoom: img === "sat" ? 17 : 19, attribution: "Imagery as credited by the provider"},
+        dem: {type: "raster-dem", tiles: [C.dem], tileSize: 256, encoding: "terrarium", maxzoom: 14, attribution: "Terrain: Mapzen / AWS Open Data"}},
+      layers: [{id: "img", type: "raster", source: "img"}],
+      terrain: {source: "dem", exaggeration: parseFloat($("ck-exag").value)}};
+  }
+  var map = new maplibregl.Map({container: "ckmap", style: style("sat"), center: [M.lon, M.lat], zoom: 8, pitch: 80, bearing: 0, maxPitch: 85, interactive: false, attributionControl: {compact: true}, fadeDuration: 0});
+
+  function dest(lat, lon, brg, meters) {
+    var d = meters / R, b = brg * RAD, p1 = lat * RAD, l1 = lon * RAD;
+    var p2 = Math.asin(Math.sin(p1) * Math.cos(d) + Math.cos(p1) * Math.sin(d) * Math.cos(b));
+    var l2 = l1 + Math.atan2(Math.sin(b) * Math.sin(d) * Math.cos(p1), Math.cos(d) - Math.sin(p1) * Math.sin(p2));
+    return [p2 / RAD, ((l2 / RAD) + 540) % 360 - 180];
+  }
+  function angDiff(a, b) { return ((a - b + 540) % 360) - 180; }
+  // where a report says an aircraft is "now": moved along its track at its ground speed since it arrived
+  function predict(a, at, dtCap) {
+    var dt = Math.min(dtCap, Math.max(0, (Date.now() - at) / 1000)), gs = (a.gs || 0) * NM / 3600, hdg = a.track != null ? a.track : (a.mag || 0);
+    var p = gs && a.track != null ? dest(a.lat, a.lon, hdg, gs * dt) : [a.lat, a.lon];
+    var alt = a.alt == null ? 0 : a.alt * FT;
+    return {lat: p[0], lon: p[1], alt: a.gnd ? alt + 2 : alt + (a.vr || 0) * FT / 60 * dt, hdg: hdg};
+  }
+  var frames = 0, last = performance.now(), prev = last, cam = null;
+  function place(tnow) {
+    var dt = Math.min(0.25, (tnow - prev) / 1000); prev = tnow;
+    if (ac && ac.lat != null) {
+      var t = predict(ac, got, 12);
+      if (!sim) sim = {lat: t.lat, lon: t.lon, alt: t.alt, hdg: t.hdg};
+      else {
+        // The view always moves forward along the aircraft's track. A fresh report only changes how fast: a little quicker when the aircraft
+        // is ahead of where we are showing it, slower (never backward) when it is behind; sideways and height errors are eased out.
+        var v = Math.max(0, (ac.gs || 0) * NM / 3600), h = sim.hdg * RAD, mlat = MDEG, mlon = MDEG * Math.cos(sim.lat * RAD);
+        var dN = (t.lat - sim.lat) * mlat, dE = (t.lon - sim.lon) * mlon;
+        var along = dN * Math.cos(h) + dE * Math.sin(h), cross = -dN * Math.sin(h) + dE * Math.cos(h);
+        if (v > 20) {
+          var factor = 1 + Math.max(-0.7, Math.min(1.0, along / (v * 3)));
+          var step = v * dt * factor, k2 = 1 - Math.exp(-dt * 1.2), sideways = cross * k2;
+          sim.lat += (step * Math.cos(h) - sideways * Math.sin(h)) / mlat;
+          sim.lon += (step * Math.sin(h) + sideways * Math.cos(h)) / mlon;
+        } else { var kk = 1 - Math.exp(-dt * 1.2); sim.lat += (t.lat - sim.lat) * kk; sim.lon += (t.lon - sim.lon) * kk; }
+        var k = 1 - Math.exp(-dt * 1.2);
+        sim.alt += (t.alt - sim.alt) * k; sim.hdg = (sim.hdg + angDiff(t.hdg, sim.hdg) * k + 360) % 360;
+      }
+      var mode = $("ck-mode").value, pitch = parseFloat($("ck-pitch").value), yaw = parseFloat($("ck-yaw").value);
+      var at = [sim.lat, sim.lon], up = 0, brg = (sim.hdg + yaw + 360) % 360;
+      if (mode === "chase") { at = dest(sim.lat, sim.lon, sim.hdg + 180, 1.2 * NM); up = 450 * FT; pitch = Math.min(pitch, 72); }
+      var alt = Math.max(5, sim.alt) + up, ahead = dest(at[0], at[1], brg, 20000), drop = 20000 * Math.tan((90 - pitch) * RAD);
+      map.jumpTo(map.calculateCameraOptionsFromTo(new maplibregl.LngLat(at[1], at[0]), alt, new maplibregl.LngLat(ahead[1], ahead[0]), alt - drop));
+      cam = {lat: at[0], lon: at[1], alt: alt, brg: brg, pitch: pitch};
+      overlay(); compass();
+    }
+    frames++;
+    if (tnow - last >= 1000) { $("ckfps").textContent = Math.round(frames * 1000 / (tnow - last)) + " fps"; window.__ckfps = Math.round(frames * 1000 / (tnow - last)); frames = 0; last = tnow; }
+    requestAnimationFrame(place);
+  }
+
+  // ---- other aircraft drawn at their true place in the sky: our own perspective projection of the camera set above
+  // heading tape: where you are looking (centre line), compass points, and a marker for the way the aircraft itself is heading
+  var CARD = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+  function card(b) { return CARD[Math.round(((b % 360) + 360) % 360 / 45) % 8]; }
+  function compass() {
+    var cv = $("ckcmp"), box = $("ck"), W = Math.max(260, Math.min(560, box.clientWidth - 440)), H = 46, dpr = window.devicePixelRatio || 1;
+    if (box.clientWidth < 720) W = Math.max(240, box.clientWidth - 24);
+    if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); cv.style.width = W + "px"; cv.style.height = H + "px"; }
+    var x = cv.getContext("2d"); x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, W, H);
+    var look = cam.brg, span = 60;   // degrees either side of the middle
+    x.fillStyle = "rgba(10,18,32,.82)"; x.beginPath(); x.roundRect ? x.roundRect(0, 0, W, H, 12) : x.rect(0, 0, W, H); x.fill();
+    x.save(); x.beginPath(); x.rect(0, 0, W, H); x.clip();
+    var px = function (deg) { return W / 2 + angDiff(deg, look) / span * (W / 2); };
+    x.textAlign = "center"; x.fillStyle = "#e8eef7"; x.strokeStyle = "rgba(232,238,247,.7)"; x.lineWidth = 1;
+    for (var d = Math.floor((look - span) / 5) * 5; d <= look + span; d += 5) {
+      var deg = ((d % 360) + 360) % 360, xx = px(deg), major = deg % 15 === 0;
+      x.beginPath(); x.moveTo(xx, 20); x.lineTo(xx, major ? 29 : 25); x.stroke();
+      if (deg % 45 === 0) { x.font = "700 13px Inter,sans-serif"; x.fillStyle = deg === 0 ? "#ff6b6b" : "#fff"; x.fillText(card(deg), xx, 15); x.fillStyle = "#e8eef7"; }
+      else if (deg % 15 === 0) { x.font = "600 10px 'JetBrains Mono',monospace"; x.fillText(("00" + deg).slice(-3), xx, 41); }
+    }
+    x.restore();
+    // the middle line: the direction you are looking
+    x.strokeStyle = "#3ee6a8"; x.lineWidth = 2; x.beginPath(); x.moveTo(W / 2, 17); x.lineTo(W / 2, 32); x.stroke();
+    // the aircraft's own heading: a green marker on the tape, or an arrow at the edge pointing the way when it is out of sight
+    var nose = sim ? sim.hdg : null;
+    if (nose != null) {
+      var off = angDiff(nose, look);
+      x.fillStyle = "#3ee6a8"; x.font = "700 10px Inter,sans-serif";
+      if (Math.abs(off) <= span) { var nx = px(nose); x.beginPath(); x.moveTo(nx - 7, 1); x.lineTo(nx + 7, 1); x.lineTo(nx, 11); x.closePath(); x.fill(); }
+      else { var left = off < 0; x.textAlign = left ? "left" : "right"; x.fillText(left ? "◀ NOSE " + Math.round(Math.abs(off)) + "°" : "NOSE " + Math.round(off) + "° ▶", left ? 8 : W - 8, 12); }
+    }
+  }
+
+  var PLANE = "M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z";
+  var STOPS = [[0, [245, 166, 35]], [4000, [232, 213, 29]], [10000, [68, 208, 98]], [20000, [46, 196, 201]], [30000, [59, 109, 240]], [40000, [138, 63, 252]], [46000, [232, 62, 140]]];
+  function altColor(a) {
+    if (a == null) return "#8a9bb3";
+    for (var i = 1; i < STOPS.length; i++) if (a <= STOPS[i][0]) {
+      var p = (a - STOPS[i - 1][0]) / (STOPS[i][0] - STOPS[i - 1][0]), c0 = STOPS[i - 1][1], c1 = STOPS[i][1];
+      return "rgb(" + c0.map(function (v, k) { return Math.round(v + (c1[k] - v) * p); }).join(",") + ")";
+    }
+    return "rgb(" + STOPS[STOPS.length - 1][1].join(",") + ")";
+  }
+  function vfov() { var f = map.transform && map.transform.fov; if (!isFinite(f) || !f) return 0.6435011087932844; return f > 3.2 ? f * RAD : f; }
+  function overlay() {
+    var box = $("ck"), W = box.clientWidth, H = box.clientHeight, host = $("ckov");
+    var want = [], b = cam.brg * RAD, p = cam.pitch * RAD;
+    var f = [Math.sin(b) * Math.sin(p), Math.cos(b) * Math.sin(p), -Math.cos(p)], r = [Math.cos(b), -Math.sin(b), 0], u = [Math.sin(b) * Math.cos(p), Math.cos(b) * Math.cos(p), Math.sin(p)];
+    var tanH = Math.tan(vfov() / 2), cosLat = Math.cos(cam.lat * RAD);
+    if ($("ck-others").checked) others.forEach(function (o) {
+      if (o.lat == null || o.gnd) return;
+      var isSelf = o.hex === HEX;
+      if (isSelf && $("ck-mode").value !== "chase") return;
+      var pos = isSelf && sim ? sim : predict(o, o._at || got, 12);
+      var e = (pos.lon - cam.lon) * cosLat * MDEG, n = (pos.lat - cam.lat) * MDEG, hd = Math.hypot(e, n);
+      var z = (pos.alt != null ? pos.alt : (o.alt || 0) * FT) - cam.alt - hd * hd / (2 * R);
+      var df = e * f[0] + n * f[1] + z * f[2];
+      if (df < 200) return;
+      var x = W / 2 + (e * r[0] + n * r[1]) / df / tanH * (H / 2), y = H / 2 - (e * u[0] + n * u[1] + z * u[2]) / df / tanH * (H / 2);
+      if (x < -80 || x > W + 80 || y < -40 || y > H + 40) return;
+      want.push({o: o, x: x, y: y, d: Math.hypot(hd, z), self: isSelf, hdg: pos.hdg});
+    });
+    want.sort(function (a, c) { return a.d - c.d; }); want = want.slice(0, 60);
+    var keep = {};
+    want.forEach(function (w, i) {
+      var h = w.o.hex; keep[h] = true;
+      var el = tags[h];
+      if (!el) {
+        el = tags[h] = document.createElement("div"); el.className = "ck-ac"; el.dataset.hex = h;
+        el.innerHTML = '<svg viewBox="0 0 24 24"><path d="' + PLANE + '" stroke="#071018" stroke-width=".8"/></svg><span class="t"></span>';
+        host.appendChild(el);
+      }
+      var size = Math.max(16, Math.min(46, 1000000 / w.d));
+      var svg = el.firstChild; svg.style.width = svg.style.height = size + "px";
+      svg.firstChild.setAttribute("fill", w.o.mil ? "#ff6b6b" : altColor(w.o.alt));
+      svg.style.transform = "rotate(" + Math.round(angDiff(w.hdg, cam.brg)) + "deg)";
+      el.style.transform = "translate(" + Math.round(w.x - size / 2) + "px," + Math.round(w.y - size / 2) + "px)";
+      el.style.zIndex = 1000 - i;
+      var t = el.lastChild, sig = h + "|" + (w.o.flight || "") + "|" + Math.round((w.o.alt || 0) / 100) + "|" + (w.d < 90000 ? 1 : 0);
+      if (t.dataset.sig !== sig) {
+        t.dataset.sig = sig;
+        t.innerHTML = (window.ADSB_MARK ? ADSB_MARK.html(w.o) : "") + esc((w.o.flight || w.o.r || h).trim().toUpperCase()) + (w.o.alt != null ? "<small>" + Math.round(w.o.alt / 100) / 10 + "k ft</small>" : "");
+        t.style.display = w.d < 120000 || w.self ? "flex" : "none";
+      }
+    });
+    Object.keys(tags).forEach(function (h) { if (!keep[h]) { tags[h].remove(); delete tags[h]; } });
+  }
+  $("ckov").addEventListener("click", function (e) {
+    var el = e.target.closest(".ck-ac"); if (!el) return;
+    switchTo(el.dataset.hex);
+  });
+  ADSB_MARK.onchange = function () { Object.keys(tags).forEach(function (h) { var t = tags[h].lastChild; t.dataset.sig = ""; }); };
+
+  // ---- switching to another aircraft: the view flies along with whichever one you click
+  function switchTo(hex) {
+    var o = others.filter(function (a) { return a.hex === hex; })[0];
+    if (!o || o.lat == null) return;
+    HEX = hex; ac = o; got = o._at || Date.now(); sim = null;
+    Object.keys(tags).forEach(function (h) { tags[h].remove(); delete tags[h]; });
+    try { history.replaceState(null, "", "/skyview/" + hex); } catch (e) {}
+    $("ck-map").href = "/live?icao=" + hex; $("ck-prog").href = "/flight/" + hex;
+    hud();
+  }
+
+  // ---- looking around: drag (mouse or finger) turns your head, double-click looks straight ahead again
+  var drag = null;
+  function setLook(yaw, pitch) {
+    yaw = ((yaw + 540) % 360) - 180; pitch = Math.max(20, Math.min(85, pitch));
+    $("ck-yaw").value = yaw; $("ck-pitch").value = pitch; labels();
+  }
+  $("ck").addEventListener("pointerdown", function (e) {
+    if (e.target.closest("#ckhud,#ckctl,.ck-ac,#ckmsg")) return;
+    drag = {x: e.clientX, y: e.clientY, yaw: parseFloat($("ck-yaw").value), pitch: parseFloat($("ck-pitch").value), id: e.pointerId, moved: false};
+    try { $("ck").setPointerCapture(e.pointerId); } catch (err) {}
+    $("ck").classList.add("dragging");
+  });
+  $("ck").addEventListener("pointermove", function (e) {
+    if (!drag || e.pointerId !== drag.id) return;
+    var dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.moved = true;
+    var k = 0.25;   // degrees per pixel; the view follows the pointer like a grabbed scene
+    setLook(drag.yaw - dx * k, drag.pitch + dy * k);
+  });
+  var lastTap = 0;
+  function endDrag(e) {
+    if (!drag || (e && e.pointerId !== drag.id)) return;
+    // two quick taps without dragging (a pointer capture stops the browser's own double-click, so it is timed here): look straight ahead again
+    if (!drag.moved) { var t = Date.now(); if (t - lastTap < 400) { setLook(0, 78); lastTap = 0; } else lastTap = t; }
+    drag = null; $("ck").classList.remove("dragging");
+  }
+  $("ck").addEventListener("pointerup", endDrag); $("ck").addEventListener("pointercancel", endDrag);
+
+  function hud() {
+    if (!ac) return;
+    $("ck-name").innerHTML = (window.ADSB_MARK ? ADSB_MARK.html(ac) : "") + esc((ac.flight || ac.r || HEX).trim().toUpperCase());
+    $("ck-alt").textContent = ac.gnd ? "On ground" : ac.alt != null ? Math.round(ac.alt).toLocaleString() + " ft" : "-";
+    $("ck-gs").textContent = ac.gs != null ? ArkUnits.avia.spd(ac.gs) : "-";
+    $("ck-hdg").textContent = sim ? Math.round(sim.hdg) + "° " + card(sim.hdg) : "-";
+  }
+  async function poll() {
+    try {
+      var d = await (await fetch("/api/aircraft.json", {cache: "no-store"})).json(), t = Date.now();
+      // a report's position is already seen_pos seconds old when it reaches us: date it by that, so the aircraft is not pulled back each time
+      others = (d.aircraft || []).map(function (a) { a._at = t - Math.min(10, Math.max(0, a.seen_pos != null ? a.seen_pos : (a.seen || 0))) * 1000; return a; });
+      var me = others.filter(function (a) { return a.hex === HEX; })[0];
+      if (me && me.lat != null) { ac = me; got = me._at; say(""); }
+      else if (!ac) {
+        var tr = await (await fetch("/api/trace/" + HEX + ".json", {cache: "no-store"})).json(), pts = tr.points || [], lp = pts[pts.length - 1];
+        if (lp) { ac = {hex: HEX, lat: lp[1], lon: lp[2], alt: lp[3], gs: 0, track: null, gnd: false}; got = t; say("This aircraft is not being heard right now. Showing its last known position."); }
+        else say("This aircraft is not being heard right now and has no recorded track.<br><a href=\"/live\">Back to the map</a>");
+      }
+      hud();
+    } catch (e) { say("The live feed is not reachable right now."); }
+  }
+  function labels() { $("ck-pitch-v").textContent = Math.round($("ck-pitch").value) + "°"; $("ck-yaw-v").textContent = Math.round($("ck-yaw").value) + "°"; $("ck-exag-v").textContent = $("ck-exag").value + "x"; }
+  ["ck-pitch", "ck-yaw", "ck-exag"].forEach(function (id) {
+    $(id).addEventListener("input", function () {
+      labels();
+      if (id === "ck-exag" && map.getTerrain()) map.setTerrain({source: "dem", exaggeration: parseFloat($("ck-exag").value)});
+    });
+  });
+  labels();
+  $("ck-img").addEventListener("change", function () {
+    if (!map.getSource("img")) return;
+    map.removeLayer("img"); map.removeSource("img");
+    map.addSource("img", {type: "raster", tiles: [imagery[this.value]], tileSize: 256, maxzoom: this.value === "sat" ? 17 : 19});
+    map.addLayer({id: "img", type: "raster", source: "img"});
+  });
+  map.on("load", function () {
+    try { if (map.setSky) map.setSky({"sky-color": "#6fa6e0", "horizon-color": "#d9e6f2", "fog-color": "#d9e6f2", "sky-horizon-blend": 0.6, "horizon-fog-blend": 0.7, "fog-ground-blend": 0.2}); } catch (e) {}
+    window.__ckReady = true;
+    poll(); setInterval(poll, Math.max(1, C.refresh) * 1000); setInterval(hud, 1000);
+    requestAnimationFrame(place);
+  });
+  window.ckDebug = function () {
+    var proj = null;
+    if (cam && sim) {   // the aircraft's own position, projected, must land at the middle of the screen when we look straight at it from behind
+      proj = {tags: Object.keys(tags).length};
+    }
+    return {ready: !!window.__ckReady, fps: window.__ckfps || 0, have: !!ac, hex: HEX, lat: sim && sim.lat, lon: sim && sim.lon, hdg: sim && sim.hdg, alt: sim && sim.alt, pitch: map.getPitch(), bearing: map.getBearing(), terrain: !!map.getTerrain(), icons: Object.keys(tags).length, proj: proj};
+  };
+  window.ckSwitch = switchTo;
+})();
+</script>
+{% endblock %}

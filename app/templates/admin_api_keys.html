@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}API Keys{% endblock %}
+{% block content %}
+<h1><span>Admin</span> API Keys</h1>
+<div class="sub">Every key members have made for the <a href="/api/docs">public API</a>: who, what for, how much it is used, and the means to limit or stop one. The keys themselves are never kept (only a fingerprint), so a lost key is replaced, not recovered. The site's limits and who may make keys are in <a href="/admin/settings/site#sec-api">Settings &gt; API</a>.{% if not enabled %} <b>The API is switched off, so no key works now.</b>{% endif %}</div>
+{% include "partials/_admin_subnav.html" %}
+
+{% call sec('add-for-member', 'Make a Key for a Member', False) %}
+  <form method="post" action="/admin/api-keys/create" data-async data-async-target="#apikeys-admin" data-reset>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="ak-user">Member (User Name, Display Name, Call Sign or Email)</label>
+    <input type="text" id="ak-user" name="username" data-memberpicker maxlength="120" required style="width:320px" placeholder="Start typing to search members">
+    <label for="ak-name">What Is It For?</label>
+    <input type="text" id="ak-name" name="name" maxlength="60" required style="max-width:340px">
+    <label for="ak-note">Notes (Optional)</label>
+    <input type="text" id="ak-note" name="note" maxlength="200" style="max-width:520px">
+    <button class="btn" type="submit">Make the Key</button>
+    <div class="help">The key is shown once, here, for you to pass to the member privately. It counts toward nothing but the member's own use; the member can see and revoke it on My Account > API Keys.</div>
+  </form>
+{% endcall %}
+
+{% call sec('endpoints', 'Endpoints', False) %}
+  <form method="post" action="/admin/api-keys/endpoints" data-async data-async-target="#apikeys-admin">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p class="dim" style="margin-top:0">Tick the parts of the API that should answer. A part that is off answers 403 (<span class="mono">endpoint_disabled</span>) to every key and is not counted against any limit; the docs page marks it as switched off.</p>
+    {% for e in endpoints if e.switchable %}<label class="check"><input type="checkbox" name="ep_{{ e.key }}" value="1" {{ 'checked' if e.on }}><span><b>{{ e.name }}</b> <span class="mono dim">{{ e.path }}</span><br><span class="dim" style="font-size:.82rem">{{ e.about }}</span></span></label>{% endfor %}
+    <button class="btn" type="submit">Save Endpoints</button>
+  </form>
+{% endcall %}
+
+{% call sec('keys', 'All Keys', True, True) %}
+  {% include "partials/_admin_api_keys.html" %}
+{% endcall %}
+{% endblock %}

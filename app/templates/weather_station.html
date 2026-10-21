@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}{{ name }} Weather{% endblock %}
+{% block content %}
+{% include "partials/_wxicons.html" %}
+<style>@media(max-width:760px){.wxcharts{grid-template-columns:minmax(0,1fr)!important}}.wxcharts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 24px}.wxchart{min-width:0;max-width:980px}.wxchart h3{margin:8px 0 2px;font-size:.95rem;display:flex;gap:6px;align-items:center}.wxchart svg.chart{display:block;width:100%;height:auto}</style>
+<h1><span class="mono">{{ r.sid }}</span> {{ name if name != r.sid else '' }}</h1>
+<div class="sub" id="wx-sub">{% include "partials/_wx_sub.html" %}</div>
+<p style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><a href="/weather/">&larr; All Weather Stations</a>
+  {% if loc %}{% with sm_lat=loc[0], sm_lon=loc[1], sm_layer="weather", sm_zoom=(9 if approx else 13), sm_id=r.sid %}{% include "partials/_showmap.html" %}{% endwith %}{% endif %}
+  {% if r.fuuid %}<a href="/feeders/{{ r.sid }}">ADS-B feeder page</a>{% endif %}
+  <span class="subnav" style="margin:0"><a class="{{ 'active' if units == 'imperial' }}" href="?units=imperial&amp;period={{ period }}">&deg;F, mph, in</a><a class="{{ 'active' if units == 'metric' }}" href="?units=metric&amp;period={{ period }}">&deg;C, km/h, mm</a></span></p>
+
+<details class="panel setsec" id="sec-now" open><summary><span class="role-name">Current Conditions</span></summary><div class="secbody"><div id="wx-now-body">{% include "partials/_wx_now.html" %}</div></div></details>
+
+<details class="panel setsec" id="sec-charts" open style="margin-top:14px"><summary><span class="role-name">Charts</span></summary><div class="secbody">
+  <div class="subnav" style="margin-bottom:10px">{% for k, v in periods.items() %}<a class="{{ 'active' if k == period }}" href="?period={{ k }}&amp;units={{ units }}">{{ v[0] }}</a>{% endfor %}</div>
+  <div class="wxcharts">
+  {% for title, svg, caption, legend in charts %}
+  <div class="wxchart"><h3><svg class="wxi tile-i"><use href="#wxi-{{ {'Temperature': 'temp', 'Humidity': 'drop', 'Pressure': 'press', 'Wind': 'wind', 'Rain': 'rain', 'Sun': 'sun'}[title] }}"/></svg>{{ title }}</h3>{{ svg }}
+  <div class="dim" style="font-size:.8rem">{{ caption }}{% for c, l in legend %} &nbsp; <span style="color:{{ c }}">&#9632;</span> {{ l }}{% endfor %}</div></div>
+  {% endfor %}
+  </div>
+</div></details>
+
+<details class="panel setsec" id="sec-daily-summary" style="margin-top:14px;overflow-x:auto"><summary><span class="role-name">Daily Summary</span></summary><div class="secbody">
+  <table>
+    <tr><th>Day</th><th>High</th><th>Low</th><th>Top Gust</th><th>Rain</th><th>Humidity</th></tr>
+    {% for d in days %}<tr><td class="mono">{{ d.day }}</td>
+      <td class="mono">{% if d.high is not none %}{{ conv('temp_f', d.high, units)[0] }}{{ conv('temp_f', d.high, units)[1] }}{% else %}-{% endif %}</td>
+      <td class="mono">{% if d.low is not none %}{{ conv('temp_f', d.low, units)[0] }}{{ conv('temp_f', d.low, units)[1] }}{% else %}-{% endif %}</td>
+      <td class="mono">{% if d.gust is not none %}{{ conv('gust_mph', d.gust, units)[0] }} {{ conv('gust_mph', d.gust, units)[1] }}{% else %}-{% endif %}</td>
+      <td class="mono">{% if d.rain is not none %}{{ conv('rain_day_in', d.rain, units)[0] }} {{ conv('rain_day_in', d.rain, units)[1] }}{% else %}-{% endif %}</td>
+      <td class="mono">{% if d.hum is not none %}{{ '%.0f' % d.hum }}%{% else %}-{% endif %}</td></tr>
+    {% else %}<tr><td colspan="6" class="dim">Nothing recorded yet.</td></tr>{% endfor %}
+  </table>
+</div></details>
+
+<details class="panel setsec" id="sec-records" style="margin-top:14px"><summary><span class="role-name">Records</span></summary><div class="secbody">
+  <table style="max-width:560px">
+    {% for label, key, f in (('Highest temperature', 'high', 'temp_f'), ('Lowest temperature', 'low', 'temp_f'), ('Strongest gust', 'gust', 'gust_mph'), ('Most rain in a day', 'rain', 'rain_day_in')) %}
+    <tr><th>{{ label }}</th>{% if rec[key] %}<td class="mono">{{ conv(f, rec[key].v, units)[0] }} {{ conv(f, rec[key].v, units)[1] }}</td><td class="dim">{{ rec[key].t | localtime("%b %-d, %Y") }}</td>{% else %}<td class="mono">-</td><td></td>{% endif %}</tr>
+    {% endfor %}
+  </table>
+  <div class="help">Since this station began reporting to the site.</div>
+</div></details>
+
+<details class="panel setsec" id="sec-station" style="margin-top:14px"><summary><span class="role-name">Station</span></summary><div class="secbody">
+  <table style="max-width:640px">
+    <tr><th style="width:170px">Station ID</th><td class="mono">{{ r.sid }}</td></tr>
+    {% if name != r.sid %}<tr><th>Name</th><td>{{ name }}</td></tr>{% endif %}
+    {% if who %}<tr><th>Owner</th><td>{{ who }}{% if r.owner_callsign %} <span class="dim mono">{{ r.owner_callsign | cs }}</span>{% endif %}</td></tr>{% endif %}
+    {% if r.hardware %}<tr><th>Hardware</th><td>{{ r.hardware }}</td></tr>{% endif %}
+    {% if r.description %}<tr><th>About</th><td>{{ r.description }}</td></tr>{% endif %}
+    <tr><th>Sends readings by</th><td>{{ kinds[r.kind] }}</td></tr>
+    {% if extra %}<tr><th>Device</th><td class="mono">{{ extra.values() | join(' ') }}</td></tr>{% endif %}
+    <tr><th>Position</th><td>{% if loc %}{{ '%.2f' % loc[0] }}, {{ '%.2f' % loc[1] }}{% if approx %} (rounded: the owner chose not to share the exact spot){% endif %}{% else %}hidden by the owner{% endif %}</td></tr>
+    <tr><th>Status</th><td>{% if online %}Reporting; a station is shown offline after {{ stale }} minutes of silence.{% else %}No report in the last {{ stale }} minutes.{% endif %}</td></tr>
+  </table>
+  {% if credit %}<p class="dim" style="margin:10px 0 0"><a href="{{ credit[1] }}" target="_blank" rel="noopener">{{ credit[0] }}</a></p>{% endif %}
+</div></details>
+<script>
+// the current conditions update as readings arrive: the page asks for a fresh copy of the two parts that change (no reload, so charts, scroll and open sections stay as they are)
+(function () {
+  var every = {{ live_seconds }} * 1000, busy = false;
+  function flash(el) { el.style.transition = "background .2s"; el.style.background = "rgba(62,230,168,.22)"; setTimeout(function () { el.style.background = ""; }, 900); }
+  async function tick() {
+    if (busy || document.hidden) return;
+    busy = true;
+    try {
+      var d = await (await fetch(location.pathname + "/live.json?units={{ units }}", {cache: "no-store", credentials: "same-origin"})).json();
+      var body = document.getElementById("wx-now-body"), before = {};
+      body.querySelectorAll(".tile .tv, #wx-temp").forEach(function (el, i) { before[i] = el.textContent; });
+      body.innerHTML = d.now; document.getElementById("wx-sub").innerHTML = d.sub;
+      body.querySelectorAll(".tile .tv, #wx-temp").forEach(function (el, i) { if (before[i] !== undefined && before[i] !== el.textContent) flash(el); });
+    } catch (e) { /* the next try is soon */ }
+    busy = false;
+  }
+  setInterval(tick, every);
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) tick(); });
+})();
+</script>
+<script src="/static/chartinspect.js"></script>
+{% endblock %}

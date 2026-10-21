@@ -1,0 +1,11 @@
+# The prediction and archive service (predictd.py): imports SondeHub's open data archive as flight summaries into its own Postgres database and forecasts where
+# the balloons of future launches will land. Built by build.yml as mallison01/adsb-predict and released with everything else (same latest/stable tags).
+FROM python:3.12-slim
+RUN groupadd -r -g 10002 predict && useradd -r -u 10002 -g predict -d /app predict
+WORKDIR /app
+RUN pip install --no-cache-dir "psycopg[binary]==3.2.*" numpy pygrib==2.1.8
+COPY deploy/predict/predictd.py deploy/predict/forecastmethods.py deploy/predict/gfsdata.py /app/
+COPY BUILD_INFO /BUILD_INFO
+USER predict
+EXPOSE 8470
+CMD ["python", "-u", "/app/predictd.py"]

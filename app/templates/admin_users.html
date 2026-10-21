@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Users{% endblock %}
+{% block content %}
+<h1><span>Admin</span> Users</h1>
+<div class="sub">{{ users|length }} account{{ '' if users|length == 1 else 's' }}.</div>
+{% include "partials/_admin_subnav.html" %}
+<div class="tfilterbar"><input type="search" class="tfilter" data-table="#users-table table" placeholder="Search users by name, email or role" aria-label="Search users by name, email or role"><span class="dim tcount"></span></div>
+{% include "partials/_users_table.html" %}
+{% endblock %}

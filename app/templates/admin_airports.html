@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Airports{% endblock %}
+{% block content %}
+<h1><span>Admin</span> Airports</h1>
+<div class="sub">Airport locations, radio frequencies and runways from OurAirports, a public-domain dataset. Used for the public airport pages, maps and nearest-airport station IDs.</div>
+{% include "partials/_admin_subnav.html" %}
+<div class="tiles" style="margin-bottom:14px">
+  <div class="panel tile"><div class="tv">{{ st.counts.airports }}</div><div class="tl">Airports</div></div>
+  <div class="panel tile"><div class="tv">{{ st.counts.frequencies }}</div><div class="tl">Frequencies</div></div>
+  <div class="panel tile"><div class="tv">{{ st.counts.runways }}</div><div class="tl">Runways</div></div>
+</div>
+<details class="panel setsec" id="sec-update-airport-data" open><summary><span class="role-name">Update Airport Data</span></summary><form method="post" action="/admin/airports/import" data-async data-disable-while-sending
+      data-confirm="Download the latest airport data now? This replaces the current airport tables and takes a few seconds.">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  
+  <label for="countries">Countries</label>
+  <input type="text" id="countries" name="countries" value="{{ countries }}" style="max-width:240px">
+  <div class="help">Two-letter country codes separated by commas, for example US or US,CA. Closed airports and balloon ports are skipped.</div>
+  <p class="dim" style="margin:12px 0 0">{% if st.last %}Last updated {{ st.last | localtime }}: {{ st.summary }}.{% else %}The airport data has not been loaded yet.{% endif %}</p>
+  <p class="dim" style="margin:6px 0 0">{{ schedule }} Change how often, and when, under <a href="/admin/settings#sec-scheduled-updates">Settings &gt; Scheduled Updates</a>.</p>
+  <button class="btn" type="submit">Download and Update Now</button>
+</form></details>
+{% endblock %}

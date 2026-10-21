@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Feeders{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ leaflet_base }}/leaflet.css" crossorigin="anonymous">
+<h1><span>Feeders</span></h1>
+<div class="sub">The receivers that make up the network. Locations are shown as the owner chooses, and many are approximate.{% if feeder_stats %} <a href="/view/network-feeders">Statistics for all feeders</a>{% endif %} &middot; <a href="/coverage">Coverage map</a> &middot; <a href="/mlat/">MLAT network</a></div>
+
+<div class="tiles">
+  <div class="panel tile"><div class="tv">{{ totals.online }}</div><div class="tl">Feeders online</div></div>
+  <div class="panel tile"><div class="tv">{{ totals.claimed }}</div><div class="tl">Named feeders</div></div>
+  <div class="panel tile"><div class="tv">{{ '%.0f' % totals.msgs }}</div><div class="tl">Messages per second</div></div>
+  <div class="panel tile"><div class="tv">{{ '%.0f' % totals.pos }}</div><div class="tl">Positions per second</div></div>
+</div>
+
+<div class="panel" style="margin-top:14px;padding:0;overflow:hidden"><div id="feedermap" style="height:380px"></div></div>
+
+<form class="panel filters" method="get" style="margin-top:14px">
+  <div><label for="period">Period</label>
+    <select id="period" name="period">{% for k, v in periods.items() %}<option value="{{ k }}" {{ 'selected' if k == period }}>{{ v[0] }}</option>{% endfor %}</select></div>
+  <div><label for="sort">Rank By</label>
+    <select id="sort" name="sort">{% for k, v in sorts.items() %}<option value="{{ k }}" {{ 'selected' if k == sort }}>{{ v[0] }}</option>{% endfor %}</select></div>
+  <button class="btn small" type="submit">Apply</button>
+</form>
+
+<div class="tfilterbar" style="margin-top:12px"><input type="search" class="tfilter" data-table="#pubfeeders" placeholder="Search feeders by ID, name, owner or call sign" aria-label="Search feeders"><span class="dim tcount"></span></div>
+<div class="panel" style="overflow-x:auto">
+  <table class="sortable" id="pubfeeders">
+    <tr><th data-sort="num">Rank</th><th data-sort="text">Feeder</th><th data-sort="text">Owner</th><th data-sort="text">Status</th><th data-sort="num">Positions/Day</th><th data-sort="num">Messages/Day</th><th data-sort="num">Uptime</th><th data-sort="num">Max Range</th><th>Site</th></tr>
+    {% for r in rows %}
+    <tr data-search="{{ r.station_id }} {{ r.name }} {{ r.owner_display or r.owner_name }} {{ r.owner_callsign }} {{ 'online' if r.online else 'offline' }}">
+      <td class="mono">{{ r.rank }}</td>
+      <td><a href="/feeders/{{ r.station_id }}"><b class="mono">{{ r.station_id }}</b></a>{% if r.official %} <span class="tag admin">{{ badge }}</span>{% endif %}{% for code, label in badges.get(r.uuid, []) %} <span class="tag live achv" title="{{ label }}">{{ label }}</span>{% endfor %}{% if r.name %}<br><span class="dim">{{ r.name }}</span>{% endif %}<br><a href="/{{ r.station_id }}" style="font-size:.78rem">Live map for this station</a>{% if feeder_stats %} &middot; <a href="/view/network-feeders?station={{ r.station_id }}" style="font-size:.78rem">Statistics</a>{% endif %}</td>
+      <td>{{ r.owner_display or r.owner_name }}{% if r.owner_callsign %}<br><span class="dim mono">{{ r.owner_callsign | cs }}</span>{% endif %}</td>
+      <td>{% if r.online %}<span class="tag live">online</span>{% else %}<span class="tag off">offline</span>{% endif %}{% if r.mlat %} <span class="tag live" title="This feeder contributes to multilateration">MLAT</span>{% endif %}</td>
+      <td class="mono">{{ '{:,.0f}'.format(r.positions_per_day) }}</td>
+      <td class="mono">{{ '{:,.0f}'.format(r.messages_per_day) }}</td>
+      <td class="mono">{{ '%.1f' % r.uptime }}%</td>
+      <td class="mono">{{ r.max_range_30d | u_nm(0) if r.max_range_30d else '-' }}</td>
+      <td>{% if r.website and r.website_public %}<a href="{{ r.website }}" target="_blank" rel="noopener nofollow">Visit</a>{% endif %}</td>
+    </tr>
+    {% else %}<tr><td colspan="9" class="dim">No feeders have been named yet. Claim your feeder and choose a station ID to appear here.</td></tr>{% endfor %}
+  </table>
+</div>
+
+{% if achv_defs %}
+{% call sec('achievements', 'Achievements', False, True) %}
+  <p class="dim" style="margin-top:0">Friendly recognition for the feeders that make the network better. The badges are worked out from the real numbers (the last 30 days of range, uptime and activity, and how long a feeder has been here), so they follow what a feeder is doing now.</p>
+  <table id="achv-defs"><thead><tr><th>Badge</th><th>What It Takes</th><th>Held By</th></tr></thead><tbody>
+  {% for code, label, text in achv_defs %}<tr><td><span class="tag live achv">{{ label }}</span></td><td>{{ text }}</td><td>{% for sid in achv_holders.get(code, []) %}<a class="mono" href="/feeders/{{ sid }}">{{ sid }}</a>{{ ', ' if not loop.last }}{% else %}<span class="dim">nobody yet</span>{% endfor %}</td></tr>{% endfor %}
+  </tbody></table>
+{% endcall %}
+{% endif %}
+<script src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script>
+<script src="/static/touchhit.js"></script>
+<script src="/static/sondeicons.js"></script>
+<script>
+(function () {
+  var pts = {{ points | tojson }};
+  var map = L.map("feedermap").setView([{{ map_lat }}, {{ map_lon }}], {{ map_zoom }});
+  var AREA = {{ map_area("feeders_map_area") | tojson }};   // Settings > Map Areas
+  if (AREA) map.fitBounds([[AREA[0], AREA[1]], [AREA[2], AREA[3]]], {padding: [10, 10]});
+  L.tileLayer({{ tile_url | tojson }}, {maxZoom: 19, attribution: {{ tile_attr | tojson }}}).addTo(map);
+  pts.forEach(function (p) {
+    var color = p.online ? "#3ee6a8" : "#8a9bb3";
+    // every feeder is an airplane badge, big enough to see at state level; an approximate position also gets its circle
+    if (p.approx) L.circle([p.lat, p.lon], {radius: p.radius_m || {{ approx_radius_m }}, color: color, weight: 1, fillOpacity: 0.2, interactive: false}).addTo(map);
+    var shape = L.marker([p.lat, p.lon], {icon: L.divIcon({className: "", html: SondeIcons.marker("feeder", color, "", {size: 30, dim: !p.online}), iconSize: [0, 0]}), riseOnHover: true});
+    shape.addTo(map).bindPopup('<b>' + p.id + '</b><br>' + p.name.replace(/</g, "&lt;") + '<br><a href="/feeders/' + encodeURIComponent(p.id) + '">View feeder</a> &middot; <a href="/' + encodeURIComponent(p.id) + '">Live map</a>');
+  });
+})();
+</script>
+{% endblock %}

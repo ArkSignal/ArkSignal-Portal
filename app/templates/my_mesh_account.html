@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}{{ r.label or r.username }}{% endblock %}
+{% block content %}
+<h1>My <span>Mesh Login</span> {{ r.label or r.username }}</h1>
+<div class="sub">{% if r.disabled %}switched off by an administrator: its node is refused{% else %}active{% endif %}</div>
+{% if managing %}<div class="panel" style="border-color:var(--acc2);margin-bottom:14px"><b>You are managing {{ managing }}'s login as an administrator.</b> It is written in the audit log under your name. <a href="/admin/mesh">Back to Admin &gt; Mesh Nodes</a></div>{% endif %}
+{% with active = 'mesh' %}{% include "partials/_my_subnav.html" %}{% endwith %}
+<p><a href="/my/mesh">&larr; My Mesh Nodes</a></p>
+<details class="panel setsec" id="sec-login" open><summary><span class="role-name">Login</span></summary><div class="secbody">
+  <p style="margin-top:0">This login belongs to you alone. Anyone who has it can send to the broker as you, so keep it private; if it leaks, make a new password below. It lets a node publish and nothing else: it cannot read anything.</p>
+  {% if not conn.open %}<p><b>The broker is not open to nodes yet.</b> The server address appears here once it is.</p>{% endif %}
+  <table style="max-width:640px">
+    <tr><th style="width:200px">MQTT server</th><td class="mono copyable">{{ conn.host or '(not open yet)' }}</td></tr>
+    <tr><th>Port (TLS)</th><td class="mono copyable">{{ conn.port }}</td></tr>
+    <tr><th>Username</th><td class="mono copyable">{{ r.username }}</td></tr>
+    <tr><th>Password</th><td class="mono copyable">{{ password }}</td></tr>
+    <tr><th>Meshtastic root topic</th><td class="mono copyable">{{ conn.topic }}</td></tr>
+  </table>
+  {% with host = conn.host or 'MQTT_SERVER', port = conn.port, topic = conn.topic, user = r.username, pw = password %}{% include "partials/_mesh_cmds.html" %}{% endwith %}
+  <form method="post" action="/my/mesh/{{ r.id }}/new-password" data-confirm="Make a new password? The old one stops working at once." style="margin-top:12px"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small neutral" type="submit">Make a New Password</button></form>
+</div></details>
+<details class="panel setsec" id="sec-about-this-login" open style="margin-top:14px"><summary><span class="role-name">About This Login</span></summary>
+<form method="post" action="/my/mesh/{{ r.id }}/save">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  {% with fp = "me" %}{% include "partials/_mesh_form_fields.html" %}{% endwith %}
+  <button class="btn" type="submit">Save</button>
+</form></details>
+<details class="panel setsec" id="sec-delete" style="margin-top:14px"><summary><span class="role-name">Delete This Login</span></summary><div class="secbody">
+  <p style="margin-top:0">Removes the login from the broker at once; a node using it is refused. Nodes already on the map stay.</p>
+  <form method="post" action="/my/mesh/{{ r.id }}/delete" data-confirm="Delete this login?"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small danger" type="submit">Delete Login</button></form>
+</div></details>
+{% endblock %}

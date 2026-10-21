@@ -1,0 +1,411 @@
+{
+ "source": "Arkansas Department of Health, Designated Trauma Centers, last updated September 9, 2026",
+ "centers": [
+  {
+   "name": "Arkansas Children’s Hospital (ACH)",
+   "city": "Little Rock",
+   "state": "AR",
+   "level": "I",
+   "designated": "December 2024",
+   "ccn": "043300"
+  },
+  {
+   "name": "CoxHealth",
+   "city": "Springfield",
+   "state": "MO",
+   "level": "I",
+   "designated": "February 2025",
+   "ccn": "260040"
+  },
+  {
+   "name": "Le Bonheur Children’s Hospital",
+   "city": "Memphis",
+   "state": "TN",
+   "level": "I",
+   "designated": "June 2024"
+  },
+  {
+   "name": "Mercy Hospital – Springfield",
+   "city": "Springfield",
+   "state": "MO",
+   "level": "I",
+   "designated": "February 2024",
+   "ccn": "260065"
+  },
+  {
+   "name": "Regional One Health",
+   "city": "Memphis",
+   "state": "TN",
+   "level": "I",
+   "designated": "November 2025",
+   "ccn": "440152"
+  },
+  {
+   "name": "University of Arkansas for Medical Sciences (UAMS)",
+   "city": "Little Rock",
+   "state": "AR",
+   "level": "I",
+   "designated": "November 2023",
+   "ccn": "040016"
+  },
+  {
+   "name": "Baptist Health Medical Center",
+   "city": "Little Rock",
+   "state": "AR",
+   "level": "II",
+   "designated": "May 2025",
+   "ccn": "040114"
+  },
+  {
+   "name": "St. Vincent Hospital Hot Springs",
+   "city": "Hot Springs",
+   "state": "AR",
+   "level": "II",
+   "designated": "March 2025",
+   "ccn": "040026"
+  },
+  {
+   "name": "CHI St. Vincent Infirmary",
+   "city": "Little Rock",
+   "state": "AR",
+   "level": "II",
+   "designated": "October 2023",
+   "ccn": "040007"
+  },
+  {
+   "name": "Washington Regional Medical Center",
+   "city": "Fayetteville",
+   "state": "AR",
+   "level": "II",
+   "designated": "February 2025",
+   "ccn": "040004"
+  },
+  {
+   "name": "Baptist Health Medical Center – Conway",
+   "city": "Conway",
+   "state": "AR",
+   "level": "III",
+   "designated": "March 2026",
+   "ccn": "040154"
+  },
+  {
+   "name": "Baptist Health Medical Center – NLR",
+   "city": "North Little Rock",
+   "state": "AR",
+   "level": "III",
+   "designated": "April 2024",
+   "ccn": "040036"
+  },
+  {
+   "name": "Baxter Health",
+   "city": "Mountain Home",
+   "state": "AR",
+   "level": "III",
+   "designated": "October 2024",
+   "ccn": "040027"
+  },
+  {
+   "name": "Christus Saint Michael Health System",
+   "city": "Texarkana",
+   "state": "TX",
+   "level": "III",
+   "designated": "February 2024",
+   "ccn": "450801"
+  },
+  {
+   "name": "Conway Regional Medical Center",
+   "city": "Conway",
+   "state": "AR",
+   "level": "III",
+   "designated": "October 2024",
+   "ccn": "040029"
+  },
+  {
+   "name": "Freeman Health Bentonville Medical Center",
+   "city": "Bentonville",
+   "state": "AR",
+   "level": "III",
+   "designated": "July 2026"
+  },
+  {
+   "name": "Freeman Health Regional Medical Center",
+   "city": "Springdale",
+   "state": "AR",
+   "level": "III",
+   "designated": "July 2026",
+   "ccn": "040022"
+  },
+  {
+   "name": "Jefferson Regional Medical Center (JRMC)",
+   "city": "Pine Bluff",
+   "state": "AR",
+   "level": "III",
+   "designated": "September 2024",
+   "ccn": "040071"
+  },
+  {
+   "name": "Mercy Hospital – Fort Smith",
+   "city": "Fort Smith",
+   "state": "AR",
+   "level": "III",
+   "designated": "August 2025",
+   "ccn": "040062"
+  },
+  {
+   "name": "Mercy Hospital – Northwest AR",
+   "city": "Rogers",
+   "state": "AR",
+   "level": "III",
+   "designated": "February 2025",
+   "ccn": "040010"
+  },
+  {
+   "name": "NEA Baptist Memorial Hospital",
+   "city": "Jonesboro",
+   "state": "AR",
+   "level": "III",
+   "designated": "April 2024",
+   "ccn": "040118"
+  },
+  {
+   "name": "North Arkansas Regional Medical Center",
+   "city": "Harrison",
+   "state": "AR",
+   "level": "III",
+   "designated": "March 2026",
+   "ccn": "040017"
+  },
+  {
+   "name": "Saline Memorial Hospital",
+   "city": "Benton",
+   "state": "AR",
+   "level": "III",
+   "designated": "November 2023",
+   "ccn": "040084"
+  },
+  {
+   "name": "Saint Mary’s Regional Hospital",
+   "city": "Russellville",
+   "state": "AR",
+   "level": "III",
+   "designated": "August 2024",
+   "ccn": "040041"
+  },
+  {
+   "name": "Saint Bernards Medical Center",
+   "city": "Jonesboro",
+   "state": "AR",
+   "level": "III",
+   "designated": "August 2024",
+   "ccn": "040020"
+  },
+  {
+   "name": "Unity Health White County Medical Center",
+   "city": "Searcy",
+   "state": "AR",
+   "level": "III",
+   "designated": "September 2024",
+   "ccn": "040014"
+  },
+  {
+   "name": "White River Medical Center",
+   "city": "Batesville",
+   "state": "AR",
+   "level": "III",
+   "designated": "October 2024",
+   "ccn": "040119"
+  },
+  {
+   "name": "Arkansas Children’s Hospital – Northwest",
+   "city": "Springdale",
+   "state": "AR",
+   "level": "IV",
+   "designated": "November 2025",
+   "ccn": "043301"
+  },
+  {
+   "name": "Ashley County Medical Center",
+   "city": "Crossett",
+   "state": "AR",
+   "level": "IV",
+   "designated": "November 2025",
+   "ccn": "041323"
+  },
+  {
+   "name": "Baptist Memorial Health - Paragould",
+   "city": "Paragould",
+   "state": "AR",
+   "level": "IV",
+   "designated": "February 2025",
+   "ccn": "040039"
+  },
+  {
+   "name": "Baxter Health Fulton County Hospital",
+   "city": "Salem",
+   "state": "AR",
+   "level": "IV",
+   "designated": "May 2024",
+   "ccn": "041322"
+  },
+  {
+   "name": "Chambers Memorial Hospital",
+   "city": "Danville",
+   "state": "AR",
+   "level": "IV",
+   "designated": "April 2024",
+   "ccn": "040011"
+  },
+  {
+   "name": "CHI St. Vincent Morrilton",
+   "city": "Morrilton",
+   "state": "AR",
+   "level": "IV",
+   "designated": "August 2024",
+   "ccn": "041324"
+  },
+  {
+   "name": "CHI St. Vincent North",
+   "city": "Sherwood",
+   "state": "AR",
+   "level": "IV",
+   "designated": "February 2024",
+   "ccn": "040137"
+  },
+  {
+   "name": "Chicot Memorial Medical Center",
+   "city": "Lake Village",
+   "state": "AR",
+   "level": "IV",
+   "designated": "March 2025",
+   "ccn": "041328"
+  },
+  {
+   "name": "Dallas County Medical Center",
+   "city": "Fordyce",
+   "state": "AR",
+   "level": "IV",
+   "designated": "March 2025",
+   "ccn": "041317"
+  },
+  {
+   "name": "Dardanelle Regional Medical Center",
+   "city": "Dardanelle",
+   "state": "AR",
+   "level": "IV",
+   "designated": "February 2025",
+   "ccn": "041302"
+  },
+  {
+   "name": "Eureka Springs Hospital",
+   "city": "Eureka Springs",
+   "state": "AR",
+   "level": "IV",
+   "designated": "July 2025",
+   "ccn": "040780"
+  },
+  {
+   "name": "Freeman Health Siloam Springs Medical Center",
+   "city": "Siloam Springs",
+   "state": "AR",
+   "level": "IV",
+   "designated": "January 2026",
+   "ccn": "040001"
+  },
+  {
+   "name": "Great River Medical Center",
+   "city": "Blytheville",
+   "state": "AR",
+   "level": "IV",
+   "designated": "November 2025",
+   "ccn": "040069"
+  },
+  {
+   "name": "Johnson Regional Medical Center",
+   "city": "Clarksville",
+   "state": "AR",
+   "level": "IV",
+   "designated": "April 2024",
+   "ccn": "040002"
+  },
+  {
+   "name": "Mena Regional Health System",
+   "city": "Mena",
+   "state": "AR",
+   "level": "IV",
+   "designated": "December 2024",
+   "ccn": "041334"
+  },
+  {
+   "name": "Mercy Hospital – Booneville",
+   "city": "Booneville",
+   "state": "AR",
+   "level": "IV",
+   "designated": "October 2025",
+   "ccn": "041318"
+  },
+  {
+   "name": "Mercy Hospital – Ozark",
+   "city": "Ozark",
+   "state": "AR",
+   "level": "IV",
+   "designated": "October 2024",
+   "ccn": "041303"
+  },
+  {
+   "name": "Mercy Hospital – Paris",
+   "city": "Paris",
+   "state": "AR",
+   "level": "IV",
+   "designated": "February 2024",
+   "ccn": "041300"
+  },
+  {
+   "name": "Mercy Hospital – Waldron",
+   "city": "Waldron",
+   "state": "AR",
+   "level": "IV",
+   "designated": "December 2024",
+   "ccn": "041305"
+  },
+  {
+   "name": "Ouachita County Medical Center",
+   "city": "Camden",
+   "state": "AR",
+   "level": "IV",
+   "designated": "September 2024",
+   "ccn": "040050"
+  },
+  {
+   "name": "Ozark Health Medical Center",
+   "city": "Clinton",
+   "state": "AR",
+   "level": "IV",
+   "designated": "March 2025",
+   "ccn": "041313"
+  },
+  {
+   "name": "South Mississippi County Regional Medical Center",
+   "city": "Osceola",
+   "state": "AR",
+   "level": "IV",
+   "designated": "November 2025",
+   "ccn": "040782"
+  },
+  {
+   "name": "St. Bernards Five Rivers Medical Center",
+   "city": "Pocahontas",
+   "state": "AR",
+   "level": "IV",
+   "designated": "March 2024",
+   "ccn": "040779"
+  },
+  {
+   "name": "Stone County Medical Center",
+   "city": "Mountain View",
+   "state": "AR",
+   "level": "IV",
+   "designated": "August 2024",
+   "ccn": "041310"
+  }
+ ]
+}

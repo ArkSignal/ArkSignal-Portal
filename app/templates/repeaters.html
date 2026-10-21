@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% from "partials/_sorthead.html" import sorthead %}
+{% block title %}Repeaters{% endblock %}
+{% block content %}
+<h1><span>Repeaters</span> and Radio Nodes</h1>
+<div class="sub">Amateur radio repeaters, linked nodes and gateways in every mode (FM, DMR, D-STAR, Fusion, P25) around Arkansas. Listings come from Hearham's open data and from Arkansas hams; anyone signed in can add a repeater or report a problem.</div>
+<div class="tiles" style="margin-bottom:14px">
+  <div class="panel tile"><div class="tv">{{ counts.total }}</div><div class="tl">Listed</div></div>
+  <div class="panel tile"><div class="tv">{{ counts.active }}</div><div class="tl">Active</div></div>
+  <div class="panel tile"><div class="tv">{{ counts.dmr }}</div><div class="tl">DMR</div></div>
+  <div class="panel tile"><div class="tv">{{ counts.verified }}</div><div class="tl">Verified by a person</div></div>
+</div>
+<form method="get" action="/repeaters/" class="panel" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px">
+  <div><label for="q">Search</label><input type="text" id="q" name="q" value="{{ args.get('q', '') }}" placeholder="Call sign, city, frequency" style="width:220px"></div>
+  <div><label for="mode">Mode</label><select id="mode" name="mode"><option value="">All</option>{% for m in modes %}<option value="{{ m }}" {{ 'selected' if args.get('mode') == m }}>{{ m }}</option>{% endfor %}</select></div>
+  <div><label for="band">Band</label><select id="band" name="band"><option value="">All</option>{% for b in bands %}<option value="{{ b }}" {{ 'selected' if args.get('band') == b }}>{{ b }}</option>{% endfor %}</select></div>
+  <div><label for="kind">Kind</label><select id="kind" name="kind"><option value="">All</option>{% for k, l in kinds %}<option value="{{ k }}" {{ 'selected' if args.get('kind') == k }}>{{ l }}</option>{% endfor %}</select></div>
+  <div><label for="status">Status</label><select id="status" name="status"><option value="">All</option>{% for k, l in statuses %}<option value="{{ k }}" {{ 'selected' if args.get('status') == k }}>{{ l }}</option>{% endfor %}</select></div>
+  <div><label for="state">State</label><select id="state" name="state"><option value="">All</option>{% for s in states %}<option value="{{ s }}" {{ 'selected' if args.get('state') == s }}>{{ s }}</option>{% endfor %}</select></div>
+  {% if groups %}<div><label for="rp-group">Linked system</label><select id="rp-group" name="group"><option value="">Any</option>{% for g in groups %}<option value="{{ g.id }}" {{ 'selected' if args.get('group') == g.id | string }}>{{ g.name }} ({{ g.n }})</option>{% endfor %}</select></div>{% endif %}
+  <button class="btn small" type="submit" style="margin:0 0 2px">Search</button>
+  <a class="btn small neutral" href="/repeaters/map" style="margin:0 0 2px">Repeater Map</a>
+  <a class="btn small neutral" href="/repeaters/export" style="margin:0 0 2px">Code Plug Export</a>
+  {% if current_user.is_authenticated %}<a class="btn small neutral" href="/my/repeaters" style="margin:0 0 2px">Add a Repeater</a>{% endif %}
+</form>
+<div class="panel">
+  <p style="margin-top:0" class="dim">{{ total }} listing{{ '' if total == 1 else 's' }}</p>
+  {% if rows %}
+  <table><thead><tr>{{ sorthead("Output (MHz)", "freq", sort, direction, args.to_dict()) }}{{ sorthead("Offset", "offset", sort, direction, args.to_dict()) }}{{ sorthead("Tone", "tone", sort, direction, args.to_dict()) }}{{ sorthead("Modes", "modes", sort, direction, args.to_dict()) }}{{ sorthead("Call sign", "call", sort, direction, args.to_dict()) }}{{ sorthead("Location", "city", sort, direction, args.to_dict()) }}{{ sorthead("Kind", "kind", sort, direction, args.to_dict()) }}{{ sorthead("Status", "status", sort, direction, args.to_dict()) }}</tr></thead><tbody>
+  {% for r in rows %}<tr>
+    <td class="mono"><a href="/repeaters/{{ r.id }}">{{ rp_mhz(r.freq_hz) }}</a></td>
+    <td class="mono">{{ '%+.1f' % (r.offset_hz / 1e6) if r.offset_hz else 'simplex' }}</td>
+    <td class="mono">{{ r.tone or ('CC' ~ r.color_code if r.color_code else '') }}</td>
+    <td>{{ r.modes.replace(',', ', ') }}{% if r.network %} <span class="dim">({{ r.network }})</span>{% endif %}{% if r.tg_n %} <a class="tag" href="/repeaters/{{ r.id }}#rp-dmr" title="Time slots and talkgroups">{{ r.tg_n }} talkgroup{{ '' if r.tg_n == 1 else 's' }}</a>{% endif %}</td>
+    <td class="mono">{{ r.callsign | cs }}{% for gid, gname in rgroups.get(r.id, []) %} <a class="tag" href="/repeaters/?group={{ gid }}" title="Linked system: {{ gname }}. Show every repeater in it">&#128279; {{ gname }}</a>{% endfor %}</td>
+    <td>{% if r.city or (r.state and r.state != '-') %}{{ r.city }}{{ ', ' ~ r.state if r.state and r.state not in ('-',) and r.state not in r.city else '' }}{% endif %}{% if r.lat is not none and r.lon is not none %} <a class="dim" href="/repeaters/map?rep={{ r.id }}&amp;lat={{ '%.4f' % r.lat }}&amp;lon={{ '%.4f' % r.lon }}&amp;zoom=11" title="{{ '%.4f' % r.lat }}, {{ '%.4f' % r.lon }}">map</a>{% else %}<a class="dim" href="/repeaters/{{ r.id }}#rp-position" title="Set its position">no position yet</a>{% endif %}</td>
+    <td>{{ rp_kinds.get(r.kind, r.kind) }}</td>
+    <td><span class="tag {{ 'ok' if r.status == 'active' else '' }}">{{ rp_statuses.get(r.status, r.status) }}</span>{% if r.verified_at %} <span class="dim" title="Verified {{ r.verified_at.date() }}">&#10003;</span>{% endif %}</td>
+  </tr>{% endfor %}
+  </tbody></table>
+  {% else %}<p class="dim">No repeater matches. {% if not counts.total %}The directory has not been filled yet: an administrator loads Hearham's listing under Data Updates, or members add repeaters.{% endif %}</p>{% endif %}
+  {% if pages > 1 %}<p style="display:flex;gap:10px;align-items:center;margin-bottom:0">
+    {% set qs = args.to_dict() %}{% if page > 1 %}{% set _ = qs.update({'page': page - 1}) %}<a href="/repeaters/?{{ qs | urlencode }}">&larr; Previous</a>{% endif %}
+    <span class="dim">Page {{ page }} of {{ pages }}</span>
+    {% if page < pages %}{% set _ = qs.update({'page': page + 1}) %}<a href="/repeaters/?{{ qs | urlencode }}">Next &rarr;</a>{% endif %}</p>{% endif %}
+</div>
+<p class="dim" style="font-size:.8rem">{{ credit }}. Many more are on <a href="https://www.repeaterbook.com" target="_blank" rel="noopener">RepeaterBook</a> and <a href="https://radioid.net" target="_blank" rel="noopener">RadioID</a> (digital voice); we link to them rather than copy them. Listings can be out of date: report a problem on a repeater's page.</p>
+{% endblock %}

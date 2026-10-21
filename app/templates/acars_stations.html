@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}ACARS Stations{% endblock %}
+{% block content %}
+<h1><span>ACARS</span> Stations</h1>
+<div class="sub">The receivers of the network's members that send ACARS, VDL Mode 2 or HF datalink messages. <a href="/acars/">All messages</a> &middot; <a href="/feed/acars">Add yours</a></div>
+<div class="panel" style="overflow-x:auto">
+  {% if rows %}<table class="sortable"><thead><tr><th data-sort="text">Station</th><th data-sort="text">Name</th><th data-sort="text">Bands</th><th data-sort="text">Where</th><th data-sort="num">Messages</th><th data-sort="text">Status</th></tr></thead><tbody>
+  {% for r in rows %}{% set p = shown(r) %}<tr><td class="mono"><a href="/acars/stations/{{ r.station_id }}">{{ r.station_id }}</a></td><td>{{ r.name }}</td><td>{{ r.bands }}</td>
+    <td class="mono">{% if p %}{{ p[0] }}, {{ p[1] }}{% else %}<span class="dim">not shown</span>{% endif %}</td><td data-v="{{ r.messages }}">{{ r.messages }}</td>
+    <td>{% if online(r) %}<span class="tag live">reporting</span>{% else %}<span class="tag off">quiet</span>{% endif %}</td></tr>{% endfor %}</tbody></table>
+  {% else %}<p class="dim" style="margin:0">No station is shown yet.</p>{% endif %}
+</div>
+{% endblock %}

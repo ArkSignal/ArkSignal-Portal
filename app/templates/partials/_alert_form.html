@@ -1,0 +1,30 @@
+{% macro rule_form(r, kinds, needs_value, uid, action="/my/alerts/save", target="#alerts-list") %}
+<form method="post" action="{{ action }}" data-async data-async-target="{{ target }}" class="alert-form" {{ "data-reset" if not r }}>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  {% if r %}<input type="hidden" name="id" value="{{ r.id }}">{% endif %}
+  <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+    <div><label for="k-{{ uid }}">Watch For</label>
+      <select id="k-{{ uid }}" name="kind" data-needs="{{ needs_value | join(',') }}" onchange="(function(s){var v=document.getElementById('v-{{ uid }}');var on=s.dataset.needs.split(',').indexOf(s.value)>=0;v.disabled=!on;v.parentNode.style.opacity=on?1:.4;})(this)">
+        {% for k, label in kinds.items() %}<option value="{{ k }}" {{ 'selected' if r and r.kind == k }}>{{ label }}</option>{% endfor %}
+      </select></div>
+    <div style="{{ '' if not r or r.kind in needs_value else 'opacity:.4' }}"><label for="v-{{ uid }}">Value</label>
+      <input type="text" id="v-{{ uid }}" name="value" value="{{ r.value if r else '' }}" maxlength="10" style="width:130px" placeholder="e.g. AE1234" {{ 'disabled' if r and r.kind not in needs_value }}></div>
+    <div><label for="n-{{ uid }}">Alert Name</label>
+      <input type="text" id="n-{{ uid }}" name="name" value="{{ r.name if r else '' }}" maxlength="60" style="width:200px" placeholder="Optional"></div>
+  </div>
+  <div class="grp">Only When (Optional)</div>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+    <div><label for="la-{{ uid }}">Area Latitude</label><input type="text" id="la-{{ uid }}" name="area_lat" value="{{ r.area_lat if r and r.area_lat is not none else '' }}" style="width:110px"></div>
+    <div><label for="lo-{{ uid }}">Area Longitude</label><input type="text" id="lo-{{ uid }}" name="area_lon" value="{{ r.area_lon if r and r.area_lon is not none else '' }}" style="width:110px"></div>
+    <div><label for="ra-{{ uid }}">Radius (Nautical Miles)</label><input type="text" id="ra-{{ uid }}" name="area_radius_nm" value="{{ r.area_radius_nm | round | int if r and r.area_radius_nm is not none else '' }}" style="width:110px"></div>
+    <div><label for="am-{{ uid }}">Minimum Altitude (ft)</label><input type="text" id="am-{{ uid }}" name="alt_min_ft" value="{{ r.alt_min_ft | round | int if r and r.alt_min_ft is not none else '' }}" style="width:110px"></div>
+    <div><label for="ax-{{ uid }}">Maximum Altitude (ft)</label><input type="text" id="ax-{{ uid }}" name="alt_max_ft" value="{{ r.alt_max_ft | round | int if r and r.alt_max_ft is not none else '' }}" style="width:110px"></div>
+  </div>
+  <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;margin-top:10px">
+    <div><label for="cd-{{ uid }}">Repeat No Sooner Than (Minutes)</label><input type="text" id="cd-{{ uid }}" name="cooldown_minutes" value="{{ r.cooldown_minutes if r else default_cooldown }}" style="width:110px"></div>
+    <label class="check" style="margin:0 0 6px"><input type="checkbox" name="notify_email" value="1" {{ 'checked' if r and r.notify_email }}><span>Also email me</span></label>
+    <label class="check" style="margin:0 0 6px"><input type="checkbox" name="notify_webhook" value="1" {{ 'checked' if r and r.notify_webhook }}><span>Also send to my webhook</span></label>
+    <button class="btn small" type="submit" style="margin:0 0 4px">{{ 'Save Alert' if r else 'Add Alert' }}</button>
+  </div>
+</form>
+{% endmacro %}

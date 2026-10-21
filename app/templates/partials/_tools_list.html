@@ -1,0 +1,30 @@
+<div id="tools-list">
+<div class="panel" style="overflow-x:auto">
+  <table>
+    <tr><th>Order</th><th>Name</th><th>Short Name</th><th>Address</th><th>Description</th><th>Shown</th><th>Actions</th></tr>
+    {% for t in tools %}
+    <tr>
+      <td><input form="tf-{{ t.id }}" type="text" name="sort_order" value="{{ t.sort_order }}" style="width:70px" aria-label="Order"></td>
+      <td><input form="tf-{{ t.id }}" type="text" name="name" value="{{ t.name }}" maxlength="40" style="width:150px" aria-label="Name"></td>
+      <td><input form="tf-{{ t.id }}" type="text" name="slug" value="{{ t.slug }}" maxlength="39" style="width:130px" aria-label="Short name"></td>
+      <td><input form="tf-{{ t.id }}" type="text" name="url" value="{{ t.url }}" maxlength="300" style="width:230px" aria-label="Address"></td>
+      <td><input form="tf-{{ t.id }}" type="text" name="description" value="{{ t.description }}" maxlength="120" style="width:220px" aria-label="Description"></td>
+      <td><input form="tf-{{ t.id }}" type="checkbox" name="enabled" value="1" {{ 'checked' if t.enabled }} aria-label="Shown in the menu"></td>
+      <td>
+        <button form="tf-{{ t.id }}" class="btn small" type="submit">Save</button>
+        <form class="inline" method="post" action="/admin/tools/{{ t.id }}/delete" data-async data-async-target="#tools-list"
+              data-confirm="Delete {{ t.name }}? It disappears from the Tools menu and its page stops working.">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn small warn" type="submit">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}<tr><td colspan="7" class="dim">No tools are configured.</td></tr>{% endfor %}
+  </table>
+  {% for t in tools %}
+  <form method="post" action="/admin/tools/save" data-async data-async-target="#tools-list" id="tf-{{ t.id }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="id" value="{{ t.id }}">
+  </form>
+  {% endfor %}
+</div>
+</div>

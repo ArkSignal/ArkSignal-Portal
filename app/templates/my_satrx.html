@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% from "partials/_satrx.html" import fields with context %}
+{% block title %}My Satellite Receivers{% endblock %}
+{% block content %}
+<h1>My <span>Satellite Receivers</span></h1>
+<div class="sub">Weather satellite pictures your own station has decoded (Meteor-M, GOES or NOAA), sent to the <a href="/radio/satellite-images">Satellite Images</a> gallery. Each receiver gets a private upload address. New to this? Read <a href="/feed/satellites">How to Feed Satellite Pictures</a>.</div>
+{% with active = 'satrx' %}{% include "partials/_my_subnav.html" %}{% endwith %}
+
+{% call sec('add', 'Add a Receiver', False) %}
+  <form method="post" action="/my/sat-receivers/add" data-async data-async-target="#my-satrx" data-reset>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {{ fields(none, 'new') }}
+    <button class="btn" type="submit">Add the Receiver</button>
+    <div class="help">You can have {{ limit }} receivers. Each keeps its newest {{ keep }} pictures (the oldest go first), up to {{ max_mb }} MB each and {{ per_hour }} an hour.</div>
+  </form>
+{% endcall %}
+
+{% call sec('mine', 'Your Receivers', True) %}
+  {% include "partials/_my_satrx.html" %}
+{% endcall %}
+
+{% call sec('how', 'How to Send Pictures', False) %}
+  <p style="margin-top:0">The <a href="/static/satimage_uploader.py">ArkSignal uploader</a> (see <a href="/feed/satellites">How to Feed</a>) sends new pictures from a folder by itself. Or your decoding software writes each finished picture as a PNG or JPEG file and you send it to the receiver's upload address (shown on its card above) with any program that can post a file. With curl:</p>
+  <pre class="code mono">curl -F image=@meteor_pass.png -F satellite="METEOR-M2 3" -F product="MSA false color" -F captured=2026-10-17T05:51:14Z UPLOAD_ADDRESS</pre>
+  <p>Only <span class="mono">image</span> is needed. <span class="mono">satellite</span> and <span class="mono">product</span> are the words shown under the picture, <span class="mono">captured</span> is when the satellite passed (a time like the one above, in UTC; the time it arrives is used when left out) and <span class="mono">note</span> is a short line of your own.</p>
+  <ul class="plain">
+    <li><b>SatDump</b> (Meteor-M LRPT, GOES HRIT, and others): run it with its output folder set, and add a small script that sends each new image file in that folder, or use its post-processing hook if your version has one.</li>
+    <li><b>goestools</b> (GOES HRIT and LRIT): the same idea; point a script at the folder where it saves the full-disk and sector images.</li>
+    <li>A picture must be a PNG, JPEG or WebP file. Anything else is refused with a plain message.</li>
+  </ul>
+  <p class="dim" style="margin-bottom:0">The <a href="/radio/satellites">Satellite Passes</a> page shows when each satellite is overhead, so a script can run at the right times. Pictures you send are shown to everyone when the receiver is public: only send what you are happy to share. You can delete any of them, or the whole receiver, at any time.</p>
+{% endcall %}
+{% endblock %}

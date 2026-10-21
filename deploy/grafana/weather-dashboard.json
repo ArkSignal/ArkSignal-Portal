@@ -1,0 +1,1196 @@
+{
+ "uid": "weather",
+ "title": "Weather Dashboard",
+ "tags": [
+  "arksignal"
+ ],
+ "timezone": "browser",
+ "schemaVersion": 39,
+ "version": 1,
+ "refresh": "5m",
+ "time": {
+  "from": "now-24h",
+  "to": "now"
+ },
+ "editable": true,
+ "templating": {
+  "list": [
+   {
+    "type": "custom",
+    "name": "sources",
+    "label": "Sources",
+    "query": "members,aprs,airport",
+    "multi": true,
+    "includeAll": false,
+    "current": {
+     "text": "members",
+     "value": "members"
+    },
+    "options": [
+     {
+      "selected": true,
+      "text": "members",
+      "value": "members"
+     },
+     {
+      "selected": false,
+      "text": "aprs",
+      "value": "aprs"
+     },
+     {
+      "selected": false,
+      "text": "airport",
+      "value": "airport"
+     }
+    ],
+    "hide": 0
+   },
+   {
+    "type": "custom",
+    "name": "reading",
+    "label": "Reading",
+    "query": "temp_f,dew_f,hum,press_in,wind_mph,gust_mph,rain_day_in,uv,cloud_pct",
+    "multi": false,
+    "includeAll": false,
+    "current": {
+     "text": "temp_f",
+     "value": "temp_f"
+    },
+    "options": [
+     {
+      "selected": true,
+      "text": "temp_f",
+      "value": "temp_f"
+     },
+     {
+      "selected": false,
+      "text": "dew_f",
+      "value": "dew_f"
+     },
+     {
+      "selected": false,
+      "text": "hum",
+      "value": "hum"
+     },
+     {
+      "selected": false,
+      "text": "press_in",
+      "value": "press_in"
+     },
+     {
+      "selected": false,
+      "text": "wind_mph",
+      "value": "wind_mph"
+     },
+     {
+      "selected": false,
+      "text": "gust_mph",
+      "value": "gust_mph"
+     },
+     {
+      "selected": false,
+      "text": "rain_day_in",
+      "value": "rain_day_in"
+     },
+     {
+      "selected": false,
+      "text": "uv",
+      "value": "uv"
+     },
+     {
+      "selected": false,
+      "text": "cloud_pct",
+      "value": "cloud_pct"
+     }
+    ],
+    "hide": 0
+   },
+   {
+    "type": "custom",
+    "name": "period",
+    "label": "Period",
+    "query": "24h,6h,3d,7d,30d",
+    "multi": false,
+    "includeAll": false,
+    "current": {
+     "text": "24h",
+     "value": "24h"
+    },
+    "options": [
+     {
+      "selected": true,
+      "text": "24h",
+      "value": "24h"
+     },
+     {
+      "selected": false,
+      "text": "6h",
+      "value": "6h"
+     },
+     {
+      "selected": false,
+      "text": "3d",
+      "value": "3d"
+     },
+     {
+      "selected": false,
+      "text": "7d",
+      "value": "7d"
+     },
+     {
+      "selected": false,
+      "text": "30d",
+      "value": "30d"
+     }
+    ],
+    "hide": 0
+   },
+   {
+    "type": "textbox",
+    "name": "counties",
+    "label": "Counties (Name|Name)",
+    "query": "",
+    "current": {
+     "text": "",
+     "value": ""
+    },
+    "options": [
+     {
+      "selected": true,
+      "text": "",
+      "value": ""
+     }
+    ],
+    "hide": 0
+   },
+   {
+    "type": "textbox",
+    "name": "cities",
+    "label": "Cities (Name|Name)",
+    "query": "",
+    "current": {
+     "text": "",
+     "value": ""
+    },
+    "options": [
+     {
+      "selected": true,
+      "text": "",
+      "value": ""
+     }
+    ],
+    "hide": 0
+   },
+   {
+    "type": "textbox",
+    "name": "zips",
+    "label": "ZIP codes (72201|72032)",
+    "query": "",
+    "current": {
+     "text": "",
+     "value": ""
+    },
+    "options": [
+     {
+      "selected": true,
+      "text": "",
+      "value": ""
+     }
+    ],
+    "hide": 0
+   },
+   {
+    "type": "textbox",
+    "name": "stations",
+    "label": "Stations (members:ID|aprs:CALL|airport:KLIT)",
+    "query": "",
+    "current": {
+     "text": "",
+     "value": ""
+    },
+    "options": [
+     {
+      "selected": true,
+      "text": "",
+      "value": ""
+     }
+    ],
+    "hide": 0
+   },
+   {
+    "type": "textbox",
+    "name": "near",
+    "label": "Near (lat,lon,miles)",
+    "query": "",
+    "current": {
+     "text": "",
+     "value": ""
+    },
+    "options": [
+     {
+      "selected": true,
+      "text": "",
+      "value": ""
+     }
+    ],
+    "hide": 0
+   }
+  ]
+ },
+ "panels": [
+  {
+   "id": 1,
+   "type": "timeseries",
+   "title": "Highest, average and lowest of the chosen stations",
+   "datasource": {
+    "type": "yesoreyeram-infinity-datasource",
+    "uid": "portal-json"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 24,
+    "h": 10
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "yesoreyeram-infinity-datasource",
+      "uid": "portal-json"
+     },
+     "type": "json",
+     "source": "url",
+     "format": "table",
+     "url": "http://adsb-portal:8430/api/weather/stats.json",
+     "root_selector": "series",
+     "url_options": {
+      "method": "GET",
+      "params": [
+       {
+        "key": "sources",
+        "value": "${sources:csv}"
+       },
+       {
+        "key": "metric",
+        "value": "${reading}"
+       },
+       {
+        "key": "period",
+        "value": "${period}"
+       },
+       {
+        "key": "counties",
+        "value": "${counties}"
+       },
+       {
+        "key": "cities",
+        "value": "${cities}"
+       },
+       {
+        "key": "zips",
+        "value": "${zips}"
+       },
+       {
+        "key": "stations",
+        "value": "${stations}"
+       },
+       {
+        "key": "near",
+        "value": "${near}"
+       }
+      ]
+     },
+     "columns": [
+      {
+       "selector": "ts",
+       "text": "Time",
+       "type": "timestamp"
+      },
+      {
+       "selector": "max",
+       "text": "Highest",
+       "type": "number"
+      },
+      {
+       "selector": "avg",
+       "text": "Average",
+       "type": "number"
+      },
+      {
+       "selector": "min",
+       "text": "Lowest",
+       "type": "number"
+      }
+     ]
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none"
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   }
+  },
+  {
+   "id": 2,
+   "type": "table",
+   "title": "Stations",
+   "datasource": {
+    "type": "yesoreyeram-infinity-datasource",
+    "uid": "portal-json"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 10,
+    "w": 24,
+    "h": 12
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "yesoreyeram-infinity-datasource",
+      "uid": "portal-json"
+     },
+     "type": "json",
+     "source": "url",
+     "format": "table",
+     "url": "http://adsb-portal:8430/api/weather/stats.json",
+     "root_selector": "stations",
+     "url_options": {
+      "method": "GET",
+      "params": [
+       {
+        "key": "sources",
+        "value": "${sources:csv}"
+       },
+       {
+        "key": "metric",
+        "value": "${reading}"
+       },
+       {
+        "key": "period",
+        "value": "${period}"
+       },
+       {
+        "key": "counties",
+        "value": "${counties}"
+       },
+       {
+        "key": "cities",
+        "value": "${cities}"
+       },
+       {
+        "key": "zips",
+        "value": "${zips}"
+       },
+       {
+        "key": "stations",
+        "value": "${stations}"
+       },
+       {
+        "key": "near",
+        "value": "${near}"
+       }
+      ]
+     },
+     "columns": [
+      {
+       "selector": "name",
+       "text": "Station",
+       "type": "string"
+      },
+      {
+       "selector": "src",
+       "text": "Source",
+       "type": "string"
+      },
+      {
+       "selector": "city",
+       "text": "City",
+       "type": "string"
+      },
+      {
+       "selector": "county",
+       "text": "County",
+       "type": "string"
+      },
+      {
+       "selector": "latest",
+       "text": "Latest",
+       "type": "number"
+      },
+      {
+       "selector": "min",
+       "text": "Lowest",
+       "type": "number"
+      },
+      {
+       "selector": "avg",
+       "text": "Average",
+       "type": "number"
+      },
+      {
+       "selector": "max",
+       "text": "Highest",
+       "type": "number"
+      },
+      {
+       "selector": "n",
+       "text": "Readings",
+       "type": "number"
+      }
+     ]
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none"
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 3,
+   "type": "stat",
+   "title": "Stations Reporting",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "ultrafeeder-prom"
+   },
+   "gridPos": {
+    "h": 4,
+    "w": 4,
+    "x": 0,
+    "y": 22
+   },
+   "targets": [
+    {
+     "expr": "adsb_portal_wx_stations_online",
+     "legendFormat": "",
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "ultrafeeder-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "area",
+    "textMode": "auto"
+   }
+  },
+  {
+   "id": 4,
+   "type": "stat",
+   "title": "Public Stations",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "ultrafeeder-prom"
+   },
+   "gridPos": {
+    "h": 4,
+    "w": 4,
+    "x": 4,
+    "y": 22
+   },
+   "targets": [
+    {
+     "expr": "adsb_portal_wx_stations_total",
+     "legendFormat": "",
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "ultrafeeder-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "area",
+    "textMode": "auto"
+   }
+  },
+  {
+   "id": 5,
+   "type": "stat",
+   "title": "Hottest Now",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "ultrafeeder-prom"
+   },
+   "gridPos": {
+    "h": 4,
+    "w": 4,
+    "x": 8,
+    "y": 22
+   },
+   "targets": [
+    {
+     "expr": "max(adsb_portal_wx_temperature_f)",
+     "legendFormat": "",
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "ultrafeeder-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "fahrenheit",
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "area",
+    "textMode": "auto"
+   }
+  },
+  {
+   "id": 6,
+   "type": "stat",
+   "title": "Coldest Now",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "ultrafeeder-prom"
+   },
+   "gridPos": {
+    "h": 4,
+    "w": 4,
+    "x": 12,
+    "y": 22
+   },
+   "targets": [
+    {
+     "expr": "min(adsb_portal_wx_temperature_f)",
+     "legendFormat": "",
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "ultrafeeder-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "fahrenheit",
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "area",
+    "textMode": "auto"
+   }
+  },
+  {
+   "id": 7,
+   "type": "stat",
+   "title": "Strongest Gust Now",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "ultrafeeder-prom"
+   },
+   "gridPos": {
+    "h": 4,
+    "w": 4,
+    "x": 16,
+    "y": 22
+   },
+   "targets": [
+    {
+     "expr": "max(adsb_portal_wx_gust_mph)",
+     "legendFormat": "",
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "ultrafeeder-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "velocitymph",
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "area",
+    "textMode": "auto"
+   }
+  },
+  {
+   "id": 8,
+   "type": "stat",
+   "title": "Most Rain Today",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "ultrafeeder-prom"
+   },
+   "gridPos": {
+    "h": 4,
+    "w": 4,
+    "x": 20,
+    "y": 22
+   },
+   "targets": [
+    {
+     "expr": "max(adsb_portal_wx_rain_today_in)",
+     "legendFormat": "",
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "ultrafeeder-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "lengthin",
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "area",
+    "textMode": "auto"
+   }
+  },
+  {
+   "id": 9,
+   "type": "timeseries",
+   "title": "Temperature",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "ultrafeeder-prom"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 0,
+    "y": 26
+   },
+   "targets": [
+    {
+     "expr": "adsb_portal_wx_temperature_f",
+     "legendFormat": "{{station}}",
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "ultrafeeder-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "fahrenheit",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 8,
+      "spanNulls": 3600000,
+      "showPoints": "never"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   }
+  },
+  {
+   "id": 10,
+   "type": "timeseries",
+   "title": "Humidity",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "ultrafeeder-prom"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 12,
+    "y": 26
+   },
+   "targets": [
+    {
+     "expr": "adsb_portal_wx_humidity_percent",
+     "legendFormat": "{{station}}",
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "ultrafeeder-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 8,
+      "spanNulls": 3600000,
+      "showPoints": "never"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   }
+  },
+  {
+   "id": 11,
+   "type": "timeseries",
+   "title": "Pressure",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "ultrafeeder-prom"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 0,
+    "y": 34
+   },
+   "targets": [
+    {
+     "expr": "adsb_portal_wx_pressure_inhg",
+     "legendFormat": "{{station}}",
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "ultrafeeder-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 8,
+      "spanNulls": 3600000,
+      "showPoints": "never"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   }
+  },
+  {
+   "id": 12,
+   "type": "timeseries",
+   "title": "Wind and Gusts",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "ultrafeeder-prom"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 12,
+    "y": 34
+   },
+   "targets": [
+    {
+     "expr": "adsb_portal_wx_wind_mph",
+     "legendFormat": "{{station}}",
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "ultrafeeder-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "velocitymph",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 8,
+      "spanNulls": 3600000,
+      "showPoints": "never"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   }
+  },
+  {
+   "id": 13,
+   "type": "timeseries",
+   "title": "Gusts",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "ultrafeeder-prom"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 0,
+    "y": 42
+   },
+   "targets": [
+    {
+     "expr": "adsb_portal_wx_gust_mph",
+     "legendFormat": "{{station}}",
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "ultrafeeder-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "velocitymph",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 8,
+      "spanNulls": 3600000,
+      "showPoints": "never"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   }
+  },
+  {
+   "id": 14,
+   "type": "timeseries",
+   "title": "Rain Today",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "ultrafeeder-prom"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 12,
+    "y": 42
+   },
+   "targets": [
+    {
+     "expr": "adsb_portal_wx_rain_today_in",
+     "legendFormat": "{{station}}",
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "ultrafeeder-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "lengthin",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 8,
+      "spanNulls": 3600000,
+      "showPoints": "never"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   }
+  },
+  {
+   "id": 15,
+   "type": "timeseries",
+   "title": "Solar Radiation",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "ultrafeeder-prom"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 0,
+    "y": 50
+   },
+   "targets": [
+    {
+     "expr": "adsb_portal_wx_solar_wm2",
+     "legendFormat": "{{station}}",
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "ultrafeeder-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 8,
+      "spanNulls": 3600000,
+      "showPoints": "never"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   }
+  },
+  {
+   "id": 16,
+   "type": "timeseries",
+   "title": "UV Index",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "ultrafeeder-prom"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 12,
+    "y": 50
+   },
+   "targets": [
+    {
+     "expr": "adsb_portal_wx_uv_index",
+     "legendFormat": "{{station}}",
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "ultrafeeder-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 8,
+      "spanNulls": 3600000,
+      "showPoints": "never"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   }
+  }
+ ],
+ "annotations": {
+  "list": []
+ }
+}

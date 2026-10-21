@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Data Updates{% endblock %}
+{% block content %}
+<h1><span>Admin</span> Data Updates</h1>
+<div class="sub">Every outside data set the portal keeps, on one schedule. Each source updates by itself every few days at the time below, or when you press Run Now. A source that fails keeps its last good data and tries again later; failures show on <a href="/admin/status">Status</a>.</div>
+{% include "partials/_admin_subnav.html" %}
+{% include "partials/_data_updates_list.html" %}
+<script>
+// while something is running, look again every few seconds
+(function () { if (document.querySelector("#du-list .tag.running, #du-list [data-busy]")) setTimeout(function () { location.reload(); }, 6000); })();
+</script>
+{% endblock %}

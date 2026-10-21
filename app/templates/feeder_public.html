@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}{{ f.station_id }}{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ leaflet_base }}/leaflet.css" crossorigin="anonymous">
+<h1><span class="mono">{{ f.station_id }}</span> {{ f.name or '' }}{% if f.official %} <span class="tag admin" style="vertical-align:middle">{{ badge }}</span>{% endif %}</h1>
+<div class="sub">Operated by {{ f.owner_display or f.owner_name }}{% if f.owner_callsign %} ({{ f.owner_callsign }}){% endif %}</div>
+<p><a href="/feeders/">&larr; All Feeders</a> &middot; <a href="/{{ f.station_id }}">Live map of the aircraft this station hears</a>{% if wx %} &middot; <a href="/weather/{{ f.station_id }}">Weather from this station</a>{% endif %}{% if feeder_stats %} &middot; <a href="/view/network-feeders?station={{ f.station_id }}">Statistics for this station</a>{% endif %}</p>
+
+{% if achv %}<p id="achv-mine" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 12px"><b style="font-size:.85rem">Achievements</b>{% for code, label in achv %}<span class="tag live achv" title="{{ achv_defs.get(code, '') }}">{{ label }}</span>{% endfor %}</p>{% endif %}
+<div class="tiles">
+  <div class="panel tile"><div class="tv">{% if f.online %}Online{% else %}Offline{% endif %}</div><div class="tl">Status</div></div>
+  {% if mlat_ok %}<div class="panel tile"><div class="tv">Working</div><div class="tl">MLAT</div></div>{% endif %}
+  <div class="panel tile"><div class="tv">{{ '%.1f' % uptime }}%</div><div class="tl">Uptime ({{ periods[period][0] }})</div></div>
+  <div class="panel tile"><div class="tv">{{ '%.1f' % latest[1] if latest else '-' }}</div><div class="tl">Msgs/s (latest)</div></div>
+  <div class="panel tile"><div class="tv">{{ '%.1f' % latest[2] if latest else '-' }}</div><div class="tl">Positions/s (latest)</div></div>
+  <div class="panel tile"><div class="tv">{{ rng.period_max | u_nm(0) if rng.period_max else '-' }}</div><div class="tl">Maximum range (30 days)</div></div>
+</div>
+
+<div class="panel" style="margin-top:14px">
+  <table>
+    {% if f.description %}<tr><th style="width:200px">About</th><td>{{ f.description }}</td></tr>{% endif %}
+    {% if f.website and f.website_public %}<tr><th style="width:200px">Website</th><td><a href="{{ f.website }}" rel="noopener nofollow" target="_blank">{{ f.website }}</a></td></tr>{% endif %}
+    <tr><th style="width:200px">On the Network Since</th><td>{{ f.first_seen | localtime("%Y-%m-%d") }}</td></tr>
+    <tr><th>Last Seen</th><td>{{ 'now' if f.online else (f.last_seen | localtime) }}</td></tr>
+    {% if f.antenna_height_ft is not none and f.height_ref %}
+    <tr><th>Antenna Height</th><td>{{ f.antenna_height_ft | u_ft }} {{ 'above ground' if f.height_ref == 'agl' else 'above sea level' }}</td></tr>{% endif %}
+    {% for key, label, ph, maxlen in setup_fields %}{% if f[key] %}<tr><th>{{ label }}</th><td>{{ f[key] }}</td></tr>{% endif %}{% endfor %}
+  </table>
+</div>
+
+{% if loc %}
+<div class="panel" style="margin-top:14px;padding:0;overflow:hidden"><div id="stationmap" style="height:300px"></div></div>
+<div class="help" style="margin:6px 4px">{% if approx %}The location is approximate; the owner has chosen to share only a general area.{% else %}The owner has chosen to share the exact location.{% endif %}</div>
+{% endif %}
+
+<div class="panel" style="margin-top:14px">
+  <div class="grp" style="margin-top:0">Range</div>
+  <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:center">
+    <div style="flex:1 1 320px;max-width:380px">{{ rng_chart }}</div>
+    <div class="fl-kv" style="display:grid;grid-template-columns:auto auto;gap:6px 18px;font-size:.92rem">
+      <div class="dim">Farthest in 30 days</div><div class="mono">{{ rng.period_max | u_nm(0) if rng.period_max else '-' }}</div>
+      <div class="dim">Farthest today</div><div class="mono">{{ rng.today_max | u_nm(0) if rng.today_max else '-' }}</div>
+      <div class="dim">Farthest on record</div><div class="mono">{{ rng.all_max | u_nm(0) if rng.all_max else '-' }}</div>
+    </div>
+  </div>
+  <div class="help">How far away this station has received aircraft positions, in each direction. Measured from the station's real location, which is never shown here.</div>
+</div>
+
+<div class="panel" style="margin-top:14px">
+  <div class="grp" style="margin-top:0">Activity</div>
+  <div class="subnav" style="margin-bottom:10px">
+    {% for k, v in periods.items() %}<a class="{{ 'active' if k == period }}" href="?period={{ k }}">{{ v[0] }}</a>{% endfor %}
+  </div>
+  {{ chart }}
+  <div class="dim" style="font-size:.82rem;margin-top:6px"><span style="color:var(--acc2)">&#9632;</span> Messages per second &nbsp; <span style="color:var(--acc)">&#9632;</span> Positions per second</div>
+</div>
+
+{% if loc %}
+<script src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script>
+<script src="/static/touchhit.js"></script>
+<script>
+(function () {
+  var map = L.map("stationmap").setView([{{ loc[0] }}, {{ loc[1] }}], {{ 10 if approx else 13 }});
+  L.tileLayer({{ tile_url | tojson }}, {maxZoom: 19, attribution: {{ tile_attr | tojson }}}).addTo(map);
+  {% if approx %}L.circle([{{ loc[0] }}, {{ loc[1] }}], {radius: {{ radius_m or approx_radius_m }}, color: "#3ee6a8", weight: 1, fillOpacity: 0.25}).addTo(map);
+  {% else %}L.marker([{{ loc[0] }}, {{ loc[1] }}]).addTo(map);{% endif %}
+})();
+</script>
+{% endif %}
+{% endblock %}

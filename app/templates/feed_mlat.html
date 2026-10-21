@@ -1,0 +1,100 @@
+{% extends "feed_base.html" %}
+{% from "partials/_feedsec.html" import sec, data_and_help, after with context %}
+{% block title %}MLAT | How to Feed{% endblock %}
+{% block feed_body %}
+<h1>Feed <span>MLAT</span></h1>
+<div class="sub">Multilateration finds aircraft that do not broadcast a position. It uses the same receiver and the same container as your <a href="/feed/">ADS-B feed</a>, so most stations send both. This page has the settings, what the position has to be, and how to check it.</div>
+
+{% call sec('the-short-version', 'The Short Version', True) %}
+  <p style="margin:0 0 10px">Your ADS-B feed from the <a href="/feed/">ADS-B page</a> must already work. Then add this line to the same <span class="mono">ULTRAFEEDER_CONFIG</span> (the line before it needs a semicolon at the end) and set the three settings below it:</p>
+  <pre class="code">mlat,{{ feed_host }},{{ mlat_port }}</pre>
+  <ul class="plain" style="margin-top:10px">
+    <li><span class="mono">MLAT_USER</span>: your Station ID (letters, digits, dashes and underscores). If you already use another name, keep it and enter it as the <b>MLAT User Name</b> on your station page.</li>
+    <li><span class="mono">READSB_LAT</span>, <span class="mono">READSB_LON</span> and <span class="mono">READSB_ALT</span>: your antenna's <b>true position, within a few metres</b>, with the altitude above sea level.</li>
+    <li><span class="mono">UUID</span>: the same one you use for the ADS-B feed.</li>
+  </ul>
+  <p class="dim" style="margin:6px 0 0">Your exact position is held only by the MLAT server and is never shown publicly. Recreate the container, then check <a href="/feed/check">Am I Feeding?</a>: it shows MLAT status in plain words.</p>
+{% endcall %}
+
+{% call sec('how-it-works', 'How It Works', True) %}
+  <p style="margin-top:0"><b>MLAT</b> (multilateration) finds aircraft that do not broadcast a position. Radio travels at a fixed speed, so when an aircraft transmits, stations at different distances hear it at slightly different instants, a difference of millionths of a second. If three or more stations record exactly when they heard the same message, the differences place the aircraft at one point in the sky (four stations also give altitude). The same trick, run the other way, is how GPS works.</p>
+  <p><b>What your station does:</b> your receiver time-stamps every message it hears with its own clock, and sends those timestamps (not your location data) to the network's MLAT server. The server compares all stations' clocks, using aircraft that <em>do</em> broadcast their position as reference beacons, and calculates positions for the others. The results come back to you and appear on the map labelled MLAT.</p>
+  <p style="margin-bottom:0">Trade-offs: MLAT positions are less exact than ADS-B and arrive a moment later, and only aircraft heard by enough stations get one. It is an extra, not a replacement for your <a href="/feed/">ADS-B feed</a>, which it depends on. See the <a href="/mlat/">MLAT network</a> page for who is connected and how well.</p>
+{% endcall %}
+
+{% call sec('what-you-need', 'What You Need', True) %}
+  <ul class="plain">
+    <li><b>A working <a href="/feed/">ADS-B feed</a>.</b> MLAT uses the same receiver, antenna, computer and container; there is nothing extra to buy.</li>
+    <li><b>An exact position.</b> Your latitude, longitude and the antenna's altitude above sea level must be right to within a few metres, because the whole calculation assumes it. A wrong location does not just fail; it makes your station's timing look bad to the others, and the server will pause it.</li>
+    <li><b>Neighbours.</b> At least three stations must hear the same aircraft, so MLAT is best where stations overlap. Your station may sit at &quot;connected, waiting for peers&quot; until the next station near you joins; that is normal.</li>
+    <li><b>A steady receiver:</b> a computer that is not overloaded, a USB radio that is not dropping samples, a correct clock, and a wired network without long delays or gaps.</li>
+    <li><b>The same UUID</b> in your MLAT line as in your feed, and <span class="mono">MLAT_USER</span> set, so the portal can match your MLAT connection to your station and show you its health.</li>
+  </ul>
+{% endcall %}
+
+{% call sec('hardware', 'Hardware', False, True) %}
+  <table>
+    <tr><th>Item</th><th>What Matters for MLAT</th></tr>
+    <tr><td>Receiver</td><td>Any receiver that works for ADS-B works for MLAT. A dongle that drops samples (cheap USB hub, overloaded Pi, poor power) breaks the timing: use a good power supply and a USB 2.0 port or a short extension. The receiver choices are on the <a href="/feed/#sec-hardware">ADS-B page</a>.</td></tr>
+    <tr><td>Computer and network</td><td>A wired network connection and a computer with spare processor time. MLAT compares clocks, so keep the computer's clock synchronised (<span class="mono">systemd-timesyncd</span> or <span class="mono">chrony</span>).</td></tr>
+    <tr><td>Antenna</td><td>The same antenna as for ADS-B. What changes is that its position must be measured: a stable mount where the antenna does not move between measurements.</td></tr>
+    <tr><td>Measuring the position</td><td>A phone GPS left outside for a few minutes, or a satellite map zoomed far in, gives latitude and longitude. For the altitude add the ground height (<a href="https://www.freemaptools.com/elevation-finder.htm" target="_blank" rel="noopener">an elevation finder</a>, or the lookup button on your station page) to the antenna's height above the ground.</td></tr>
+    <tr><td>Time-sync hardware</td><td>Not needed. Some operators add a GPS-timed receiver for the best results, but ordinary dongles work well when the position is right.</td></tr>
+  </table>
+{% endcall %}
+
+{% call sec('hardware-setup', 'Hardware Setup', True) %}
+  <ol class="plain">
+    <li>Mount the antenna where it will stay, as in the <a href="/feed/#sec-hardware-setup">ADS-B hardware setup</a>. Do not move it later without changing the position.</li>
+    <li>Measure the antenna's latitude and longitude to five decimal places (about a metre) and write them down.</li>
+    <li>Work out its altitude above <b>sea level</b>: the ground height at that spot plus the height of the antenna above the ground. Use metres or add the unit (<span class="mono">320ft</span>).</li>
+    <li>Use a wired network connection and a power supply that can run the computer and the radio without dips.</li>
+  </ol>
+{% endcall %}
+
+{% call sec('software-setup', 'Software Setup', True) %}
+  <p style="margin-top:0">In the same <span class="mono">compose.yaml</span> as your ADS-B feed (see the <a href="/feed/#sec-software-setup">ADS-B software setup</a>), these are the MLAT parts:</p>
+  <pre class="code">    environment:
+      - READSB_LAT=YOUR_LATITUDE
+      - READSB_LON=YOUR_LONGITUDE
+      - READSB_ALT=YOUR_ANTENNA_ALTITUDE_ABOVE_SEA_LEVEL_IN_METERS_m
+      - UUID=YOUR_UUID
+      - MLAT_USER=YOUR_STATION_ID
+      - ULTRAFEEDER_CONFIG=
+        adsb,{{ feed_host }},{{ feed_port }},beast_reduce_plus_out;
+        mlat,{{ feed_host }},{{ mlat_port }}</pre>
+  <p class="dim">Each line except the last ends with a semicolon. Ultrafeeder already contains the MLAT client and starts it from the <span class="mono">mlat,...</span> line, so there is nothing extra to install. Recreate the container with <span class="mono copyable">docker compose up -d</span> and watch it with <span class="mono">docker logs ultrafeeder | grep -i mlat</span>.</p>
+  <h3 style="margin:14px 0 6px;font-size:1rem">Already doing MLAT for other networks</h3>
+  <p style="margin:0">That is fine: the MLAT client runs once per network, so add our <span class="mono">mlat,...</span> line next to the others. The position settings are shared by all of them.</p>
+  <h3 style="margin:14px 0 6px;font-size:1rem">Not using ultrafeeder? (readsb, dump1090-fa, PiAware)</h3>
+  <p style="margin:0 0 6px">Install the separate <a href="https://github.com/wiedehopf/mlat-client" target="_blank" rel="noopener">mlat-client</a> program and run it against your receiver's Beast output:</p>
+  <pre class="code">mlat-client --input-type dump1090 --input-connect 127.0.0.1:30005 \
+  --server {{ feed_host }}:{{ mlat_port }} --user YOUR_STATION_ID --uuid YOUR_UUID \
+  --lat YOUR_LATITUDE --lon YOUR_LONGITUDE --alt YOUR_ANTENNA_ALTITUDE_IN_METERS \
+  --results beast,connect,127.0.0.1:30104</pre>
+{% endcall %}
+
+{{ after('mlat') }}
+
+{% call sec('ports', 'Ports and Firewall', False, True) %}
+  <p style="margin-top:0">Like the ADS-B feed, MLAT only makes an <b>outbound</b> connection. Nothing needs forwarding on your router.</p>
+  <table>
+    <tr><th>What</th><th>Direction</th><th>Destination</th><th>Port</th></tr>
+    <tr><td>MLAT</td><td>outbound TCP</td><td class="mono">{{ feed_host }}</td><td class="mono">{{ mlat_port }}</td></tr>
+    <tr><td>ADS-B feed (see the <a href="/feed/">ADS-B page</a>)</td><td>outbound TCP</td><td class="mono">{{ feed_host }}</td><td class="mono">{{ feed_port }}</td></tr>
+  </table>
+{% endcall %}
+
+{% call sec('troubleshooting', 'Troubleshooting', False, True) %}
+  <table>
+    <tr><th style="width:230px">Symptom</th><th>What to check</th></tr>
+    <tr><td>MLAT: not connected</td><td>The <span class="mono">mlat,...</span> line is missing or has a typo, or <span class="mono">MLAT_USER</span> contains a space or symbol. <span class="mono">docker logs ultrafeeder | grep -i mlat</span> shows the client's messages.</td></tr>
+    <tr><td>MLAT: connected, waiting for peers</td><td>Normal when no other station nearby does MLAT yet. It starts by itself once three stations hear the same aircraft.</td></tr>
+    <tr><td>MLAT: sync problem or timed out</td><td>Almost always the position: check latitude, longitude and especially the antenna <b>altitude above sea level</b> to a few metres. Then check the computer's load and clock, and that the USB radio is not dropping samples.</td></tr>
+    <tr><td>MLAT status says not connected but logs look fine</td><td>The portal matches by <span class="mono">UUID</span> first, then by the MLAT User Name saved on your station page, then by a <span class="mono">MLAT_USER</span> equal to your Station ID. Make sure the same <span class="mono">UUID</span> is set, or save your existing <span class="mono">MLAT_USER</span> as the MLAT User Name.</td></tr>
+    <tr><td>ADS-B works, MLAT never does</td><td>Check the semicolon between the <span class="mono">adsb</span> and <span class="mono">mlat</span> lines, and that the port is open outbound ({{ mlat_port }}). ADS-B problems are on the <a href="/feed/#sec-troubleshooting">ADS-B page</a>.</td></tr>
+  </table>
+{% endcall %}
+
+{{ data_and_help('mlat') }}
+{% endblock %}

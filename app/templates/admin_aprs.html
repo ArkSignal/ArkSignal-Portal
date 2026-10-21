@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}APRS{% endblock %}
+{% block content %}
+<h1><span>Admin</span> APRS</h1>
+<div class="sub">The APRS service reads the public APRS-IS network around Arkansas and keeps the latest position, a short trail and the weather of each station in its own database ({{ url }}). Everything is set in <a href="/admin/settings#sec-aprs">Settings &gt; APRS</a>; press Apply to send the settings to the service. The area it reads is <span class="mono">{{ filter }}</span>.{% if not enabled %} <b>APRS is switched off.</b>{% endif %}</div>
+{% include "partials/_admin_subnav.html" %}
+<div id="ap-body">
+{% if st.ok %}
+<div class="tiles" style="margin-bottom:14px">
+  <div class="panel tile"><div class="tv">{{ 'live' if st.data.feed.connected else 'down' }}</div><div class="tl">APRS-IS feed{% if st.data.feed.per_min %}, {{ st.data.feed.per_min }} packets a minute{% endif %}</div></div>
+  <div class="panel tile"><div class="tv">{{ st.data.stations }}</div><div class="tl">Stations kept ({{ st.data.heard_hour }} heard this hour)</div></div>
+  <div class="panel tile"><div class="tv">{{ st.data.weather_now }}</div><div class="tl">Weather stations reporting now</div></div>
+  <div class="panel tile"><div class="tv">{{ st.data.hidden }}</div><div class="tl">Call signs hidden</div></div>
+</div>
+{% if st.data.feed.error %}<div class="panel" style="border-color:var(--acc2);margin-bottom:14px"><b>Feed problem:</b> <span class="mono">{{ st.data.feed.error }}</span></div>{% endif %}
+<p class="dim">Service version {{ st.data.version }}; server {{ st.data.feed.server or 'not connected' }}; {{ st.data.feed.packets }} packets read since it started, {{ st.data.feed.stored }} kept. Kinds heard: {% for k, n in st.data.kinds.items() %}{{ k }} {{ n }}{{ ', ' if not loop.last }}{% endfor %}.</p>
+{% else %}<div class="panel" style="border-color:var(--acc2);margin-bottom:14px"><b>{{ st.note }}</b> The container (aprs, with its database aprs-db) may be stopped or starting; Service Status says more.</div>{% endif %}
+</div>
+<form method="post" action="/admin/aprs/apply" style="margin-bottom:14px"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small" type="submit" style="margin:0">Apply Settings</button> <span class="dim" style="font-size:.82rem">Sends the settings and the hidden call signs to the service.</span></form>
+
+<details class="panel setsec" open><summary><span class="role-name">Hidden Call Signs ({{ hidden | length }})</span></summary><div class="secbody">
+<p class="help" style="margin-top:0">A call sign here is removed from every APRS page and never stored again: use it when the owner asks. A call sign without a dash hides every SSID of it (W5ABC hides W5ABC-9 too). Recorded in the audit log.</p>
+<form method="post" action="/admin/aprs/hide" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div><label for="ah-call">Call sign</label><input type="text" id="ah-call" name="call" placeholder="W5ABC" maxlength="12" required style="width:140px"></div>
+  <div style="flex:1 1 240px"><label for="ah-reason">Reason</label><input type="text" id="ah-reason" name="reason" maxlength="200" placeholder="Who asked, and how" style="width:100%"></div>
+  <button class="btn small" type="submit" style="margin:0 0 2px">Hide</button></form>
+{% if hidden %}<table><thead><tr><th>Call sign</th><th>Reason</th><th>Added</th><th>By</th><th></th></tr></thead><tbody>
+{% for h in hidden %}<tr><td class="mono">{{ h.call }}</td><td>{{ h.reason }}</td><td>{{ h.added.strftime('%Y-%m-%d') }}</td><td>{{ h.username or '' }}</td>
+<td><form method="post" action="/admin/aprs/unhide" style="margin:0"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="call" value="{{ h.call }}"><button class="btn small neutral" type="submit" style="margin:0">Show Again</button></form></td></tr>{% endfor %}
+</tbody></table>{% else %}<p class="dim" style="margin:0">Nobody is hidden.</p>{% endif %}
+</div></details>
+{% endblock %}

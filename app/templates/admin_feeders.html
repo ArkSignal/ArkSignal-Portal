@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Feeders{% endblock %}
+{% block content %}
+<h1><span>Admin</span> Feeders</h1>
+<div class="sub">Every receiver that has connected to the hub, claimed or not. The status updates about every 30 seconds.</div>
+{% include "partials/_admin_subnav.html" %}
+{% if not hub_configured %}
+<div class="flash error">The hub address is not configured, so no feeder data is being collected. Set HUB_URL in the portal's environment.</div>
+{% elif last_error %}
+<div class="flash error">The last poll of the hub failed: {{ last_error }}</div>
+{% endif %}
+<div data-tab-title="Add a Feeder for a Member" data-tab-order="20">
+<details class="panel setsec" id="sec-add-feeder" style="margin-bottom:14px"><summary><span class="role-name">Add a Feeder for a Member</span></summary>
+<form method="post" action="/admin/feeders/add">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <label for="af-user">Member (User Name, Display Name, Call Sign or Email)</label>
+  <input type="text" id="af-user" name="username" data-memberpicker maxlength="120" required style="width:320px" placeholder="Start typing to search members">
+  <label for="af-uuid">Receiver UUID</label>
+  <input type="text" id="af-uuid" name="uuid" maxlength="36" required style="max-width:380px" class="mono" placeholder="the UUID value in the receiver's configuration">
+  <label for="af-sid">Station ID (Optional)</label>
+  <input type="text" id="af-sid" name="station_id" maxlength="16" style="max-width:240px" placeholder="For example KD5VCF">
+  <label for="af-name">Station Name</label>
+  <input type="text" id="af-name" name="name" maxlength="60">
+  <label for="af-desc">Description</label>
+  <input type="text" id="af-desc" name="description" maxlength="500">
+  <label for="af-mlat">MLAT User Name (optional)</label>
+  <input type="text" id="af-mlat" name="mlat_user" maxlength="40" style="max-width:260px">
+  <label for="af-web">Website</label>
+  <input type="text" id="af-web" name="website" maxlength="200" placeholder="https://">
+  <label class="check"><input type="checkbox" name="website_public" value="1"><span><b>Show the website link publicly</b></span></label>
+  <div style="display:flex;gap:14px;flex-wrap:wrap">
+    <div><label for="af-lat">Latitude</label><input type="text" id="af-lat" name="lat" style="max-width:170px"></div>
+    <div><label for="af-lon">Longitude</label><input type="text" id="af-lon" name="lon" style="max-width:170px"></div>
+  </div>
+  <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end">
+    <div><label for="af-ah">Antenna Height (feet)</label><input type="text" id="af-ah" name="antenna_height_ft" style="max-width:150px"></div>
+    <div><label for="af-hr">Measured</label><select id="af-hr" name="height_ref"><option value="">Choose</option><option value="agl">Above ground level (AGL)</option><option value="asl">Above sea level (ASL)</option></select></div>
+    <div><label for="af-ge">Ground Elevation (feet)</label><input type="text" id="af-ge" name="ground_elev_ft" style="max-width:150px"></div>
+  </div>
+  <label for="af-priv">Location Privacy</label>
+  <select id="af-priv" name="privacy">{% for k, l in privacy.items() %}<option value="{{ k }}" {{ 'selected' if k == default_privacy }}>{{ l }}</option>{% endfor %}</select>
+  {% for key, label, ph, maxlen in setup_fields %}
+  <label for="af-{{ key }}">{{ label }}</label>
+  <input type="text" id="af-{{ key }}" name="{{ key }}" placeholder="{{ ph }}" maxlength="{{ maxlen }}">
+  {% endfor %}
+  <label for="af-notes">Private Notes</label>
+  <input type="text" id="af-notes" name="notes" maxlength="1000">
+  <div class="help">For a receiver that has not connected yet: it is registered under the member's account, who can then change any of this from My Feeders. When the receiver connects with this UUID it is theirs at once. A UUID the hub already knows is handed to the member (taken over if it belonged to someone else) and its details are left as they are; Assign on a row below fills the UUID in for you. Recorded in the audit log.</div>
+  <button class="btn" type="submit">Add Feeder</button>
+</form><script src="/static/memberpicker.js"></script></details>
+</div>
+<div data-tab-title="Feeders" data-tab-order="10" data-tab-default>
+<div class="tfilterbar"><input type="search" class="tfilter" data-table="#feeders-tbl" placeholder="Search feeders by name, station ID, UUID, IP address or owner" aria-label="Search feeders by name, station ID, UUID, IP address or owner"><span class="dim tcount"></span></div>
+{% call sec('feeders', 'Feeders', True, True) %}
+  <table class="sortable" id="feeders-tbl">
+    <tr><th data-sort="text">Status</th><th data-sort="text">Feeder</th><th data-sort="text">IP Address</th><th data-sort="text">Owner</th><th data-sort="num">Msgs/s</th><th data-sort="num">Pos/s</th><th data-sort="text">MLAT</th><th data-sort="num">Uptime 24h</th><th data-sort="text">Last Seen</th><th>Actions</th></tr>
+    {% for f in feeders %}
+    <tr data-search="{{ f.name }} {{ f.station_id }} {{ f.uuid }} {{ f.last_ip }} {{ f.owner_name or 'Unclaimed' }} {{ 'banned' if f.banned else ('online' if f.online else 'offline') }}">
+      <td>{% if f.banned %}<span class="tag off">banned</span>{% elif f.online %}<span class="tag live">online</span>{% else %}<span class="tag off">offline</span>{% endif %}</td>
+      <td><a href="/admin/feeders/{{ f.uuid }}">{{ f.name or f.station_id or 'Anonymous feeder' }}</a><br><span class="dim mono" style="font-size:.78rem">{{ f.uuid }}</span></td>
+      <td class="dim mono">{{ f.last_ip or '' }}</td>
+      <td>{{ f.owner_name or 'Unclaimed' }}</td>
+      <td class="mono">{{ '%.1f' % f.msg_per_s if f.online and f.msg_per_s is not none else '-' }}</td>
+      <td class="mono">{{ '%.1f' % f.pos_per_s if f.online and f.pos_per_s is not none else '-' }}</td>
+      <td>{% if f.mlat %}<span class="tag live">working</span>{% else %}<span class="dim">-</span>{% endif %}</td>
+      <td class="mono">{{ '%.1f' % f.uptime_24h }}%</td>
+      <td class="dim" data-v="{{ f.last_seen or '' }}">{{ 'now' if f.online else (f.last_seen | localtime) }}</td>
+      <td style="white-space:nowrap">
+        <a class="btn small" href="{{ '/my/feeders/' ~ f.uuid if f.owner_id else '/admin/feeders/' ~ f.uuid }}" title="{{ 'Open it with the owner\'s own pages' if f.owner_id else 'Open the administrator page' }}">Manage</a>
+        {% if f.owner_id %}<a class="btn small neutral" href="/admin/feeders/{{ f.uuid }}">Details</a>
+        <form method="post" action="/admin/feeders/{{ f.uuid }}/manage" data-confirm="Take this feeder away from {{ f.owner_name }}? It becomes unclaimed." style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="owner"><input type="hidden" name="owner_id" value=""><input type="hidden" name="next" value="list"><button class="btn small" type="submit">Release</button></form>
+        {% else %}<a class="btn small" href="#sec-add-feeder" onclick="var d=document.getElementById('sec-add-feeder');d.open=true;document.getElementById('af-uuid').value='{{ f.uuid }}';document.getElementById('af-user').focus();">Assign</a>{% endif %}
+        <form method="post" action="/admin/feeders/{{ f.uuid }}/manage" {% if not f.banned %}data-confirm="Ban this feeder? It is hidden from every public page."{% endif %} style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="{{ 'unban' if f.banned else 'ban' }}"><input type="hidden" name="next" value="list"><button class="btn small {{ '' if f.banned else 'danger' }}" type="submit">{{ 'Unban' if f.banned else 'Ban' }}</button></form>
+      </td>
+    </tr>
+    {% else %}<tr><td colspan="10" class="dim">No feeders have connected yet.</td></tr>{% endfor %}
+  </table>
+{% endcall %}
+{% endblock %}

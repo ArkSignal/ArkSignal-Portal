@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}{{ r.station_id }}{% endblock %}
+{% block content %}
+<h1>My <span>ACARS Station</span> {{ r.station_id }}</h1>
+<div class="sub">{% if r.disabled %}switched off by an administrator{% elif online %}reporting{% else %}no recent message{% endif %}{% if r.last_report %}, last message {{ r.last_report | localtime("%b %-d %H:%M") }}{% endif %} &middot; {{ r.messages }} messages sent</div>
+{% if managing %}<div class="panel" style="border-color:var(--acc2);margin-bottom:14px"><b>You are managing {{ managing }}'s station as an administrator.</b> Everything here works as it does for them; it is written in the audit log under your name. <a href="/admin/acars">Back to Admin &gt; ACARS</a></div>{% endif %}
+{% with active = 'acars' %}{% include "partials/_my_subnav.html" %}{% endwith %}
+<p style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><a href="/my/acars">&larr; My ACARS Stations</a>{% if r.public %}<a class="btn small" href="/acars/stations/{{ r.station_id }}">Public Page</a>{% endif %}</p>
+
+<details class="panel setsec" id="sec-upload-address" open><summary><span class="role-name">Upload Address</span></summary><div class="secbody">
+  <p style="margin-top:0">This address belongs to your station alone. Anyone who has it can send messages as your station, so keep it private; if it leaks, make a new one below.</p>
+  <p><span class="mono copyable" style="word-break:break-all">{{ addr }}</span></p>
+  <p>Your receiver sends its messages to your own computer (acars_router or the decoder, as UDP JSON); a small free program, the <b>ArkSignal ACARS bridge</b>, passes them on to this address over https. On the computer that runs your decoder:</p>
+  <pre class="mono" style="overflow-x:auto;margin:0">curl -O {{ bridge }}
+python3 acars_bridge.py {{ addr }}</pre>
+  <p class="dim">Then point acars_router at it: <span class="mono">AR_SEND_UDP_ACARS=127.0.0.1:5555</span> and <span class="mono">AR_SEND_UDP_VDLM2=127.0.0.1:5555</span> (<span class="mono">AR_SEND_UDP_HFDL=127.0.0.1:5555</span> for HF). The <a href="/feed/acars">How to Feed ACARS</a> page has the rest, including a Docker form.</p>
+  <form method="post" action="/my/acars/{{ r.id }}/new-address" data-confirm="Make a new upload address? The old one stops working at once."><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small neutral" type="submit">Make a New Address</button></form>
+</div></details>
+
+<details class="panel setsec" id="sec-about-the-station" open style="margin-top:14px"><summary><span class="role-name">About the Station</span></summary>
+<form method="post" action="/my/acars/{{ r.id }}/save">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <label for="e-sid">Station ID</label><input type="text" id="e-sid" value="{{ r.station_id }}" disabled style="max-width:240px">
+  <label for="e-name">Station Name</label><input type="text" id="e-name" name="name" maxlength="60" value="{{ r.name }}">
+  <label for="e-bands">Bands and Links</label><input type="text" id="e-bands" name="bands" maxlength="120" value="{{ r.bands }}">
+  <div style="display:flex;gap:14px;flex-wrap:wrap"><div><label for="e-lat">Latitude</label><input type="text" id="e-lat" name="lat" value="{{ r.lat if r.lat is not none else '' }}" style="max-width:170px"></div><div><label for="e-lon">Longitude</label><input type="text" id="e-lon" name="lon" value="{{ r.lon if r.lon is not none else '' }}" style="max-width:170px"></div></div>
+  <label for="e-privacy">Location Privacy</label><select id="e-privacy" name="privacy">{% for k, v in privacy.items() %}<option value="{{ k }}" {{ 'selected' if k == r.privacy }}>{{ v }}</option>{% endfor %}</select>
+  <label for="e-hw">Hardware</label><input type="text" id="e-hw" name="hardware" maxlength="200" value="{{ r.hardware }}">
+  <label for="e-desc">About the Station</label><input type="text" id="e-desc" name="description" maxlength="500" value="{{ r.description }}">
+  <label style="display:flex;gap:8px;align-items:center;margin:10px 0"><input type="checkbox" name="public" value="1" {{ 'checked' if r.public }}> Show this station publicly</label>
+  <button class="btn" type="submit">Save</button>
+</form></details>
+
+<details class="panel setsec" id="sec-delete" style="margin-top:14px"><summary><span class="role-name">Delete This Station</span></summary><div class="secbody">
+  <p style="margin-top:0">Removes the station and its upload address. Messages it already sent stay in the history for the days set by the site.</p>
+  <form method="post" action="/my/acars/{{ r.id }}/delete" data-confirm="Delete this station?"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small danger" type="submit">Delete Station</button></form>
+</div></details>
+{% endblock %}

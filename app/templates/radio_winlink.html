@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Winlink Gateways{% endblock %}
+{% block content %}
+<h1>Winlink <span>Gateways</span></h1>
+<div class="sub">Stations that connect radio email (Winlink) to the internet: their call sign, what to tune to, the mode and where they are, sorted by how far they are from you. Kept by the network's own members{% if current_user.is_authenticated %}: <a href="/my/nets">add or fix yours</a>{% else %}: <a href="/my/login">sign in</a> to add yours{% endif %}.</div>
+
+{% call sec('find', 'Find a Gateway', True) %}
+  <form method="get" action="/radio/winlink" class="tfilterbar" style="align-items:flex-end">
+    <div><label for="wl-q">Near (Place, ZIP Code or Airport), or Search the List</label><input type="search" id="wl-q" name="q" value="{{ q }}" maxlength="120" style="width:280px" placeholder="Conway AR, KLIT, 72032"></div>
+    <div><label for="wl-m">Mode</label><select id="wl-m" name="mode"><option value="">Any</option>{% for m in modes %}<option value="{{ m }}" {{ 'selected' if mode == m }}>{{ m }}</option>{% endfor %}</select></div>
+    <button class="btn" type="submit" style="margin:0">Show Gateways</button>
+  </form>
+  {% if here %}<p class="help">Distances are from <b>{{ label }}</b>.</p>{% endif %}
+{% endcall %}
+
+{% call sec('list', 'Gateways (' ~ rows | length ~ ')', True, True) %}
+  <table id="wl-list" class="sortable"><thead><tr><th data-sort="text">Gateway</th><th data-sort="text">Mode</th><th data-sort="num">Frequency</th><th data-sort="text">Place</th>{% if here %}<th data-sort="num">Distance</th>{% endif %}<th>Contact</th></tr></thead><tbody>
+  {% for r in rows %}<tr>
+    <td><b class="mono">{{ r.name }}</b>{% if r.url %}<br><a href="{{ r.url }}" target="_blank" rel="noopener nofollow">Website</a>{% endif %}</td>
+    <td>{{ r.mode }}</td>
+    <td class="mono" data-v="{{ r.freq_mhz or 0 }}">{{ '%g MHz' % r.freq_mhz if r.freq_mhz else '-' }}{% if r.freq_note %}<br><span class="dim" style="font-size:.78rem;font-family:inherit">{{ r.freq_note }}</span>{% endif %}</td>
+    <td>{{ r.area }}</td>
+    {% if here %}<td class="mono" data-v="{{ r.dist if r.dist is not none else 99999 }}">{{ (r.dist * 1.609344) | u_dist(0) if r.dist is not none else '-' }}</td>{% endif %}
+    <td>{{ r.contact }}{% if r.notes %}<br><span class="dim" style="font-size:.82rem">{{ r.notes }}</span>{% endif %}</td></tr>
+  {% else %}<tr><td colspan="6" class="dim">No gateway matches. {% if current_user.is_authenticated %}<a href="/my/nets">Add one</a>.{% endif %}</td></tr>{% endfor %}</tbody></table>
+  <div class="help">A gateway can go off the air or change frequency: the official <a href="https://winlink.org/" target="_blank" rel="noopener">Winlink</a> site has the live list of working stations. This list is kept by hams of the area, with their own knowledge of what is on the air. Looking for a scheduled on-air meeting? See <a href="/radio/nets">Nets</a>.</div>
+{% endcall %}
+{% endblock %}

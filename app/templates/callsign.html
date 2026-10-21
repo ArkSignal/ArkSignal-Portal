@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Call Signs, Contacts and Talkgroups{% endblock %}
+{% block content %}
+<h1>Call Signs, <span>Contacts and Talkgroups</span></h1>
+<div class="sub">Look up a US amateur call sign, find a DMR contact, or see the talkgroups repeaters use, all in one place.</div>
+<div class="subnav" style="margin:10px 0"><a class="{{ 'active' if tab == 'call' }}" href="/callsign">Call Sign Lookup</a><a class="{{ 'active' if tab == 'contacts' }}" href="/callsign?tab=contacts">DMR Contacts</a><a class="{{ 'active' if tab == 'talkgroups' }}" href="/callsign?tab=talkgroups">Talkgroups</a></div>
+{% if tab == 'contacts' %}
+<form method="get" action="/callsign" class="panel" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end"><input type="hidden" name="tab" value="contacts">
+  <div><label for="ct-q">Name, call sign, city or DMR ID</label><input type="text" id="ct-q" name="q" value="{{ q }}" maxlength="60" style="width:260px" autocomplete="off" required></div>
+  <button class="btn" type="submit" style="margin:0 0 2px">Search Contacts</button></form>
+{% if not current_user.is_authenticated %}<div class="panel" style="margin-top:14px"><p style="margin:0">The contact list is for signed-in members. <a href="/my/login">Sign in</a> to search it.</p></div>
+{% elif not total_contacts %}<div class="panel" style="margin-top:14px"><p style="margin:0">No contact list has been added yet. An administrator imports one under Admin &gt; Repeaters &gt; DMR Talkgroup and Contact Lists (a radio's exported Digital Contacts file works).</p></div>
+{% elif q %}<div class="panel" style="margin-top:14px;overflow-x:auto">
+  <input type="search" id="ct-filter" placeholder="Filter these results" style="margin-bottom:8px;max-width:280px" aria-label="Filter the results">
+  <table class="sortable" id="ct-tbl"><thead><tr><th data-sort="text">Call Sign</th><th data-sort="num">DMR ID</th><th data-sort="text">Name</th><th data-sort="text">City</th><th data-sort="text">State</th><th data-sort="text">Country</th><th data-sort="text">Type</th></tr></thead><tbody>
+  {% for c in rows %}<tr><td class="mono">{% if c.call %}<a href="/callsign?call={{ c.call }}">{{ c.call }}</a>{% endif %}</td><td class="mono">{{ c.id }}</td><td>{{ c.name }}{% if c.remark %} <span class="dim">{{ c.remark }}</span>{% endif %}</td><td>{{ c.city }}</td><td>{{ c.state }}</td><td>{{ c.country }}</td><td>{{ c.kind }}</td></tr>{% else %}<tr><td colspan="7" class="dim">No contact matches.</td></tr>{% endfor %}</tbody></table>
+  {% if rows | length == 300 %}<div class="help">The first 300 matches. Narrow the search to see others.</div>{% endif %}</div>
+<script>(function(){var f=document.getElementById("ct-filter");if(!f)return;f.addEventListener("input",function(){var q=f.value.toLowerCase();document.querySelectorAll("#ct-tbl tbody tr").forEach(function(r){r.style.display=!q||r.textContent.toLowerCase().indexOf(q)>=0?"":"none";});});})();</script>
+{% else %}<p class="dim" style="margin-top:10px">{{ total_contacts }} contacts are kept. Search by name, call sign, city or DMR ID.</p>{% endif %}
+{% if current_user.is_authenticated and total_contacts and q %}<p class="dim" style="margin-top:8px;font-size:.84rem">This list is whatever contacts an administrator imported (for example a radio's Digital Contacts export, which is mostly talkgroups and group names). A person's own DMR ID is kept by <a href="https://radioid.net/database/search#!?callsign={{ q | urlencode }}" target="_blank" rel="noopener noreferrer">RadioID.net</a>: look the call sign up there.</p>{% endif %}
+{% elif tab == 'talkgroups' %}
+<form method="get" action="/callsign" class="panel" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end"><input type="hidden" name="tab" value="talkgroups">
+  <div><label for="tg-q">Talkgroup name or number</label><input type="text" id="tg-q" name="q" value="{{ q }}" maxlength="60" style="width:260px" autocomplete="off"></div>
+  <button class="btn" type="submit" style="margin:0 0 2px">Search</button></form>
+<div class="panel" style="margin-top:14px;overflow-x:auto"><table class="sortable"><thead><tr><th data-sort="num">ID</th><th data-sort="text">Talkgroup</th><th data-sort="text">List</th><th>Used by repeaters</th></tr></thead><tbody>
+  {% for c in cat %}<tr><td class="mono">{{ c.id }}</td><td>{{ c.name }}{% if c.note %}<div class="dim" style="font-size:.78rem">{{ c.note }}</div>{% endif %}</td><td>{{ c.kind }}</td>
+    <td>{% for rid, label in (carried.get(c.id) or [])[:6] %}<a href="/repeaters/{{ rid }}">{{ label }}</a>{{ ', ' if not loop.last }}{% else %}<span class="dim">none listed yet</span>{% endfor %}{% if (carried.get(c.id) or []) | length > 6 %} <span class="dim">and {{ (carried.get(c.id) | length) - 6 }} more</span>{% endif %}</td></tr>{% endfor %}
+</tbody></table><div class="help">{{ total_tg }} talkgroups: the widely used standard ones plus any list an administrator has imported. Repeaters carry them on time slot 1 or 2 (see a repeater's page).</div></div>
+{% else %}
+<form method="get" action="/callsign" class="panel" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+  <div><label for="cs-call">Call Sign</label><input type="text" id="cs-call" name="call" value="{{ call }}" maxlength="10" placeholder="A call sign or its start: W1AW, KD5" autocomplete="off" autocapitalize="characters" style="width:200px" required></div>
+  <button class="btn" type="submit" style="margin:0 0 2px">Look Up</button>
+</form>
+{% if call %}
+<div class="panel" style="margin-top:14px" id="cs-result">
+  {% if info %}
+  <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap"><div class="tv" style="font-size:1.6rem">{{ info.call }}</div>
+    <span class="tag {{ 'live' if info.status == 'Valid' else 'off' }}">{{ info.status or 'Unknown' }}</span></div>
+  <div style="font-size:1.1rem;margin-top:4px">{{ info.name }}</div>
+  <dl class="kv" style="display:grid;grid-template-columns:max-content 1fr;gap:6px 18px;margin:12px 0 0">
+    {% if info.kind %}<dt class="dim">License type</dt><dd style="margin:0">{{ info.kind }}</dd>{% endif %}
+    {% if info.oper_class %}<dt class="dim">Operator class</dt><dd style="margin:0">{{ info.oper_class }}</dd>{% endif %}
+    {% if info.place %}<dt class="dim">City and state</dt><dd style="margin:0">{{ info.place }}</dd>{% endif %}
+    {% if info.grid %}<dt class="dim">Grid square</dt><dd style="margin:0">{{ info.grid }} <span class="dim">(the first four characters only)</span></dd>{% endif %}
+    {% if info.granted %}<dt class="dim">Granted</dt><dd style="margin:0">{{ info.granted }}</dd>{% endif %}
+    {% if info.expires %}<dt class="dim">Expires</dt><dd style="margin:0">{{ info.expires }}</dd>{% endif %}
+    {% if info.previous %}<dt class="dim">Previous call sign</dt><dd style="margin:0"><a href="/callsign?call={{ info.previous }}">{{ info.previous }}</a></dd>{% endif %}
+    {% if info.trustee %}<dt class="dim">Club trustee</dt><dd style="margin:0"><a href="/callsign?call={{ info.trustee }}">{{ info.trustee }}</a></dd>{% endif %}
+  </dl>
+  {% else %}
+  <p style="margin:0">No US license was found for <b>{{ call }}</b>.{% if prefix %} The call signs on this site that start with it are listed below.{% else %} Check the spelling, or it may not be a US call sign.{% endif %}</p>
+  {% endif %}
+  <p style="margin:14px 0 0;display:flex;gap:10px;flex-wrap:wrap">
+    {% if info and info.link %}<a class="btn small neutral" href="{{ info.link }}" rel="noopener noreferrer" target="_blank">FCC License Page</a>{% endif %}
+    <a class="btn small neutral" href="https://www.qrz.com/db/{{ call }}" rel="noopener noreferrer" target="_blank">QRZ.com Page</a>
+    <a class="btn small neutral" href="https://radioid.net/database/search#!?callsign={{ call }}" rel="noopener noreferrer" target="_blank" title="A person's DMR ID is kept by RadioID.net">DMR ID on RadioID</a>
+  </p>
+</div>
+{% if prefix and (prefix | length) > (1 if here else 0) %}
+<div class="panel" style="margin-top:14px"><div class="lv-sub" style="margin-top:0">Call Signs on This Site That Start With {{ call }} ({{ prefix | length }})</div>
+  <table><thead><tr><th>Call Sign</th><th>On this site</th></tr></thead><tbody>
+  {% for p in prefix %}<tr><td class="mono"><a href="/callsign?call={{ p.call.split('-')[0] }}">{{ p.call }}</a></td><td>{% for k in p.kinds %}<span class="tag">{{ k }}</span> {% endfor %}</td></tr>{% endfor %}
+  </tbody></table>
+  <p class="dim" style="margin:8px 0 0;font-size:.82rem">Press a call sign for its license and everything the site knows about it.</p></div>
+{% endif %}
+{% if here %}
+<div class="panel" style="margin-top:14px"><div class="lv-sub" style="margin-top:0">Everything We Know About {{ call }} On This Site</div>
+  {% for kind in ['Digital ID', 'Repeater', 'APRS station', 'ADS-B feeder', 'Weather station', 'Sonde receiving station'] %}{% set items = here | selectattr('kind', 'equalto', kind) | list %}{% if items %}
+  <div style="margin:8px 0 2px"><b>{{ kind }}{{ 's' if items | length > 1 }}</b></div>
+  {% for m in items %}<div style="margin-left:12px"><a href="{{ m.href }}">{{ m.label }}</a>{% if m.sub %} <span class="dim">{{ m.sub }}</span>{% endif %}</div>{% endfor %}{% endif %}{% endfor %}
+  {% if not current_user.is_authenticated %}<div class="help">Sign in to also see DMR IDs from the contact list.</div>{% endif %}</div>
+{% elif call %}<div class="panel" style="margin-top:14px"><p class="dim" style="margin:0">Nothing on this site carries {{ call }} yet (no repeater, APRS station, feeder, weather station or receiving station).</p></div>
+{% endif %}
+{% endif %}
+{% endif %}
+<p class="dim" style="margin-top:14px">Only the licensee's name, class, status, dates and city and state are shown, never a street address. License data: FCC public records through <a href="https://callook.info" rel="noopener noreferrer" target="_blank">Callook.info</a>. QRZ.com opens in a new tab (its own terms and any sign-in apply).</p>
+{% endblock %}

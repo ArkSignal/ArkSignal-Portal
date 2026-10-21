@@ -1,0 +1,100 @@
+<details class="panel setsec" id="sec-off-site-copy" style="margin-bottom:16px" {{ 'open' if offsite.cfg.enabled or not offsite.ready }}><summary><span class="role-name">Off-Site Copy</span>
+  {% if offsite.cfg.enabled and offsite.ready %}<span class="tag live" style="margin-left:10px">on</span>{% elif offsite.ready %}<span class="tag off" style="margin-left:10px">saved, switched off</span>{% else %}<span class="tag off" style="margin-left:10px">not set up</span>{% endif %}
+</summary><div class="secbody">
+  <p style="margin:0 0 10px">Everything above stays on the hub's own disk, so losing the disk would lose the backups too. The Off-Site Copy sends encrypted copies somewhere else, on two schedules:
+    a <b>small copy</b> (the portal's database with every flight, history, station and setting, the hub's secret keys and compose files, and Grafana) every day, and a <b>big copy</b> (statistics history and the hub's own traffic history) every week, each as its own file.</p>
+  <form method="post" action="/admin/backups/offsite/save" data-async id="offsite-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label class="check"><input type="checkbox" name="enabled" value="1" {{ 'checked' if offsite.cfg.enabled }}><span><b>Make off-site copies</b><br><span class="dim">Runs on the schedules below once the destination is saved and tested.</span></span></label>
+    <label for="os-type">Destination Type</label>
+    <select id="os-type" name="type">{% for k, l in offsite.types.items() %}<option value="{{ k }}" {{ 'selected' if offsite.cfg.type == k }}>{{ l }}</option>{% endfor %}</select>
+
+    <div data-for="sftp smb s3 webdav">
+      <label for="os-host"><span data-for-label="webdav">Web Address</span><span data-for-label="s3">Endpoint Address (leave empty for Amazon S3)</span><span data-for-label="sftp smb">Host</span></label>
+      <input type="text" id="os-host" name="host" value="{{ offsite.cfg.host }}" placeholder="backup.example.org" style="max-width:380px">
+    </div>
+    <div data-for="sftp smb">
+      <label for="os-port">Port (optional)</label>
+      <input type="text" id="os-port" name="port" value="{{ offsite.cfg.port }}" placeholder="22" style="max-width:110px">
+    </div>
+    <div data-for="s3">
+      <label for="os-endpoint">Endpoint</label>
+      <input type="text" id="os-endpoint" name="endpoint" value="{{ offsite.cfg.endpoint }}" placeholder="https://s3.us-east-1.amazonaws.com or your provider's address" style="max-width:380px">
+      <label for="os-bucket">Bucket</label>
+      <input type="text" id="os-bucket" name="bucket" value="{{ offsite.cfg.bucket }}" style="max-width:260px">
+      <label for="os-region">Region (optional)</label>
+      <input type="text" id="os-region" name="region" value="{{ offsite.cfg.region }}" style="max-width:160px">
+      <label for="os-ak">Access Key</label>
+      <input type="text" id="os-ak" name="access_key" value="{{ offsite.cfg.access_key }}" autocomplete="off" style="max-width:300px">
+    </div>
+    <div data-for="sftp smb webdav">
+      <label for="os-user">User Name</label>
+      <input type="text" id="os-user" name="user" value="{{ offsite.cfg.user }}" autocomplete="off" style="max-width:260px">
+    </div>
+    <label for="os-path">Folder on the Destination</label>
+    <input type="text" id="os-path" name="path" value="{{ offsite.cfg.path }}" placeholder="adsb-backups" style="max-width:300px">
+    <div class="help"><span data-for-label="smb">For a share, start with the share name: <span class="mono">backups/adsb</span>.</span> The copies are written inside this folder, in <span class="mono">small</span> and <span class="mono">big</span> sub-folders.</div>
+
+    <label for="os-secret"><span data-for-label="s3">Secret Key</span><span data-for-label="sftp smb webdav">Password</span></label>
+    <input type="password" id="os-secret" name="secret" autocomplete="new-password" placeholder="{{ 'saved: leave blank to keep it' if offsite.has_secret else '' }}" style="max-width:300px">
+    <div data-for="sftp">
+      <label for="os-key">SSH Private Key (optional, instead of a password)</label>
+      <textarea id="os-key" name="key" rows="3" class="mono" placeholder="{{ 'saved: leave blank to keep it' if offsite.has_key else '-----BEGIN OPENSSH PRIVATE KEY-----' }}" style="max-width:520px"></textarea>
+      {% if offsite.has_key %}<label class="check"><input type="checkbox" name="clear_key" value="1"><span>Remove the saved key</span></label>{% endif %}
+    </div>
+
+    <label for="os-pass">Encryption Passphrase</label>
+    <input type="password" id="os-pass" name="passphrase" autocomplete="new-password" placeholder="{{ 'saved: leave blank to keep it' if offsite.has_pass else 'choose a long passphrase' }}" style="max-width:300px">
+    <div class="help"><b>Write this passphrase down and keep it somewhere safe that is not on the hub.</b> Every copy is encrypted with it, because the copies contain the hub's secret keys. Without it a copy cannot be opened, and nobody, including this page, can recover it.</div>
+
+    <div class="grp">Small Copy (database, secret keys, Grafana)</div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap">
+      <div><label for="os-st">Time of Day</label><input type="text" id="os-st" name="small_time" value="{{ offsite.cfg.small.time }}" style="max-width:90px"></div>
+      <div><label for="os-sd">Every (Days)</label><input type="text" id="os-sd" name="small_every_days" value="{{ offsite.cfg.small.every_days }}" style="max-width:80px"></div>
+      <div><label for="os-sk">Copies to Keep</label><input type="text" id="os-sk" name="small_keep" value="{{ offsite.cfg.small.keep }}" style="max-width:80px"></div>
+    </div>
+    <div class="grp">Big Copy (statistics and traffic history)</div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap">
+      <div><label for="os-bt">Time of Day</label><input type="text" id="os-bt" name="big_time" value="{{ offsite.cfg.big.time }}" style="max-width:90px"></div>
+      <div><label for="os-bd">Every (Days)</label><input type="text" id="os-bd" name="big_every_days" value="{{ offsite.cfg.big.every_days }}" style="max-width:80px"></div>
+      <div><label for="os-bk">Copies to Keep</label><input type="text" id="os-bk" name="big_keep" value="{{ offsite.cfg.big.keep }}" style="max-width:80px"></div>
+    </div>
+    <label class="check"><input type="checkbox" name="big_prometheus" value="1" {{ 'checked' if offsite.cfg.big.prometheus }}><span>Include the statistics history (Prometheus)</span></label>
+    <label class="check"><input type="checkbox" name="big_globe" value="1" {{ 'checked' if offsite.cfg.big.globe }}><span>Include the hub's traffic history (traces, heatmap and replay data); this is the largest part</span></label>
+    <div class="help">Times are in the display timezone ({{ v.timezone }}). Old copies beyond the number to keep are deleted from the destination after each new one is safely written.</div>
+    <button class="btn" type="submit">Save Off-Site Copy Settings</button>
+  </form>
+
+  <div class="grp">Test and Run</div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    {% for act, label in (('test', 'Test the Connection'), ('run-small', 'Make the Small Copy Now'), ('run-big', 'Make the Big Copy Now')) %}
+    <form method="post" action="/admin/backups/offsite/command" data-async style="margin:0"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="{{ act }}"><button class="btn small neutral" type="submit" style="margin:0">{{ label }}</button></form>
+    {% endfor %}
+  </div>
+  {% if offsite.command %}<p class="dim" style="margin:8px 0 0">Waiting for the backup service to pick up: <b>{{ offsite.command.action }}</b>. Reload in a minute.</p>{% endif %}
+  {% if offsite.test %}<p style="margin:8px 0 0">Connection test {{ offsite.test.at | localtime }}: {% if offsite.test.ok %}<span class="tag live">worked</span>{% else %}<span class="tag off">failed</span>{% endif %} <span class="dim">{{ offsite.test.detail }}</span></p>{% endif %}
+  {% if offsite.cfg.enabled and offsite.ready %}<p class="dim" style="margin:8px 0 0">Next small copy: {{ offsite.next.small | localtime }} &middot; next big copy: {{ offsite.next.big | localtime }}</p>{% endif %}
+
+  <div class="grp">Recent Copies</div>
+  <div style="overflow-x:auto"><table>
+    <tr><th>Started</th><th>Kind</th><th>Result</th><th>Size</th><th>File and Details</th></tr>
+    {% for r in offsite.runs %}
+    <tr><td>{{ r.started | localtime }}</td><td>{{ r.kind }}{% if r.trigger == 'manual' %} <span class="dim">(manual)</span>{% endif %}</td>
+      <td>{% if r.ok is none %}<span class="tag">running</span>{% elif r.ok %}<span class="tag live">ok</span>{% else %}<span class="tag off">failed</span>{% endif %}</td>
+      <td class="mono">{{ r.bytes | filesize if r.bytes else '' }}</td><td class="dim" style="font-size:.82rem">{{ r.remote_name }}{% if r.detail %} {{ r.detail }}{% endif %}</td></tr>
+    {% else %}<tr><td colspan="5" class="dim">No off-site copy has been made yet.</td></tr>{% endfor %}
+  </table></div>
+  <div class="grp">Getting a Copy Back</div>
+  <p class="dim" style="margin:0">The database part can be restored from this page like any backup once you have decrypted the small copy. To list, decrypt and unpack copies from the destination, run on the hub: <span class="mono">docker run --rm -it -v /opt/adsb:/opt/adsb mallison01/adsb-backup:stable restore</span>. It asks for the destination details and your passphrase; nothing else on the hub is touched until you copy files back yourself.</p>
+</div></details>
+<script>
+(function () {
+  var sel = document.getElementById("os-type");
+  function show() {
+    var t = sel.value;
+    document.querySelectorAll("#offsite-form [data-for]").forEach(function (el) { el.style.display = el.dataset["for"].split(" ").indexOf(t) >= 0 ? "" : "none"; });
+    document.querySelectorAll("#offsite-form [data-for-label]").forEach(function (el) { el.style.display = el.dataset.forLabel.split(" ").indexOf(t) >= 0 ? "" : "none"; });
+  }
+  sel.addEventListener("change", show); show();
+})();
+</script>

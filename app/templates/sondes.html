@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% from "partials/_sonde_rows.html" import flight_table %}
+{% block title %}Radiosondes and Balloons{% endblock %}
+{% block content %}
+<h1>Radiosondes <span>and Balloons</span></h1>
+<div class="sub">Weather balloons tracked live: where they went up, how high, where they landed. National Weather Service flights first, amateur balloons too. This page lists flights launched in <b>{{ shown_states | join(", ") }}</b>; the <a href="/sondes/map">Radiosonde Map</a> and <a href="/sondes/flights">All Flights</a> show every state we record.{% if current_user.is_authenticated and current_user.has_permission("manage_sondes") %} <a href="/admin/settings#sec-radiosondes">Change the states</a>.{% endif %}</div>
+<p style="display:flex;gap:10px;flex-wrap:wrap"><a class="btn" href="/sondes/map">Open the Radiosonde Map</a> <a class="btn neutral" href="/sondes/flights">All Flights</a> <a class="btn neutral" href="/sondes/stations/">Receiving Stations</a> <a class="btn neutral" href="/my/sondes">My Receiving Stations</a></p>
+
+<div class="tiles" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr));margin-bottom:14px">
+  <div class="panel tile"><div class="tv">{{ climbing }}</div><div class="tl">Climbing now (balloon intact)</div></div>
+  <div class="panel tile"><div class="tv">{{ falling }}</div><div class="tl">Burst, falling now</div></div>
+  <div class="panel tile"><div class="tv">{{ counts.flights.day }}</div><div class="tl">Flights in the last 24 hours</div></div>
+  <div class="panel tile"><div class="tv">{{ counts.flights.nws }}</div><div class="tl">National Weather Service flights recorded</div></div>
+  <div class="panel tile"><div class="tv">{{ counts.flights.total }}</div><div class="tl">Flights recorded</div></div>
+  <div class="panel tile"><div class="tv">{{ counts.stations.active }}</div><div class="tl">Receiving stations active today</div></div>
+</div>
+{% if not alive %}<p class="dim">The live feed is not connected right now{% if feed.error %} ({{ feed.error }}){% endif %}; flights already recorded are shown.</p>{% endif %}
+
+{% call sec('in-the-air', 'In the Air Now', True) %}
+  {{ flight_table(aloft, 'No balloon is in the air in the recorded area right now. National Weather Service balloons go up twice a day, about 11:15 and 23:15 UTC (6:15 am and 6:15 pm Central in winter).') }}
+{% endcall %}
+
+{% call sec('forecast', 'Next Launch Forecast', True) %}
+  <div id="fc-body" class="dim">Loading the forecast...</div>
+  <script>
+  (function () {
+    var body = document.getElementById("fc-body"), sec = body.closest("details, .panel");
+    function esc(t) { var d = document.createElement("div"); d.textContent = t == null ? "" : t; return d.innerHTML; }
+    var DIR = ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"];
+    fetch("/api/sondes/predictions.json").then(function (r) { return r.json(); }).then(function (j) {
+      if (!j.enabled) { if (sec) sec.style.display = "none"; return; }
+      var seen = {}, rows = (j.predictions || []).filter(function (p) { if (seen[p.site]) return false; seen[p.site] = 1; return true; });
+      if (!rows.length) { body.textContent = j.note || "No forecast yet: the prediction service is still collecting launch history."; return; }
+      var sc = j.scores, line = "";
+      if (sc && sc.count) line = "Checked against " + sc.count + " real flights so far: the middle of the forecast landed " + ArkUnits.text.dist(sc.median_km) + " from the real landing point (nine in ten within " + ArkUnits.text.dist(sc.p90_km) + ")" + (sc.inside_r50 != null ? "; " + Math.round(sc.inside_r50 * 100) + " percent landed inside the forecast area." : ".");
+      body.innerHTML = '<table><thead><tr><th>Launch site</th><th>Next launch</th><th>Expected landing</th><th>Usual burst height</th><th>Flight time</th></tr></thead><tbody>' + rows.map(function (p) {
+        var t = new Date(p.launch);
+        return '<tr><td><a href="/sondes/sites/' + encodeURIComponent(p.site) + '">' + esc(p.name) + '</a></td><td>' + esc(window.fmtTime ? window.fmtTime(t, "dt") : t.toLocaleString()) + '</td><td>' + ArkUnits.text.dist(p.drift_km) + ' ' + DIR[Math.round(p.bearing / 45) % 8] + ' of the site, within ' + ArkUnits.text.dist(p.r50_km) + '</td><td>' + (p.burst_alt ? ArkUnits.text.alt(p.burst_alt) : "-") + '</td><td>' + (p.flight_min ? Math.round(p.flight_min / 6) / 10 + ' h' : "-") + '</td></tr>';
+      }).join("") + '</tbody></table><p class="dim" style="margin:10px 0 0;font-size:.82rem">Worked out from past flights of each site in the same season and at the same hour, pulled toward where the latest flights went (winds persist for a day or two). No weather forecast is used. ' + esc(line) + ' The forecast areas are on the <a href="/sondes/map">Radiosonde Map</a>.</p>';
+    }).catch(function () { body.textContent = "The forecast could not be loaded."; });
+  })();
+  </script>
+{% endcall %}
+
+{% call sec('recent', 'Recent Flights', True) %}
+  {{ flight_table(recent, 'No flights recorded yet.') }}
+  <p style="margin:10px 0 0"><a href="/sondes/flights">More flights, filters and search</a></p>
+{% endcall %}
+
+{% call sec('sites', 'National Weather Service Launch Sites', True) %}
+  {% if sites %}<table><thead><tr><th>Site</th><th>Number</th><th>Types</th></tr></thead><tbody>{% for s in sites %}<tr><td><a href="{{ s.href }}">{{ s.name }}</a></td><td class="mono">{{ s.id }}</td><td class="dim">{{ s.types }}</td></tr>{% endfor %}</tbody></table>
+  <p class="dim" style="margin:8px 0 0;font-size:.82rem">Sites inside the recorded area. A balloon is released about 45 minutes before 00 and 12 UTC.</p>
+  {% else %}<p class="dim" style="margin:0">The launch-site list has not been loaded yet (an administrator runs Balloon Launch Sites under Data Updates).</p>{% endif %}
+{% endcall %}
+
+{% call sec('about', 'About This Service', False) %}
+  <p style="margin-top:0">A radiosonde is the small instrument package a weather service hangs under a balloon: it climbs for about two hours to {{ 30000|u_alt }} or more, measuring temperature, humidity, pressure and wind, then drifts down, and is often found by hobbyists. Volunteers with receivers pick up its signal and share it. ArkSignal records the flights over and around Arkansas, keeps the tracks and the data, and lets members claim their own receiving stations.</p>
+  <p style="margin-bottom:0">Telemetry comes from <a href="https://sondehub.org" target="_blank" rel="noopener">SondeHub</a> under <a href="https://creativecommons.org/licenses/by-sa/2.0/" target="_blank" rel="noopener">Creative Commons BY-SA 2.0</a>. <a href="/feed/sondes">How to feed it</a> if you run a receiver.</p>
+{% endcall %}
+{% endblock %}

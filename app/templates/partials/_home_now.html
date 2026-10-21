@@ -1,0 +1,7 @@
+{# The card beside the home map, one folding block per service from app/services.py (home_now): Weather Right Now, Radiosondes Right Now, and whatever service comes next.
+   Folded it shows a headline; opened, the rows. #}
+{% for b in svc_now %}
+<details class="ovf" data-k="{{ b.key }}"><summary><span class="t">{{ b.title }}</span><span class="s">{{ b.summary }}</span></summary>
+<div class="fb">{% for label, value, href in b.rows %}<div class="row"><span>{{ label }}</span><span class="what">{% if href %}<a href="{{ href }}">{{ value }}</a>{% else %}{{ value }}{% endif %}</span></div>{% endfor %}
+<div class="row"><span><a href="{{ b.href }}">Open {{ b.title.replace(' Right Now', '') }}</a></span><span></span></div></div></details>
+{% endfor %}

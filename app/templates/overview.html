@@ -1,0 +1,277 @@
+{% extends "base.html" %}
+{% block title %}{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ leaflet_base }}/leaflet.css" crossorigin="anonymous">
+<style>
+.ov-hero{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+.ov-hero h1{font-size:clamp(2rem,4.5vw,3rem);margin:0}
+.ov-search{display:flex;gap:8px;flex:1 1 320px;max-width:520px}
+.ov-search input{flex:1}
+.ov-search .btn{margin:0}
+.strip{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+.pill{display:inline-flex;align-items:baseline;gap:8px;padding:8px 14px;border:1px solid var(--line);border-radius:999px;background:var(--panel);text-decoration:none;color:var(--text)}
+.pill b{font:700 1.15rem 'JetBrains Mono',monospace}
+.pill span{color:var(--dim);font-size:.85rem}
+.pill.ok b{color:var(--acc)}.pill.warn b,.pill.down b{color:var(--err)}
+.ov-grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:14px;margin-top:14px}
+h2.sec{font-size:.78rem;text-transform:uppercase;letter-spacing:.14em;color:var(--dim);margin:30px 0 14px;font-weight:600}
+.svc{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
+a.svcard{display:flex;flex-direction:column;gap:8px;padding:18px;color:inherit;text-decoration:none;transition:border-color .15s,transform .15s}
+a.svcard:hover{border-color:rgba(62,230,168,.55);transform:translateY(-2px)}
+a.svcard h3{margin:0;font-size:1.05rem;font-weight:600;display:flex;gap:10px;align-items:center}
+a.svcard p{margin:0;color:var(--dim);font-size:.88rem}
+a.svcard .num{font:700 1.5rem/1 'JetBrains Mono',monospace;color:var(--acc)}
+a.svcard .numl{color:var(--dim);font-size:.8rem}
+.svcard .ic{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;background:rgba(62,230,168,.1);color:var(--acc);flex:none}
+.svcard .ic svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+#ovmap{height:clamp(460px,66vh,740px);border-radius:14px}
+.ov-legend{background:var(--pop-bg);color:var(--text);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:.82rem;max-width:230px;box-shadow:0 6px 18px rgba(0,0,0,.35)}
+.ov-legend b{display:block;margin-bottom:6px;font:600 .66rem Inter,sans-serif;text-transform:uppercase;letter-spacing:.12em;color:var(--dim)}
+.ov-legend{padding:0}.ov-legend .ov-lt{display:flex;align-items:center;gap:8px;width:100%;margin:0;padding:9px 12px;background:none;border:0;color:var(--text);font:600 .8rem Inter,sans-serif;cursor:pointer;min-height:38px}
+.ov-legend .ov-lt i{font-style:normal;color:var(--dim);margin-left:auto;transition:transform .15s}.ov-legend.open .ov-lt i{transform:rotate(180deg)}
+.ov-legend .ov-lb{display:none;padding:0 12px 10px}.ov-legend.open .ov-lb{display:block}
+.ov-legend label{display:flex;gap:8px;align-items:center;margin:4px 0;cursor:pointer}
+.ov-legend .sw{width:11px;height:11px;border-radius:50%;flex:none}
+.ov-legend i{margin-left:auto;font-style:normal;color:var(--dim)}
+.ov-legend .dim{margin-top:6px;font-size:.72rem;line-height:1.3}
+.ov-grid>.panel{display:flex;flex-direction:column}
+#ov-now{max-height:clamp(460px,66vh,740px);overflow-y:auto}   /* folded blocks fit; the card scrolls only once enough of them are opened */
+details.ovf{border-bottom:1px solid var(--line);padding:2px 0}
+details.ovf>summary{list-style:none;cursor:pointer;display:flex;flex-direction:column;gap:2px;padding:8px 0}
+details.ovf>summary::-webkit-details-marker{display:none}
+details.ovf>summary .t{color:var(--dim);font-size:.75rem;text-transform:uppercase;letter-spacing:.12em;font-weight:600}
+details.ovf>summary .t:after{content:"+";float:right;font-weight:700}
+details.ovf[open]>summary .t:after{content:"\2212"}
+details.ovf>summary .t small{font-weight:400;text-transform:none;letter-spacing:0}
+details.ovf>summary .s{font-size:.95rem;font-weight:600}
+details.ovf .fb{padding:0 0 8px}   /* as tall as the map; a service block more scrolls instead of stretching the row */
+#ov-now .row{display:flex;justify-content:space-between;gap:10px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--line);font-size:.9rem}
+#ov-now .row:last-child{border-bottom:0}
+#ov-now .row .who{font-weight:600}
+#ov-now .row .what{color:var(--dim);font-size:.82rem;white-space:nowrap}
+#ov-now .tagx{display:inline-block;padding:1px 8px;border-radius:999px;border:1px solid var(--line);font-size:.72rem;margin-right:6px;color:var(--dim)}
+#ov-now .tagx.emg{color:var(--err);border-color:var(--err)}
+#ov-now .tagx.med{color:#ff7a8a;border-color:#ff7a8a}
+#ov-now .tagx.mil{color:#e6c34a;border-color:#e6c34a}
+#ov-now .tagx.int{color:var(--acc2);border-color:var(--acc2)}
+.ov-join{margin-top:18px;display:flex;gap:18px;flex-wrap:wrap;color:var(--dim);font-size:.9rem}
+@media(max-width:820px){.ov-grid{grid-template-columns:1fr}#ov-now{max-height:none}}
+</style>
+
+<div class="ov-hero">
+  <div>
+    <h1>{{ brand_name }}<span>{{ brand_accent }}</span></h1>
+    <div class="sub" style="margin:4px 0 0">{{ tagline }}</div>
+  </div>
+  <form class="ov-search" method="get" action="/search" role="search">
+    <input type="search" name="q" placeholder="Search a callsign, tail number, airport, city or station" aria-label="Search" maxlength="40">
+    <button class="btn small" type="submit">Search</button>
+  </form>
+</div>
+
+<div class="strip" aria-label="Right now">
+  <a class="pill" href="/aircraft"><b id="ov-ac">{{ '-' }}</b><span>aircraft overhead</span></a>
+  <a class="pill" href="/feeders/"><b id="ov-st">{{ stations }}</b><span>station{{ '' if stations == 1 else 's' }} online</span></a>
+  {% if mlat_on %}<a class="pill" href="/mlat/"><b>{{ mlat_working }}</b><span>working on MLAT</span></a>{% endif %}
+  <a class="pill {{ status.overall }}" href="/status"><b>{{ '&#10003;' | safe if status.overall == 'ok' else '!' }}</b><span>{{ status.message }}</span></a>
+</div>
+
+<div class="ov-grid">
+  <div class="panel" style="padding:0;overflow:hidden"><div id="ovmap"></div></div>
+  <div class="panel" id="ov-now">
+    <details class="ovf" data-k="notable"><summary><span class="t">Worth a Look Right Now{% if ar.on %} <small>&middot; in Arkansas</small>{% endif %}</span><span class="s" id="ovs-notable">Looking at the sky...</span></summary>
+      <div class="fb" id="ov-notable"><p class="dim" style="margin:0">Looking at the sky...</p></div></details>
+    <details class="ovf" data-k="records"><summary><span class="t">Records Right Now</span><span class="s" id="ovs-records">-</span></summary>
+      <div class="fb" id="ov-records"><p class="dim" style="margin:0">-</p></div></details>
+    <details class="ovf" data-k="network"><summary><span class="t">The Network</span><span class="s" id="ovs-net">-</span></summary>
+      <div class="fb" id="ov-net"><p class="dim" style="margin:0">-</p></div></details>
+    <div id="ov-svc">{% include "partials/_home_now.html" %}</div>
+  </div>
+</div>
+
+<h2 class="sec">Services</h2>
+<section class="svc">
+  <a class="panel svcard" href="/aircraft">
+    <h3><span class="ic"><svg viewBox="0 0 24 24"><path d="M10 3l2 7h8l-2 3h-6l-2 8h-2l1-8H6l-1 2H3l1-4-1-4h2l1 2h4l-1-6z"/></svg></span>Aircraft Tracking</h3>
+    <div><span class="num" id="ov-ac2">-</span> <span class="numl">in the air now</span></div>
+    <p>Live map, flights, history, Planefence, Sky View, MLAT and UAT.</p>
+  </a>
+  <a class="panel svcard" href="/coverage">
+    <h3><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg></span>Coverage</h3>
+    <div><span class="num">{{ stations }}</span> <span class="numl">station{{ '' if stations == 1 else 's' }} reporting</span></div>
+    <p>What the network can hear and where, by type of service.</p>
+  </a>
+  <a class="panel svcard" href="/feeders/">
+    <h3><span class="ic"><svg viewBox="0 0 24 24"><path d="M3 17l5-6 4 3 5-8 4 5"/><path d="M3 21h18"/></svg></span>Feeders</h3>
+    <div><span class="num">{{ named }}</span> <span class="numl">named stations</span></div>
+    <p>Who is part of the network and how well each feeder hears.</p>
+  </a>
+  {% if wx %}<a class="panel svcard" href="/weather/">
+    <h3><span class="ic"><svg viewBox="0 0 24 24"><path d="M7 18a4 4 0 0 1-.5-7.97A5.5 5.5 0 0 1 17 8.5a4.5 4.5 0 0 1 .5 9z"/><path d="M8 21l1.5-2.5M12 21l1.5-2.5M16 21l1.5-2.5"/></svg></span>Weather</h3>
+    {% if wx.total %}<div><span class="num">{{ wx.online }}</span> <span class="numl">of {{ wx.total }} station{{ '' if wx.total == 1 else 's' }} reporting{% if wx.avg %}, average {{ wx.avg[0] }}{{ wx.avg[1] }}{% endif %}</span></div>
+    {% else %}<div><span class="numl">No stations yet: be the first to add one</span></div>{% endif %}
+    <p>Real weather from members' own stations: conditions, charts and a map.</p>
+  </a>{% endif %}
+  {% if sonde %}<a class="panel svcard" href="/sondes/">
+    <h3><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M12 13v4"/><rect x="10" y="17" width="4" height="4" rx="1"/></svg></span>Weather Balloons</h3>
+    {% if sonde.aloft %}<div><span class="num">{{ sonde.aloft }}</span> <span class="numl">in the air over Arkansas{% if sonde.highest %}, highest {{ sonde.highest | u_alt(0, 'sondes') }}{% endif %}</span></div>
+    {% else %}<div><span class="numl">None over Arkansas right now{% if sonde.nws_24h %}; {{ sonde.nws_24h }} National Weather Service flight{{ '' if sonde.nws_24h == 1 else 's' }} in the last day{% endif %}</span></div>{% endif %}
+    <p>Radiosondes and balloons tracked live: where they went up, how high, where they landed.</p>
+  </a>{% endif %}
+  {% for t in nav_tools if t.slug in ('statistics', 'network-feeders') %}
+  <a class="panel svcard" href="/view/{{ t.slug }}">
+    <h3><span class="ic"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg></span>{{ t.name }}</h3>
+    <p>{{ t.description or 'Open in the portal' }}</p>
+  </a>
+  {% endfor %}
+  <a class="panel svcard" href="/status">
+    <h3><span class="ic"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg></span>Network Status</h3>
+    <p>{{ status.message }}</p>
+  </a>
+  <a class="panel svcard" href="/feed/">
+    <h3><span class="ic"><svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 20h16"/></svg></span>Feed the Network</h3>
+    <p>Add your receiver. It takes one line of configuration.</p>
+  </a>
+</section>
+<div class="ov-join">
+  <span>{% if release %}Latest release <b>{{ release.version }}</b>{% if release.released %} (<time class="ts" datetime="{{ release.released }}" data-fmt="d">{{ release.released[:10] }}</time>){% endif %}: <a href="/release-notes">Release Notes</a> &middot; <a href="/roadmap">Roadmap</a>{% else %}<a href="/release-notes">Release Notes</a> &middot; <a href="/roadmap">Roadmap</a>{% endif %}</span>
+  <span>Join in: <a href="/feed/">How to Feed</a> &middot; <a href="/my/register">Create an Account</a></span>
+</div>
+{% if coming %}<p class="dim" style="margin-top:12px">More are on the way: {{ coming[:-1] | join(", ") ~ (" and " if coming | length > 1 else "") ~ coming[-1] }}. A card appears here as each one is built; the <a href="/roadmap">Roadmap</a> shows what is coming.</p>{% endif %}
+
+<script src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script>
+<script src="/static/touchhit.js"></script>
+<script>
+(function () {
+  var AR = {{ ar | tojson }};   // the home page counts only Arkansas (Settings > Public Pages): the same test for the aircraft that the server applies to stations
+  function arInside(lat, lon) {
+    if (!AR.on || lat == null || lon == null) return true;
+    var c = false, p = AR.poly, j = p.length - 1;
+    for (var i = 0; i < p.length; i++) { if ((p[i][1] > lat) !== (p[j][1] > lat) && lon < (p[j][0] - p[i][0]) * (lat - p[i][1]) / (p[j][1] - p[i][1]) + p[i][0]) c = !c; j = i; }
+    if (c) return true;
+    var kx = 69.17 * Math.cos(lat * Math.PI / 180), best = 1e9;
+    for (var k = 0; k < p.length - 1; k++) {
+      var ax = (p[k][0] - lon) * kx, ay = (p[k][1] - lat) * 69, bx = (p[k + 1][0] - lon) * kx, by = (p[k + 1][1] - lat) * 69, dx = bx - ax, dy = by - ay, t = (dx || dy) ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / (dx * dx + dy * dy))) : 0;
+      best = Math.min(best, Math.hypot(ax + t * dx, ay + t * dy));
+    }
+    return best <= AR.margin;
+  }
+  var LAYERS = {{ layers | tojson }}, M = {{ m | tojson }}, HOME_AREA = {{ home_area | tojson }};   // south, west, north, east: always shown in full
+  var map = L.map("ovmap", {preferCanvas: true, zoomControl: true, attributionControl: true, scrollWheelZoom: false, zoomSnap: 0.25}).setView([M.lat, M.lon], 7);
+  function fit() { map.invalidateSize(); map.fitBounds([[HOME_AREA[0], HOME_AREA[1]], [HOME_AREA[2], HOME_AREA[3]]], {padding: [6, 6]}); }
+  fit();
+  // zoom buttons, double click and pinch always work; the mouse wheel zooms once the map has been clicked (so scrolling the page past it is not hijacked), and goes back when the pointer leaves
+  map.on("click", function () { map.scrollWheelZoom.enable(); });
+  map.getContainer().addEventListener("mouseleave", function () { map.scrollWheelZoom.disable(); });
+  window.ovMap = map;   // for the browser test
+  L.tileLayer({{ tile_url | tojson }}, {maxZoom: 19, attribution: {{ tile_attr | tojson }}}).addTo(map);
+  // one layer per kind of station (ADS-B feeders today; weather stations, repeaters and mesh nodes join as they are built), with a legend that switches each on and off
+  var hidden = {}; try { hidden = JSON.parse(localStorage.getItem("ov.hidden") || "{}"); } catch (e) {}
+  var groups = {};
+  LAYERS.forEach(function (ly) {
+    var g = L.layerGroup(); groups[ly.key] = g;
+    ly.points.forEach(function (p) {
+      var m = L.circleMarker([p.lat, p.lon], {radius: p.online ? 7 : 5, color: ly.color, weight: p.approx ? 1 : 2, dashArray: p.approx ? "3" : null, fillColor: ly.color, fillOpacity: p.online ? .75 : .15}).addTo(g);
+      m.bindTooltip(p.name + (p.online ? "" : " (offline)") + (p.approx ? " - approximate position" : ""));
+      m.on("click", function () { location.href = p.href; });
+    });
+    if (!hidden[ly.key]) g.addTo(map);
+  });
+  // county lines: the outlines of the state's counties (one file, kept by the browser); a click opens the county page. On unless the visitor switched it off.
+  var cnty = L.layerGroup(), cntyCount = 0;
+  fetch("/api/counties/shapes.json").then(function (r) { return r.json(); }).then(function (d) {
+    (d.counties || []).forEach(function (c) {
+      var g = L.geoJSON({type: "Feature", geometry: c.geometry}, {style: {color: "#8fb8ff", weight: 1, fillOpacity: 0, opacity: .55}, pane: "tilePane"});
+      g.bindTooltip(c.name, {sticky: true}); g.on("click", function () { location.href = "/counties/" + c.slug; }); g.addTo(cnty); cntyCount++;
+    });
+    if (cntyCount) { var lb = document.getElementById("ov-cnty"); if (lb) lb.style.display = ""; if (!hidden.counties) cnty.addTo(map); }
+  }).catch(function () {});
+  var legend = L.control({position: "topright"});
+  legend.onAdd = function () {
+    var div = L.DomUtil.create("div", "ov-legend");
+    var open = {{ 'true' if map_panels_open else 'false' }} && window.innerWidth > 700;   // closed when the page loads (Settings > Map Tiles and Weather); never open over a phone's small map
+    div.className += open ? " open" : "";
+    div.innerHTML = '<button type="button" class="ov-lt" aria-expanded="' + open + '">Stations and Layers <i>&#9662;</i></button><div class="ov-lb">' + LAYERS.map(function (ly) {
+      return '<label><input type="checkbox" data-k="' + ly.key + '" ' + (hidden[ly.key] ? "" : "checked") + '><span class="sw" style="background:' + ly.color + '"></span>' + ly.label + ' <i>' + ly.points.length + "</i></label>";
+    }).join("") + '<label id="ov-cnty" style="display:none"><input type="checkbox" data-k="counties" ' + (hidden.counties ? "" : "checked") + '><span class="sw" style="background:#8fb8ff"></span>County lines</label><div class="dim">A solid dot is online; a faint one is offline. A dashed ring is an approximate position.</div></div>';
+    L.DomEvent.disableClickPropagation(div);
+    div.querySelector(".ov-lt").addEventListener("click", function () { var o = div.classList.toggle("open"); this.setAttribute("aria-expanded", o); });
+    div.addEventListener("change", function (e) {
+      var k = e.target.dataset.k; if (!k) return;
+      var gr = k === "counties" ? cnty : groups[k];
+      if (e.target.checked) { gr.addTo(map); delete hidden[k]; } else { map.removeLayer(gr); hidden[k] = 1; }
+      try { localStorage.setItem("ov.hidden", JSON.stringify(hidden)); } catch (err) {}
+    });
+    return div;
+  };
+  legend.addTo(map);
+  if (window.ResizeObserver) new ResizeObserver(function () { fit(); }).observe(document.getElementById("ovmap"));   // the area stays whole when the window changes size
+  // the units a visitor chose on the live map (or the site default) apply here too
+  var UNITS = {aero: {alt: [1, "ft"], spd: [1, "kt"], dist: [1, "nm"]}, metric: {alt: [0.3048, "m"], spd: [1.852, "km/h"], dist: [1.852, "km"]}, imperial: {alt: [1, "ft"], spd: [1.150779, "mph"], dist: [1.150779, "mi"]}};
+  var U = UNITS[ArkUnits.system("aircraft")] || UNITS.aero;   // the aircraft figures of the home page are in aviation units (or the person's own choice for aircraft)
+  function fmt(kind, v) { return Math.round(v * U[kind][0]).toLocaleString() + " " + U[kind][1]; }
+  function esc(t) { var d = document.createElement("div"); d.textContent = t; return d.innerHTML; }
+  function nmFrom(a) { var r = Math.PI / 180, x = Math.sin((a.lat - M.lat) * r / 2) ** 2 + Math.cos(M.lat * r) * Math.cos(a.lat * r) * Math.sin((a.lon - M.lon) * r / 2) ** 2; return 3440.065 * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x)); }
+  var HEMS = {hex: {}, reg: {}, fw: {hex: {}, reg: {}}}, INTR = {hex: {}};
+  function lookups() {
+    fetch("/api/hems.json").then(function (r) { return r.json(); }).then(function (d) { HEMS = d; }).catch(function () {});
+    fetch("/api/interesting.json").then(function (r) { return r.json(); }).then(function (d) { INTR = d; }).catch(function () {});
+  }
+  lookups(); setInterval(lookups, 600000);
+  function who(a) { return (a.flight || a.r || a.hex).trim().toUpperCase(); }
+  function link(a) { return '<a href="/flight/' + a.hex + '" class="who">' + esc(who(a)) + "</a>"; }
+  function notable(list) {
+    var out = [];
+    list.forEach(function (a) {
+      var reg = String(a.r || "").toUpperCase(), sq = String(a.squawk || ""), tag = null, cls = "", note = "";
+      if (a.emg || sq === "7700" || sq === "7600" || sq === "7500") { tag = sq === "7500" ? "Hijack code" : sq === "7600" ? "Radio failure" : "Emergency"; cls = "emg"; note = "squawk " + sq; }
+      else if (HEMS.hex[a.hex] !== undefined || HEMS.reg[reg] !== undefined || HEMS.fw.hex[a.hex] !== undefined || HEMS.fw.reg[reg] !== undefined) { tag = "Air ambulance"; cls = "med"; note = HEMS.hex[a.hex] || HEMS.reg[reg] || HEMS.fw.hex[a.hex] || HEMS.fw.reg[reg] || ""; }
+      else if (a.mil || ((a.db || 0) & 1)) { tag = "Military"; cls = "mil"; note = a.desc || a.t || ""; }
+      else if (INTR.hex[a.hex] !== undefined) { tag = "Interesting"; cls = "int"; note = (INTR.hex[a.hex][0] || "") + (INTR.hex[a.hex][1] ? ": " + INTR.hex[a.hex][1] : ""); }
+      if (tag) out.push({a: a, tag: tag, cls: cls, note: note, rank: {emg: 0, med: 1, mil: 2, int: 3}[cls]});
+    });
+    out.sort(function (x, y) { return x.rank - y.rank; });
+    return out;
+  }
+  function render(d) {
+    var list = (d.aircraft || []).filter(function (a) { return !AR.on || (a.lat != null && arInside(a.lat, a.lon)); }), t = d.totals || {}, withPos = list.filter(function (a) { return a.lat != null && a.lon != null && !a.gnd; });
+    var n = notable(list).slice(0, 7);
+    document.getElementById("ov-notable").innerHTML = n.length ? n.map(function (x) {
+      return '<div class="row"><span><span class="tagx ' + x.cls + '">' + x.tag + "</span>" + link(x.a) + '</span><span class="what">' + esc(String(x.note).slice(0, 34)) + (x.a.alt != null ? " &middot; " + fmt("alt", x.a.alt) : "") + "</span></div>";
+    }).join("") : '<p class="dim" style="margin:0">Nothing unusual up right now: no emergencies, air ambulances, military or listed aircraft.</p>';
+    var rec = [];
+    var hi = list.filter(function (a) { return a.alt != null && !a.gnd; }).sort(function (x, y) { return y.alt - x.alt; })[0];
+    var fa = list.filter(function (a) { return a.gs != null; }).sort(function (x, y) { return y.gs - x.gs; })[0];
+    var far = withPos.map(function (a) { return [nmFrom(a), a]; }).sort(function (x, y) { return y[0] - x[0]; })[0];
+    if (hi) rec.push(["Highest", link(hi), fmt("alt", hi.alt)]);
+    if (fa) rec.push(["Fastest", link(fa), fmt("spd", fa.gs)]);
+    if (far) rec.push(["Farthest out", link(far[1]), fmt("dist", far[0])]);
+    document.getElementById("ov-records").innerHTML = rec.length ? rec.map(function (r) { return '<div class="row"><span><span class="what">' + r[0] + "</span> &nbsp;" + r[1] + '</span><span class="what">' + r[2] + "</span></div>"; }).join("") : '<p class="dim" style="margin:0">No aircraft in the air right now.</p>';
+    document.getElementById("ovs-notable").textContent = n.length ? n.length + " unusual: " + n.slice(0, 3).map(function (x) { return x.tag; }).filter(function (v, i, a) { return a.indexOf(v) === i; }).join(", ") : "Nothing unusual up right now";
+    document.getElementById("ovs-records").textContent = rec.length ? rec.map(function (r) { return r[0] + " " + r[2]; }).join(" · ") : "-";
+    document.getElementById("ovs-net").textContent = (t.messages_per_second != null ? Math.round(t.messages_per_second).toLocaleString() + " messages a second · " : "") + withPos.length + " of " + list.length + " aircraft with a position";
+    document.getElementById("ov-net").innerHTML =
+      '<div class="row"><span>Messages per second</span><span class="what">' + (t.messages_per_second != null ? Math.round(t.messages_per_second).toLocaleString() : "-") + "</span></div>" +
+      '<div class="row"><span>Aircraft with a position</span><span class="what">' + (AR.on ? withPos.length : (t.with_position != null ? t.with_position : withPos.length)) + " of " + (AR.on ? list.length : (t.aircraft != null ? t.aircraft : list.length)) + "</span></div>" +
+      '<div class="row"><span>Military in the air</span><span class="what">' + (AR.on ? list.filter(function (a) { return a.mil || ((a.db || 0) & 1); }).length : (t.military != null ? t.military : 0)) + "</span></div>";
+  }
+  async function tick() {
+    try {
+      var d = await (await fetch("/api/aircraft.json", {cache: "no-store"})).json(), t = d.totals;
+      var here = AR.on ? (d.aircraft || []).filter(function (a) { return a.lat != null && arInside(a.lat, a.lon); }).length : t.aircraft;
+      document.getElementById("ov-ac").textContent = here; document.getElementById("ov-ac2").textContent = here;
+      var st = AR.on ? t.stations_online_ar : t.stations_online;
+      if (st != null) document.getElementById("ov-st").textContent = st;
+      render(d);
+      fetch("/home/now", {cache: "no-store"}).then(function (r) { return r.ok ? r.text() : null; }).then(function (h) { if (h !== null) { var box = document.getElementById("ov-svc"), openKeys = Array.prototype.map.call(box.querySelectorAll("details[open]"), function (x) { return x.dataset.k; }); box.innerHTML = h; openKeys.forEach(function (k) { var x = box.querySelector('details[data-k="' + k + '"]'); if (x) x.open = true; }); } }).catch(function () {});
+    } catch (e) { /* the numbers stay as they were */ }
+  }
+  // which blocks of the card are open is remembered in this browser (all folded the first time)
+  var openSet = {}; try { openSet = JSON.parse(localStorage.getItem("ov.open") || "{}"); } catch (e) {}
+  function restoreFolds() { document.querySelectorAll("#ov-now details.ovf").forEach(function (x) { if (openSet[x.dataset.k]) x.open = true; }); }
+  restoreFolds();
+  document.getElementById("ov-now").addEventListener("toggle", function (e) { var x = e.target; if (!x.dataset || !x.dataset.k) return; if (x.open) openSet[x.dataset.k] = 1; else delete openSet[x.dataset.k]; try { localStorage.setItem("ov.open", JSON.stringify(openSet)); } catch (err) {} }, true);
+  tick(); setInterval(tick, {{ refresh }} * 1000);
+})();
+</script>
+{% endblock %}

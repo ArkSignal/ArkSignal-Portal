@@ -1,0 +1,114 @@
+{% extends "feed_base.html" %}
+{% from "partials/_feedsec.html" import sec, other_feeds with context %}
+{% block title %}Drone Remote ID | How to Feed{% endblock %}
+{% block feed_body %}
+<h1>How to <span>Feed</span> Drone Remote ID</h1>
+<div class="sub">Share the drones your Remote ID receiver hears with {{ site_name }}. They appear on <a href="/drones/">Drones</a>, on its <a href="/drones/map">map</a> and as a layer on the other maps. A receiver is a few dollars of hardware, and a drone near you is heard from a few hundred meters away.</div>
+
+{% call sec('the-short-version', 'The Short Version', True) %}
+  <p style="margin:0 0 10px">Run the ArkSignal bridge next to your receiver:</p>
+  <pre class="code">cat /dev/ttyUSB0 | python3 rid_bridge.py {{ base }}/drones/push/YOUR-KEY</pre>
+  <p style="margin:10px 0 0">The bridge is one small file you download from <span class="mono">{{ bridge }}</span>. Your key is the end of the private upload address on your station's card: <a href="/my/drones">My Account &gt; My Remote ID Stations</a>. It reads what your receiver prints (one message per line) and sends it on.</p>
+  <p class="dim" style="margin:10px 0 0">First <a href="/my/register">create an account</a> and add the station: that gives you the upload address. Remote ID is a public broadcast that regulators require; the site still keeps pilots' privacy (see below).</p>
+{% endcall %}
+
+{% call sec('how-it-works', 'How It Works', True) %}
+  <p style="margin-top:0"><b>Remote ID</b> is the digital license plate of a drone. Since 2023 the FAA has required most drones sold or flown in the United States to broadcast who they are (a serial number or registration), what they are, and where they are, how high and how fast, a few times a second, over Wi-Fi or Bluetooth. Anyone nearby can read it with a cheap receiver.</p>
+  <p>Your receiver turns what it hears into lines of text. The bridge collects them and sends them over https to an address on this site that only you know. The site decodes them, keeps each drone's newest position and details and a short trail, and shows them to everyone.</p>
+  <table style="width:100%">
+    <tr><th style="width:190px">Radio link</th><th>What it is</th></tr>
+    <tr><td><b>Wi-Fi (NAN and beacon)</b></td><td>2.4 GHz Wi-Fi frames. Most newer drones; heard by an ESP32 or a laptop Wi-Fi card.</td></tr>
+    <tr><td><b>Bluetooth 4 and 5</b></td><td>Legacy advertising and long-range (coded PHY). DJI and many others; heard by an ESP32-S3 or a Bluetooth 5 adapter.</td></tr>
+  </table>
+  <p style="margin-bottom:0">The site keeps drones heard in the area it covers (<span class="mono">{{ area }}</span>: south, west, north, east) and ignores the rest.</p>
+{% endcall %}
+
+{% call sec('what-you-need', 'What You Need', True) %}
+  <ul class="plain">
+    <li><b>A receiver:</b> an ESP32-S3 board (a few dollars) running a Remote ID scanner firmware such as the OpenDroneID receiver or DroneScout, or an Android phone running the OpenDroneID app. A Bluetooth 5 and Wi-Fi capable board hears the most.</li>
+    <li><b>A power supply and a place</b> with a clear view of the sky around: a window or a mast, as high as you can. Range is a few hundred meters to a few kilometers depending on the drone and the surroundings.</li>
+    <li><b>A small always-on computer</b> (a Raspberry Pi or any Linux or Windows machine) that the receiver plugs into, with Python 3 for the bridge.</li>
+    <li><b>A network connection</b> that can reach <span class="mono">{{ base | replace('https://', '') }}</span> over https.</li>
+  </ul>
+{% endcall %}
+
+{% call sec('hardware', 'Hardware', False, True) %}
+  <table>
+    <tr><th>Item</th><th>Options and Notes</th></tr>
+    <tr><td>Receiver</td><td>An ESP32-S3 development board with the OpenDroneID receiver firmware. Check the firmware's documentation for how to flash it and which serial speed it uses; it prints a line for each message it decodes.</td></tr>
+    <tr><td>Antenna</td><td>The board's own antenna is enough for a yard. A 2.4 GHz external antenna on the board's connector (if it has one) helps with range.</td></tr>
+    <tr><td>Computer</td><td>A Raspberry Pi 3 or newer, or the computer you already leave on.</td></tr>
+  </table>
+{% endcall %}
+
+{% call sec('hardware-setup', 'Hardware Setup', True) %}
+  <ol>
+    <li>Flash the scanner firmware on the board, following the firmware's own instructions.</li>
+    <li>Plug the board into the computer by USB. On Linux it appears as <span class="mono">/dev/ttyUSB0</span> or <span class="mono">/dev/ttyACM0</span>; on Windows as a COM port.</li>
+    <li>Look at what it prints (<span class="mono">cat /dev/ttyUSB0</span>) while a drone is flying nearby. Lines of hex digits, or JSON with an id and a position, are what the bridge sends on.</li>
+  </ol>
+{% endcall %}
+
+{% call sec('software-setup', 'Software Setup', True) %}
+  <h3 style="margin-top:0">1. Add a station and get its upload address</h3>
+  <p>Open <a href="/my/drones">My Account &gt; My Remote ID Stations</a>, choose <b>Add a Station</b> and name it. Its card shows the private <b>Upload Address</b>.</p>
+  <h3>2. Download and run the bridge</h3>
+  <pre class="code">curl -O {{ bridge }}
+cat /dev/ttyUSB0 | python3 rid_bridge.py {{ base }}/drones/push/YOUR-KEY</pre>
+  <p>If your receiver sends its messages over the network instead, give the bridge a UDP port to listen on: <span class="mono">python3 rid_bridge.py {{ base }}/drones/push/YOUR-KEY --udp 5556</span>. It prints a line each time it sends a batch.</p>
+  <h3>3. What the site understands</h3>
+  <p>Each line is the <b>raw hex</b> of a Remote ID message or message pack (the site decodes it itself), or a <b>JSON object</b> of what your receiver already decoded, with any of: <span class="mono">id</span>, <span class="mono">id_type</span>, <span class="mono">ua_type</span>, <span class="mono">lat</span>, <span class="mono">lon</span>, <span class="mono">alt</span> (meters), <span class="mono">height</span>, <span class="mono">speed</span> (meters per second), <span class="mono">heading</span>, <span class="mono">vspeed</span>, <span class="mono">status</span> (1 on the ground, 2 in the air), <span class="mono">op_id</span> and <span class="mono">desc</span>. Add <span class="mono">src</span> (the transmitter's address) when messages arrive one at a time, so a position is joined to the drone's ID.</p>
+  <h3>4. Keep it running</h3>
+  <p>On Linux a systemd service starts the bridge at boot. Save this as <span class="mono">/etc/systemd/system/arksignal-rid.service</span> and run <span class="mono">sudo systemctl enable --now arksignal-rid</span>:</p>
+  <pre class="code">[Unit]
+Description=ArkSignal Remote ID bridge
+After=network-online.target
+
+[Service]
+User=pi
+ExecStart=/bin/sh -c 'cat /dev/ttyUSB0 | /usr/bin/python3 /home/pi/rid_bridge.py {{ base }}/drones/push/YOUR-KEY'
+Restart=always
+
+[Install]
+WantedBy=multi-user.target</pre>
+  <h3>5. Test it</h3>
+  <p style="margin-bottom:0">Without a receiver you can still check the address works: <span class="mono">curl -d '{"id":"TESTDRONE0001","lat":35.08,"lon":-92.44,"alt":120,"speed":9,"heading":90,"status":2}' {{ base }}/drones/push/YOUR-KEY</span> answers <span class="mono">{"ok": true ...}</span> and the test drone shows on <a href="/drones/">Drones</a>. <a href="/feed/check?check=1">Am I Feeding?</a> shows each of your stations and when it last reported.</p>
+{% endcall %}
+
+{% call sec('after-you-are-feeding', 'After You Are Feeding', True) %}
+  <ul class="plain" style="margin-top:0">
+    <li>Drones you hear show on <a href="/drones/">Drones</a> and its <a href="/drones/map">map</a>, and on the Drones layer of the other maps.</li>
+    <li>Each drone keeps a trail for {{ keep }} hours and its details until it has not been heard for a while.</li>
+    <li>Your station's name appears on a drone's page as the last station that heard it unless you turn that off on the station's card.</li>
+  </ul>
+{% endcall %}
+
+{% call sec('ports', 'Ports and Firewall', False, True) %}
+  <p style="margin-top:0">The bridge only makes outgoing https connections (port 443) to <span class="mono">{{ base | replace('https://', '') }}</span>. Nothing needs to be opened on your router.</p>
+{% endcall %}
+
+{% call sec('troubleshooting', 'Troubleshooting', False, True) %}
+  <table>
+    <tr><th style="width:230px">What you see</th><th>What to do</th></tr>
+    <tr><td><span class="mono">404 unknown_address</span></td><td>The upload address is wrong, or you made a new one (the old one stops working). Copy it again from your station's card. An administrator may also have switched the station off.</td></tr>
+    <tr><td>The bridge sends but no drone shows</td><td>Drones outside the area this site covers are ignored, and a message with a position needs a drone ID from an earlier message of the same transmitter (add <span class="mono">src</span>, or use a receiver that sends message packs).</td></tr>
+    <tr><td>The receiver prints nothing</td><td>Remote ID is only sent while a drone is powered and flying nearby. Check the firmware's serial speed and that nothing else is using the port.</td></tr>
+  </table>
+{% endcall %}
+
+{% call sec('your-data-and-privacy', 'Your Data and Privacy', False) %}
+  <ul class="plain" style="margin-top:0">
+    <li>Remote ID is broadcast openly by regulation. The site shows only the drone's own position and details.</li>
+    <li>The <b>operator's location</b>, which some drones also broadcast, is {% if operator %}stored and shown on the drone's page because an administrator turned that on{% else %}not stored or shown (an administrator can turn that on in Settings){% endif %}: it can point at a person's home.</li>
+    <li>A pilot can ask for a drone ID to be hidden (<a href="/contact">Contact</a>).</li>
+    <li>Your station has no map position on the site: only its name and the place you typed, and only if you leave the name on. The upload address is a secret: if it leaks, make a new one on your station's card.</li>
+  </ul>
+{% endcall %}
+
+{% call sec('more-help', 'More Help', False) %}
+  <ul class="plain" style="margin-top:0">
+    <li>Questions or trouble: <a href="/contact">Contact</a>.</li>
+    <li>{{ other_feeds() }}</li>
+  </ul>
+{% endcall %}
+{% endblock %}

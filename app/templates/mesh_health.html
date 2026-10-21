@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Mesh Health{% endblock %}
+{% block content %}
+<h1>Mesh <span>Health</span></h1>
+<div class="sub">What needs attention on the Arkansas mesh, from what its nodes report: low batteries, routers that have gone quiet, old firmware and busy channels. {{ credit }}. Limits are set in <a href="/admin/settings/radio#sec-mesh-nodes">Settings &gt; Mesh Nodes</a>.</div>
+<div class="tiles" style="margin-bottom:14px">
+  <div class="panel tile"><div class="tv">{{ h.total }}</div><div class="tl">Nodes heard in the last {{ h.days }} days</div></div>
+  <div class="panel tile"><div class="tv">{{ h.active }}</div><div class="tl">Heard in the last 24 hours</div></div>
+  <div class="panel tile"><div class="tv">{{ h.routers }}</div><div class="tl">Routers and repeaters ({{ h.routers_quiet | length }} quiet)</div></div>
+  <div class="panel tile"><div class="tv">{{ h.newest_fw or '-' }}</div><div class="tl">Newest Meshtastic firmware seen</div></div>
+</div>
+{% macro nodetable(rows, empty, label='', key='', fmt='') %}
+  {% if rows %}<table class="sortable"><thead><tr><th data-sort="text">Node</th><th data-sort="text">Network</th>{% if label %}<th data-sort="text">{{ label }}</th>{% endif %}<th data-sort="text">Last Heard</th></tr></thead><tbody>
+  {% for n in rows %}<tr><td><a href="/mesh/{{ n.slug }}">{{ n.long_name or n.short_name or n.id }}</a></td><td>{{ 'MeshCore' if n.network == 'meshcore' else 'Meshtastic' }}</td>{% if label %}<td>{% if fmt == 'pct' %}{{ n[key] }}%{% elif fmt == 'pct0' %}{{ '%.0f' % n[key] }}%{% else %}{{ n[key] or '-' }}{% endif %}</td>{% endif %}<td><time class="ts" datetime="{{ n.last_seen }}" data-fmt="dt">{{ n.last_seen[:16].replace('T', ' ') }}</time></td></tr>{% endfor %}</tbody></table>
+  {% else %}<p class="dim" style="margin:0">{{ empty }}</p>{% endif %}
+{% endmacro %}
+<div class="panel" style="margin-bottom:14px;overflow-x:auto"><h3 style="margin-top:0">Routers and Repeaters Gone Quiet ({{ h.routers_quiet | length }})</h3>
+  <p class="dim" style="margin-top:0">Routers and repeaters heard in the last {{ h.days }} days but not for {{ h.offline_hours }} hours: they carry the mesh for others.</p>
+  {{ nodetable(h.routers_quiet, 'Every router and repeater has been heard lately.') }}</div>
+<div class="panel" style="margin-bottom:14px;overflow-x:auto"><h3 style="margin-top:0">Low Batteries ({{ h.low_battery | length }})</h3>
+  <p class="dim" style="margin-top:0">Reporting {{ h.low_pct }}% or less (a node on external power reports 101).</p>
+  {{ nodetable(h.low_battery, 'No node reports a low battery.', 'Battery', 'battery', 'pct') }}</div>
+<div class="panel" style="margin-bottom:14px;overflow-x:auto"><h3 style="margin-top:0">Busy Channels ({{ h.busy | length }})</h3>
+  <p class="dim" style="margin-top:0">Channel use of {{ h.busy_pct }}% or more: the radio channel around that node is crowded, so messages are lost.</p>
+  {{ nodetable(h.busy, 'No node reports a crowded channel.', 'Channel Use', 'channel_util', 'pct0') }}</div>
+<div class="panel" style="margin-bottom:14px;overflow-x:auto"><h3 style="margin-top:0">Older Firmware ({{ h.old_fw | length }})</h3>
+  <p class="dim" style="margin-top:0">Meshtastic nodes running a release older than the newest one seen on the network (<span class="mono">{{ h.newest_fw or '-' }}</span>) by more than {{ h.fw_gap }} minor versions.</p>
+  {{ nodetable(h.old_fw, 'Every node is on a recent release.', 'Firmware', 'firmware', '') }}</div>
+<div class="panel" style="overflow-x:auto"><h3 style="margin-top:0">Where Routers Are Missing</h3>
+  <p class="dim" style="margin-top:0">Places with several nodes and no router or repeater within {{ h.gap_mi }} miles, a likely place for a new one (nodes that published a position).</p>
+  {% if h.gaps %}<table><thead><tr><th>Near</th><th>Nodes</th><th>Closest Router or Repeater</th></tr></thead><tbody>{% for g in h.gaps %}<tr><td><a href="/mesh/map?lat={{ g.lat }}&amp;lon={{ g.lon }}&amp;zoom=11">{{ '%.2f' % g.lat }}, {{ '%.2f' % g.lon }}</a></td><td>{{ g.count }}</td><td>{{ ('%.0f miles' % g.router_mi) if g.router_mi is not none else 'none known' }}</td></tr>{% endfor %}</tbody></table>
+  {% else %}<p class="dim" style="margin:0">Every group of nodes has a router or repeater near it.</p>{% endif %}</div>
+{% endblock %}

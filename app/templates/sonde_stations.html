@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Sonde Receiving Stations | Radiosondes{% endblock %}
+{% block content %}
+<h1>Sonde Receiving <span>Stations</span></h1>
+<div class="sub">Stations that pick up radiosonde and balloon signals in and around Arkansas. Positions are shown the way their owners chose: rounded by default, exact only when the owner says so.</div>
+<p style="display:flex;gap:10px;flex-wrap:wrap"><a class="btn" href="/my/sondes">Claim My Station</a> <a class="btn neutral" href="/sondes/map">Radiosonde Map</a> <a class="btn neutral" href="/feed/sondes">How to Feed</a></p>
+<div class="tfilterbar"><input type="search" class="tfilter" data-table="#sonde-st" placeholder="Search by call sign, software, antenna or owner" aria-label="Search receiving stations"><span class="dim tcount"></span></div>
+<div class="panel" style="overflow-x:auto">
+  <table class="sortable" id="sonde-st">
+    <thead><tr><th data-sort="text">Station</th><th data-sort="text">Software</th><th data-sort="text">Antenna</th><th data-sort="num">Flights Heard</th><th data-sort="num">Last Heard</th><th data-sort="text">Position</th><th data-sort="text">Owner</th></tr></thead><tbody>
+    {% for r in rows %}{% set s = r.row %}
+    <tr>
+      <td><a class="mono" href="/sondes/stations/{{ s.callsign | callurl }}" data-call="{{ s.callsign }}">{{ s.callsign }}</a>{% if s.display_name %}<br><span class="dim">{{ s.display_name }}</span>{% endif %}</td>
+      <td>{{ s.software }} <span class="dim">{{ s.version }}</span></td>
+      <td class="dim">{{ s.antenna[:50] }}</td>
+      <td>{{ s.flights }}</td>
+      <td class="dim" data-v="{{ s.last_seen.timestamp() | int if s.last_seen else 0 }}">{{ s.last_seen | localtime("%b %-d %H:%M") if s.last_seen else '-' }}</td>
+      <td class="mono">{% if r.loc %}{{ '%.1f' % r.loc[0] if s.privacy != 'exact' else '%.4f' % r.loc[0] }}, {{ '%.1f' % r.loc[1] if s.privacy != 'exact' else '%.4f' % r.loc[1] }}{% if s.privacy != 'exact' %} <span class="dim">approx.</span>{% endif %}{% else %}<span class="dim">hidden</span>{% endif %}</td>
+      <td>{% if s.claim_status == 'claimed' %}{{ s.owner_display or s.owner_name }}{% else %}<span class="dim">unclaimed</span>{% endif %}</td>
+    </tr>
+    {% else %}<tr><td colspan="7" class="dim">No receiving station has been heard yet.</td></tr>{% endfor %}
+  </tbody></table>
+</div>
+<p class="dim" style="font-size:.8rem">Station details come from SondeHub (Creative Commons BY-SA 2.0). Is one of these yours? Sign in and <a href="/my/sondes">claim it</a> to choose how its location is shown.</p>
+{% include "partials/_sondecredit.html" %}
+{% endblock %}

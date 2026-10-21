@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Search: {{ q }}{% endblock %}
+{% block content %}
+<h1>Search <span>Results</span></h1>
+<div class="sub">{{ total }} match{{ '' if total == 1 else 'es' }} for <b>{{ q }}</b> across the site: airports, places, counties, hospitals, repeaters, APRS stations, feeders, weather stations, mesh nodes, balloons and call signs.</div>
+<form method="get" action="/search" role="search" style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0"><input type="search" name="q" value="{{ q }}" maxlength="40" aria-label="Search" style="flex:1 1 280px;max-width:520px"><button class="btn" type="submit" style="margin:0">Search</button></form>
+<p style="display:flex;gap:10px;flex-wrap:wrap;margin:0 0 14px"><a class="btn small neutral" href="/flight/?q={{ qq }}">Search Flights for "{{ q }}"</a><a class="btn small neutral" href="/live?q={{ qq }}">Find It on the Aircraft Map</a></p>
+{% if not groups %}<div class="panel"><p style="margin:0">Nothing on the site matches <b>{{ q }}</b>. Try fewer letters, a call sign, an airport code, a city or a ZIP code.</p></div>{% endif %}
+{% for heading, items in groups %}
+<div class="panel" style="margin-bottom:14px"><h2 style="margin:0 0 8px;font-size:1.05rem">{{ heading }} <span class="dim" style="font-weight:400">({{ items | length }})</span></h2>
+  <table><tbody>
+  {% for it in items %}<tr><td>{% if it.href %}<a href="{{ it.href }}">{{ it.label }}</a>{% else %}{{ it.label }}{% endif %}{% if it.sub %} <span class="dim" style="font-size:.85rem">{{ it.sub }}</span>{% endif %}</td></tr>{% endfor %}
+  </tbody></table></div>
+{% endfor %}
+{% endblock %}

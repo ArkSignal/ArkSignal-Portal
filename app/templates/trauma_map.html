@@ -1,0 +1,291 @@
+{% extends "base.html" %}
+{% from "partials/_mapshell.html" import shell, boot with context %}
+{% block title %}Trauma Map{% endblock %}
+{% block main_class %}wide{% endblock %}
+{% block content %}
+{# The simple map of the trauma system: the same page as every other map (partials/_mapshell.html), with only what the trauma system needs: regions, zones, facilities, county outlines, the street and
+   satellite maps, weather, saved views, label and icon sizes, and drive times that are asked for. Units are fixed (miles). #}
+<script>window.ARK_DRIVE_KEY = "drive.trauma";</script>
+{% call shell("Search a county or hospital", "Search counties and hospitals", "Trauma Facilities", "County Page", map_type="trauma",
+   labels_extra='<select id="tr-labels" aria-label="Which labels to show"><option value="names">Region or zone names</option><option value="all">Region or zone names and county names</option><option value="none">No labels</option></select>',
+   display_extra='<div class="lv-row"><label>Icon Size <select id="tr-dot"><option value="75">Small</option><option value="100">Medium</option><option value="130">Large</option><option value="170">Extra large</option></select></label></div>',
+   card_extra='<div id="c-photo"></div><div id="c-links" style="margin-top:8px"></div>') %}
+    <details class="fsec" data-k="trauma" open><summary><span class="ic">✚</span>Trauma System<span class="fbadge" data-fb="trauma"></span></summary><div class="fbody">
+      <div class="lv-sub">Shade Counties By</div>
+      <select id="tr-shade" aria-label="What the counties are shaded by"><option value="region">Trauma Region</option><option value="zone">ADH Trauma Zone</option><option value="none">Nothing (outlines only)</option></select>
+      <div class="lv-sub">Trauma Facilities</div>
+      <div id="tr-levels"></div>
+      <div class="lv-row"><label title="Hospitals of neighboring states that are close to the Arkansas state line by road"><input type="checkbox" id="tr-border" checked> Hospitals near the state line</label></div>
+      <div class="lv-row" style="margin-top:8px"><label title="Every air ambulance aircraft, helicopters and airplanes, that the network hears right now"><input type="checkbox" id="tr-air"> Air ambulance aircraft</label></div>
+      <div id="tr-airnote" class="dim" style="font-size:.78rem"></div>
+      <div class="lv-sub">Drive-Time Rings</div>
+      <select id="tr-rings" aria-label="Which trauma centers get drive-time rings"><option value="none">None</option><option value="t12">Level I and II trauma centers</option><option value="t">All trauma centers</option></select>
+      <div id="tr-ringnote" class="dim" style="font-size:.78rem;margin-top:4px">Rings of 30 and 60 minutes by road: our own estimate, not an ambulance's route.</div>
+      <div class="help dim" style="font-size:.78rem;margin-top:8px">Click a county or a hospital for its details. Regions, zones and designations: Arkansas Department of Health.</div>
+    </div></details>
+{% endcall %}
+{{ boot("/trauma/", "tr") }}
+<script src="/static/labelfit.js"></script>
+<script>
+(function () {
+  var S = ArkShell, $ = S.$, esc = S.esc;
+  var q = new URLSearchParams(location.search);
+  var map = L.map("lvmap", {zoomControl: false, zoomSnap: 0.25}).setView([parseFloat(q.get("lat")) || 34.9, parseFloat(q.get("lon")) || -92.4], parseFloat(q.get("zoom")) || 7);
+  L.control.zoom({position: "bottomright"}).addTo(map);
+  // this map keeps things simple: no overlay layers, no units box (miles), no "show my location" box (the locate button and the drive times ask by themselves), Street and Satellite only
+  var sat = document.querySelector('#l-style option[value="sat"]'); if (sat) sat.remove();
+  var hyb = document.querySelector('#l-style option[value="hyb"]'); if (hyb) hyb.textContent = "Satellite (with roads and places)";
+  try { if (localStorage.getItem("lv.style") === "sat") localStorage.setItem("lv.style", "hyb"); } catch (e) {}
+  ["ark-units-h", "ark-units-sel"].forEach(function (id) { var e = $(id); if (e) { e.style.display = "none"; e.remove(); } });
+  var loc = $("my-loc"); if (loc && loc.closest(".lv-row")) loc.closest(".lv-row").style.display = "none";
+  var lay = document.querySelector('details.fsec[data-k="layers"]'); if (lay) lay.style.display = "none";
+  var alt = $("lv-altbar"); if (alt) alt.style.display = "none";
+  if (window.innerWidth < 700) { if (!S.pref("lscale")) S.pref("lscale", "75"); if (!S.pref("tr.dot")) S.pref("tr.dot", "75"); }   // a phone starts with smaller labels and icons: the first view is less crowded
+  var shell = S.start({map: map, layers: {{ layers | tojson }}, key: "tr", url: "/trauma/", cfg: {tile: {{ tile_url | tojson }}, attr: {{ tile_attr | tojson }}, labelScale: {{ label_scale | int }}, labelBg: {{ label_bg | tojson }}, wxRefresh: 3},
+    share: function () { return {shade: state.shade, county: cardKey || "", hospital: selHosp || "", q: state.q}; }, legend: function () { return legend(); }});
+
+  var state = {shade: S.pref("tr.shade") || "region", labels: S.pref("tr.labels") || "names", dot: parseInt(S.pref("tr.dot"), 10) || 100, border: S.pref("tr.border") !== "0", q: q.get("q") || "", levels: {}};
+  try { state.levels = JSON.parse(S.pref("tr.levels") || "{}"); } catch (e) {}
+  ["I", "II", "III", "IV", ""].forEach(function (k) { if (state.levels[k] == null) state.levels[k] = true; });
+  var D = null, shapes = [], layers = {}, cardKey = null, selHosp = null, hospMarks = {}, hospLayer = L.layerGroup().addTo(map), ringG = {}, ringSeq = 0, ringPick = {};
+  if (["region", "zone", "none"].indexOf(q.get("shade")) >= 0) state.shade = q.get("shade");
+  $("tr-shade").value = state.shade; $("tr-labels").value = state.labels; $("tr-dot").value = String(state.dot); $("tr-border").checked = state.border; $("q").value = state.q;
+  var ringMode = S.pref("tr.rings") || "none"; $("tr-rings").value = ringMode;
+  map.createPane("trpts"); map.getPane("trpts").style.zIndex = 450;
+  var LE = ArkLabels.create(map);
+
+  var REG = {}, ZON = {};
+  function regionOf(geoid) { var c = D && D.counties[geoid]; return c ? c.region : ""; }
+  function colorOfCounty(geoid) {
+    var c = D && D.counties[geoid]; if (!c) return null;
+    if (state.shade === "region") return (REG[c.region] || {}).color;
+    if (state.shade === "zone") return (ZON[c.zone] || {}).color;
+    return null;
+  }
+  function countyStyle(s) {
+    var col = colorOfCounty(s.geoid), sel = s.geoid === cardKey;
+    return {color: sel ? "#fff" : (col || "#9fb6d3"), weight: sel ? 4 : 1.6, opacity: .95, dashArray: sel ? null : "5 4", fillColor: col || "#9fb6d3", fillOpacity: col ? (sel ? .5 : .32) : 0};
+  }
+  function restyle() { shapes.forEach(function (s) { var l = layers[s.geoid]; if (l) { l.setStyle(countyStyle(s)); if (s.geoid === cardKey) l.bringToFront(); } }); renderLabels(); shell.renderLegend(); }
+
+  function renderLabels() {
+    LE.begin();
+    if (state.labels !== "none" && D) {
+      var groups = state.shade === "region" ? D.regions : state.shade === "zone" ? D.zones : [];
+      groups.forEach(function (g) { if (g.lat != null) LE.add({key: "g" + g.key, lat: g.lat, lon: g.lon, html: "<b>" + esc(g.name) + "</b>", color: g.color, side: "center", priority: -1000, border: false}); });
+      if (state.labels === "all") shapes.forEach(function (s) {
+        var c = D.counties[s.geoid]; if (!c || s.lat == null) return;
+        LE.add({key: s.geoid, lat: s.lat, lon: s.lon, html: esc(s.base), color: "#d8e6ff", side: "center", priority: 10, onClick: function () { selectCounty(s.geoid, false); }});
+      });
+    }
+    LE.flush();
+  }
+  map.on("zoomend moveend", renderLabels);
+
+  function levelKey(h) { return h.level || ""; }
+  function shown(h) {
+    if (!state.levels[levelKey(h)]) return false;
+    if (h.scope === "border" && !state.border) return false;
+    if (state.q) { var t = state.q.toLowerCase(); if ((h.name + " " + h.city + " " + h.county).toLowerCase().indexOf(t) < 0) return false; }
+    return true;
+  }
+  function iconOf(h) {
+    var lvl = {I: 1, II: 2, III: 3, IV: 4}[h.level], cls = "hico " + (lvl ? "t" + lvl : h.emergency ? "ed" : "noed") + (h.approx ? " approx" : "");
+    return L.divIcon({className: "", html: '<div class="' + cls + '" style="transform:scale(' + (state.dot / 100).toFixed(2) + ')">' + (h.level || "+") + "</div>", iconSize: [22, 22], iconAnchor: [11, 11]});
+  }
+  function miles(m) { return m == null ? "" : Math.round(m) + " min"; }
+  function popupOf(h) {
+    var badge = '<span class="trbadge" style="background:' + levelColor(h.level) + '">' + esc(h.levelName) + (h.peds ? " · Children's" : "") + "</span>";
+    var photo = h.photo ? '<img src="' + esc(h.photo) + '" alt="" loading="lazy" style="display:block;width:100%;max-height:150px;object-fit:cover;border-radius:6px;margin-bottom:6px">' : "";
+    var credit = h.photo && h.credit ? '<div class="dim" style="font-size:.68rem">Photo: ' + (h.creditPage ? '<a href="' + esc(h.creditPage) + '" target="_blank" rel="noopener">' + esc(h.credit) + "</a>" : esc(h.credit)) + "</div>" : "";
+    var near = h.scope === "border" ? '<div class="dim" style="font-size:.78rem">' + (h.borderMin != null ? "About " + miles(h.borderMin) + " by road from the Arkansas state line" : "Near the Arkansas state line") + "</div>" : "";
+    var where = h.region ? '<div class="dim" style="font-size:.78rem">' + esc(h.county) + " County · " + esc(h.region) + " Region · Zone " + h.zone + "</div>" : "";
+    return '<div class="trpop" style="min-width:230px;max-width:280px">' + photo + "<b>" + esc(h.name) + "</b><div style=\"margin:4px 0\">" + badge + "</div><div>" + esc(h.address) + "</div>" + (h.phone ? "<div>" + esc(h.phone) + "</div>" : "") + where + near +
+      '<div style="margin-top:6px;display:flex;gap:10px;flex-wrap:wrap"><a href="' + esc(h.href) + '">Hospital Page</a>' + (h.website ? '<a href="' + esc(h.website) + '" target="_blank" rel="noopener">Website</a>' : "") + '<a href="#" data-dr="ring" data-f="' + esc(h.id) + '">' + (ringPick[h.id] ? "Hide" : "Show") + ' Drive-Time Rings</a><a href="#" data-dr="here" data-f="' + esc(h.id) + '">Drive Times From Here</a></div>' + credit + "</div>";
+  }
+  function levelColor(k) { var l = (D.levels || []).filter(function (x) { return x.key === (k || ""); })[0]; return l ? l.color : "#cfd6df"; }
+  function drawHospitals() {
+    hospLayer.clearLayers(); hospMarks = {}; var n = 0;
+    (D ? D.hospitals : []).forEach(function (h) {
+      if (!shown(h)) return;
+      var m = L.marker([h.lat, h.lon], {pane: "trpts", icon: iconOf(h)}).bindTooltip("<b>" + esc(h.name) + "</b> · " + esc(h.levelName)).bindPopup(function () { return popupOf(h); }, {maxWidth: 300});
+      m.on("click", function () { selHosp = h.id; });
+      m.addTo(hospLayer); hospMarks[h.id] = m; n++;
+    });
+    $("lv-count").textContent = n + " facilities";
+    document.querySelector('[data-fb="trauma"]').textContent = "";
+    renderList(); syncRings();
+  }
+  function renderList() {
+    var rows = (D ? D.hospitals : []).filter(shown);
+    $("lv-tbl").querySelector("thead").innerHTML = "<tr><th>Facility</th><th>City</th><th>Level</th></tr>";
+    $("lv-tbl").querySelector("tbody").innerHTML = rows.map(function (h) { return '<tr class="it" data-h="' + esc(h.id) + '"><td>' + esc(h.name) + "</td><td>" + esc(h.city) + "</td><td>" + esc(h.level || "-") + "</td></tr>"; }).join("") || '<tr><td colspan="3" class="dim" style="text-align:left;padding:12px">No facilities match.</td></tr>';
+  }
+  $("lv-tbl").querySelector("tbody").addEventListener("click", function (e) { var tr = e.target.closest("tr.it"); if (tr) pickHospital(tr.getAttribute("data-h")); });
+  function pickHospital(id) {
+    var m = hospMarks[id], h = (D.hospitals || []).filter(function (x) { return x.id === id; })[0]; if (!m || !h) return;
+    selHosp = id; map.setView([h.lat, h.lon], Math.max(map.getZoom(), 11)); m.openPopup();
+  }
+
+  // ---- the card of a county
+  function selectCounty(geoid, zoom) {
+    cardKey = geoid; var s = shapes.filter(function (x) { return x.geoid === geoid; })[0], card = $("lv-card");
+    if (!s || !D.counties[geoid]) { card.style.display = "none"; $("lv").classList.remove("has-card"); restyle(); return; }
+    var c = D.counties[geoid], inC = (D.hospitals || []).filter(function (h) { return h.county === s.base && h.state === s.state; }), trauma = inC.filter(function (h) { return h.level; });
+    $("c-name").textContent = s.name; $("c-sub").textContent = (c.region || "") + " Region · ADH Trauma Zone " + c.zone;
+    $("c-page").href = "/counties/" + c.slug;
+    $("c-body").innerHTML = '<div class="k"><div>Trauma Region</div><div>' + esc(c.region) + '</div><div>Trauma Zone</div><div>ADH Trauma Zone ' + c.zone + "</div><div>Hospitals</div><div>" + inC.length + "</div><div>Trauma centers</div><div>" + trauma.length + "</div></div>" +
+      (trauma.length ? '<div class="dim" style="font-size:.8rem;margin-top:6px">' + trauma.map(function (h) { return esc(h.name) + " (" + esc(h.levelName) + ")"; }).join("<br>") + "</div>" : "");
+    $("c-photo").innerHTML = c.photo ? '<img src="' + esc(c.photo) + '" alt="" loading="lazy" style="display:block;width:100%;max-height:150px;object-fit:cover;border-radius:6px;margin-top:8px">' + (c.credit ? '<div class="dim" style="font-size:.68rem">Photo: ' + (c.creditPage ? '<a href="' + esc(c.creditPage) + '" target="_blank" rel="noopener">' + esc(c.credit) + "</a>" : esc(c.credit)) + "</div>" : "") : "";
+    $("c-links").innerHTML = c.website ? '<a href="' + esc(c.website) + '" target="_blank" rel="noopener">County website</a>' : "";
+    card.style.display = "block"; $("lv").classList.add("has-card");
+    $("c-follow").onclick = function () { zoomTo(s); };
+    $("c-close").onclick = function () { cardKey = null; card.style.display = "none"; $("lv").classList.remove("has-card"); restyle(); };
+    if (zoom) zoomTo(s);
+    restyle();
+  }
+  function zoomTo(s) { var l = layers[s.geoid]; if (l) map.fitBounds(l.getBounds(), {padding: [40, 40], maxZoom: 10}); }
+
+  // ---- drive-time rings of trauma centers (30 and 60 minutes), the shared rings job's answers
+  function ringWanted() {
+    var ids = {};
+    (D ? D.hospitals : []).forEach(function (h) { if (ringPick[h.id] || (shown(h) && ((ringMode === "t" && h.level) || (ringMode === "t12" && (h.level === "I" || h.level === "II"))))) ids[h.id] = h; });
+    return ids;
+  }
+  async function syncRings() {
+    var me = ++ringSeq, want = ringWanted(), ids = Object.keys(want), note = $("tr-ringnote");
+    Object.keys(ringG).forEach(function (k) { if (!want[k]) { map.removeLayer(ringG[k]); delete ringG[k]; } });
+    var todo = ids.filter(function (k) { return !ringG[k]; }), failed = 0;
+    for (var i = 0; i < todo.length; i++) {
+      if (me !== ringSeq) return;
+      note.textContent = "Drawing rings " + (i + 1) + " of " + todo.length + "...";
+      var rings = null;
+      for (var t = 0; t < 8 && !rings; t++) {
+        try {
+          var d = await (await fetch("/api/hospitals/" + encodeURIComponent(todo[i]) + "/rings.json")).json();
+          if (d.enabled === false) { note.textContent = "Drive-time rings are switched off in Settings."; return; }
+          if (d.busy) { await new Promise(function (r) { setTimeout(r, 3000); }); continue; }
+          if (d.rings && Object.keys(d.rings).length) rings = d.rings; else break;
+        } catch (e) { break; }
+      }
+      if (me !== ringSeq) return;
+      if (!rings) { failed++; continue; }
+      var keep = {}; Object.keys(rings).forEach(function (m) { if (m === "30" || m === "60") keep[m] = rings[m]; });
+      ringG[todo[i]] = ArkDrive.ringLayer(ringPick[todo[i]] || !Object.keys(keep).length ? rings : keep, {labels: ids.length <= 3, fill: ids.length <= 3 ? .13 : .04, weight: 3}).addTo(map);
+    }
+    note.textContent = failed ? failed + " could not be drawn (no position or the routing server did not answer)." : "Rings of 30 and 60 minutes by road: our own estimate, not an ambulance's route.";
+  }
+
+  // ---- the legend, the level boxes and the controls
+  function legend() {
+    if (!D) return "";
+    var h = "<h6>Trauma Facilities</h6>";
+    var air = "";
+    if ($("tr-air") && $("tr-air").checked) air = '<h6 style="margin-top:8px">Air Ambulance Aircraft</h6><div style="display:flex;gap:8px;align-items:center;margin:3px 0"><svg width="18" height="18" viewBox="0 0 32 32"><circle cx="16" cy="16" r="6" fill="#ff3860" stroke="#fff" stroke-width="2"/><path d="M3 16 H29 M16 3 V29" stroke="#fff" stroke-width="2.4"/></svg>Helicopter</div><div style="display:flex;gap:8px;align-items:center;margin:3px 0"><svg width="18" height="18" viewBox="0 0 32 32"><path d="M16 2 L19 12 L29 17 L29 20 L19 17 L18 26 L22 29 L22 30.5 L16 29 L10 30.5 L10 29 L14 26 L13 17 L3 20 L3 17 L13 12 Z" fill="#ff3860" stroke="#fff" stroke-width="1.6"/></svg>Airplane</div>';
+    (D.levels || []).forEach(function (l) {
+      var cls = l.key === "I" ? "t1" : l.key === "II" ? "t2" : l.key === "III" ? "t3" : l.key === "IV" ? "t4" : "ed";
+      h += '<div style="display:flex;gap:8px;align-items:center;margin:3px 0"><span class="hico ' + cls + '" style="width:16px;height:16px;font-size:9px;border-radius:4px">' + (l.key || "+") + "</span>" + esc(l.name) + "</div>";
+    });
+    h += air;
+    var groups = state.shade === "region" ? D.regions : state.shade === "zone" ? D.zones : [];
+    if (groups.length) h += "<h6 style=\"margin-top:8px\">" + (state.shade === "region" ? "Trauma Regions" : "ADH Trauma Zones") + "</h6>" + groups.map(function (g) { return '<div style="display:flex;gap:8px;align-items:center;margin:3px 0"><span style="width:18px;height:12px;border-radius:3px;background:' + g.color + ';display:inline-block"></span>' + esc(g.name) + "</div>"; }).join("");
+    return h + '<div class="dim" style="font-size:.76rem;margin-top:6px">Regions, zones and designations: Arkansas Department of Health. Outlines: US Census Bureau.</div>';
+  }
+  function renderLevels() {
+    $("tr-levels").innerHTML = (D.levels || []).map(function (l) {
+      var cls = l.key === "I" ? "t1" : l.key === "II" ? "t2" : l.key === "III" ? "t3" : l.key === "IV" ? "t4" : "ed", n = (D.hospitals || []).filter(function (h) { return levelKey(h) === l.key; }).length;
+      return '<label style="display:flex;gap:8px;align-items:center;margin:5px 0;cursor:pointer;color:var(--text)"><input type="checkbox" data-l="' + esc(l.key) + '" ' + (state.levels[l.key] ? "checked" : "") + '><span class="hico ' + cls + '" style="width:16px;height:16px;font-size:9px;border-radius:4px">' + (l.key || "+") + "</span>" + esc(l.name) + ' <span class="dim">(' + n + ")</span></label>";
+    }).join("");
+  }
+  $("tr-levels").addEventListener("change", function (e) { var k = e.target.getAttribute("data-l"); if (k == null) return; state.levels[k] = e.target.checked; S.pref("tr.levels", JSON.stringify(state.levels)); drawHospitals(); });
+  $("tr-shade").addEventListener("change", function () { state.shade = this.value; S.pref("tr.shade", this.value); restyle(); });
+  $("tr-labels").addEventListener("change", function () { state.labels = this.value; S.pref("tr.labels", this.value); renderLabels(); });
+  $("tr-dot").addEventListener("change", function () { state.dot = parseInt(this.value, 10); S.pref("tr.dot", this.value); drawHospitals(); });
+  $("tr-border").addEventListener("change", function () { state.border = this.checked; S.pref("tr.border", this.checked ? "1" : "0"); drawHospitals(); });
+  document.addEventListener("ark-drive-cleared", function () { ringMode = "none"; ringPick = {}; $("tr-rings").value = "none"; S.pref("tr.rings", "none"); syncRings(); });   // the Clear button on the map
+  $("tr-rings").addEventListener("change", function () { ringMode = this.value; S.pref("tr.rings", ringMode); syncRings(); });
+  $("q").addEventListener("input", function () { state.q = this.value.trim(); drawHospitals(); });
+  $("q").addEventListener("keydown", function (e) {
+    if (e.key !== "Enter" || !state.q) return;
+    var t = state.q.toLowerCase(), h = (D.hospitals || []).filter(shown)[0], c = shapes.filter(function (s) { return D.counties[s.geoid] && s.name.toLowerCase().indexOf(t) >= 0; })[0];
+    if (c && !(h && h.name.toLowerCase().indexOf(t) === 0)) selectCounty(c.geoid, true); else if (h) pickHospital(h.id);
+  });
+  map.getContainer().addEventListener("click", function (e) {
+    var a = e.target.closest && e.target.closest("a[data-dr]"); if (!a) return; e.preventDefault();
+    var h = (D.hospitals || []).filter(function (x) { return x.id === a.getAttribute("data-f"); })[0]; if (!h) return; map.closePopup();
+    if (a.getAttribute("data-dr") === "ring") { ringPick[h.id] = !ringPick[h.id]; syncRings(); } else ArkDrive.at(h.lat, h.lon, h.name);
+  });
+  window.trDebug = function () { return {counties: shapes.length, hospitals: D ? D.hospitals.length : 0, shown: Object.keys(hospMarks).length, shade: state.shade, selected: cardKey}; };
+  window.trMap = map;
+
+  // ---- air ambulance aircraft: one simple switch draws every helicopter and airplane on the air ambulance lists (Admin > Air Ambulances) that the network hears right now
+  var airG = L.layerGroup(), airMarks = {}, airTimer = null, HEMS = null;
+  function airIcon(a, who) {
+    var heli = a.cat === "A7" || /^(H|R)/i.test(a.t || "") && a.td === "H";
+    var rot = Math.round(a.track || 0), col = "#ff3860";
+    var body = heli ? '<circle cx="16" cy="16" r="6" fill="' + col + '" stroke="#fff" stroke-width="2"/><path d="M3 16 H29 M16 3 V29" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/><path d="M3 16 H29 M16 3 V29" stroke="' + col + '" stroke-width="1" stroke-linecap="round"/>'
+      : '<path d="M16 2 L19 12 L29 17 L29 20 L19 17 L18 26 L22 29 L22 30.5 L16 29 L10 30.5 L10 29 L14 26 L13 17 L3 20 L3 17 L13 12 Z" fill="' + col + '" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/>';
+    return L.divIcon({className: "", iconSize: [34, 34], iconAnchor: [17, 17], html: '<svg width="34" height="34" viewBox="0 0 32 32" style="transform:rotate(' + (heli ? 0 : rot) + 'deg);filter:drop-shadow(0 1px 2px rgba(0,0,0,.7))">' + body + "</svg>"});
+  }
+  function airWho(a) {
+    var h = HEMS, reg = String(a.r || "").toUpperCase();
+    if (!h) return null;
+    var w = h.hex[a.hex]; if (w === undefined) w = h.reg[reg];
+    if (w === undefined && h.fw) { w = h.fw.hex[a.hex]; if (w === undefined) w = h.fw.reg[reg]; }
+    return w === undefined ? null : (w || "Air ambulance");
+  }
+  function airCard(a, who, mk) {
+    var A = window.ArkUnits && ArkUnits.text;
+    var rows = [["Operator", who], ["Registration", a.r || ""], ["Type", a.desc || a.t || ""], ["Altitude", a.alt != null && A ? A.alt(a.alt * 0.3048) : a.alt != null ? a.alt + " ft" : ""], ["Speed", a.gs != null && A ? A.spd(a.gs * 0.514444) : ""], ["Heading", a.track != null ? Math.round(a.track) + "°" : ""]].filter(function (r) { return r[1] !== "" && r[1] != null; });
+    shell.AL.openCard({event: (a.flight || "").trim() || a.r || a.hex.toUpperCase(), headline: who + (a.t ? " · " + a.t : ""), rows: rows, link: "/flight/" + a.hex, linkText: "Flight Page"}, mk, mk.getLatLng());
+  }
+  async function airRefresh() {
+    try {
+      if (!HEMS) HEMS = await (await fetch("/api/hems.json")).json();
+      var ac = ((await (await fetch("/api/aircraft.json")).json()).aircraft || []), seen = {}, n = 0;
+      ac.forEach(function (a) {
+        var who = airWho(a); if (!who || a.lat == null || a.lon == null || (a.seen_pos != null && a.seen_pos > 120)) return;
+        seen[a.hex] = true; n++;
+        var mk = airMarks[a.hex];
+        if (!mk) { mk = airMarks[a.hex] = L.marker([a.lat, a.lon], {icon: airIcon(a, who), zIndexOffset: 900, keyboard: false}).addTo(airG); mk.on("click", function () { airCard(mk._a, mk._who, mk); }); mk.bindTooltip("", {className: "lv-tip", direction: "top", offset: [0, -14]}); }
+        else { mk.setLatLng([a.lat, a.lon]); mk.setIcon(airIcon(a, who)); }
+        mk._a = a; mk._who = who; mk.setTooltipContent(esc(((a.flight || "").trim() || a.r || a.hex.toUpperCase()) + " · " + who));
+      });
+      Object.keys(airMarks).forEach(function (h) { if (!seen[h]) { airG.removeLayer(airMarks[h]); delete airMarks[h]; } });
+      $("tr-airnote").textContent = n ? n + " air ambulance aircraft in the air now." : "No air ambulance aircraft are being heard right now.";
+    } catch (e) { $("tr-airnote").textContent = "Could not load the aircraft."; }
+  }
+  function airOn(on) {
+    S.pref("tr.air", on ? "1" : "0");
+    if (on) { airG.addTo(map); airRefresh(); if (!airTimer) airTimer = setInterval(airRefresh, 5000); }
+    else { map.removeLayer(airG); if (airTimer) { clearInterval(airTimer); airTimer = null; } $("tr-airnote").textContent = ""; }
+    if (shell.renderLegend) shell.renderLegend();
+  }
+  $("tr-air").checked = S.pref("tr.air") === "1" || q.get("air") === "1";
+  $("tr-air").addEventListener("change", function () { airOn(this.checked); });
+  if ($("tr-air").checked) airOn(true);
+
+  async function load() {
+    try {
+      D = await (await fetch("/api/trauma/data.json")).json();
+      (D.regions || []).forEach(function (g) { REG[g.key] = g; }); (D.zones || []).forEach(function (g) { ZON[g.key] = g; });
+      var sh = await (await fetch("/api/counties/shapes.json")).json(); shapes = (sh.counties || []).filter(function (s) { return s.state === D.state; });
+      if (!shapes.length) { $("lv-count").textContent = "No county outlines loaded yet. An administrator loads them under Data Updates."; }
+      shapes.forEach(function (s) {
+        var l = L.geoJSON({type: "Feature", geometry: s.geometry}, {style: function () { return countyStyle(s); }}).addTo(map); layers[s.geoid] = l;
+        l.on("click", function (e) { if (ArkDrive.on()) return; selectCounty(s.geoid, false); });
+      });
+      renderLevels(); drawHospitals(); restyle();
+      var AR = {{ map_area("county_map_area") | tojson }}; if (!(q.get("lat") && q.get("lon")) && !q.get("zoom") && AR) map.fitBounds([[AR[0], AR[1]], [AR[2], AR[3]]], {padding: [10, 10]});
+      if (q.get("county")) selectCounty(q.get("county"), true);
+      if (q.get("hospital")) pickHospital(q.get("hospital"));
+    } catch (e) { $("lv-count").textContent = "Could not load the trauma system."; }
+  }
+  load();
+})();
+</script>
+<style>
+.trbadge{display:inline-block;padding:2px 9px;border-radius:999px;font:700 .72rem/1.5 Inter,sans-serif;color:#111}
+.trpop a{color:#2a7fd4}
+</style>
+{% endblock %}

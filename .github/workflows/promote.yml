@@ -1,0 +1,77 @@
+name: Promote to stable
+
+# Manual only -- run this from the Actions tab after you've actually
+# tried the current `latest` build and want to keep it. Does NOT
+# rebuild anything: it copies the existing `latest` image manifest
+# straight over to `stable` and `vX.Y.Z` on both registries, so what
+# you promote is byte-for-byte what you tested.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version number for this release, e.g. 1.0.0 (no leading v)"
+        required: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Real check, not a formality: the version you type here is the ONLY
+      # thing that ties a human-readable "vX.Y.Z" to this digest. If it
+      # doesn't match what build.yml actually baked into BUILD_INFO for
+      # this exact `latest` (e.g. you meant to promote a candidate built
+      # for 1.2.2 but typed 1.2.1, or you're about to promote a routine
+      # build that was never given a version at all), the app's own
+      # update-check would report a version that isn't real. Fail loudly
+      # instead of silently promoting a mismatch.
+      - name: Verify latest's own BUILD_INFO agrees with this version
+        run: |
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/adsb-portal:latest
+          baked=$(docker run --rm --entrypoint sh ${{ secrets.DOCKERHUB_USERNAME }}/adsb-portal:latest \
+            -c "sed -n 's/^version: //p' /app/BUILD_INFO")
+          echo "BUILD_INFO says: $baked"
+          if [ "$baked" != "${{ inputs.version }}" ]; then
+            echo "::error::latest's own BUILD_INFO says version '$baked', but you're promoting '${{ inputs.version }}'. Rebuild via build.yml's workflow_dispatch with version=${{ inputs.version }} first, or promote the version it actually says."
+            exit 1
+          fi
+
+      - name: Re-tag ghcr.io latest -> stable + v${{ inputs.version }}
+        run: |
+          docker buildx imagetools create \
+            -t ghcr.io/arksignal/arksignal-portal:stable \
+            -t ghcr.io/arksignal/arksignal-portal:v${{ inputs.version }} \
+            ghcr.io/arksignal/arksignal-portal:latest
+
+      # Grafana, Prometheus and the stack updater (config baked in, see deploy/grafana) are released together with the portal.
+      - name: Re-tag Grafana and Prometheus images latest -> stable + v${{ inputs.version }}
+        run: |
+          for img in adsb-grafana adsb-prometheus adsb-stack adsb-mlat adsb-planefence adsb-backup adsb-photon adsb-predict adsb-aprs adsb-acars adsb-mesh adsb-mesh-mqtt; do
+            docker buildx imagetools create               -t ${{ secrets.DOCKERHUB_USERNAME }}/$img:stable -t ${{ secrets.DOCKERHUB_USERNAME }}/$img:v${{ inputs.version }}               ${{ secrets.DOCKERHUB_USERNAME }}/$img:latest
+            docker buildx imagetools create               -t ghcr.io/arksignal/$img:stable -t ghcr.io/arksignal/$img:v${{ inputs.version }}               ghcr.io/arksignal/$img:latest
+          done
+
+      - name: Re-tag Docker Hub latest -> stable + v${{ inputs.version }}
+        run: |
+          docker buildx imagetools create \
+            -t ${{ secrets.DOCKERHUB_USERNAME }}/adsb-portal:stable \
+            -t ${{ secrets.DOCKERHUB_USERNAME }}/adsb-portal:v${{ inputs.version }} \
+            ${{ secrets.DOCKERHUB_USERNAME }}/adsb-portal:latest

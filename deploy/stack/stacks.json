@@ -1,0 +1,83 @@
+{
+ "base": "/opt/adsb",
+ "stacks": [
+  {
+   "name": "portal",
+   "dir": "portal",
+   "file": "/stacks/portal/compose.yaml",
+   "env": "required",
+   "note": "feeder portal, database and Watchtower"
+  },
+  {
+   "name": "grafana",
+   "dir": "grafana",
+   "file": "/stacks/grafana/compose.yaml",
+   "env": "required",
+   "note": "Grafana and Prometheus"
+  },
+  {
+   "name": "mlat",
+   "dir": "mlat",
+   "file": "/stacks/mlat/compose.yaml",
+   "env": "none",
+   "note": "MLAT server"
+  },
+  {
+   "name": "planefence",
+   "dir": "planefence",
+   "file": "/stacks/planefence/compose.yaml",
+   "env": "none",
+   "note": "Planefence and Plane-Alert"
+  },
+  {
+   "name": "backup",
+   "dir": "backup",
+   "file": "/stacks/backup/compose.yaml",
+   "env": "none",
+   "env_file": "stack/.env",
+   "note": "off-site backup service"
+  },
+  {
+   "name": "photon",
+   "dir": "photon",
+   "file": "/stacks/photon/compose.yaml",
+   "env": "none",
+   "note": "Photon address search (US index)"
+  },
+  {
+   "name": "predict",
+   "dir": "predict",
+   "file": "/stacks/predict/compose.yaml",
+   "env": "none",
+   "note": "prediction and archive service (own database)"
+  },
+  {
+   "name": "aprs",
+   "dir": "aprs",
+   "file": "/stacks/aprs/compose.yaml",
+   "env": "none",
+   "note": "APRS-IS reader and station database"
+  },
+  {
+   "name": "acars",
+   "dir": "acars",
+   "file": "/stacks/acars/compose.yaml",
+   "env": "none",
+   "note": "ACARS service"
+  },
+  {
+   "name": "mesh",
+   "dir": "mesh",
+   "file": "/stacks/mesh/compose.yaml",
+   "env": "none",
+   "note": "mesh node service and MQTT broker"
+  },
+  {
+   "name": "hub",
+   "dir": "hub",
+   "file": "/stacks/hub/compose.yaml",
+   "env": "none",
+   "note": "hub (readsb/tar1090) with the MLAT results input"
+  }
+ ]
+}

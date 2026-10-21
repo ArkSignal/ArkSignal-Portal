@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}River Traffic{% endblock %}
+{% block content %}
+<h1><span>River</span> Traffic</h1>
+<div class="sub">Towboats, barges, tugs and boats on the Arkansas, White and Mississippi rivers and the lakes, heard by members' own AIS receivers: what each vessel is, where it is, how fast and where it is going. <a href="/ais/map">River Traffic Map</a> &middot; <a href="/feed/ais">Add your receiver</a></div>
+
+<div class="tiles" style="margin-bottom:14px">
+  <div class="panel tile"><div class="tv">{{ c.now }}</div><div class="tl">Heard in the last {{ underway }} minutes</div></div>
+  <div class="panel tile"><div class="tv">{{ c.day }}</div><div class="tl">Heard in the last 24 hours</div></div>
+  <div class="panel tile"><div class="tv">{{ c.total }}</div><div class="tl">Vessels known</div></div>
+  <div class="panel tile"><div class="tv">{{ c.active }}</div><div class="tl">Receivers reporting ({{ c.stations }} set up)</div></div>
+</div>
+
+{% call sec('search', 'Search and Filters', True) %}
+  <form method="get" action="/ais/" class="tfilterbar" style="align-items:flex-end">
+    <div><label for="ais-q">Name, MMSI, Call Sign or Destination</label><input type="text" id="ais-q" name="q" value="{{ q }}" maxlength="60" style="width:230px" placeholder="MISS QUEEN or 366123456"></div>
+    <div><label for="ais-cat">Kind</label><select id="ais-cat" name="cat"><option value="">All</option>{% for k, cv in cats.items() %}<option value="{{ k }}" {{ 'selected' if k == cat }}>{{ cv[0] }} ({{ by_cat[k] }})</option>{% endfor %}</select></div>
+    <div><label for="ais-hours">Heard Within</label><select id="ais-hours" name="hours">{% for h, l in [(1, 'the last hour'), (6, '6 hours'), (24, '24 hours'), (72, '3 days'), (168, '7 days'), (720, '30 days')] %}<option value="{{ h }}" {{ 'selected' if hours == h }}>{{ l }}</option>{% endfor %}</select></div>
+    <button class="btn" type="submit" style="margin:0">Search</button><a class="btn neutral" href="/ais/" style="margin:0">Clear</a>
+  </form>
+{% endcall %}
+
+{% call sec('vessels', 'Vessels (' ~ total ~ ')', True, True) %}
+  <div class="tfilterbar"><input type="search" class="tfilter" data-table="#ais-tbl" placeholder="Search the listed vessels" aria-label="Search vessels"><span class="dim tcount"></span></div>
+  {% if rows %}<div style="overflow-x:auto"><table class="sortable" id="ais-tbl"><thead><tr><th data-sort="text">Name</th><th data-sort="num">MMSI</th><th data-sort="text">Kind</th><th data-sort="num">Speed</th><th data-sort="num">Course</th><th data-sort="text">Going To</th><th data-sort="text">Heard</th></tr></thead><tbody>
+  {% for v in rows %}<tr>
+    <td><span class="sw" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:{{ cats[v.category][1] }}"></span> <a href="/ais/{{ v.mmsi }}">{{ v.name or 'No name yet' }}</a>{% if v.callsign %} <span class="dim mono">{{ v.callsign }}</span>{% endif %}</td>
+    <td class="mono" data-v="{{ v.mmsi }}">{{ v.mmsi }}</td><td>{{ v.type_name }}</td>
+    <td class="mono" data-v="{{ v.speed if v.speed is not none else -1 }}">{% if v.speed is not none %}{{ '%.1f' % v.speed }} kn{% else %}-{% endif %}</td>
+    <td class="mono" data-v="{{ v.course if v.course is not none else -1 }}">{% if v.course is not none %}{{ '%.0f' % v.course }}&deg;{% else %}-{% endif %}</td>
+    <td>{{ v.destination or '-' }}</td>
+    <td data-v="{{ v.last_seen }}"><time class="ts" datetime="{{ v.last_seen }}" data-fmt="dt">{{ v.last_seen[:16].replace('T', ' ') }}</time></td></tr>{% endfor %}
+  </tbody></table></div>{% if total > rows | length %}<p class="dim" style="margin-bottom:0">The first {{ rows | length }} are listed; narrow the search to see the rest.</p>{% endif %}
+  {% else %}<p class="dim" style="margin:0">No vessel matches{% if not c.total %} (none has been heard yet: the page fills as members' receivers report; <a href="/feed/ais">add yours</a>){% endif %}.</p>{% endif %}
+{% endcall %}
+<p class="dim" style="font-size:.8rem">{{ credit }}. A vessel's owner can ask for it to be hidden (<a href="/contact">Contact</a>). Speeds are in knots (a knot is about 1.15 miles an hour).</p>
+{% endblock %}

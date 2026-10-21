@@ -1,0 +1,30 @@
+<div id="apikeys-list">
+  {% if new_key %}
+  <div class="panel" id="apikey-new" style="border-color:var(--acc);margin-bottom:14px">
+    <b>Your new key{% if new_note %} for {{ new_note }}{% endif %}</b>
+    <p class="dim" style="margin:6px 0 10px">Copy it now and keep it somewhere safe (a password manager is ideal). It is shown only this one time; if it is lost, revoke it and make another.</p>
+    <pre class="code mono copyable" id="apikey-new-value" style="user-select:all">{{ new_key }}</pre>
+    <button class="btn small" type="button" id="apikey-copy" onclick="navigator.clipboard && navigator.clipboard.writeText(document.getElementById('apikey-new-value').textContent.trim()).then(function(){ document.getElementById('apikey-copy').textContent = 'Copied'; })">Copy the Key</button>
+  </div>
+  {% endif %}
+  <div class="panel" style="overflow-x:auto">
+    <table>
+      <tr><th>Name</th><th>Key Starts With</th><th>Made</th><th>Last Used</th><th>Today</th><th>All Time</th><th>Limits</th><th>Status</th><th></th></tr>
+      {% for k in keys %}
+      <tr{% if k.revoked %} style="opacity:.55"{% endif %}>
+        <td>{{ k.name }}{% if k.note %}<br><span class="dim" style="font-size:.8rem">{{ k.note }}</span>{% endif %}</td>
+        <td class="mono">{{ k.prefix }}...</td>
+        <td><time class="ts" datetime="{{ k.created_at.isoformat() }}">{{ k.created_at }}</time></td>
+        <td>{% if k.last_used %}<time class="ts" datetime="{{ k.last_used.isoformat() }}">{{ k.last_used }}</time>{% else %}<span class="dim">never</span>{% endif %}</td>
+        <td class="mono">{{ '{:,}'.format(k.today) }}</td>
+        <td class="mono">{{ '{:,}'.format(k.total) }}</td>
+        <td class="mono" style="font-size:.82rem">{{ k.rate_minute or per_min }}/min<br>{{ '{:,}'.format(k.rate_day or per_day) }}/day</td>
+        <td>{% if k.revoked %}<span class="tag off">revoked</span>{% else %}<span class="tag live">working</span>{% endif %}</td>
+        <td style="white-space:nowrap">{% if not k.revoked %}
+          <form class="inline" method="post" action="/my/api-keys/{{ k.id }}/revoke" data-async data-async-target="#apikeys-list" data-confirm="Revoke this key? Anything using it stops working at once.">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small warn" type="submit" style="margin:0">Revoke</button></form>{% endif %}</td>
+      </tr>
+      {% else %}<tr><td colspan="9" class="dim">You have no keys yet.{% if can_make %} Make one above.{% endif %}</td></tr>{% endfor %}
+    </table>
+  </div>
+</div>

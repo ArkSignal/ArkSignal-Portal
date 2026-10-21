@@ -1,0 +1,26 @@
+{% from "partials/_radiolist_form.html" import fields with context %}
+<div id="listings-admin">
+  <div class="tfilterbar"><input type="search" class="tfilter" data-table="#listings-tbl" placeholder="Search by name, place or member" aria-label="Search entries"><span class="dim tcount"></span>
+    <span class="dim">Show:</span>
+    <a class="btn small {{ '' if status == '' else 'neutral' }}" href="?" style="margin:0">All</a>
+    <a class="btn small {{ '' if status == 'pending' else 'neutral' }}" href="?status=pending" style="margin:0">Waiting ({{ pending }})</a>
+    <a class="btn small {{ '' if status == 'hidden' else 'neutral' }}" href="?status=hidden" style="margin:0">Hidden</a></div>
+  <table class="sortable" id="listings-tbl">
+    <tr><th data-sort="text">{{ 'Net' if kind == 'net' else 'Gateway' }}</th><th data-sort="text">Member</th><th data-sort="text">Status</th><th data-sort="text">Changed</th><th></th></tr>
+    {% for e in rows %}
+    <tr data-search="{{ e.name }} {{ e.area }} {{ e.owner_name or '' }} {{ e.mode }}">
+      <td><b>{{ e.name }}</b><br><span class="dim" style="font-size:.82rem">{{ e.area }} {{ e.mode }}{{ ' ' ~ ('%g MHz' % e.freq_mhz) if e.freq_mhz }}</span></td>
+      <td>{% if e.owner_name %}<a href="/admin/users/{{ e.owner_id }}">{{ e.owner_display or e.owner_name }}</a>{% else %}<span class="dim">the network</span>{% endif %}</td>
+      <td data-v="{{ e.status }}"><span class="tag {{ 'live' if e.status == 'approved' else 'off' }}">{{ statuses[e.status].lower() }}</span></td>
+      <td data-v="{{ e.updated_at.isoformat() }}"><time class="ts" datetime="{{ e.updated_at.isoformat() }}">{{ e.updated_at }}</time></td>
+      <td style="white-space:nowrap">
+        {% if e.status != 'approved' %}<form class="inline" method="post" action="/admin/listings/{{ e.id }}/status" data-async data-async-target="#listings-admin"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="to" value="approved"><button class="btn small" type="submit" style="margin:0">Approve</button></form>{% endif %}
+        {% if e.status != 'hidden' %}<form class="inline" method="post" action="/admin/listings/{{ e.id }}/status" data-async data-async-target="#listings-admin"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="to" value="hidden"><button class="btn small neutral" type="submit" style="margin:0">Hide</button></form>{% endif %}
+        <form class="inline" method="post" action="/admin/listings/{{ e.id }}/delete" data-async data-async-target="#listings-admin" data-confirm="Delete {{ e.name }}?"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small warn" type="submit" style="margin:0">Delete</button></form></td>
+    </tr>
+    <tr><td colspan="5" style="padding:0 0 8px"><details class="panel role" style="margin:0"><summary><span class="role-name" style="font-size:.85rem">Edit {{ e.name }}</span></summary>
+      <form method="post" action="/admin/listings/{{ e.id }}/save" data-async data-async-target="#listings-admin"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        {{ fields(kind, e, 'a' ~ e.id) }}<button class="btn" type="submit">Save</button></form></details></td></tr>
+    {% else %}<tr><td colspan="5" class="dim">Nothing here.</td></tr>{% endfor %}
+  </table>
+</div>

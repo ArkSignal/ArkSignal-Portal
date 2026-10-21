@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% from "partials/_mapshell.html" import shell, boot with context %}
+{% block title %}Coverage{% endblock %}
+{% block main_class %}wide{% endblock %}
+{% block content %}
+{# The Coverage Map is the same map page as every other one (partials/_mapshell.html); its layers are what the network can hear: each is one kind of service, and more appear here as the network grows. Places are shown as each owner chose, so they are approximate. #}
+{% call shell("Search a place, airport or hospital", "Search the map", "Coverage Summary", "Coverage", weather_btn=True, map_type="coverage", alt_label="Coverage") %}
+    <details class="fsec" data-k="coverage" open><summary><span class="ic">&#9678;</span>Coverage Layers<span class="fbadge" data-fb="coverage"></span></summary><div class="fbody">
+      <div class="help dim" style="font-size:.78rem;margin:0 0 6px">What the network can hear and where. Each layer is one kind of service; more appear as the network grows.</div>
+      <div id="layers"></div>
+    </div></details>
+{% endcall %}
+{{ boot("/coverage", "cv") }}
+<script src="/static/sondeicons.js"></script>
+<script src="/static/areafilter.js?v={{ app_version }}"></script>
+<script>
+(function () {
+  var S = ArkShell, q = new URLSearchParams(location.search);
+  var map = L.map("lvmap", {zoomControl: false, zoomSnap: 0.25}).setView([parseFloat(q.get("lat")) || {{ map_lat | float }}, parseFloat(q.get("lon")) || {{ map_lon | float }}], parseFloat(q.get("zoom")) || {{ map_zoom | int }});
+  L.control.zoom({position: "bottomright"}).addTo(map);
+  var AREA = {{ map_area("coverage_map_area") | tojson }};   // Settings > Map Areas: opens on Arkansas whole, like every map, unless the link says where to look
+  if (AREA && !(q.get("lat") && q.get("lon")) && !q.get("zoom")) map.fitBounds([[AREA[0], AREA[1]], [AREA[2], AREA[3]]], {padding: [10, 10], animate: false});
+  var shell = S.start({map: map, layers: {{ layers | tojson }}, key: "cv", url: "/coverage", cfg: {tile: {{ tile_url | tojson }}, attr: {{ tile_attr | tojson }}, labelScale: {{ label_scale | int }}, labelBg: {{ label_bg | tojson }}, wxRefresh: {{ wx_refresh | int }}},
+    share: function () { return {}; }, legend: function () { return "<h6>Coverage</h6><div class=\"dim\" style=\"font-size:.78rem\">Each station's color is its own. A solid dot is reporting now, a faint one is not; a ring is an approximate position.</div>"; }});
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]; }); }
+  function hueOf(id) { var h = 0; for (var i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) % 360; return h; }
+  var APPROX = {{ approx_radius_m }};
+  // Each layer: id, label, what it shows, a loader that fills its Leaflet group and returns a short summary. New services add an entry here.
+  var LAYERS = [
+    {id: "adsb", label: "ADS-B coverage", note: "How far each station has heard aircraft in every direction (last {{ coverage_days }} days).", on: true, load: async function (g) { var A = this.area || {test: function () { return true; }};
+      var d = await (await fetch("/api/coverage.json")).json(), n = 0, far = 0, farId = "";
+      (d.stations || []).forEach(function (st) {
+        if (!A.test(st.lat, st.lon)) return;
+        var sec = st.sectors.slice(), k = sec.length, pts = [], mx = Math.max.apply(null, sec);
+        for (var i = 0; i < k; i++) if (!sec[i]) { var a = sec[(i + k - 1) % k], b = sec[(i + 1) % k]; sec[i] = a && b ? (a + b) / 2 : 0; }
+        for (var j = 0; j < k; j++) {
+          var r = sec[j] * 1852, br = j * 360 / k * Math.PI / 180, lat = st.lat * Math.PI / 180, lon = st.lon * Math.PI / 180, dd = r / 6371008.8;
+          var la = Math.asin(Math.sin(lat) * Math.cos(dd) + Math.cos(lat) * Math.sin(dd) * Math.cos(br));
+          var lo = lon + Math.atan2(Math.sin(br) * Math.sin(dd) * Math.cos(lat), Math.cos(dd) - Math.sin(lat) * Math.sin(la));
+          pts.push([la * 180 / Math.PI, lo * 180 / Math.PI]);
+        }
+        var col = "hsl(" + hueOf(st.id) + ",70%," + (st.online ? 60 : 45) + "%)";
+        L.polygon(pts, {color: col, weight: 1.5, opacity: .85, fillColor: col, fillOpacity: .1}).bindPopup("<b>" + esc(st.id) + "</b><br>" + esc(st.name) + "<br>Farthest heard: " + ArkUnits.text.nm(mx) + "<br><a href=\"/feeders/" + encodeURIComponent(st.id) + "\">View station</a>").addTo(g);
+        n++; if (mx > far) { far = mx; farId = st.id; }
+      });
+      return n + " station" + (n === 1 ? "" : "s") + " with range data" + (n ? "; the longest reach is " + ArkUnits.text.dist(far * 1.852, 0) + " (" + esc(farId) + ")" : "");
+    }},
+    {id: "mlat", label: "MLAT stations", note: "Stations taking part in multilateration. Green is working with peers, yellow is waiting for peers.", on: false, enabled: {{ 'true' if mlat_on else 'false' }}, load: async function (g) { var A = this.area || {test: function () { return true; }};
+      var d = await (await fetch("/api/mlat/network.json")).json(), n = 0, w = 0, COL = {working: "#3ee6a8", syncing: "#f5c542", problem: "#ff7a59", off: "#8a9bb3"};
+      (d.stations || []).forEach(function (s) {
+        if (s.lat == null || !A.test(s.lat, s.lon)) return;
+        var m = s.approximate ? L.circle([s.lat, s.lon], {radius: s.radius_m || APPROX, color: COL[s.state] || COL.off, weight: 2, fillOpacity: .25}) : L.marker([s.lat, s.lon], {icon: L.divIcon({className: "", html: SondeIcons.marker("feeder", COL[s.state] || COL.off, "", {size: 30}), iconSize: [0, 0]})});
+        if (!s.approximate) Colocate.track(map, "adsb", m, s.lat, s.lon);
+        m.bindPopup("<b>" + esc(s.id) + "</b><br>" + esc(s.name || "") + "<br>MLAT peers: " + s.peer_count + "<br><a href=\"/mlat/\">MLAT network</a>").addTo(g); n++; if (s.state === "working") w++;
+      });
+      return n + " MLAT station" + (n === 1 ? "" : "s") + ", " + w + " working with peers";
+    }},
+    {id: "wx", label: "Weather stations", note: "Members' weather stations. A solid dot is reporting now, a faint one is not; a wide ring is an approximate position. Click one for its conditions.", on: false, enabled: {{ 'true' if wx_on else 'false' }}, refresh: {{ wx_live * 1000 }}, load: async function (g) { var A = this.area || {test: function () { return true; }};
+      var d = await (await fetch("/api/weather.json")).json(), n = 0, live = 0;
+      (d.stations || []).forEach(function (s) {
+        if (!A.test(s.lat, s.lon)) return;
+        var col = s.online ? "#ffb454" : "#8a9bb3";
+        var m = s.approx ? L.circle([s.lat, s.lon], {radius: s.radius_m || APPROX, color: col, weight: 2, fillOpacity: s.online ? .25 : .08}) : L.circleMarker([s.lat, s.lon], {radius: 7, color: col, fillOpacity: s.online ? .75 : .2});
+        if (!s.approx) Colocate.track(map, "weather", m, s.lat, s.lon);
+        m.bindPopup("<b>" + esc(s.name) + "</b>" + (s.temp !== "" ? "<br>" + esc(s.temp + " " + s.temp_unit) : "") + (s.wind !== "" ? " &middot; wind " + esc(s.wind + " " + s.wind_unit + " " + s.wind_dir) : "") + (s.online ? "" : "<br>Not reporting right now") + "<br><a href=\"" + esc(s.href) + "\">Weather page</a> &middot; <a href=\"/weather/map?station=" + encodeURIComponent(s.id) + "\">On the weather map</a>").addTo(g);
+        n++; if (s.online) live++;
+      });
+      return n + " weather station" + (n === 1 ? "" : "s") + ", " + live + " reporting now";
+    }},
+    {id: "sonde", label: "Radiosonde receiving stations", note: "Stations that pick up weather balloons, each with an outline of how far it has heard a balloon in every direction (worked out from the flights it really heard, like the ADS-B coverage). Owners choose how precisely a station is shown. Click one for its page.", on: false, enabled: {{ 'true' if sonde_on else 'false' }}, load: async function (g) { var A = this.area || {test: function () { return true; }};
+      var d = await (await fetch("/api/sondes/stations.json")).json(), n = 0, far = 0, farId = "";
+      (d.stations || []).forEach(function (s) {
+        if (!A.test(s.lat, s.lon)) return;
+        var col = "hsl(" + hueOf(s.id) + ",70%,60%)";   // each station its own color, drawn like the ADS-B coverage
+        if (s.sectors) {   // how far this station heard a balloon in every direction, drawn like the ADS-B coverage (from the flights it really heard)
+          var sec = s.sectors.slice(), k = sec.length, pts = [];
+          for (var i = 0; i < k; i++) if (!sec[i]) { var a1 = sec[(i + k - 1) % k], b1 = sec[(i + 1) % k]; sec[i] = a1 && b1 ? (a1 + b1) / 2 : 0; }
+          for (var j = 0; j < k; j++) {
+            var r = sec[j] * 1000, br = (j * 360 / k + 360 / k / 2) * Math.PI / 180, lat = s.lat * Math.PI / 180, lon = s.lon * Math.PI / 180, dd = r / 6371008.8;
+            var la = Math.asin(Math.sin(lat) * Math.cos(dd) + Math.cos(lat) * Math.sin(dd) * Math.cos(br));
+            var lo = lon + Math.atan2(Math.sin(br) * Math.sin(dd) * Math.cos(lat), Math.cos(dd) - Math.sin(lat) * Math.sin(la));
+            pts.push([la * 180 / Math.PI, lo * 180 / Math.PI]);
+          }
+          L.polygon(pts, {color: col, weight: 1.5, opacity: .85, fillColor: col, fillOpacity: .1, interactive: false}).addTo(g);
+        }
+        var m = L.marker([s.lat, s.lon], {icon: L.divIcon({className: "", html: SondeIcons.marker("station", col, "", {size: 30, dim: !s.claimed}), iconSize: [0, 0]})});   // an antenna, big enough to see
+        Colocate.track(map, "sonde", m, s.lat, s.lon);
+        m.bindPopup("<b>" + esc(s.id) + "</b>" + (s.antenna ? "<br>" + esc(s.antenna) : "") + (s.reach_km ? "<br>Farthest balloon heard: " + ArkUnits.text.dist(s.reach_km) : "<br>No balloon heard yet") + (s.approx ? "<br>Approximate position" : "") + "<br><a href=\"" + esc(s.href) + "\">Receiving station</a>").addTo(g);
+        n++; if ((s.reach_km || 0) > far) { far = s.reach_km; farId = s.id; }
+      });
+      return n + " radiosonde receiving station" + (n === 1 ? "" : "s") + (far ? "; the longest reach is " + ArkUnits.text.dist(far) + " (" + esc(farId) + ")" : "");
+    }},
+    {id: "balloons", label: "Weather balloon flights, last 24 hours", note: "Where balloons have flown over the network's area, colored by height (low green, high purple). A dot marks the newest position; a flag on a pole the launch. Click one for the flight.", on: false, enabled: {{ 'true' if sonde_on else 'false' }}, refresh: {{ sonde_live * 1000 }}, load: async function (g) { var A = this.area || {test: function () { return true; }};
+      var d = await (await fetch("/api/sondes/map.json?hours=24&static=0")).json(), n = 0, up = 0, STOPS = [[0, "#3ee6a8"], [5000, "#6be28f"], [10000, "#c8f06a"], [15000, "#ffd24f"], [20000, "#ff9f43"], [25000, "#ff6b6b"], [30000, "#c58bff"]];
+      function col(m) { var c = STOPS[0][1]; STOPS.forEach(function (s) { if (m != null && m >= s[0]) c = s[1]; }); return c; }
+      (d.flights || []).forEach(function (f) {
+        if (!A.test(f.lat, f.lon)) return;
+        var t = f.trail || []; for (var i = 1; i < t.length; i++) L.polyline([[t[i - 1][0], t[i - 1][1]], [t[i][0], t[i][1]]], {color: col(t[i][2]), weight: 2, opacity: f.status === "aloft" ? .9 : .5, interactive: false}).addTo(g);
+        var m = L.circleMarker([f.lat, f.lon], {radius: 7, color: "#fff", weight: 2, fillColor: col(f.alt), fillOpacity: .95});
+        m.bindPopup("<b>" + esc(f.id) + "</b> " + esc(f.type) + (f.agency ? " (" + esc(f.agency) + ")" : "") + "<br>" + esc(f.label) + (f.alt != null ? " &middot; " + Math.round(f.alt * 3.28084).toLocaleString() + " ft" : "") + "<br><a href=\"" + esc(f.href) + "\">Flight page</a>").addTo(g);
+        n++; if (f.status === "aloft") up++;
+      });
+      return n + " balloon flight" + (n === 1 ? "" : "s") + " in the last 24 hours, " + up + " in the air now";
+    }},
+    {id: "uat", label: "UAT and ADS-R traffic right now", note: "Aircraft heard this moment on 978 MHz UAT or rebroadcast as ADS-R. These come through the whole network, not one station.", on: false, enabled: {{ 'true' if uat_on else 'false' }}, refresh: 15000, load: async function (g) { var A = this.area || {test: function () { return true; }};
+      var d = await (await fetch("/api/aircraft.json", {cache: "no-store"})).json(), n = 0;
+      (d.aircraft || []).forEach(function (a) {
+        if (a.lat != null && !A.test(a.lat, a.lon)) return;
+        if (a.lat == null || !/^adsr/.test(a.src || "")) return;
+        L.circleMarker([a.lat, a.lon], {radius: 4, color: "#4fb3ff", weight: 1, fillOpacity: .8}).bindPopup("<b>" + esc(a.flight || a.r || a.hex) + "</b><br>" + (a.alt != null && !a.gnd ? Number(a.alt).toLocaleString() + " ft" : "") + "<br><a href=\"/flight/" + encodeURIComponent(a.hex) + "\">Flight progress</a>").addTo(g); n++;
+      });
+      return n + " aircraft on UAT or ADS-R now";
+    }}
+  ];
+  var COMING = ["Repeaters", "Mesh nodes"];
+  var box = document.getElementById("layers"), state = {};
+  LAYERS.filter(function (l) { return l.enabled !== false; }).forEach(function (l) {
+    l.group = L.layerGroup([], (l.id === "sonde" || l.id === "balloons") ? {attribution: 'Radiosonde data: <a href="https://sondehub.org" target="_blank" rel="noopener">SondeHub</a> (CC BY-SA 2.0)'} : {}); state[l.id] = "";   // credits SondeHub in the map's credits while shown
+    var row = document.createElement("div"); row.style.margin = "6px 0";
+    row.innerHTML = '<label class="check" style="margin:0"><input type="checkbox" id="cv-' + l.id + '" ' + (l.on ? "checked" : "") + '><span><b>' + l.label + '</b></span></label><div class="help" style="margin:2px 0 0 28px">' + l.note + "</div>";
+    var ad = document.createElement("details"); ad.className = "areaf-d"; ad.style.margin = "2px 0 0 28px"; ad.innerHTML = '<summary style="cursor:pointer;font-size:.8rem;color:var(--dim)">Limit to an area</summary><div></div>'; row.appendChild(ad);
+    l.area = ArkArea.attach(ad.querySelector("div"), {key: "cv." + l.id, label: "Show only in", onChange: function () { if (l.group && map.hasLayer(l.group)) { l.group.clearLayers(); l.fillNow && l.fillNow(); } var sm = ad.querySelector("summary"); sm.textContent = l.area.active() ? "Limited to " + l.area.areas().map(function (x) { return x.label; }).join(", ") : "Limit to an area"; }});
+    if (l.area.active()) ad.querySelector("summary").textContent = "Limited to " + l.area.areas().map(function (x) { return x.label; }).join(", ");
+    box.appendChild(row);
+    l.fillNow = function () { return fill(); };
+    async function fill() { l.group.clearLayers(); try { state[l.id] = await l.load(l.group); } catch (e) { state[l.id] = l.label + ": could not be loaded."; } summary(); }
+    row.querySelector("input").addEventListener("change", function () {
+      if (this.checked) { l.group.addTo(map); fill(); if (l.refresh) l.timer = setInterval(fill, l.refresh); }
+      else { map.removeLayer(l.group); state[l.id] = ""; clearInterval(l.timer); summary(); }
+    });
+    if (l.on) { l.group.addTo(map); fill(); if (l.refresh) l.timer = setInterval(fill, l.refresh); }
+  });
+  var soon = document.createElement("div"); soon.className = "dim"; soon.style.cssText = "font-size:.82rem;margin-top:8px"; soon.textContent = "Coming later: " + COMING.join(", ") + "."; box.appendChild(soon);
+  function summary() {
+    var keys = Object.keys(state).filter(function (k) { return state[k]; });
+    document.getElementById("lv-count").textContent = keys.length ? keys.length + " layer" + (keys.length === 1 ? "" : "s") + " on" : "Pick a layer to see what it covers";
+    var th = document.getElementById("lv-tbl").querySelector("thead"); th.innerHTML = "";
+    document.getElementById("lv-tbl").querySelector("tbody").innerHTML = keys.map(function (k) { return '<tr><td style="text-align:left;white-space:normal">' + state[k] + "</td></tr>"; }).join("") || '<tr><td class="dim" style="text-align:left;white-space:normal;padding:12px">Pick a layer on the left to see what it covers.</td></tr>';
+    var n = document.querySelector('[data-fb="coverage"]'); if (n) n.textContent = keys.length ? String(keys.length) : "";
+  }
+  summary();
+})();
+</script>
+{% endblock %}

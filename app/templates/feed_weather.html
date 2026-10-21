@@ -1,0 +1,108 @@
+{% extends "feed_base.html" %}
+{% from "partials/_feedsec.html" import sec, other_feeds with context %}
+{% block title %}Weather Stations | How to Feed{% endblock %}
+{% block feed_body %}
+<h1>Feed <span>Weather</span></h1>
+<div class="sub">Put your own weather station on the network's weather map and pages. Your station keeps sending its readings to you as it does today; it also sends a copy to a private address on this site.</div>
+
+{% call sec('the-short-version', 'The Short Version', True) %}
+  <ol class="plain" style="margin:0">
+    <li><a href="/my/register">Create an account</a> (if you have not) and sign in.</li>
+    <li>Open <a href="/my/weather">My Weather Stations</a> and add a station: choose how it sends readings, give it a name, and say whether it belongs to one of your ADS-B feeders or stands alone.</li>
+    <li>The page then shows <b>your private upload address</b> and the exact settings to type into your gateway or script. Readings appear within a minute or two.</li>
+    <li>When you are happy with it, tick <b>Show this station publicly</b>. Until then only you can see it.</li>
+  </ol>
+{% endcall %}
+
+{% call sec('how-it-works', 'How It Works', True) %}
+  <p style="margin-top:0">Your station sends the same readings it already sends to Ecowitt, Weather Underground or your own software to an address on this site that only you know. The site keeps the latest reading, a history for the charts and a daily summary, and shows the station on the Weather pages and on the home and live maps. <b>Pushing is the first choice</b>: nothing about your account with any company is shared, and nothing breaks if that company changes its service.</p>
+  <p style="margin-bottom:0">Your <b>location privacy</b> works as it does for ADS-B feeders: you choose how precisely it is shown. {{ privacy_help() }} A weather station that belongs to a feeder uses that feeder's station ID, location and privacy, so one station record can both hear aircraft and measure weather.</p>
+{% endcall %}
+
+{% call sec('ecowitt-gateway-or-console', 'Ecowitt Gateway or Console', True) %}
+  <p style="margin-top:0">Works with the GW1000, GW1100, GW2000, WH2650, WS3910 and other Ecowitt gateways and consoles.</p>
+  <ol class="plain">
+    <li>On <a href="/my/weather">My Weather Stations</a>, add a station and choose <b>Ecowitt gateway or console (custom server)</b>.</li>
+    <li>In the Ecowitt app (WS View Plus) open your device, <b>Weather Services</b>, then <b>Customized</b>. Switch it on and choose the <b>Ecowitt</b> protocol (not Wunderground).</li>
+    <li>Enter the <b>Server / IP</b> <span class="mono copyable">{{ push_host }}</span>, the <b>Path</b> and the <b>Port</b> <span class="mono copyable">{{ push_port }}</span> shown on your station's page, and an upload interval of 60 seconds.</li>
+  </ol>
+  <p class="dim" style="margin-bottom:0">These devices can only send plain http, not https, so the upload address is a plain-http one on port {{ push_port }}.</p>
+{% endcall %}
+
+{% call sec('weather-underground-format', 'Weather Underground Format (Ambient, Davis and Others)', False) %}
+  <p style="margin-top:0">Many stations and gateways can send to a custom server in the Weather Underground format: Ambient Weather consoles, Davis WeatherLink Console, Ecowitt in its Wunderground mode, and others. Choose <b>Weather Underground upload format</b> when you add the station and enter the server, path and port it shows. The station ID and key the device asks for are ignored: the secret is in the path.</p>
+  <p class="dim" style="margin-bottom:0">Only the format is used. No data from Weather Underground is read or shown here.</p>
+{% endcall %}
+
+{% call sec('home-assistant', 'Home Assistant (Easy Install)', True) %}
+  <p style="margin-top:0">Home Assistant has an integration for almost every weather station (Tempest, Ecowitt, Ambient, Davis, Netatmo and more). The <b>ArkSignal Weather</b> integration reads the station Home Assistant already has and sends it to ArkSignal. You pick the device; it finds the right sensors by itself.</p>
+  <ol class="plain">
+    <li>On <a href="/my/weather">My Weather Stations</a>, add a station and choose <b>Home Assistant, a Tempest bridge or a script</b>. Copy its upload address.</li>
+    <li>In Home Assistant open <b>HACS</b>, <b>Custom repositories</b>, add {% if ha_repo %}<span class="mono copyable">{{ ha_repo }}</span> (<a href="{{ ha_repo }}" target="_blank" rel="noopener">view it</a>){% else %}the integration's repository address (it will be shown here once it is published){% endif %} as an <b>Integration</b>, then download <b>ArkSignal Weather</b> and restart Home Assistant. HACS tells you when a new version is out.</li>
+    <li>Go to <b>Settings, Devices &amp; services, Add integration, ArkSignal Weather</b>. Paste the upload address, choose your weather station's device, check the sensors it found, and finish.</li>
+  </ol>
+  <p class="dim" style="margin-bottom:0">It sends a reading every minute with each value's own unit, so metric or imperial sensors both work. You can change the sensors or the interval later from the integration's Configure button.</p>
+{% endcall %}
+
+{% call sec('tempest-stations', 'Tempest Stations', True) %}
+  <p style="margin-top:0"><b>Tempest</b> is the weather station made by WeatherFlow. Your Tempest hub already announces its readings on <b>your own network</b> (a local broadcast that needs no internet service), and ArkSignal uses exactly that: nothing about your Tempest account is shared and no cloud service is read. Choose the way that suits what you already run:</p>
+  <h4 style="margin:14px 0 4px">Option 1: Home Assistant</h4>
+  <ol class="plain" style="margin-top:0">
+    <li>Add Home Assistant's own <i>WeatherFlow</i> integration. It finds the hub by itself.</li>
+    <li>Add the <b>ArkSignal Weather</b> integration from the Home Assistant section above and choose the Tempest device when it asks.</li>
+  </ol>
+  <h4 style="margin:14px 0 4px">Option 2: The ArkSignal Tempest bridge (no Home Assistant needed)</h4>
+  <p style="margin-top:0">A small program that listens to the hub on your network and sends the readings to your private upload address. Run it on any always-on computer: a NAS or Unraid box, a Raspberry Pi, a PC. Save this as <span class="mono">compose.yaml</span>, put your own upload address from <a href="/my/weather">My Weather Stations</a> in place of <span class="mono">YOUR-TOKEN</span>, and run <span class="mono copyable">docker compose up -d</span>:</p>
+<pre class="code">services:
+  arksignal-tempest:
+    image: ghcr.io/mallison01/arksignal-tempest-bridge:latest
+    network_mode: host          # needed to hear the hub's local broadcast
+    restart: unless-stopped
+    environment:
+      ARKSIGNAL_URL: "http://{{ push_host }}{{ '' if push_port == '80' else ':' + push_port }}/wx/relay/YOUR-TOKEN"
+      ARKSIGNAL_ELEVATION_FT: "300"   # your height above sea level, for sea-level pressure</pre>
+  <p>Without Docker, run the script instead: <span class="mono">python3 arksignal_tempest_bridge.py --url YOUR-UPLOAD-ADDRESS --elevation-ft 300</span>{% if bridge_url %} (<a href="{{ bridge_url }}" target="_blank" rel="noopener">source and notes</a>){% endif %}.</p>
+  <p class="dim" style="margin-bottom:0"><b>One network rule:</b> the hub's announcement is a broadcast, which stays inside its own network (VLAN). Run the bridge on the same network as the hub, or give its container an address on that network (on Unraid, a VLAN interface; with a UniFi switch, tag that network on the port). The bridge only listens and sends readings out, so it needs internet access to reach this site and nothing else.</p>
+  <p class="dim" style="margin-bottom:0">Why not read the Tempest cloud directly? WeatherFlow's rules allow its cloud data only for the owner's personal use; showing members' stations on a shared site needs an agreement with them. If that changes, a cloud option can be added.</p>
+{% endcall %}
+
+{% call sec('a-script-or-anything-else', 'A Script or Anything Else (JSON)', False) %}
+  <p style="margin-top:0">Anything that can send a web request can feed the network. Post a JSON object to your station's upload address. Either put the unit in each value, or name them in the units you have (<span class="mono">temp_c</span>, <span class="mono">wind_kph</span>, <span class="mono">pressure_hpa</span>, <span class="mono">rain_day_mm</span> and so on; your station's page lists them):</p>
+  <pre class="code">curl -X POST {{ relay_base }}/wx/relay/YOUR-TOKEN -H 'Content-Type: application/json' \
+  -d '{"temperature": {"value": 21.5, "unit": "°C"}, "humidity": {"value": 55, "unit": "%"}, "pressure": {"value": 1013, "unit": "hPa"}, "wind_speed": {"value": 12, "unit": "km/h"}}'</pre>
+  <p style="margin-bottom:0" class="dim">Home Assistant without the integration works the same way with a <span class="mono">rest_command</span>. The older form with the unit in the name keeps working.</p>
+{% endcall %}
+
+{% call sec('reading-your-ecowitt-net-account', 'Reading Your Ecowitt.net Account', False) %}
+  <p style="margin-top:0">{% if ecowitt_pull %}If you would rather not change your gateway, you can give the site your own Ecowitt.net <b>application key, API key and the device's MAC address</b> and it reads your station about every 5 minutes. Choose <b>Ecowitt.net account</b> when you add the station. Your keys are stored sealed and used only to read your station; you can delete the station and its keys at any time.{% else %}Reading Ecowitt.net accounts is switched off on this site at the moment. Use the push route above.{% endif %}</p>
+  {% if tempest_pull %}<p>Tempest accounts can also be read with your own personal access token.</p>{% endif %}
+  <p class="dim" style="margin-bottom:0">Pages for a station read this way credit Ecowitt (or WeatherFlow for Tempest) and link back.</p>
+{% endcall %}
+
+{% call sec('send-to-the-aprs-network', 'Send Your Weather to the APRS Network (CWOP and APRS-IS)', False) %}
+  <p style="margin-top:0">Once your station is reporting here, the site can also pass its readings on to the amateur radio APRS network, as a weather packet, for the Citizen Weather Observer Program (CWOP, which feeds the National Weather Service) or for any APRS-IS user. It is off until you turn it on.</p>
+  <ol>
+    <li>Open your station on <a href="/my/weather">My Weather Stations</a> and find <b>Send to the APRS Network</b>.</li>
+    <li>For CWOP, enter the station ID CWOP gave you (letters like CW1234 or your own call sign, registered at <a href="https://wxqa.com/" target="_blank" rel="noopener">wxqa.com</a>). For APRS-IS, a licensed amateur enters their call sign with a suffix such as -13.</li>
+    <li>Use <b>Preview the Packet</b> to see exactly what would be sent, then switch it on. The site sends at the interval you choose (never faster than the site's minimum) and shows when the last report went and any problem.</li>
+  </ol>
+  <p style="margin-bottom:0" class="dim">Only the station's owner can switch it on, and only for a station with a position. Your precise position is sent only if you chose to share it; otherwise the packet carries the rounded position your privacy choice allows.</p>
+{% endcall %}
+
+{% call sec('your-data-and-privacy', 'Your Data and Privacy', False) %}
+  <ul class="plain" style="margin-top:0">
+    <li>Nothing is public until you tick <b>Show this station publicly</b>. You can switch that off, or delete the station and all its readings, at any time.</li>
+    <li>Public pages show readings, charts, your station name, hardware and the owner name or call sign you have chosen. The position follows your privacy choice.</li>
+    <li>The upload address is a secret. If it leaks, make a new one on your station's page and the old one stops working at once.</li>
+  </ul>
+{% endcall %}
+
+{% call sec('more-help', 'More Help', False) %}
+  <ul class="plain" style="margin:0">
+    <li><a href="/weather/">Weather Stations</a>: the network's weather map and list.</li>
+    <li><a href="/my/weather">My Weather Stations</a>: add and manage yours.</li>
+    <li>{{ other_feeds() }}</li>
+    <li><a href="/contact">Contact</a> someone from the network if you are stuck.</li>
+  </ul>
+{% endcall %}
+{% endblock %}

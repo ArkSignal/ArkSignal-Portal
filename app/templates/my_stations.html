@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}All My Stations{% endblock %}
+{% block content %}
+<h1>All My <span>Stations</span></h1>
+<div class="sub">Signed in as {{ current_user.username }}. Everything you run or have claimed on {{ site_name }}, by service. Each opens its own page.</div>
+{% with active = 'stations' %}{% include "partials/_my_subnav.html" %}{% endwith %}
+<div class="tiles" style="grid-template-columns:repeat(auto-fill,minmax(280px,1fr))">
+  {% for c in cards %}
+  <div class="panel tile" id="ms-{{ c.key }}">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><div class="tl" style="font-size:1rem"><b>{{ c.title }}</b></div><div class="tv" style="font-size:1.6rem">{{ c.count }}</div></div>
+    <div class="tl">{{ c.blurb }}{% if c.extra %}<br>{{ c.extra }}{% endif %}</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><a class="btn small" href="{{ c.open }}" style="margin:0">{{ 'Open' if c.count else 'Set Up' }}</a><a class="btn small neutral" href="{{ c.add }}" style="margin:0">{{ c.add_label }}</a></div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

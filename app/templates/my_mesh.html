@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}My Mesh Nodes{% endblock %}
+{% block content %}
+<h1>My <span>Mesh Nodes</span></h1>
+<div class="sub">Signed in as {{ current_user.username }}. A mesh login is a private username and password for your Meshtastic or MeshCore node (or the computer beside it) to send what it hears to this site. Each login is its own: switching one off never touches another.</div>
+{% with active = 'mesh' %}{% include "partials/_my_subnav.html" %}{% endwith %}
+{% if not conn.open %}<div class="panel" style="border-color:var(--acc2);margin-bottom:14px">The community broker is not open to nodes yet, so a login cannot be used today. You can make yours now and it will be ready.</div>{% endif %}
+{% if rows %}
+<div class="tiles" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))">
+  {% for r in rows %}
+  <a class="panel tile" href="/my/mesh/{{ r.id }}" style="text-decoration:none;color:inherit">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div class="tv" style="font-size:1.1rem">{{ r.label or 'Unnamed login' }}</div>{% if r.disabled %}<span class="tag off">switched off</span>{% endif %}</div>
+    <div class="tl mono">{{ r.username }}</div>
+    <div class="tl">{% if r.nodes %}Node(s): {{ r.nodes }}{% else %}No node listed{% endif %}</div>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+{% if full %}<div class="panel" style="margin-top:14px"><p class="dim" style="margin:0">You have {{ limit }} mesh logins, the most one account may make.</p></div>
+{% else %}
+<details class="panel setsec" id="sec-make-a-login" {{ 'open' if add_open }} style="margin-top:14px"><summary><span class="role-name">Make a Login</span></summary><form method="post" action="/my/mesh/add">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  {% with fp = "mm", r = none %}{% include "partials/_mesh_form_fields.html" %}{% endwith %}
+  <button class="btn" type="submit">Make Login</button>
+</form></details>
+{% endif %}
+<details class="panel setsec" id="sec-claims" {{ 'open' if claims }} style="margin-top:14px"><summary><span class="role-name">My Nodes ({{ claims | length }})</span></summary><div class="secbody">
+  <p style="margin-top:0">Claim a node to show that it is yours: you choose whether your name is shown as its operator, and you can take it off the mesh pages. To prove it, put the code you are given into the node's name (Meshtastic: the long name; MeshCore: the name), let it send its information, and the claim completes by itself.</p>
+  {% if claims %}<table><thead><tr><th>Node</th><th>Status</th><th></th></tr></thead><tbody>
+  {% for c in claims %}<tr><td class="mono"><a href="/mesh/{{ slug(c.node_key) | replace('!', '') }}">{{ c.node_key[:22] }}{{ '...' if c.node_key | length > 22 }}</a></td>
+    <td>{% if c.status == 'claimed' %}<b>Claimed</b>{% else %}Waiting: put <span class="mono copyable">{{ c.code }}</span> in the node's name{% endif %}</td>
+    <td style="white-space:nowrap">{% if c.status != 'claimed' %}<form method="post" action="/my/mesh/claims/{{ c.id }}/check" style="display:inline" data-async><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small" type="submit">Check Now</button></form> {% endif %}
+      <form method="post" action="/my/mesh/claims/{{ c.id }}/delete" style="display:inline" data-confirm="Remove this claim?"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small danger" type="submit">Remove</button></form></td></tr>
+  {% if c.status == 'claimed' %}<tr><td colspan="3"><form method="post" action="/my/mesh/claims/{{ c.id }}/save" data-async style="display:flex;gap:16px;flex-wrap:wrap;align-items:center"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" name="public" value="1" {{ 'checked' if c.public }}> Show my name as the operator</label>
+    <label style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" name="hide" value="1" {{ 'checked' if c.owner_hidden }}> Hide this node from every mesh page</label>
+    <button class="btn small" type="submit">Save</button></form></td></tr>{% endif %}{% endfor %}</tbody></table>{% endif %}
+  <form method="post" action="/my/mesh/claim" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:10px"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div><label for="cl-node">Node ID (!a1b2c3d4) or MeshCore public key</label><input type="text" id="cl-node" name="node" maxlength="80" required style="width:340px" placeholder="!a1b2c3d4"></div>
+    <button class="btn" type="submit" style="margin:0 0 2px">Claim This Node</button></form>
+</div></details>
+<p class="dim">How to set up a node is on <a href="/feed/mesh">How to Feed the Mesh Map</a>.</p>
+{% endblock %}

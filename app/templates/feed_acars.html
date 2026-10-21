@@ -1,0 +1,192 @@
+{% extends "feed_base.html" %}
+{% from "partials/_feedsec.html" import sec, other_feeds with context %}
+{% block title %}ACARS | How to Feed{% endblock %}
+{% block feed_body %}
+<h1>How to <span>Feed</span> ACARS</h1>
+<div class="sub">Share your ACARS, VDL Mode 2 or HF datalink receiver with {{ site_name }}. If you already run the SDR Enthusiasts' ACARS stack (acarsdec, vdlm2dec and acars_router, or ACARS Hub), it takes one extra small container. The messages appear on the <a href="/acars/">ACARS page</a> and on the card of the aircraft they belong to.</div>
+
+{% call sec('the-short-version', 'The Short Version', True) %}
+  <p style="margin:0 0 10px">Run the ArkSignal bridge next to your decoders and point <span class="mono">acars_router</span> at it:</p>
+  <pre class="code">python3 acars_bridge.py {{ base }}/acars/push/YOUR-TOKEN</pre>
+  <p style="margin:10px 0 0">The bridge is one small file you download from <span class="mono">{{ bridge }}</span>; your token is in the private upload address on your station's page. The full Docker example is under <a href="#sec-software-setup">Software Setup</a>.</p>
+  <p class="dim" style="margin:10px 0 0">First <a href="/my/register">create an account</a> and add the station on <a href="/my/acars">My ACARS Stations</a>: that gives you the token. Nothing is public until you tick <b>Show this station publicly</b>. Everything the network is doing right now is on the <a href="/status">service status</a> page.</p>
+{% endcall %}
+
+{% call sec('how-it-works', 'How It Works', True) %}
+  <p style="margin-top:0"><b>ACARS</b> (Aircraft Communications Addressing and Reporting System) is the short text messages between an aircraft and its airline or air traffic control: departure and arrival times, position reports, weather requests, maintenance messages, clearances. They are sent on open, public airwaves and anyone with a small antenna and a USB radio can decode them, which is why hobby receivers all over the world collect them.</p>
+  <p>Your decoder turns what your radio hears into JSON text. A small bridge on your computer passes each message over https to an address on this site that only you know. The site keeps the message (once, even if two stations heard it) and shows it on the ACARS page and on the details card of the aircraft, matched by tail number or by its ICAO address. The messages come to the network in several ways:</p>
+  <table style="width:100%">
+    <tr><th style="width:190px">Link</th><th>What it is</th></tr>
+    <tr><td><b>ACARS (VHF)</b></td><td>The original datalink, about 129 to 131 MHz in the United States (131.550 and 131.525 are the busiest). Decoded with <span class="mono">acarsdec</span>.</td></tr>
+    <tr><td><b>VDL Mode 2</b></td><td>The newer digital VHF link (136.650 to 136.975 MHz). The same messages, faster. Decoded with <span class="mono">dumpvdl2</span> or <span class="mono">vdlm2dec</span>.</td></tr>
+    <tr><td><b>HFDL</b></td><td>The HF datalink for aircraft out of VHF range (3 to 22 MHz). Decoded with <span class="mono">dumphfdl</span>; needs a radio that covers HF.</td></tr>
+    <tr><td><b>Satellite</b></td><td>Inmarsat (JAERO) and Iridium (iridium-toolkit) carry the same kind of messages and ADS-C position reports from far outside ADS-B range. Their output can go through the same bridge. The position an aircraft reports in these ADS-C and HFDL messages (their own latitude and longitude fields, not just text) is read too, so aircraft far outside ADS-B range appear on the live map's ACARS positions layer, dimmed, with the age of the report.</td></tr>
+  </table>
+  <p style="margin-bottom:0">Your <b>location privacy</b> works as it does for ADS-B feeders: you choose how precisely the station is shown. {{ privacy_help() }}</p>
+{% endcall %}
+
+{% call sec('what-you-need', 'What You Need', True) %}
+  <ul class="plain">
+    <li><b>A receiver:</b> an RTL-SDR style USB dongle. One dongle covers one slice of VHF; a second dongle lets you listen to ACARS and VDL2 at the same time.</li>
+    <li><b>An antenna</b> for the VHF airband (about 130 MHz), mounted as high as you can with a clear view. A simple airband or wideband antenna works.</li>
+    <li><b>Coax cable</b> to connect them, as short as practical.</li>
+    <li><b>A small always-on computer:</b> a Raspberry Pi or any Linux machine that can run Docker (it can be the same one that runs your ADS-B feeder).</li>
+    <li><b>A network connection</b> that can reach <span class="mono">{{ base | replace('https://', '') }}</span> over https (see <a href="#sec-ports">Ports</a>).</li>
+  </ul>
+{% endcall %}
+
+{% call sec('hardware', 'Hardware', False, True) %}
+  <table>
+    <tr><th>Item</th><th>Options and Notes</th></tr>
+    <tr><td>Receiver</td><td>
+      <a href="https://www.rtl-sdr.com/buy-rtl-sdr-dvb-t-dongles/" target="_blank" rel="noopener">RTL-SDR Blog V4</a> is a popular low-cost choice and covers VHF and HF (its HF input works without a converter).
+      Any RTL-SDR dongle covers the VHF airband. Give each dongle its own serial number (<span class="mono">rtl_eeprom -s</span>) so each container opens the right one.</td></tr>
+    <tr><td>Antenna</td><td>A VHF airband antenna or a wideband discone. Outdoors and high beats indoors and low. For HFDL a long wire or a dedicated HF antenna is needed.</td></tr>
+    <tr><td>Filter or LNA</td><td>A VHF airband filter (or a broadcast FM notch) helps where FM stations or pagers overload the dongle.</td></tr>
+    <tr><td>Computer</td><td><a href="https://www.raspberrypi.com/products/" target="_blank" rel="noopener">Raspberry Pi</a> 3, 4 or 5, or any small Linux machine or home server that runs Docker.</td></tr>
+    <tr><td>Decoder software</td><td><a href="https://github.com/sdr-enthusiasts/docker-acarshub" target="_blank" rel="noopener">ACARS Hub</a> and its companion containers from the SDR Enthusiasts project, or the decoders on their own: <a href="https://github.com/TLeconte/acarsdec" target="_blank" rel="noopener">acarsdec</a>, <a href="https://github.com/szpajder/dumpvdl2" target="_blank" rel="noopener">dumpvdl2</a>, <a href="https://github.com/szpajder/dumphfdl" target="_blank" rel="noopener">dumphfdl</a>.</td></tr>
+  </table>
+{% endcall %}
+
+{% call sec('hardware-setup', 'Hardware Setup', True) %}
+  <ol class="plain">
+    <li>Mount the antenna outdoors, as high as possible, away from metal obstructions and other antennas.</li>
+    <li>Connect the antenna to the receiver with the shortest practical run of good coax. A filter goes between the antenna and the cable run.</li>
+    <li>Plug the receiver into the computer's USB port, preferably USB 2.0 or a short extension cable to keep it away from the computer's noise.</li>
+    <li>If you use two dongles (ACARS and VDL2), set a different serial number on each before you plug in both, and keep the same ADS-B dongle away from them.</li>
+    <li>Give the computer a reliable network connection; a cable is better than Wi-Fi.</li>
+  </ol>
+{% endcall %}
+
+{% call sec('software-setup', 'Software Setup', True) %}
+  <p style="margin-top:0">The usual route is the <a href="https://github.com/sdr-enthusiasts/docker-acarshub" target="_blank" rel="noopener">SDR Enthusiasts ACARS stack</a>: one container per decoder, an <span class="mono">acars_router</span> that collects their output, and (here) the ArkSignal bridge as one more destination.</p>
+  <h3 style="margin:14px 0 6px;font-size:1rem">New station (Docker)</h3>
+  <ol class="plain">
+    <li>Install a Linux operating system and Docker as for the <a href="/feed/">ADS-B feeder</a>.</li>
+    <li>Add your station on <a href="/my/acars">My ACARS Stations</a> and copy its <b>upload address</b> (it ends in your token).</li>
+    <li>Download the bridge next to your compose file: <span class="mono copyable">curl -O {{ bridge }}</span></li>
+    <li>Create <span class="mono">/opt/adsb/acars/compose.yaml</span> with the example below, replacing the values in capitals.</li>
+    <li>Start it with <span class="mono copyable">docker compose up -d</span> in that folder.</li>
+  </ol>
+  <pre class="code">services:
+  acarsdec:                      # VHF ACARS, one dongle
+    image: ghcr.io/sdr-enthusiasts/docker-acarsdec:latest
+    container_name: acarsdec
+    restart: unless-stopped
+    device_cgroup_rules:
+      - "c 189:* rwm"
+    environment:
+      - TZ=America/Chicago
+      - SOAPY_DEVICE_STRING=driver=rtlsdr,serial=ACARS_DONGLE_SERIAL
+      - FREQUENCIES=131.550;131.525;130.025;130.425;130.450;129.125
+      - GAIN=-10
+      - OUTPUT_SERVER=acars_router
+      - OUTPUT_SERVER_PORT=5550
+      - OUTPUT_SERVER_MODE=udp
+    volumes:
+      - /dev/bus/usb:/dev/bus/usb
+    tmpfs:
+      - /run:exec,size=64M
+      - /tmp:size=64M
+
+  dumpvdl2:                      # VDL Mode 2, a second dongle
+    image: ghcr.io/sdr-enthusiasts/docker-dumpvdl2:latest
+    container_name: dumpvdl2
+    restart: unless-stopped
+    device_cgroup_rules:
+      - "c 189:* rwm"
+    environment:
+      - TZ=America/Chicago
+      - SERIAL=VDL2_DONGLE_SERIAL
+      - FREQUENCIES=136650000;136700000;136725000;136775000;136800000;136825000;136875000;136900000;136975000
+      - GAIN=-10
+      - DUMPVDL2_OUTPUT_TO_ACARS_ROUTER=acars_router:5555
+    volumes:
+      - /dev/bus/usb:/dev/bus/usb
+    tmpfs:
+      - /run:exec,size=64M
+      - /tmp:size=64M
+
+  acars_router:                  # collects the decoders and sends everything to the bridge
+    image: ghcr.io/sdr-enthusiasts/acars_router:latest
+    container_name: acars_router
+    restart: unless-stopped
+    environment:
+      - TZ=America/Chicago
+      - AR_LISTEN_UDP_ACARS=5550
+      - AR_LISTEN_UDP_VDLM2=5555
+      - AR_SEND_UDP_ACARS=ark_bridge:5560
+      - AR_SEND_UDP_VDLM2=ark_bridge:5560
+      - AR_SEND_UDP_HFDL=ark_bridge:5560
+      - AR_OVERRIDE_STATION_NAME=YOUR_STATION_ID
+
+  ark_bridge:                    # the ArkSignal ACARS bridge: https to your private address
+    image: python:3.12-slim
+    container_name: ark_bridge
+    restart: unless-stopped
+    environment:
+      - ARK_LISTEN_PORT=5560
+    volumes:
+      - ./acars_bridge.py:/b.py:ro
+    command: python -u /b.py {{ base }}/acars/push/YOUR-TOKEN</pre>
+  <p class="dim">Replace <span class="mono">ACARS_DONGLE_SERIAL</span> and <span class="mono">VDL2_DONGLE_SERIAL</span> with the serial numbers you gave the dongles (<span class="mono">rtl_test</span> lists them), or delete the whole container for a link you do not receive. The frequencies are examples for the United States: check the decoders' own documentation for the options each image takes. {{ site_name }} only needs the JSON the decoders already send to <span class="mono">acars_router</span>.</p>
+  <h3 style="margin:14px 0 6px;font-size:1rem">Already running ACARS Hub or acars_router</h3>
+  <p style="margin:0">Keep your configuration and add the bridge (the last container above), then add one destination to your existing <span class="mono">acars_router</span>: <span class="mono">AR_SEND_UDP_ACARS=ark_bridge:5560</span> and <span class="mono">AR_SEND_UDP_VDLM2=ark_bridge:5560</span> (add the others you already use, separated by semicolons: <span class="mono">AR_SEND_UDP_ACARS=acarshub:5550;ark_bridge:5560</span>). If the bridge runs on another computer, use that computer's address instead of <span class="mono">ark_bridge</span>.</p>
+  <h3 style="margin:14px 0 6px;font-size:1rem">Not using Docker, or not using acars_router?</h3>
+  <p style="margin:0 0 6px">The bridge is a single Python file with no extras; run it on any computer with Python 3 and point the decoders at it directly:</p>
+  <pre class="code">python3 acars_bridge.py {{ base }}/acars/push/YOUR-TOKEN
+acarsdec -j 127.0.0.1:5555 -r 0 131.550 131.525
+dumpvdl2 --output decoded:json:udp:address=127.0.0.1,port=5555 --rtlsdr 0 136650000 136975000
+dumphfdl --output decoded:json:udp:address=127.0.0.1,port=5555 --system-table /etc/dumphfdl/systable.conf --soapysdr driver=rtlsdr 8942 11184</pre>
+  <p class="dim" style="margin-bottom:0">The bridge listens on UDP port 5555 unless <span class="mono">ARK_LISTEN_PORT</span> says otherwise. A satellite receiver (JAERO, iridium-toolkit) that can write JSON to UDP uses the same address.</p>
+{% endcall %}
+
+{% call sec('after-you-are-feeding', 'After You Are Feeding', True) %}
+  <ol class="plain">
+    <li>Open your station on <a href="/my/acars">My ACARS Stations</a>: the status turns to <b>reporting</b> and the message count rises within a few minutes of the decoder hearing something. ACARS is bursty and a quiet hour is normal.</li>
+    <li>Watch the messages arrive on the <a href="/acars/">ACARS page</a>; filter by your station to see only yours.</li>
+    <li>Tick <b>Show this station publicly</b> when you are happy, set how precisely its place is shown, and describe your setup (bands, hardware).</li>
+    <li>An aircraft you can see on the <a href="/live">live map</a> shows its latest ACARS messages on its details card.</li>
+  </ol>
+{% endcall %}
+
+{% call sec('ports', 'Ports and Firewall', False, True) %}
+  <p style="margin-top:0">Your station only makes <b>outbound</b> connections. You do not need to open or forward anything on your router.</p>
+  <table>
+    <tr><th>What</th><th>Direction</th><th>Destination</th><th>Port</th></tr>
+    <tr><td>Messages from the bridge</td><td>outbound TCP (https)</td><td class="mono">{{ base | replace('https://', '') }}</td><td class="mono">443</td></tr>
+    <tr><td>Decoders to acars_router and the bridge</td><td>inside your computer (UDP)</td><td class="mono">your own Docker network</td><td class="mono">5550, 5555, 5560</td></tr>
+  </table>
+  <p class="dim" style="margin-bottom:0">If your network filters outbound traffic, allow https to the host name above. The UDP ports are between your own containers and are not exposed.</p>
+{% endcall %}
+
+{% call sec('troubleshooting', 'Troubleshooting', False, True) %}
+  <table>
+    <tr><th style="width:230px">Symptom</th><th>What to check</th></tr>
+    <tr><td>The bridge says it could not send</td><td>Look at <span class="mono">docker logs ark_bridge</span>. Check the computer's internet access and that the address is exactly the one on your station's page (a new address replaces the old one at once; <span class="mono">404</span> means the token is wrong or the station is switched off).</td></tr>
+    <tr><td>Nothing arrives and the bridge prints nothing</td><td>The decoders are not sending to it. In <span class="mono">docker logs acars_router</span> look for messages; check <span class="mono">AR_SEND_UDP_ACARS</span> and <span class="mono">AR_SEND_UDP_VDLM2</span> name the bridge and its port (5560 above).</td></tr>
+    <tr><td>The decoders print nothing</td><td><span class="mono">docker logs acarsdec</span> should show the radio opening. Check the dongle serial numbers, that nothing else (the ADS-B decoder) holds the radio, and that the antenna is connected.</td></tr>
+    <tr><td>Messages arrive but my station shows quiet</td><td>A station counts as reporting if it sent something in the last {{ stale }} minutes; a long quiet spell is normal on ACARS.</td></tr>
+    <tr><td>The same message shows from two stations</td><td>It is kept once and shows how many stations heard it.</td></tr>
+  </table>
+{% endcall %}
+
+{% call sec('your-data-and-privacy', 'Your Data and Privacy', False) %}
+  <ul class="plain" style="margin-top:0">
+    <li>Nothing about your station is public until you tick <b>Show this station publicly</b>. You can switch that off, or delete the station, at any time.</li>
+    <li>ACARS is sent on open, public airwaves, and the pages show what members' receivers hear: the time, the aircraft, the flight, the kind of message and, {% if visibility == 'everyone' %}for everyone{% elif visibility == 'members' %}for signed-in members{% else %}not{% endif %}, the text. Messages are kept for {{ keep }} days.</li>
+    <li>An aircraft's owner who wants its messages left off can ask (<a href="/contact">Contact</a>): its messages are deleted and no new ones are kept.</li>
+    <li>The upload address is a secret. If it leaks, make a new one on your station's page and the old one stops working at once. Your location follows your privacy choice.</li>
+  </ul>
+{% endcall %}
+
+{% call sec('more-help', 'More Help', False) %}
+  <ul class="plain" style="margin:0">
+    <li><a href="/acars/">ACARS</a>: the messages, with filters, and the <a href="/acars/stations/">stations</a>.</li>
+    <li><a href="/my/acars">My ACARS Stations</a>: add and manage yours.</li>
+    <li>{{ other_feeds() }}</li>
+    <li><a href="/status">Service status</a>: is the network itself working right now?</li>
+    <li><a href="/contact">Contact</a> someone from the network if you are stuck.</li>
+  </ul>
+{% endcall %}
+{% endblock %}

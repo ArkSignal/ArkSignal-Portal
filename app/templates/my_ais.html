@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% from "partials/_aisrx.html" import fields with context %}
+{% block title %}My AIS Stations{% endblock %}
+{% block content %}
+<h1>My <span>AIS Stations</span></h1>
+<div class="sub">Your AIS receivers (AIS-catcher, rtl_ais or any receiver that outputs standard AIS sentences) that send the boats and barges they hear to <a href="/ais/">River Traffic</a>. Each gets a private upload address. New to this? Read <a href="/feed/ais">How to Feed AIS</a>.</div>
+{% with active = 'ais' %}{% include "partials/_my_subnav.html" %}{% endwith %}
+
+{% call sec('add', 'Add a Station', False) %}
+  <form method="post" action="/my/ais/add" data-async data-async-target="#my-ais" data-reset>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {{ fields(none, 'new') }}
+    <button class="btn" type="submit">Add the Station</button>
+    <div class="help">You can have {{ limit }} stations.</div>
+  </form>
+{% endcall %}
+
+{% call sec('mine', 'Your Stations', True) %}
+  {% include "partials/_my_ais.html" %}
+{% endcall %}
+
+{% call sec('how', 'How to Send What You Hear', False) %}
+  <p style="margin-top:0">Run the <a href="/static/ais_bridge.py">ArkSignal AIS bridge</a> next to your receiver and give it the upload address from the station's card. It listens for the sentences your receiver sends over UDP and passes them on over https. The whole recipe, with AIS-catcher settings, is on <a href="/feed/ais">How to Feed AIS</a>.</p>
+  <pre class="code">python3 ais_bridge.py UPLOAD_ADDRESS</pre>
+  <p class="dim" style="margin-bottom:0">Without the bridge, any program that can post text works: <span class="mono">curl --data-binary @sentences.txt UPLOAD_ADDRESS</span> (one sentence per line, like <span class="mono">!AIVDM,1,1,,A,...</span>).</p>
+{% endcall %}
+{% endblock %}

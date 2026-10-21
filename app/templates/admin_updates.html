@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Updates{% endblock %}
+{% block content %}
+<h1><span>Admin</span> Updates</h1>
+<div class="sub">The version of the portal that is running, and updating it.</div>
+{% include "partials/_admin_subnav.html" %}
+{% call sec('updates', 'Software Updates', True, False) %}<div id="updates-panel">
+  <table>
+    <tr><th style="width:180px">Version</th><td class="mono">{{ info.version }}</td></tr>
+    <tr><th>Branch</th><td class="mono">{{ info.branch }}</td></tr>
+    <tr><th>Commit</th><td class="mono">{{ info.short_commit }}</td></tr>
+    <tr><th>Built</th><td class="mono">{{ info.built }}</td></tr>
+  </table>
+  <p class="dim" style="margin:10px 0 0"><a href="/release-notes">Release notes</a>: what each version added and fixed.</p>
+  <div class="grp">Release Check</div>
+  {% if update.update_available %}
+    <p style="margin:0 0 6px"><b>A newer release is available:</b> <span class="mono">{{ update.latest_stable_version }}</span> (you are running <span class="mono">{{ update.current_version }}</span>).</p>
+    <p class="dim" style="margin:0">{% if updater %}It installs on its own at the nightly update, or press Update Now.{% else %}Update with <span class="mono">docker compose pull &amp;&amp; docker compose up -d</span> in the portal folder on the hub; the database and settings are kept.{% endif %}</p>
+  {% elif update.update_available == false %}
+    <p style="margin:0">You are on the latest stable release (<span class="mono">{{ update.current_version }}</span>).</p>
+  {% elif update.error %}<p class="dim" style="margin:0">{{ update.error }}</p>
+  {% elif update.note %}<p class="dim" style="margin:0">{{ update.note }}</p>
+  {% else %}<p class="dim" style="margin:0">Not checked yet. The portal checks on its own on the schedule set under Admin &gt; Settings &gt; Scheduled Updates.</p>{% endif %}
+  {% if update.checked_at %}<p class="dim" style="margin:6px 0 0;font-size:.8rem">Last checked {{ update.checked_at | localtime }}.</p>{% endif %}
+  <div class="setsec-actions">
+    <form method="post" action="/admin/updates/check" style="margin:0"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small neutral" type="submit">Check Now</button></form>
+    {% if updater %}
+    <form method="post" action="/admin/updates/now" data-async data-confirm="Check for updates now and install them? The portal restarts if a new version is found." style="margin:0"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small" type="submit">Update Now</button></form>
+    {% else %}
+    <button class="btn small neutral" type="button" disabled title="The update service is not set up on this server">Update Now</button>
+    {% endif %}
+  </div>
+  {% if updater %}
+  <p class="help">Updates also install on their own every night at 4 a.m. Update Now does it right away for the portal, Grafana and Prometheus.</p>
+  {% else %}
+  <p class="help">Update Now is unavailable because the update service (Watchtower) is not set up on this server. On the hub it is installed by the one-time switch described in PRODUCTION_DEPLOY.md, section 0.</p>
+  {% endif %}
+</div>{% endcall %}
+{% include "partials/_livecontent_section.html" %}
+{% endblock %}

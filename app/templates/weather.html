@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Weather{% endblock %}
+{% block content %}
+{% include "partials/_wxicons.html" %}
+<link rel="stylesheet" href="{{ leaflet_base }}/leaflet.css" crossorigin="anonymous">
+<style>.wxpill{font:700 .74rem/1 'JetBrains Mono',monospace;padding:3px 6px;border-radius:9px;border:1px solid rgba(0,0,0,.35);white-space:nowrap;color:#071018;box-shadow:0 1px 4px rgba(0,0,0,.5)}.wxpill.off{opacity:.55}</style>
+<h1><span>Weather</span></h1>
+<div class="sub">Everything the network knows about the weather in and around Arkansas: members' own weather stations, radar and satellite, active warnings, earthquakes, rivers, space weather and the balloons that measure the upper air. <a href="/feed/weather">Add your station</a> &middot; <a href="/status">Service status</a></div>
+{% call sec('glance', 'Weather at a Glance', True) %}
+<div class="tiles" id="wx-glance" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">
+  <div class="panel tile" id="g-stations"><div class="tl" style="font-weight:700;font-size:1.05rem">Weather Stations</div><div class="tv">{{ live }} <span style="font-size:.6em">of {{ rows | length }}</span></div>
+    <div class="tl">Members' own stations reporting now. Temperature, wind, rain and more, each where its owner chooses to show it.</div>
+    <p style="margin:10px 0 0;display:flex;gap:8px;flex-wrap:wrap"><a class="btn small" href="#sec-stations">Stations</a><a class="btn small neutral" href="/feed/weather">Add Yours</a></p></div>
+  <div class="panel tile" id="g-alerts"><div class="tl" style="font-weight:700;font-size:1.05rem">Active Alerts</div><div class="tv" id="g-alerts-v">...</div>
+    <div class="tl" id="g-alerts-t">National Weather Service warnings, watches and advisories.</div>
+    <p style="margin:10px 0 0"><a class="btn small" href="/weather/map">Show on the Weather Map</a></p></div>
+  <div class="panel tile" id="g-radar"><div class="tl" style="font-weight:700;font-size:1.05rem">Radar and Satellite</div><div class="tv">Live</div>
+    <div class="tl">Radar, satellite cloud imagery and the wind, with station readings on top, all on the Weather Map.</div>
+    <p style="margin:10px 0 0;display:flex;gap:8px;flex-wrap:wrap"><a class="btn small" href="/weather/map">Weather Map</a><a class="btn small neutral" href="/weather/place">Weather for a Place</a>{% if goes_on %}<a class="btn small neutral" href="/weather/goes">GOES Imagery</a>{% endif %}</p></div>
+  <div class="panel tile" id="g-quakes"><div class="tl" style="font-weight:700;font-size:1.05rem">Earthquakes</div><div class="tv" id="g-quakes-v">...</div>
+    <div class="tl" id="g-quakes-t">Recent earthquakes in and around Arkansas (the New Madrid zone).</div>
+    <p style="margin:10px 0 0"><a class="btn small" href="/weather/map">Show on the Weather Map</a></p></div>
+  <div class="panel tile" id="g-rivers"><div class="tl" style="font-weight:700;font-size:1.05rem">Rivers and Lakes</div><div class="tv" id="g-rivers-v">...</div>
+    <div class="tl" id="g-rivers-t">River and lake gauges, colored by flood category.</div>
+    <p style="margin:10px 0 0"><a class="btn small" href="/weather/map">Show on the Weather Map</a></p></div>
+  {% if space_on %}<div class="panel tile" id="g-space"><div class="tl" style="font-weight:700;font-size:1.05rem">Space Weather</div><div class="tv" id="g-space-v">...</div>
+    <div class="tl" id="g-space-t">The sun and the earth's magnetic field, and what they mean for HF radio.</div>
+    <p style="margin:10px 0 0"><a class="btn small" href="/radio/space-weather">Space Weather</a></p></div>{% endif %}
+  {% if sonde_on %}<div class="panel tile" id="g-sondes"><div class="tl" style="font-weight:700;font-size:1.05rem">Weather Balloons</div><div class="tv">Upper air</div>
+    <div class="tl">Radiosondes launched twice a day measure the wind and temperature up to 100,000 feet; members' receivers track them.</div>
+    <p style="margin:10px 0 0;display:flex;gap:8px;flex-wrap:wrap"><a class="btn small" href="/sondes/">Radiosondes</a><a class="btn small neutral" href="/sondes/map">Radiosonde Map</a></p></div>{% endif %}
+  <div class="panel tile"><div class="tl" style="font-weight:700;font-size:1.05rem">Numbers and History</div><div class="tv">Stats</div>
+    <div class="tl">Charts and records from the stations over time.</div>
+    <p style="margin:10px 0 0"><a class="btn small" href="/weather/statistics">Weather Statistics</a></p></div>
+</div>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  function j(u) { return fetch(u, {credentials: "same-origin"}).then(function (r) { if (!r.ok) throw 0; return r.json(); }); }
+  function esc(t) { return String(t == null ? "" : t).replace(/[&<>"']/g, function (c) { return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]; }); }
+  j("/api/weather/alerts.geojson").then(function (g) {
+    var f = g.features || [], by = {}; f.forEach(function (x) { by[x.properties.event] = (by[x.properties.event] || 0) + 1; });
+    var names = Object.keys(by).sort(function (a, b) { return by[b] - by[a]; });
+    $("g-alerts-v").textContent = f.length ? String(f.length) : "None";
+    $("g-alerts-t").innerHTML = f.length ? names.slice(0, 4).map(function (n) { return esc(n) + (by[n] > 1 ? " (" + by[n] + ")" : ""); }).join(", ") + (names.length > 4 ? ", and more" : "") : "No warnings, watches or advisories right now for the area we watch.";
+  }).catch(function () { $("g-alerts-v").textContent = "-"; $("g-alerts-t").textContent = "The Weather Service alerts cannot be reached right now."; });
+  j("/api/quakes.geojson").then(function (g) {
+    var f = g.features || [], big = f.slice().sort(function (a, b) { return b.properties.mag - a.properties.mag; })[0];
+    $("g-quakes-v").textContent = f.length ? String(f.length) : "None";
+    $("g-quakes-t").textContent = big ? "Largest: M " + Number(big.properties.mag).toFixed(1) + ", " + big.properties.headline : "No earthquakes in the area in the recent days.";
+  }).catch(function () { $("g-quakes-v").textContent = "-"; });
+  j("/api/rivers.geojson").then(function (g) {
+    var f = g.features || [], hi = f.filter(function (x) { return x.properties.KIND !== "OK"; }), order = {MAJ: 4, MOD: 3, MIN: 2, ACT: 1};
+    hi.sort(function (a, b) { return order[b.properties.KIND] - order[a.properties.KIND]; });
+    $("g-rivers-v").innerHTML = f.length ? (hi.length ? hi.length + ' <span style="font-size:.6em">of ' + f.length + " gauges above normal</span>" : 'All normal <span style="font-size:.6em">' + f.length + " gauges</span>") : "-";
+    $("g-rivers-t").textContent = hi.length ? hi.slice(0, 3).map(function (x) { return x.properties.event; }).join("; ") : "No river or lake gauge is at or above its action stage.";
+  }).catch(function () { $("g-rivers-v").textContent = "-"; });
+  if ($("g-space")) j("/api/space-weather.json").then(function (d) {
+    if (!d.ok) throw 0;
+    var sc = d.scales || {};
+    $("g-space-v").innerHTML = "K " + (d.kp_now != null ? d.kp_now : "-") + ' <span style="font-size:.6em">flux ' + (d.sfi != null ? d.sfi : "-") + "</span>";
+    var bad = ["G", "R", "S"].filter(function (k) { return sc[k] && sc[k].scale !== "0"; }).map(function (k) { return k + sc[k].scale; });
+    $("g-space-t").textContent = bad.length ? "NOAA scales above normal: " + bad.join(", ") + "." : "Quiet: no NOAA storm scales above normal.";
+  }).catch(function () { $("g-space-v").textContent = "-"; });
+})();
+</script>
+{% endcall %}
+<h2 style="font-size:.78rem;text-transform:uppercase;letter-spacing:.14em;color:var(--dim);margin:22px 0 12px;font-weight:600">Weather Stations</h2>
+<div class="dim" style="font-size:.9rem;margin-bottom:10px">Real weather measured by members' own stations around Arkansas. Each station is shown where its owner chooses, so many positions are approximate.</div>
+<div class="subnav" style="margin-bottom:12px"><a class="{{ 'active' if units == 'imperial' }}" href="?units=imperial">&deg;F, mph, inches</a><a class="{{ 'active' if units == 'metric' }}" href="?units=metric">&deg;C, km/h, mm</a></div>
+
+<div class="tiles">
+  <div class="panel tile"><div class="tv">{{ rows | length }}</div><div class="tl">Public stations</div></div>
+  <div class="panel tile"><div class="tv">{{ live }}</div><div class="tl">Reporting now</div></div>
+  {% for label, r, v in extremes %}<div class="panel tile"><div class="tv">{{ v[0] }} <span style="font-size:.7em">{{ v[1] }}</span></div><div class="tl">{{ label }}: <a href="/weather/{{ r.sid }}">{{ r.name }}</a></div></div>{% endfor %}
+</div>
+
+<details class="panel setsec" id="sec-map" open style="margin-top:14px"><summary><span class="role-name">Map</span></summary><div class="secbody">
+  <div id="wxctl" style="margin-bottom:10px"></div>
+  <div style="padding:0;border-radius:10px;overflow:hidden;border:1px solid var(--line)"><div id="wxmap" style="height:420px"></div></div>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:8px"><a class="btn small" href="/weather/map">Open the Full Weather Map</a><span class="dim" style="font-size:.82rem">Layers, radar, filters and a station list.</span></div>
+</div></details>
+
+<details class="panel setsec" id="sec-stations" open style="margin-top:14px;overflow-x:auto"><summary><span class="role-name">Stations</span></summary><div class="secbody">
+  <div class="tfilterbar"><input type="search" class="tfilter" data-table="#wxlist" placeholder="Search stations by ID, name or owner" aria-label="Search stations"><span class="dim tcount"></span></div>
+  <table class="sortable" id="wxlist">
+    <tr><th data-sort="text">Station</th><th data-sort="text">Owner</th><th data-sort="text">Status</th><th data-sort="num">Temperature</th><th data-sort="num">Humidity</th><th data-sort="num">Wind</th><th data-sort="num">Pressure</th><th data-sort="num">Rain Today</th><th data-sort="num">Updated</th></tr>
+    {% for r in rows %}
+    <tr data-search="{{ r.sid }} {{ r.name }} {{ r.owner }}">
+      <td><a href="/weather/{{ r.sid }}"><b class="mono">{{ r.sid }}</b></a>{% if r.name and r.name != r.sid %}<br><span class="dim">{{ r.name }}</span>{% endif %}</td>
+      <td>{{ r.owner }}</td>
+      <td>{% if r.online %}<span class="tag live">online</span>{% else %}<span class="tag off">offline</span>{% endif %}</td>
+      <td class="mono" data-v="{{ r.latest.temp_f if r.latest.temp_f is not none else '' }}">{{ r.temp[0] }} {{ r.temp[1] }}</td>
+      <td class="mono" data-v="{{ r.latest.hum if r.latest.hum is not none else '' }}">{{ r.hum[0] }}{{ r.hum[1] }}</td>
+      <td class="mono" data-v="{{ r.latest.wind_mph if r.latest.wind_mph is not none else '' }}">{{ r.wind[0] }} {{ r.wind[1] }} {{ r.dir }}{% if r.latest.gust_mph is not none %}<br><span class="dim">gust {{ r.gust[0] }}</span>{% endif %}</td>
+      <td class="mono" data-v="{{ r.latest.press_in if r.latest.press_in is not none else '' }}">{{ r.press[0] }} {{ r.press[1] }}</td>
+      <td class="mono" data-v="{{ r.latest.rain_day_in if r.latest.rain_day_in is not none else '' }}">{{ r.rain[0] }} {{ r.rain[1] }}</td>
+      <td class="dim" style="white-space:nowrap">{{ r.last | localtime("%b %-d %H:%M") if r.last else 'never' }}</td>
+    </tr>
+    {% else %}<tr><td colspan="9" class="dim">No weather stations have been made public yet. <a href="/feed/weather">Add yours</a>.</td></tr>{% endfor %}
+  </table>
+</div></details>
+<p class="dim" style="margin-top:12px;font-size:.85rem">Readings come from the stations' owners. Where a station is read through its owner's own Ecowitt.net account the page says so and credits Ecowitt; Tempest stations carry the WeatherFlow credit.</p>
+
+<script src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script>
+<script src="/static/touchhit.js"></script>
+<script src="/static/labelfit.js"></script>
+<script src="/static/wxmap.js"></script>
+<script>
+(function () {
+  var map = L.map("wxmap").setView([{{ map_lat }}, {{ map_lon }}], {{ map_zoom }});
+  L.tileLayer({{ tile_url | tojson }}, {maxZoom: 19, attribution: {{ tile_attr | tojson }}}).addTo(map);
+  var wx = ArkWx.create(map, {units: {{ units | tojson }}, defaults: {metric: {{ wx_metric | tojson }}, arrows: {{ 'true' if wx_arrows else 'false' }}}});
+  wx.group.addTo(map);
+  document.getElementById("wxctl").innerHTML = wx.controlsHtml(false); wx.bind(document.getElementById("wxctl"));
+  setInterval(function () { if (!document.hidden) wx.load(); }, {{ wx_live }} * 1000);   // conditions change on the map as readings arrive
+  wx.load().then(function (pts) { if (pts.length > 1) map.fitBounds(pts.map(function (p) { return [p.lat, p.lon]; }), {padding: [30, 30], maxZoom: 9}); });
+})();
+</script>
+{% endblock %}

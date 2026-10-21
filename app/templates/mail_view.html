@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}{{ m.subject or '(no subject)' }} | Messages{% endblock %}
+{% block content %}
+<h1><span>Message</span></h1>
+<div class="sub"><a href="/my/messages?folder={{ folder if folder in ('inbox','sent','drafts','archive','trash') else 'inbox' }}">Back to {{ dict(folders).get(folder, 'Messages') }}</a></div>
+{% include "partials/_my_subnav.html" %}
+{% include "partials/_mailnav.html" %}
+{% call sec('message', m.subject or '(no subject)', True) %}
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+    <a class="btn small" href="/my/messages/compose?reply={{ m.id }}" style="margin:0">Reply</a>
+    {% if names | length > 1 %}<a class="btn small neutral" href="/my/messages/compose?reply={{ m.id }}&all=1" style="margin:0">Reply to All</a>{% endif %}
+    {% if m.rcpt is not none %}
+      {% if folder == 'inbox' %}<button class="btn small neutral" type="button" data-one="archive" style="margin:0">Archive</button>{% elif folder == 'archive' %}<button class="btn small neutral" type="button" data-one="inbox" style="margin:0">Move to Inbox</button>{% endif %}
+      {% if folder != 'trash' %}<button class="btn small neutral" type="button" data-one="trash" style="margin:0">Delete</button>{% else %}<button class="btn small neutral" type="button" data-one="restore" style="margin:0">Restore</button>{% endif %}
+      <button class="btn small neutral" type="button" data-one="unread" style="margin:0">Mark Unread</button>
+      <button class="btn small neutral" type="button" id="mv-report" style="margin:0">Report</button>
+      {% if not mine %}<button class="btn small neutral" type="button" id="mv-block" data-user="{{ m.sender_name }}" style="margin:0">Block {{ m.sender_name }}</button>{% endif %}
+    {% elif m.sender_folder == 'sent' %}<button class="btn small neutral" type="button" data-one="trash" style="margin:0">Delete</button>
+    {% elif m.sender_folder == 'trash' %}<button class="btn small neutral" type="button" data-one="restore" style="margin:0">Restore</button>{% endif %}
+    <span id="mv-note" class="dim" role="status" style="align-self:center"></span>
+  </div>
+  {% for t in thread %}<div class="panel" style="margin:0 0 10px;{{ 'border-color:var(--acc)' if t.id == m.id }}">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:baseline"><b>{{ 'You' if t.sender_id == current_user.id else t.sender_name }}</b><span class="dim" style="font-size:.8rem">to {{ t.draft_to }}</span>
+      <time class="ts dim" style="margin-left:auto;font-size:.78rem" datetime="{{ t.sent_at.isoformat() }}" data-fmt="dt">{{ t.sent_at }}</time></div>
+    {% if thread | length > 1 %}<div class="dim" style="font-size:.84rem">{{ t.subject }}</div>{% endif %}
+    <div style="white-space:pre-wrap;word-break:break-word;margin-top:6px">{{ t.body }}</div></div>{% endfor %}
+{% endcall %}
+<script>
+(function () {
+  var csrf = "{{ csrf_token() }}", note = document.getElementById("mv-note");
+  function post(url, data) { var f = new FormData(); f.append("csrf_token", csrf); Object.keys(data || {}).forEach(function (k) { f.append(k, data[k]); }); return fetch(url, { method: "POST", body: f, credentials: "same-origin" }).then(function (r) { return r.json(); }); }
+  Array.prototype.forEach.call(document.querySelectorAll("[data-one]"), function (b) { b.addEventListener("click", function () { post("/my/messages/bulk", { act: b.getAttribute("data-one"), ids: "{{ m.id }}" }).then(function () { location.href = "/my/messages"; }); }); });
+  var r = document.getElementById("mv-report"); if (r) r.addEventListener("click", function () { var why = prompt("Why are you reporting this message? (optional)"); if (why === null) return; post("/my/messages/{{ m.id }}/report", { note: why }).then(function (d) { note.textContent = d.message || ""; }); });
+  var bl = document.getElementById("mv-block"); if (bl) bl.addEventListener("click", function () { var u = bl.getAttribute("data-user"); if (confirm("Block " + u + "?")) post("/my/friends/" + encodeURIComponent(u) + "/block").then(function (d) { note.textContent = d.message || ""; }); });
+})();
+</script>
+{% endblock %}

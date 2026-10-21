@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Interesting Aircraft{% endblock %}
+{% block content %}
+<h1><span>Admin</span> Interesting Aircraft</h1>
+<div class="sub">Our own list of aircraft worth a second look: it feeds the live map's <b>Interesting</b> flag (filter, label and details) next to the flag tar1090's database already carries. Add aircraft by hand, import a CSV, or bring in the Plane-Alert database.</div>
+{% include "partials/_admin_subnav.html" %}
+<div class="tiles" style="margin-bottom:14px">
+  <div class="panel tile"><div class="tv">{{ st.counts.total }}</div><div class="tl">Flagged</div></div>
+  <div class="panel tile"><div class="tv">{{ st.counts.yours }}</div><div class="tl">Added or Imported by You</div></div>
+  <div class="panel tile"><div class="tv">{{ st.counts.planealert }}</div><div class="tl">From Plane-Alert</div></div>
+  <div class="panel tile"><div class="tv">{{ st.counts.excluded }}</div><div class="tl">Excluded</div></div>
+</div>
+<details class="panel setsec" id="sec-add-aircraft" open><summary><span class="role-name">Add an Aircraft</span></summary><form method="post" action="/admin/interesting/add" data-async data-async-target="#intlist">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div style="display:flex;gap:12px;flex-wrap:wrap">
+    <div><label for="inthex">Hex code</label><input type="text" id="inthex" name="hex" maxlength="7" style="width:110px" placeholder="ae0123" required></div>
+    <div><label for="intreg">Registration</label><input type="text" id="intreg" name="reg" maxlength="12" style="width:120px"></div>
+    <div><label for="inttype">Type</label><input type="text" id="inttype" name="type" maxlength="8" style="width:90px" placeholder="C17"></div>
+    <div><label for="intcat">Category</label><input type="text" id="intcat" name="category" maxlength="60" style="width:190px" placeholder="for example Historic"></div>
+  </div>
+  <label for="intnote">Note</label><input type="text" id="intnote" name="note" maxlength="300" placeholder="why this aircraft is interesting">
+  <div class="setsec-actions"><button class="btn" type="submit">Add</button></div>
+</form></details>
+<details class="panel setsec" id="sec-import-csv" style="margin-top:10px"><summary><span class="role-name">Import a CSV File</span></summary><form method="post" action="/admin/interesting/import" enctype="multipart/form-data" data-async data-async-target="#intlist">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <p style="margin-top:0">The first line names the columns: <span class="mono">hex, registration, type, category, note, owner, link</span>. Only <b>hex</b> is required (the columns of the Plane-Alert file work as they are). <a href="/admin/interesting/template.csv">Download a template</a>.</p>
+  <label for="intfile">CSV file</label><input type="file" id="intfile" name="file" accept=".csv,text/csv,text/plain">
+  <label for="intpaste">Or paste the list</label><textarea id="intpaste" name="pasted" rows="4" style="width:100%;font-family:'JetBrains Mono',monospace;font-size:.8rem;background:var(--input-bg);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:8px"></textarea>
+  <div class="setsec-actions"><button class="btn neutral" type="submit" name="mode" value="preview">Preview</button> <button class="btn" type="submit" name="mode" value="import">Import</button></div>
+  <div class="help">An aircraft you already added by hand is kept as it is; one you excluded stays excluded.</div>
+</form></details>
+<details class="panel setsec" id="sec-plane-alert" style="margin-top:10px"><summary><span class="role-name">Plane-Alert Database</span></summary><form method="post" action="/admin/interesting/planealert" data-async data-async-target="#intlist">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <p style="margin-top:0">The community list behind Planefence's Plane-Alert (military, government, police, historic, rare and notable aircraft), published under the Open Database License. {% if pa_categories %}Importing only: <span class="mono" style="font-size:.78rem">{{ pa_categories }}</span>.{% else %}Importing every category.{% endif %} Change that in <a href="/admin/settings#sec-interesting-aircraft">Settings &gt; Interesting Aircraft</a>.</p>
+  <p class="dim" style="margin:8px 0 0">{% if st.last %}Last updated {{ st.last | localtime }}: {{ st.summary }}.{% else %}Not downloaded yet.{% endif %} It also updates by itself (Admin &gt; Data Updates). Entries it brought are replaced each time; yours are never touched.</p>
+  {% if st.categories %}<details style="margin-top:8px"><summary class="dim">Categories in the last download ({{ st.categories | length }})</summary><p class="mono" style="font-size:.78rem">{% for k, n in st.categories %}{{ k }} ({{ n }}){{ ', ' if not loop.last }}{% endfor %}</p></details>{% endif %}
+  <button class="btn" type="submit">Download and Update Now</button>
+</form></details>
+<h2 style="font-size:.78rem;text-transform:uppercase;letter-spacing:.14em;color:var(--dim);margin:26px 0 12px;font-weight:600">The List</h2>
+<form class="tfilterbar" method="get"><input type="search" name="q" value="{{ q }}" placeholder="Search by hex, registration, type, owner or note, then press Enter" aria-label="Search the list">
+  {% if st.categories %}<select name="category" aria-label="Category" onchange="this.form.submit()"><option value="">All categories</option>{% for k, n in st.categories %}<option value="{{ k }}" {{ 'selected' if k == category }}>{{ k }} ({{ n }})</option>{% endfor %}</select>{% endif %}
+  <span class="dim">{{ total }} found{{ ', showing the first 300' if total > 300 }}</span></form>
+{% include "partials/_interesting_list.html" %}
+{% endblock %}

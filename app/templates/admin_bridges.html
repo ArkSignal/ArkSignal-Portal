@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Radio Bridges{% endblock %}
+{% block content %}
+<h1><span>Admin</span> Radio Bridges</h1>
+<div class="sub">Who may send over APRS. A member's profile call sign is checked against the FCC's amateur license data; an active license in the member's own name is verified, a name that does not match waits here for your decision. You approve or revoke with a reason, and everything is in the <a href="/admin/audit">audit log</a>. The limits and the weekly re-check are in <a href="/admin/settings">Settings</a> (Radio Bridges) and <a href="/admin/data-updates/">Data Updates</a>.</div>
+{% include "partials/_admin_subnav.html" %}
+<div class="tiles" style="margin-bottom:14px">
+  <div class="panel tile"><div class="tv">{{ c.verified }}</div><div class="tl">Verified</div></div>
+  <div class="panel tile"><div class="tv">{{ c.review }}</div><div class="tl">Waiting for review</div></div>
+  <div class="panel tile"><div class="tv">{{ c.lapsed }}</div><div class="tl">License not active</div></div>
+  <div class="panel tile"><div class="tv">{{ c.revoked }}</div><div class="tl">Revoked</div></div>
+</div>
+{% if not required %}<div class="panel" style="border-color:var(--acc2);margin-bottom:14px">License verification is switched off in Settings: APRS sending is not checked.</div>{% endif %}
+{% if last_error %}<div class="panel" style="border-color:var(--acc2);margin-bottom:14px">The last license lookup failed: {{ last_error.split('|', 1)[-1] }}. Members keep their last status.</div>{% endif %}
+{% call sec('members', 'Members (' ~ rows | length ~ ')', True, True) %}
+  {% if rows %}<div style="overflow-x:auto"><table style="width:100%"><tr><th>Member</th><th>Call sign</th><th>Status</th><th>Checked</th><th>License to</th><th>Why</th><th>Actions</th></tr>
+  {% for r in rows %}<tr data-uid="{{ r.id }}"><td>{{ r.username }}{% if r.display_name %}<div class="dim" style="font-size:.78rem">{{ r.display_name }}</div>{% endif %}</td><td>{{ r.callsign or '-' }}</td>
+    <td><span class="tag {{ 'live' if r.eff == 'verified' else 'off' }}">{{ words[r.eff] }}</span>{% if r.bridge_aprs_ok %}<div class="dim" style="font-size:.78rem">APRS on</div>{% endif %}</td>
+    <td>{% if r.ham_checked %}<time class="ts" datetime="{{ r.ham_checked.isoformat() }}" data-fmt="dt">{{ r.ham_checked }}</time>{% else %}-{% endif %}</td><td>{{ r.ham_expires or '-' }}</td>
+    <td style="max-width:320px">{{ r.ham_reason or '-' }}{% if r.ham_licensee %}<div class="dim" style="font-size:.78rem">FCC name: {{ r.ham_licensee }}</div>{% endif %}{% if r.ham_warn %}<div style="font-size:.78rem;color:var(--acc2)">{{ r.ham_warn }}</div>{% endif %}</td>
+    <td><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn small neutral" data-act="check" style="margin:0">Check Now</button>
+      {% if r.ham_status == 'review' and r.ham_override != 'revoked' %}<button class="btn small" data-act="approve" style="margin:0">Approve</button>{% endif %}
+      {% if r.ham_override != 'revoked' %}<button class="btn small warn" data-act="revoke" style="margin:0">Revoke</button>{% else %}<button class="btn small neutral" data-act="clear" style="margin:0">Clear Revoke</button>{% endif %}</div></td></tr>{% endfor %}</table></div>
+  {% else %}<p class="dim" style="margin:0">Nobody has asked to be checked yet.</p>{% endif %}
+  <p id="ab-note" class="dim" role="status" style="margin:8px 0 0"></p>
+{% endcall %}
+<script>
+(function () {
+  var csrf = "{{ csrf_token() }}", note = document.getElementById("ab-note");
+  Array.prototype.forEach.call(document.querySelectorAll("[data-act]"), function (b) {
+    b.addEventListener("click", function () {
+      var act = b.getAttribute("data-act"), uid = b.closest("tr").getAttribute("data-uid"), reason = "";
+      if (act !== "check") { reason = prompt("Reason (kept in the audit log):"); if (!reason) return; }
+      var f = new FormData(); f.append("csrf_token", csrf); f.append("reason", reason);
+      fetch("/admin/bridges/" + uid + "/" + act, { method: "POST", body: f, credentials: "same-origin" }).then(function (r) { return r.json(); }).then(function (d) { note.textContent = d.message || ""; if (d.ok) setTimeout(function () { location.reload(); }, 900); });
+    });
+  });
+})();
+</script>
+{% endblock %}

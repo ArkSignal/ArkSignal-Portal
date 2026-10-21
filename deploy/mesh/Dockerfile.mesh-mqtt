@@ -1,0 +1,8 @@
+# The mesh broker: Mosquitto with the dynamic security plugin, started by mqtt-start.sh (logins are managed by the mesh service).
+# Built by build.yml as mallison01/adsb-mesh-mqtt and released with everything else (same latest/stable tags).
+FROM eclipse-mosquitto:2
+RUN apk add --no-cache openssl
+COPY deploy/mesh/mqtt-start.sh /mqtt-start.sh
+COPY BUILD_INFO /BUILD_INFO
+EXPOSE 1883 8883
+ENTRYPOINT ["sh", "/mqtt-start.sh"]

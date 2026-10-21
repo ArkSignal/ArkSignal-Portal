@@ -1,0 +1,19 @@
+{# The fields of the Add an ACARS Station form, shared by the member's page and the administrator's form for another account. Context: fp (id prefix), privacy. #}
+<label for="{{ fp }}sid">Station ID</label>
+<input type="text" id="{{ fp }}sid" name="station_id" maxlength="16" placeholder="For example KD5VCF-AC" style="max-width:240px" required>
+<div class="help">3 to 16 letters, numbers and dashes. It names the station on the public pages.</div>
+<label for="{{ fp }}name">Station Name</label>
+<input type="text" id="{{ fp }}name" name="name" maxlength="60" placeholder="For example Roof Antenna">
+<label for="{{ fp }}bands">Bands and Links (optional)</label>
+<input type="text" id="{{ fp }}bands" name="bands" maxlength="120" placeholder="For example VHF ACARS 131.550, VDL2 136.975">
+<div style="display:flex;gap:14px;flex-wrap:wrap">
+  <div><label for="{{ fp }}lat">Latitude (optional)</label><input type="text" id="{{ fp }}lat" name="lat" style="max-width:170px"></div>
+  <div><label for="{{ fp }}lon">Longitude (optional)</label><input type="text" id="{{ fp }}lon" name="lon" style="max-width:170px"></div>
+</div>
+<label for="{{ fp }}privacy">Location Privacy</label>
+<select id="{{ fp }}privacy" name="privacy">{% for k, v in privacy.items() %}<option value="{{ k }}" {{ 'selected' if k == 'general' }}>{{ v }}</option>{% endfor %}</select>
+<label for="{{ fp }}hw">Hardware (optional)</label>
+<input type="text" id="{{ fp }}hw" name="hardware" maxlength="200" placeholder="For example RTL-SDR Blog V4, acarsdec, acars_router">
+<label for="{{ fp }}desc">About the Station (optional)</label>
+<input type="text" id="{{ fp }}desc" name="description" maxlength="500">
+<label style="display:flex;gap:8px;align-items:center;margin:10px 0"><input type="checkbox" name="public" value="1" id="{{ fp }}pub"> Show this station publicly (its page and its place in the lists)</label>

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Choose a New Password{% endblock %}
+{% block content %}
+<div class="authpage">
+<h1>Choose a <span>New Password</span></h1>
+<div class="sub">This link works once.</div>
+<form class="panel narrow" method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <label for="new">New password</label>
+  <input type="password" id="new" name="new" autocomplete="new-password" autofocus required data-pwcheck data-minlen="{{ min_password }}" data-mix="{{ '1' if password_mix }}" data-confirm="#confirm">
+  <label for="confirm">Confirm new password</label>
+  <input type="password" id="confirm" name="confirm" autocomplete="new-password" required>
+  <div class="help">{{ password_rules }}</div>
+  <button class="btn" type="submit">Set Password</button>
+</form>
+<script src="/static/pwcheck.js" defer></script>
+</div>
+{% endblock %}

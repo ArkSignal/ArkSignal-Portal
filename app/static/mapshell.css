@@ -1,0 +1,371 @@
+/* The look of every ArkSignal map page: the full-window map, the left tools panel with folding sections, the list, the details card, the legend. The live (aircraft) map
+   and the Weather Map both use it with the same markup and element names, so a new map (repeaters, mesh nodes, radiosondes...) gets the same layout by using them too. */
+#lv{position:relative;isolation:isolate;z-index:0;height:calc(100vh - 148px - var(--sub,0px));height:calc(100dvh - 148px - var(--sub,0px));min-height:440px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--map-bg)}
+#lvmap{position:absolute;inset:0}
+.leaflet-container{background:var(--map-bg);font:inherit}
+.leaflet-tile-pane{filter:var(--map-filter)}
+.lv-panel{position:absolute;z-index:500;background:var(--card-bg);border:1px solid var(--line);border-radius:14px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+#lv-left{position:absolute;z-index:500;top:12px;left:12px;bottom:12px;width:min(340px,calc(100% - 24px));display:flex;flex-direction:column;gap:10px;pointer-events:none}
+#lv-left>.lv-panel{position:relative;pointer-events:auto}
+#lv-tools{flex:0 0 auto;padding:12px;max-height:100%;overflow:auto}
+#lv-tools input[type=text],#lv-tools input[type=number],#lv-tools select{width:100%;padding:8px 10px;border-radius:9px;border:1px solid var(--line);background:var(--input-bg);color:var(--text);font:inherit}
+.lv-row{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}
+.lv-row label{margin:0;color:var(--text);font-size:.85rem;display:flex;gap:6px;align-items:center;cursor:pointer}
+.lv-row input[type=number]{width:96px!important}
+#lv-hist{margin-top:8px;border:1px solid var(--line);border-radius:10px;background:var(--input-bg-soft);padding:6px 8px}
+#lv-hist h6{margin:0 0 4px;color:var(--dim);font:600 .66rem Inter,sans-serif;text-transform:uppercase;letter-spacing:.1em}
+#lv-hist a{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:4px 2px;color:var(--text);text-decoration:none;font-size:.8rem;border-top:1px solid var(--line)}
+#lv-hist a:first-of-type{border-top:0}
+#lv-hist a:hover{color:var(--acc)}
+#lv-hist .m{color:var(--dim);font-size:.72rem}
+.lv-sub{color:var(--dim);font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;margin:12px 0 2px;font-weight:600}
+#lv-list{top:12px;right:12px;bottom:12px;width:auto;min-width:300px;max-width:min(680px,55%);display:flex;flex-direction:column;overflow:hidden}
+#lv-list header{padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:8px;border-bottom:1px solid var(--line)}
+#lv-list header .btn.small{margin:0}
+#lv-cols{display:none;grid-template-columns:1fr 1fr;gap:2px 10px;padding:8px 12px;border-bottom:1px solid var(--line);background:var(--input-bg)}
+#lv-cols label{margin:0;display:flex;gap:6px;align-items:center;font-size:.82rem;color:var(--text);cursor:pointer;padding:2px 0}
+#lv-rows{overflow:auto;flex:1}
+#lv-tbl{width:100%;border-collapse:collapse;font:500 .78rem 'JetBrains Mono',monospace}
+#lv-tbl th{position:sticky;top:0;background:var(--pop-bg);color:var(--dim);font:600 .68rem Inter,sans-serif;text-transform:uppercase;letter-spacing:.06em;padding:6px 8px;text-align:right;cursor:pointer;white-space:nowrap;border-bottom:1px solid var(--line)}
+#lv-tbl th:first-child,#lv-tbl td:first-child{text-align:left}
+#lv-tbl td{padding:5px 8px;text-align:right;white-space:nowrap;border-bottom:1px solid rgba(120,160,210,.08)}
+#lv-tbl tr.it{cursor:pointer}
+#lv-tbl tr.it:hover td,#lv-tbl tr.sel td{background:rgba(62,230,168,.08)}
+#lv-tbl td:first-child{font-weight:600}
+#lv-tbl .lv-logo{--mk:20px;margin-right:4px}
+#lv-card{flex:0 1 auto;min-height:0;overflow:auto;padding:14px;display:none}
+#lv-card h3{margin:0;font:700 1.3rem 'JetBrains Mono',monospace}
+#lv-card .sec{margin:12px -14px 4px;padding:3px 14px;background:rgba(62,230,168,.1);color:var(--acc);font:600 .7rem Inter,sans-serif;text-transform:uppercase;letter-spacing:.12em}
+#lv-card .k{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;margin:10px 0;font-size:.85rem}
+#lv-card .k div:nth-child(odd){color:var(--dim)}
+#c-extra .photo{margin-top:10px}
+#c-extra .photo img{width:100%;border-radius:10px;display:block}
+#c-extra .photo small{color:var(--dim);font-size:.7rem}
+#c-extra .photo a{color:var(--acc2)}
+.rt{display:flex;align-items:center;gap:10px;margin-top:10px;font:700 1.15rem 'JetBrains Mono',monospace}
+.rt .arrow{color:var(--acc);flex:1;text-align:center;font-size:.9rem}
+.rt small{display:block;font:500 .7rem Inter,sans-serif;color:var(--dim)}
+.btn.neutral{border-color:var(--line);color:var(--dim);background:transparent}
+#lv-card a,#lv-card button{font-size:.8rem}
+.ac{position:relative;transition:transform .8s linear;filter:drop-shadow(0 0 2px rgba(0,0,0,.9))}
+.ac svg{width:100%;height:100%;display:block}
+.ac.sel{filter:drop-shadow(0 0 6px #fff)}
+/* aircraft that match one of the signed-in visitor's alert rules: a gold ring */
+.ac.watch:not(.sel)::before{content:"";position:absolute;left:50%;top:50%;width:40px;height:40px;margin:-20px 0 0 -20px;border-radius:50%;border:2px solid #ffd54a;box-shadow:0 0 8px #ffd54a;animation:lvbeacon 2.6s ease-out infinite;pointer-events:none}
+@media (prefers-reduced-motion:reduce){.ac.watch:not(.sel)::before{animation:none;opacity:.8}}
+#lv-tbl tr.it.w td:first-child{box-shadow:inset 3px 0 #ffd54a}
+#c-watch{margin-top:8px;padding:6px 10px;border-radius:10px;border:1px solid #ffd54a;background:rgba(255,213,74,.1);font-size:.8rem;display:none}
+#c-watch a{color:#ffd54a}
+.wxcat{display:inline-block;padding:0 7px;border-radius:999px;color:#04130d;font:700 .72rem Inter,sans-serif;margin-right:4px}
+.mtr{font:500 .72rem 'JetBrains Mono',monospace;color:var(--dim);margin-top:4px;word-break:break-word}
+/* the selected aircraft's beacon: a ring that pulses outward (a still ring when the device asks for less motion) */
+.ac.sel::before{content:"";position:absolute;left:50%;top:50%;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;border:2px solid var(--acc);box-shadow:0 0 10px var(--acc);animation:lvbeacon 1.8s ease-out infinite;pointer-events:none}
+@keyframes lvbeacon{0%{transform:scale(.4);opacity:.95}100%{transform:scale(1.6);opacity:0}}
+@media (prefers-reduced-motion:reduce){.ac.sel::before{animation:none;opacity:.7}}
+#lv .leaflet-tooltip{--mk:calc(26px * var(--ls,1))}
+.lv-arrow{margin-left:3px;color:var(--acc)}
+#l-fields{display:none;grid-template-columns:1fr 1fr;gap:2px 10px;margin-top:6px}
+#l-fields label{margin:0;display:flex;gap:6px;align-items:center;font-size:.82rem;color:var(--text);cursor:pointer}
+.prog{height:6px;border-radius:3px;background:var(--line);margin-top:8px;overflow:hidden}
+.prog i{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,var(--acc),var(--acc2))}
+.progtxt{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;color:var(--dim);font-size:.74rem;margin-top:4px}
+#lvmap.dim .leaflet-tile-pane{filter:brightness(.55) saturate(.85)}
+#lv-keys{position:fixed;inset:0;z-index:6000;align-items:center;justify-content:center;background:rgba(2,8,14,.62);padding:16px}
+#lv-keys .keybox{position:relative;pointer-events:auto;max-width:460px;width:100%;max-height:90vh;overflow:auto;padding:16px 18px;background:var(--panel,#0e1824);border:1px solid var(--line);border-radius:14px}
+#lv-keys header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+#lv-card .chart{margin:10px 0 0;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:.74rem;color:var(--dim)}
+#lv-card .chart svg{display:block;width:100%;height:64px;margin-top:4px}
+#lv-card .how{margin:10px 0 0;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:.8rem;line-height:1.4}
+#lv-card .how b{display:block;font:600 .7rem Inter,sans-serif;text-transform:uppercase;letter-spacing:.1em;color:var(--acc);margin-bottom:3px}
+#lv-card .how.mlat{border-color:var(--acc2)}
+#lv-card .how.mlat b{color:var(--acc2)}
+#lv-card details.csec{margin:8px -14px 0}
+#lv-card details.csec>summary{list-style:none;cursor:pointer;display:flex;gap:8px;align-items:center;padding:5px 14px;background:rgba(62,230,168,.1);color:var(--acc);font:600 .7rem Inter,sans-serif;text-transform:uppercase;letter-spacing:.12em}
+#lv-card details.csec>summary::-webkit-details-marker{display:none}
+#lv-card details.csec>summary::after{content:"▸";margin-left:auto;color:var(--dim)}
+#lv-card details.csec[open]>summary::after{content:"▾"}
+#lv-card details.csec>.k{margin:8px 14px 4px}
+#lv-toolsbody details.fsec{margin:8px -12px 0}
+#lv-toolsbody details.fsec>summary{list-style:none;cursor:pointer;display:flex;gap:8px;align-items:center;padding:5px 12px;background:rgba(62,230,168,.1);color:var(--acc);font:600 .7rem Inter,sans-serif;text-transform:uppercase;letter-spacing:.12em}
+#lv-toolsbody details.fsec>summary::-webkit-details-marker{display:none}
+#lv-toolsbody details.fsec>summary::after{content:"\25b8";margin-left:auto;color:var(--dim)}
+#lv-toolsbody details.fsec[open]>summary::after{content:"\25be"}
+#lv-toolsbody details.fsec>.fbody{margin:8px 12px 4px}
+#lv-toolsbody details.fsec .ic{width:1.1em;text-align:center}
+#lv-toolsbody .fbadge{margin-left:6px;padding:0 7px;border-radius:999px;background:var(--acc2);color:#04121c;font:600 .66rem Inter,sans-serif;letter-spacing:0;text-transform:none}
+#lv-toolsbody .fbadge:empty{display:none}
+#lv-places{margin-top:8px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+#lv-places a{display:flex;justify-content:space-between;gap:8px;padding:6px 10px;font-size:.85rem;color:var(--text);text-decoration:none;border-bottom:1px solid var(--line)}
+#lv-places a:last-child{border-bottom:0}
+#lv-places a:hover{background:rgba(79,179,255,.14)}
+#lv-places a span{color:var(--dim);font-size:.75rem}
+#lv-legend{display:none;flex:0 1 auto;min-height:0;overflow:auto;padding:12px}
+#lv-legbtn[aria-expanded=true]{border-color:var(--acc);color:var(--acc)}
+.lv-head{display:flex;flex-wrap:wrap;gap:8px}
+.lv-head input[type=text]{flex:1 1 100%}
+.lv-head .btn{flex:1 1 0;margin:0!important;white-space:nowrap}
+@media (max-width:700px){ #lv-legend{max-height:62%} }
+#lv-legbody{padding:0}
+#lv-legbody h6{margin:10px 0 4px;color:var(--dim);font:600 .66rem Inter,sans-serif;text-transform:uppercase;letter-spacing:.1em}
+#lv-legbody h6:first-child{margin-top:2px}
+#lv-legbody .lg{display:flex;gap:8px;align-items:center;font-size:.8rem;margin:3px 0}
+#lv-legbody .hico{flex:none}
+.wxp{display:inline-block;font:700 .74rem/1 'JetBrains Mono',monospace;padding:3px 6px;border-radius:9px;border:1px solid rgba(0,0,0,.4);white-space:nowrap;color:#071018;box-shadow:0 1px 4px rgba(0,0,0,.5)}.wxp.off{opacity:.55}
+#lv-legbody .sw{flex:none;width:14px;height:14px;border-radius:50%;border:2px solid;box-sizing:border-box}
+#lv-legbody .sw.sq{border-radius:3px}
+#lv-legbody .ln{flex:none;width:18px;height:0;border-top:2px solid}
+.hico{display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.45),0 1px 4px rgba(0,0,0,.5);font:800 11px/1 Inter,sans-serif;color:#111;position:relative;box-sizing:border-box}
+.hico.t1{background:#ff3b3b;color:#fff}.hico.t2{background:#ff8c42;color:#111}.hico.t3{background:#f5c542;color:#111}.hico.t4{background:#c9d66b;color:#111}.hico.t5{background:#9fc5a0;color:#111}
+.hico.ed{background:#fff;color:#d23a3a;font-size:17px;font-weight:900}.hico.noed{background:#cfd6df;color:#6b7686;font-size:17px;font-weight:900}
+.hico.approx{opacity:.6;border-style:dashed}
+.hico.heli::after{content:"H";position:absolute;right:-7px;top:-7px;width:13px;height:13px;border-radius:50%;background:#2a7fd4;color:#fff;border:1px solid #fff;font:800 8px/11px Inter,sans-serif;text-align:center}
+#lv-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+#lv-chips:empty{display:none}
+#lv-chips .chip{display:inline-flex;gap:5px;align-items:center;padding:2px 4px 2px 9px;border-radius:999px;border:1px solid var(--acc2);color:var(--text);background:rgba(79,179,255,.12);font:500 .74rem Inter,sans-serif;cursor:pointer}
+#lv-chips .chip b{font-weight:700;color:var(--acc2);padding:0 4px}
+#lv-chips .chip:hover{background:rgba(79,179,255,.25)}
+#lv-chips .chipall{border-color:var(--line);background:none;color:var(--dim);padding:2px 9px}
+#lv-toolsbody .fbody>.lv-sub:first-child{margin-top:0}
+#lv-card .csec .ic{width:1.1em;text-align:center}
+
+.lv-label{border:0;font:700 calc(.86rem * var(--ls,1)) Inter,sans-serif;box-shadow:none;padding:calc(4px * var(--ls,1)) calc(9px * var(--ls,1));line-height:1.3;border-radius:9px;white-space:nowrap}
+#lv.lb-dark .lv-label{background:rgba(10,18,32,.9);color:#fff}
+#lv.lb-light .lv-label{background:rgba(255,255,255,.95);color:#10203a}
+#lv.lb-yellow .lv-label{background:#ffd54a;color:#14110a}
+#lv.lb-none .lv-label{background:transparent;color:#fff;text-shadow:0 0 3px #000,0 0 3px #000,0 0 5px #000}
+.lv-label small{font-weight:600;opacity:.8;font-size:.82em}
+.lv-label:before{display:none}
+.lv-tip{background:var(--card-bg);border:1px solid var(--line);color:var(--text);font:600 .78rem 'JetBrains Mono',monospace;box-shadow:none;padding:3px 7px}
+.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--pop-bg);color:var(--text);border:1px solid var(--line)}
+.leaflet-popup-content{font-size:.85rem;line-height:1.5}
+.leaflet-control-zoom a{background:var(--pop-bg)!important;color:var(--text)!important;border-color:var(--line)!important}
+.leaflet-control-attribution{background:var(--card-bg)!important;color:var(--dim)!important}
+.leaflet-control-attribution a{color:var(--acc2)!important}
+#lv-feeders .items{max-height:140px;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:4px 10px;background:var(--input-bg-soft)}
+#lv-feeders label{display:flex;gap:8px;align-items:center;margin:3px 0;font-size:.84rem;color:var(--text);cursor:pointer}
+#lv-feeders .note{color:var(--dim);font-size:.75rem;margin-top:4px}
+#lv-layers details{margin:6px 0;border:1px solid var(--line);border-radius:10px;background:var(--input-bg-soft)}
+#lv-layers summary{cursor:pointer;list-style:none;padding:7px 10px;font:600 .8rem Inter,sans-serif;color:var(--text);display:flex;gap:8px;align-items:center}
+#lv-layers summary::-webkit-details-marker{display:none}
+#lv-layers summary::before{content:"▸";color:var(--dim)}
+#lv-layers details[open]>summary::before{content:"▾"}
+#lv-layers .items{padding:2px 10px 8px}
+#lv-layers label{display:flex;gap:8px;align-items:center;margin:3px 0;font-size:.85rem;color:var(--text);cursor:pointer}
+#lv-layers label .z{color:var(--dim);font-size:.7rem}
+#lv-layers h5{margin:8px 0 2px;color:var(--dim);font:600 .66rem Inter,sans-serif;text-transform:uppercase;letter-spacing:.1em}
+#lv-hide{position:absolute;z-index:501;top:12px;right:12px;display:none;padding:6px 10px;border-radius:9px;border:1px solid var(--line);background:var(--card-bg);color:var(--text);cursor:pointer;font:inherit;font-size:.8rem}
+/* Weather panel: a tile per layer with a live preview, a switch and an opacity slider */
+#lv-wx{display:none;flex:0 1 auto;min-height:0;overflow:auto;padding:12px}
+#lv-altbar,#lv-altbar-heat{display:flex;align-items:center;gap:10px;margin:6px 2px 0;min-height:24px;font:600 .68rem Inter,sans-serif;color:var(--dim)}
+#lv-altbar .alt-wrap,#lv-altbar-heat .alt-wrap{flex:1;position:relative;height:22px}
+#lv-altbar .alt-bar,#lv-altbar-heat .alt-bar{position:absolute;left:0;right:0;top:0;height:8px;border-radius:4px}
+#lv-altbar .alt-ticks,#lv-altbar-heat .alt-ticks{position:absolute;left:0;right:0;top:10px;height:12px}
+#lv-altbar .alt-ticks span,#lv-altbar-heat .alt-ticks span{position:absolute;transform:translateX(-50%);white-space:nowrap;font-weight:500}
+#lv-altbar .alt-ticks span:first-child,#lv-altbar-heat .alt-ticks span:first-child{transform:none}
+#lv-fold{display:none;align-self:center;position:relative;z-index:600;margin-top:-21px;min-width:46px;height:22px;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:var(--card-bg);color:var(--dim);font:600 .7rem Inter,sans-serif;line-height:20px;cursor:pointer;pointer-events:auto;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+#lv-fold:hover,#lv-fold:focus-visible{color:var(--acc);border-color:var(--acc)}
+@media(max-width:700px){ #lv-fold{height:28px;min-width:60px;line-height:26px;margin-top:-24px}}
+#lv-wx h4{margin:12px 0 6px;color:var(--dim);font:600 .68rem Inter,sans-serif;text-transform:uppercase;letter-spacing:.12em}
+#lv-wx h4:first-of-type{margin-top:0}
+.wx-tile{display:grid;grid-template-columns:96px 1fr auto;gap:4px 10px;align-items:center;padding:8px;margin-bottom:8px;border:1px solid var(--line);border-radius:12px;background:var(--input-bg-soft)}
+.wx-tile.on{border-color:var(--acc)}
+.wx-thumb{width:96px;height:64px;border-radius:8px;overflow:hidden;background:var(--map-bg);grid-row:span 2;pointer-events:none}
+.wx-thumb .leaflet-tile-pane{filter:var(--map-filter)}
+.wx-info b{display:block;font-size:.88rem}
+.wx-info span{display:block;color:var(--dim);font-size:.74rem;line-height:1.3}
+.wx-sw{position:relative;display:inline-block;width:40px;height:22px;margin:0}
+.wx-sw input{opacity:0;width:100%;height:100%;position:absolute;margin:0;cursor:pointer;z-index:1}
+.wx-sw i{position:absolute;inset:0;border-radius:11px;background:var(--line);transition:background .15s}
+.wx-sw i::after{content:"";position:absolute;left:3px;top:3px;width:16px;height:16px;border-radius:50%;background:var(--text);transition:transform .15s}
+.wx-sw input:checked+i{background:var(--acc)}
+.wx-sw input:checked+i::after{transform:translateX(18px);background:#04130d}
+.wx-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}
+.wx-chk{margin:0;display:flex;gap:8px;align-items:center;color:var(--text);font-size:.85rem;cursor:pointer}
+.wx-upd{color:var(--acc)!important;font-size:.7rem!important}
+.wx-ctl{grid-column:2 / 4;display:none;gap:8px;align-items:center;flex-wrap:wrap}
+.wx-tile.on .wx-ctl{display:flex}
+.wx-ctl input[type=range]{flex:1;min-width:80px;accent-color:var(--acc)}
+.wx-ctl .btn.small{margin:0}
+.wx-time{color:var(--dim);font-size:.74rem}
+.wx-wind{width:34px;height:34px;overflow:visible}
+@media(max-width:700px){ #lv-wx{max-height:62%} }
+@media(max-width:900px){ #lv-list{display:none} }
+/* Phones: search bar on top, filters fold away, the aircraft card and the list are bottom sheets */
+@media(max-width:700px){
+  #lv{height:calc(100vh - 106px - var(--sub,0px));height:calc(100dvh - 106px - var(--sub,0px));min-height:380px;border-radius:12px}
+  #lv-left{top:8px;left:8px;right:8px;bottom:8px;width:auto}
+  #lv-tools{padding:8px;max-height:calc(52% - 14px)}   /* the list takes the lower 48%: the open panel and its fold arrow stay above it */
+  #lv-toolsbody details.fsec{margin:8px -8px 0}
+  #lv-toolsbody details.fsec>summary{padding:5px 8px}
+  #lv-toolsbody details.fsec>.fbody{margin:8px 8px 4px}
+  #lv-tools input[type=text],#lv-tools input[type=number],#lv-tools select{font-size:16px;min-height:40px}
+  #lv-card{margin-top:auto;max-height:52%;padding:12px;border-radius:16px 16px 12px 12px}
+  #lv-card::before{content:"";display:block;width:40px;height:4px;border-radius:2px;background:var(--line);margin:-4px auto 8px}
+  #lv-card .btn.small{padding:9px 12px;min-height:38px}
+  #lv-list{display:flex;left:8px;right:8px;top:auto;bottom:8px;max-width:none;min-width:0;height:48%;border-radius:16px 16px 12px 12px}
+  #lv-hide{top:auto;bottom:12px;right:auto;left:50%;transform:translateX(-50%);padding:10px 18px;font-size:.9rem;border-radius:999px;white-space:nowrap}   /* centered at the bottom: the locate and full screen buttons own the right edge */
+  #lv.has-card #lv-hide{display:none!important}
+  #lv-list header .btn.small{padding:8px 12px}
+  #lv-tbl td,#lv-tbl th{padding:8px 8px}
+  .leaflet-control-zoom{display:none}
+  .lv-row label{padding:4px 0}
+}
+.legend{display:flex;height:8px;border-radius:4px;margin-top:6px;background:linear-gradient(90deg,#f5a623,#e8d51d,#44d062,#2ec4c9,#3b6df0,#8a3ffc,#e83e8c)}
+.legend-l{display:flex;justify-content:space-between;color:var(--dim);font-size:.68rem}
+/* the Weather Stations tile of the Weather panel holds many options, so its controls get the whole width under the header row */
+#wx-stations .wx-thumb{grid-row:auto;height:64px}
+#wx-stations .wx-ctl{grid-column:1 / -1;display:none;margin-top:4px}
+#wx-stations.on .wx-ctl{display:block}
+#wx-stations .wx-ctl select{max-width:100%}
+#wx-stations .wxfields label{min-width:0}
+/* the one search: suggestions under a map's search box */
+#ms-box{position:relative;z-index:700;max-height:48vh;overflow:auto;margin-top:6px;border:1px solid var(--line);border-radius:10px;background:var(--pop-bg)}
+#ms-box .ms-h{padding:5px 10px 2px;font:600 .62rem Inter,sans-serif;text-transform:uppercase;letter-spacing:.12em;color:var(--dim)}
+#ms-box .ms-i{padding:8px 10px;min-height:40px;cursor:pointer;font-size:.86rem;line-height:1.3;touch-action:manipulation}
+#ms-box .ms-i:hover,#ms-box .ms-i.on{background:rgba(62,230,168,.14)}
+#ms-box .ms-i b{font-weight:600}
+.ms-note{margin-top:6px;padding:6px 10px;border:1px solid var(--line);border-radius:10px;font-size:.8rem;background:var(--card-bg)}
+
+/* Drive times (static/drivetimes.js): the panel under the tools, the pin, the numbered hospitals and the ring labels */
+#lv-drive{display:none;flex:1 1 auto;min-height:0;overflow:auto;padding:0}
+#lv-drive header{display:flex;justify-content:space-between;gap:8px;align-items:flex-start;padding:10px 12px;border-bottom:1px solid var(--line)}
+#lv-drive .dr-where{color:var(--acc);font-size:.84rem;margin-top:2px;word-break:break-word}
+#lv-drive .dr-key{display:flex;gap:10px;flex-wrap:wrap;padding:8px 12px;font-size:.78rem;border-bottom:1px solid var(--line)}
+#lv-drive .dr-key i{display:inline-block;width:18px;height:5px;border-radius:3px;margin-right:5px;vertical-align:middle}
+#lv-drive .dr-note,#lv-drive .dr-foot{padding:8px 12px;font-size:.78rem;color:var(--dim)}
+#lv-drive .dr-row{display:flex;gap:8px;align-items:center;padding:7px 12px;border-bottom:1px solid rgba(120,160,210,.1);cursor:pointer}
+#lv-drive .dr-row:hover,#lv-drive .dr-row:focus{background:rgba(62,230,168,.08);outline:0}
+#lv-drive .dr-n{flex:none;width:1.4em;color:var(--dim);font:600 .78rem 'JetBrains Mono',monospace;text-align:right}
+#lv-drive .dr-name{flex:1;min-width:0;font-size:.85rem}
+#lv-drive .dr-name small{display:block;color:var(--dim);font-size:.72rem;line-height:1.3}
+#lv-drive .dr-min{flex:none;font:700 .85rem 'JetBrains Mono',monospace;color:var(--acc);white-space:nowrap}
+.dr-pin{width:26px;height:26px;border-radius:50%;border:3px solid #fff;background:rgba(255,45,85,.55);box-shadow:0 0 0 2px #ff2d55,0 2px 8px rgba(0,0,0,.6);box-sizing:border-box}
+.dr-rank{width:22px;height:22px;border-radius:50%;background:#0b1422;color:#fff;border:2px solid var(--acc,#3ee6a8);font:800 11px/18px Inter,sans-serif;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.6)}
+.dr-lab{display:inline-block;transform:translate(-50%,-120%);padding:2px 7px;border-radius:999px;color:#071018;font:800 .74rem/1.2 'JetBrains Mono',monospace;white-space:nowrap;border:2px solid #0b1422;box-shadow:0 1px 4px rgba(0,0,0,.6)}
+.ms-lab{display:inline-block;transform:translate(-50%,24px);padding:3px 9px;border-radius:999px;background:#0b1422;color:#fff;border:2px solid #3ee6a8;font:700 .8rem Inter,sans-serif;white-space:nowrap;box-shadow:0 1px 6px rgba(0,0,0,.6)}
+@media (max-width:700px){#lv-drive{flex:0 1 auto;max-height:42%}}
+.lv-head #lv-maptype{flex:1 1 100%;font-weight:600}
+#lv-card.min>*:not(:first-child){display:none!important}
+#lv-card.min{padding-bottom:10px}
+#lv-card.min::before{display:none}
+
+.lv-locate a{display:flex;align-items:center;justify-content:center;width:34px;height:34px;background:var(--pop-bg)!important;color:var(--text)!important;border-color:var(--line)!important}.lv-locate a.on{box-shadow:inset 0 0 0 2px #2f7fff}
+@media (max-width:700px){.lv-locate a{width:40px;height:40px}}
+/* the Replay bar under the aircraft map: time, play controls, speed, date and a slider for the time of day */
+.lv-replay{position:absolute;left:12px;right:12px;bottom:12px;z-index:600;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--card-bg);backdrop-filter:blur(8px)}
+#lv-left{bottom:calc(12px + var(--rp,0px))}
+#lv-list{bottom:calc(12px + var(--rp,0px))}
+.lv-replay .rp-top{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:.85rem}
+.lv-replay .rp-ctl{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:6px}
+.lv-replay .rp-ctl .btn{margin:0}
+.lv-replay label{display:flex;gap:6px;align-items:center;margin:0 6px 0 4px;font-size:.82rem;color:var(--dim)}
+.lv-replay select,.lv-replay input[type=date],.lv-replay input[type=time]{padding:5px 8px;border-radius:8px;border:1px solid var(--line);background:var(--input-bg);color:var(--text);font:inherit;width:auto}
+.lv-replay input[type=range]{width:100%;margin:8px 0 0}
+
+.ac.ghost{opacity:.4}
+#lv-tbl tr.ghost td{opacity:.5}
+/* full screen (static/mapfull.js): the browser's own full screen, or a fixed screen-sized map where there is none */
+#lv-fullbtn{position:absolute;bottom:110px;right:10px;z-index:1200;margin:0;width:34px;height:34px;padding:0;line-height:1;display:flex;align-items:center;justify-content:center;background:var(--pop-bg)!important;color:var(--text)!important;border:1px solid var(--line)!important;border-radius:6px;opacity:1;cursor:pointer}#lv-fullbtn:hover{box-shadow:inset 0 0 0 2px #2f7fff}
+#lv:fullscreen,#lv:-webkit-full-screen{height:100vh;height:100dvh;width:100vw;border-radius:0;border:0}
+#lv.lv-full{position:fixed;inset:0;z-index:5000;height:100vh;height:100dvh;width:100vw;min-height:0;border-radius:0;border:0}
+body.lv-isfull{overflow:hidden}
+
+/* the filters panel full screen on a phone (static/mapfs.js), with a bar and a button to put it away */
+#fs-bar,#fs-done{display:none}
+@media (max-width:700px){
+  html.fs-lock,html.fs-lock body{overflow:hidden}
+  #lv.fs-open{position:relative;z-index:3600}   /* above the sticky menu bar, or the Close bar would sit under it */
+  #lv.fs-open #lv-left{z-index:3600}
+  #lv.fs-open #ark-normal,#lv.fs-open .lv-locate,#lv.fs-open #lv-hide,#lv.fs-open #dr-clearmap{display:none!important}
+  #lv.fs-open #lv-tools{position:fixed;left:0;right:0;top:0;bottom:0;max-height:none;width:auto;z-index:4000;border-radius:0;border:0;background:var(--bg);padding:0 12px 84px;overflow:auto;-webkit-overflow-scrolling:touch}
+  #lv.fs-open #fs-bar{display:flex;position:sticky;top:0;z-index:3;justify-content:space-between;align-items:center;gap:10px;margin:0 -12px 10px;padding:12px;background:var(--bg);border-bottom:1px solid var(--line)}
+  #lv.fs-open #fs-bar b{font-size:1.05rem}
+  #lv.fs-open #fs-bar .btn{margin:0;min-height:44px;padding:8px 18px;font-size:1rem;font-weight:700}
+  #lv.fs-open #fs-done{display:block;position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:4010;min-height:50px;font-size:1.05rem;font-weight:700;margin:0;box-shadow:0 2px 16px rgba(0,0,0,.6);background:var(--acc);color:#04121c;border-color:var(--acc)}
+  #lv.fs-open #lv-filtbtn{display:none}
+  #lv.fs-open #lv-fold{display:none!important}   /* the full screen panel has its own Close bar and button */
+}
+
+/* phone polish (2026-10-15): readable panels, panels clear of the map credit, a smaller picture, the clear button off the other buttons, the heliport badge only zoomed in */
+#lv.z-far .hico.heli::after{display:none}
+@media (max-width:900px),(hover:none){ .lv-panel{background:var(--bg)} }
+@media (max-width:700px){
+  #lv-left{bottom:26px}
+  #c-photo img{max-height:90px!important}
+  #dr-clearmap{white-space:nowrap;font-size:.85rem!important;padding:9px 14px!important;left:10px!important;bottom:118px!important;transform:none!important}
+}
+
+/* the replay bar on a phone (2026-10-15): two short rows and a slider along the bottom edge; everything else that floats there moves up out of its way */
+@media (max-width:700px){
+  .lv-replay{left:6px;right:6px;bottom:6px;padding:6px 8px;border-radius:10px}
+  .lv-replay .rp-top{gap:6px;font-size:.74rem;flex-wrap:nowrap}
+  .lv-replay .rp-top b{display:none}
+  .lv-replay #rp-time{flex:1;min-width:0;font-size:.74rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lv-replay #rp-state{display:none}
+  .lv-replay #rp-live{padding:5px 10px;font-size:.78rem;white-space:nowrap}
+  .lv-replay .rp-ctl{gap:4px;margin-top:5px;flex-wrap:wrap}
+  .lv-replay .rp-ctl>.btn{flex:1 1 0;min-width:0;padding:8px 2px;font-size:.78rem;text-align:center}
+  .lv-replay .rp-ctl label{margin:0;font-size:.74rem;flex:1 1 auto;min-width:0}
+  .lv-replay .rp-ctl label:first-of-type{flex:0 0 auto}
+  .lv-replay .rp-ctl label:nth-of-type(2),.lv-replay .rp-ctl label:nth-of-type(3){flex:1 1 42%}
+  .lv-replay .rp-ctl label input{flex:1;min-width:0}
+  .lv-replay select,.lv-replay input[type=date],.lv-replay input[type=time]{padding:4px 5px;font-size:16px;min-height:36px;min-width:0;max-width:100%}
+  .lv-replay input[type=range]{margin:6px 0 0;height:28px}
+  #lv .leaflet-bottom.leaflet-right{bottom:var(--rp,0px)}
+  #ark-normal.ark-normal-map{bottom:calc(62px + var(--rp,0px))!important}
+  #lv-hide{bottom:calc(12px + var(--rp,0px))!important}
+  #dr-clearmap{bottom:calc(118px + var(--rp,0px))!important}
+}
+
+/* the map takes whatever is left of the screen: the page is a column as tall as the screen (main: min-height 100dvh) and the map is the part that stretches, so there is never a gap under it or a scroll bar, and a phone's
+   browser bars sliding away or back are followed by the browser itself (static/mapfit.js only keeps the map's own view right when its size changes) */
+main.wide #lv:not(.lv-full){flex:1 1 0;height:auto!important;min-height:180px}
+@media (max-width:700px){ .lv-replay .rp-ctl>.btn{flex:1 1 56px;min-width:58px} }
+
+/* the top panel folds to its buttons once the map has been moved (static/mapheadfold.js); the Search button only shows while folded */
+#lv-searchbtn{display:none}
+@media (max-width:700px){
+  #lv-tools.head-min #lv-maptype,#lv-tools.head-min #q,#lv-tools.head-min #ms-box{display:none}
+  #lv-tools.head-min #lv-searchbtn{display:inline-block}
+  #lv-tools.head-min .lv-head{flex-wrap:nowrap;gap:6px}
+  #lv-tools.head-min .lv-head .btn{flex:1 1 0;min-width:0;padding:8px 2px;font-size:.72rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #lv-tools.head-min .lv-head #lv-filtbtn{flex:1.4 1 0}
+  #lv-tools.head-min .lv-head #lv-searchbtn,#lv-tools.head-min .lv-head #lv-wxbtn{flex:.8 1 0}
+}
+
+/* an open details card is never covered by the floating buttons (static/mapheadfold.js sets card-open) */
+@media (max-width:700px){
+  #lv.card-open #ark-normal,#lv.card-open .lv-locate,#lv.card-open #lv-fullbtn,#lv.card-open #dr-clearmap{display:none!important}
+}
+
+/* the Replay bar folded (static/mapheadfold.js): on a phone only Play stays of the buttons, the rest and the speed, date and time come with More */
+#rp-more{display:none}
+@media (max-width:700px){
+  #rp-more{display:inline-block;padding:5px 10px;font-size:.78rem}
+  .lv-replay:not(.rp-open) .rp-ctl>*:not(#rp-play){display:none}
+  .lv-replay:not(.rp-open) .rp-ctl{margin-top:4px}
+  .lv-replay:not(.rp-open) #rp-play{flex:1 1 100%;padding:7px 2px}
+  .lv-replay:not(.rp-open) input[type=range]{margin-top:4px}
+}
+
+/* the Replay bar leaves the bottom of the map to itself on a phone (static/mapheadfold.js sets replay-on) */
+@media (max-width:700px){
+  #lv.replay-on #ark-normal,#lv.replay-on .lv-locate,#lv.replay-on #lv-fullbtn,#lv.replay-on #dr-clearmap{display:none!important}
+}
+
+/* hover labels stay inside the page and long popups scroll (alerts, earthquakes, gauges) */
+.lv-tip{width:max-content;max-width:min(280px,70vw);white-space:normal;overflow-wrap:break-word}
+.lv-alertdesc{margin-top:6px;max-height:34vh;overflow:auto;white-space:pre-line;font-size:.86em;line-height:1.35}
+.leaflet-popup-content .lv-alertpop{max-width:300px}
+
+/* inside the details card the card itself scrolls: no second scroll bar in it */
+#lv-card .lv-alertdesc{max-height:none;overflow:visible}
+/* on phones the card's title row with Collapse and Close stays at the top while the details scroll (Marty, 2026-10-16: they scrolled out of sight), the card sits above the map credit line, and a button scrolled into view lands below the title row */
+@media (max-width:900px),(hover:none){
+  #lv-card>div:first-child{position:sticky;top:-12px;z-index:3;background:var(--bg);margin-left:-12px;margin-right:-12px;padding:2px 12px 6px}
+  #lv.has-card #lv-left{z-index:1100}
+  #lv-card{scroll-padding-top:96px}
+}
+/* the fold arrow overlaps the bottom edge of the top panel: keep a little room under the last line, and make a link scrolled into view land above it */
+#lv-toolsbody{padding-bottom:22px}
+#lv-tools{scroll-padding-bottom:36px}

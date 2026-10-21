@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Drone {{ v.id }} | Drones{% endblock %}
+{% block content %}
+<h1><span>Drone</span> <span class="mono">{{ v.id }}</span></h1>
+<div class="sub"><span class="sw" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:{{ kinds[v.kind][1] }}"></span> {{ v.ua_name }}{% if v.status_name %} &middot; {{ v.status_name }}{% endif %}{% if v.id_type_name %} &middot; ID type: {{ v.id_type_name }}{% endif %} &middot; <a href="/drones/">All drones</a> &middot; <a href="/drones/map?id={{ v.id }}">On the map</a></div>
+
+<div class="tiles" style="margin-bottom:14px">
+  <div class="panel tile"><div class="tv" style="font-size:1.05rem">{% if v.alt_geo is not none %}{{ '{:,.0f}'.format(v.alt_geo * 3.28084) }} ft{% else %}-{% endif %}</div><div class="tl">Altitude{% if v.alt_geo is not none %} ({{ '{:,.0f}'.format(v.alt_geo) }} m){% endif %}</div></div>
+  <div class="panel tile"><div class="tv" style="font-size:1.05rem">{% if v.speed is not none %}{{ '%.0f' % (v.speed * 2.23694) }} mph{% else %}-{% endif %}</div><div class="tl">Speed{% if v.speed is not none %} ({{ '%.1f' % v.speed }} m/s){% endif %}</div></div>
+  <div class="panel tile"><div class="tv" style="font-size:1.05rem">{% if v.heading is not none %}{{ '%.0f' % v.heading }}&deg;{% else %}-{% endif %}</div><div class="tl">Heading</div></div>
+  <div class="panel tile"><div class="tv" style="font-size:1.05rem">{% if v.height is not none %}{{ '{:,.0f}'.format(v.height * 3.28084) }} ft{% else %}-{% endif %}</div><div class="tl">Above where it took off</div></div>
+</div>
+
+{% call sec('where', 'Where It Is', True) %}
+  <div id="v-map" style="height:340px;border-radius:10px;overflow:hidden"></div>
+  <p class="dim" style="margin:8px 0 0">{% if v.lat is none %}No position has been heard for this drone yet.{% else %}Heard <time class="ts" datetime="{{ v.last_seen }}" data-fmt="dt">{{ v.last_seen[:16].replace('T', ' ') }}</time>. The line is where it has been in the last {{ keep }} hours.{% endif %}</p>
+{% endcall %}
+
+{% call sec('details', 'Details', True) %}
+  <table style="max-width:640px">
+    <tr><th style="width:190px">Drone ID</th><td class="mono">{{ v.id }}</td></tr>
+    <tr><th>ID type</th><td>{{ v.id_type_name or 'Not stated' }}</td></tr>
+    <tr><th>Kind of aircraft</th><td>{{ v.ua_name }}</td></tr>
+    <tr><th>Status</th><td>{{ v.status_name or '-' }}</td></tr>
+    {% if v.description %}<tr><th>Described as</th><td>{{ v.description }}</td></tr>{% endif %}
+    {% if v.op_id %}<tr><th>Operator ID</th><td class="mono">{{ v.op_id }}</td></tr>{% endif %}
+    <tr><th>Position</th><td class="mono">{% if v.lat is not none %}{{ '%.5f' % v.lat }}, {{ '%.5f' % v.lon }}{% else %}-{% endif %}</td></tr>
+    {% if v.op_lat is not none %}<tr><th>Operator position</th><td class="mono">{{ '%.5f' % v.op_lat }}, {{ '%.5f' % v.op_lon }}</td></tr>{% endif %}
+    <tr><th>Vertical speed</th><td>{% if v.vspeed is not none %}{{ '%.1f' % v.vspeed }} m/s{% else %}-{% endif %}</td></tr>
+    <tr><th>First heard, last heard</th><td><time class="ts" datetime="{{ v.first_seen }}" data-fmt="dt">{{ v.first_seen[:16].replace('T', ' ') }}</time>, <time class="ts" datetime="{{ v.last_seen }}" data-fmt="dt">{{ v.last_seen[:16].replace('T', ' ') }}</time></td></tr>
+    <tr><th>Messages heard</th><td>{{ v.msgs }}{% if v.station %}; last by {{ v.station }}{% endif %}</td></tr>
+  </table>
+{% endcall %}
+<p class="dim" style="font-size:.8rem">{{ credit }}. The pilot of a drone can ask for it to be hidden (<a href="/contact">Contact</a>).</p>
+<link rel="stylesheet" href="{{ leaflet_base }}/leaflet.css" crossorigin="anonymous">
+<script src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script>
+<script>
+(function () {
+  var el = document.getElementById("v-map"); if (!el || !window.L) return;
+  var map = L.map(el, {zoomControl: true}).setView([{{ (v.lat if v.lat is not none else map_lat) | float }}, {{ (v.lon if v.lon is not none else map_lon) | float }}], {{ 15 if v.lat is not none else 6 }});
+  L.tileLayer({{ tile_url | tojson }}, {maxZoom: 19, attribution: {{ tile_attr | tojson }}}).addTo(map);
+  fetch("/api/drones/{{ v.id }}.json").then(function (r) { return r.json(); }).then(function (d) {
+    var pts = (d.trail || []).map(function (t) { return [t[0], t[1]]; });
+    if (pts.length > 1) { var line = L.polyline(pts, {color: "{{ kinds[v.kind][1] }}", weight: 3, opacity: .85}).addTo(map); map.fitBounds(line.getBounds(), {padding: [20, 20], maxZoom: 17}); }
+    if (d.drone && d.drone.lat != null) L.circleMarker([d.drone.lat, d.drone.lon], {radius: 8, color: "#fff", weight: 2, fillColor: "{{ kinds[v.kind][1] }}", fillOpacity: .95}).addTo(map);
+  }).catch(function () {});
+})();
+</script>
+{% endblock %}

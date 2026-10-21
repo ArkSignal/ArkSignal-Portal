@@ -1,0 +1,19 @@
+<div id="sessions-list" class="panel" style="overflow-x:auto">
+  <table>
+    <tr><th>Device</th><th>Address</th><th>Signed In</th><th>Last Active</th><th></th></tr>
+    {% for s in sessions %}
+    <tr{% if s.ended %} style="opacity:.55"{% endif %}>
+      <td>{{ s.device }}{% if s.current %} <span class="tag live">this device</span>{% endif %}{% if s.ended %} <span class="tag off">ended</span>{% endif %}</td>
+      <td class="mono">{{ s.ip or '' }}</td>
+      <td><time class="ts" datetime="{{ s.created_at.isoformat() }}">{{ s.created_at }}</time></td>
+      <td><time class="ts" datetime="{{ s.last_seen.isoformat() }}">{{ s.last_seen }}</time></td>
+      <td>{% if not s.ended and not s.current %}
+        <form class="inline" method="post" action="/my/sessions/{{ s.sid }}/end" data-async data-async-target="#sessions-list" data-confirm="Sign out this device?">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small warn" type="submit" style="margin:0">Sign Out</button></form>{% endif %}</td>
+    </tr>
+    {% else %}<tr><td colspan="5" class="dim">No sign-ins recorded yet.</td></tr>{% endfor %}
+  </table>
+  <form method="post" action="/my/sessions/end-others" data-async data-async-target="#sessions-list" data-confirm="Sign out every other device?" style="margin-top:12px">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small" type="submit" style="margin:0">Sign Out All Other Devices</button></form>
+  <div class="help">Sessions end by themselves after {{ max_h }} hours{% if idle %} or {{ idle }} minutes without activity{% endif %}.</div>
+</div>

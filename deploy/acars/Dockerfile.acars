@@ -1,0 +1,11 @@
+# The ACARS service (acarsd.py): keeps the datalink messages members' receivers send, in its own Postgres database.
+# Built by build.yml as mallison01/adsb-acars and released with everything else (same latest/stable tags).
+FROM python:3.12-slim
+RUN groupadd -r -g 10004 acars && useradd -r -u 10004 -g acars -d /app acars
+WORKDIR /app
+RUN pip install --no-cache-dir "psycopg[binary]==3.2.*"
+COPY deploy/acars/acarsd.py /app/acarsd.py
+COPY BUILD_INFO /BUILD_INFO
+USER acars
+EXPOSE 8481
+CMD ["python", "-u", "/app/acarsd.py"]

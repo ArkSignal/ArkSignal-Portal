@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{ brand_name }}{{ brand_accent }} Display</title>
+<style>
+html,body{margin:0;height:100%;background:#070d16;color:#e8eef7;font-family:Inter,system-ui,sans-serif;overflow:hidden}
+#kf{position:fixed;inset:0;width:100%;height:100%;border:0;background:#0b1422}
+#kbar{position:fixed;left:0;right:0;bottom:0;height:38px;display:flex;align-items:center;gap:10px;padding:0 12px;background:rgba(11,20,34,.96);border-top:1px solid #1f3350;font-size:.82rem;color:#9fb3cc;transition:opacity .4s,transform .4s;z-index:20}
+#kbar.hide{opacity:0;transform:translateY(100%);pointer-events:none}
+#kbar b{color:#e8eef7}
+#kprog{position:absolute;left:0;top:-3px;height:3px;background:#3ee6a8;width:0}
+button,select,input{font:inherit}
+#kbar button,#kset button{background:#14233a;color:#e8eef7;border:1px solid #2a4468;border-radius:6px;padding:4px 11px;cursor:pointer}
+#kbar button.exit{border-color:#7a3340;background:#2a1520}
+#kbar button:hover,#kset button:hover{border-color:#3ee6a8}
+#kclock{margin-left:auto;white-space:nowrap}
+#kbig{position:fixed;z-index:15;pointer-events:none;padding:.35em .8em;border-radius:.5em;background:rgba(7,13,22,.62);color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.8);font-weight:700;line-height:1.15;text-align:center;font-variant-numeric:tabular-nums}
+#kbig small{display:block;font-weight:500;font-size:.55em;color:#cfe0f5}
+#kbig.p-tl{top:14px;left:14px}#kbig.p-tc{top:14px;left:50%;transform:translateX(-50%)}#kbig.p-tr{top:14px;right:14px}
+#kbig.p-bl{bottom:14px;left:14px}#kbig.p-bc{bottom:14px;left:50%;transform:translateX(-50%)}#kbig.p-br{bottom:14px;right:14px}
+#kbig.s-s{font-size:16px}#kbig.s-m{font-size:26px}#kbig.s-l{font-size:42px}#kbig.s-xl{font-size:64px}
+#khot{position:fixed;left:0;right:0;bottom:0;height:18px;z-index:19}
+body.bar-on #kbig.p-bl,body.bar-on #kbig.p-bc,body.bar-on #kbig.p-br{bottom:52px}
+#kset{position:fixed;inset:0;z-index:30;display:none;background:rgba(3,8,14,.82);align-items:center;justify-content:center}
+#kset.open{display:flex}
+#kpanel{width:min(640px,94vw);max-height:90vh;overflow:auto;background:#0b1422;border:1px solid #2a4468;border-radius:14px;padding:18px 20px}
+#kpanel h2{margin:0 0 4px;font-size:1.15rem}
+#kpanel h3{margin:16px 0 6px;font-size:.78rem;text-transform:uppercase;letter-spacing:.12em;color:#9fb3cc}
+#kpanel label{display:flex;align-items:center;gap:8px;margin:4px 0}
+#kpanel select,#kpanel input[type=number]{background:#0a1626;color:#e8eef7;border:1px solid #2a4468;border-radius:6px;padding:5px 8px}
+#kpanel input[type=number]{width:70px}
+.krow{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #16263c}
+.krow .nm{flex:1}
+.krow button{padding:2px 8px}
+.ksmall{font-size:.78rem;color:#9fb3cc}
+.kbtns{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.kbtns .go{background:#1b6e57;border-color:#3ee6a8}
+</style></head><body>
+<iframe id="kf" title="Display" src="about:blank"></iframe>
+<div id="khot"></div>
+<div id="kbig" class="p-{{ clock.pos }} s-{{ clock.size }}" style="display:none"></div>
+<div id="kbar"><div id="kprog"></div><b>{{ brand_name }}{{ brand_accent }}</b><span id="kname"></span>
+  <button type="button" id="kprev" aria-label="Previous view">&#9664;</button><button type="button" id="kpause">Pause</button><button type="button" id="knext" aria-label="Next view">&#9654;</button>
+  <button type="button" id="ksetup">Setup</button><button type="button" id="kfull">Full Screen</button><button type="button" id="kexit" class="exit" title="Leave the kiosk display and go back to the site (Esc also leaves)">Exit Kiosk</button><span id="kclock"></span></div>
+
+<div id="kset" role="dialog" aria-label="Kiosk setup"><div id="kpanel">
+  <h2>Kiosk Setup</h2>
+  <div class="ksmall">Choose what the display shows and for how long. It is kept in this browser and in the address, so a bookmark of this page keeps your choice.</div>
+  <h3>Preset</h3>
+  <label><select id="kpreset" aria-label="Choose a preset"><option value="">Custom (below)</option></select><span class="ksmall">presets are kept in Admin &gt; Settings &gt; Kiosk Display</span></label>
+  <h3>Show</h3>
+  <label><input type="radio" name="kmode" value="cycle" checked> Cycle through the pages below</label>
+  <label><input type="radio" name="kmode" value="one"> One page only: <select id="kone" aria-label="The one page to show"></select></label>
+  <h3>Pages and Time Each</h3>
+  <div id="klist"></div>
+  <label style="margin-top:8px">Time for a page without its own: <input type="number" id="ksecs" min="5" max="3600"> seconds</label>
+  <div class="kbtns"><button type="button" class="go" id="kgo">Save and Show</button><button type="button" id="kcopy">Copy Link to This Setup</button><button type="button" id="kreset">Back to the Site's Default</button><button type="button" id="kclose">Cancel</button></div>
+  <div id="kmsg" class="ksmall" style="margin-top:8px"></div>
+</div></div>
+<script>
+(function () {
+  var CATALOG = {{ catalog | tojson }}, PRESETS = {{ presets | tojson }}, DEFAULT = {{ views | tojson }}, SECS = {{ seconds }}, IDLE = {{ idle_seconds }}, idleNow = false;
+  var $ = function (id) { return document.getElementById(id); };
+  var f = $("kf"), prog = $("kprog"), bar = $("kbar");
+  var cfg, i = -1, paused = false, t0 = 0, idle = null;
+  function nameOf(p) { var c = CATALOG.filter(function (x) { return x.path === p; })[0]; return c ? c.name : p; }
+  function safe(p) { return typeof p === "string" && p.charAt(0) === "/" && p.charAt(1) !== "/" && p.indexOf("://") < 0; }
+  function parseViews(txt) { return (txt || "").split(",").map(function (x) { var a = x.split("|"); return {path: a[0].trim(), secs: parseInt(a[1], 10) || 0}; }).filter(function (v) { return safe(v.path); }); }
+  function serialize(c) { return c.views.map(function (v) { return v.path + (v.secs ? "|" + v.secs : ""); }).join(","); }
+  function fromUrl() {
+    var q = new URLSearchParams(location.search), c = null;
+    if (q.get("only") && safe(q.get("only"))) c = {views: [{path: q.get("only"), secs: 0}], secs: SECS};
+    else if (q.get("preset")) { var pr = PRESETS.filter(function (p) { return p.name.toLowerCase() === q.get("preset").toLowerCase(); })[0]; if (pr) c = {views: pr.views.slice(), secs: SECS}; }
+    else if (q.get("views")) { var v = parseViews(q.get("views")); if (v.length) c = {views: v, secs: parseInt(q.get("secs"), 10) || SECS}; }
+    return c;
+  }
+  function stored() { try { var c = JSON.parse(localStorage.getItem("kiosk.cfg") || "null"); if (c && c.views && c.views.length) return c; } catch (e) {} return null; }
+  function load() { return fromUrl() || stored() || {views: DEFAULT.slice(), secs: SECS}; }
+  function urlFor(v) { return v.path + (v.path.indexOf("?") < 0 ? "?" : "&") + "kiosk=1" + (idleNow ? "&kidle=1" : ""); }
+  function show(n) {
+    i = (n + cfg.views.length) % cfg.views.length;
+    var v = cfg.views[i]; f.src = urlFor(v); $("kname").textContent = nameOf(v.path) + (cfg.views.length > 1 ? "  (" + (i + 1) + " of " + cfg.views.length + ")" : ""); t0 = Date.now();
+  }
+  function tick() {
+    var now = new Date(), CL = {{ clock | tojson }};
+    $("kclock").textContent = CL.show === "off" ? now.toLocaleString([], {weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit"}) : "";
+    var big = $("kbig");
+    if (CL.show === "off") big.style.display = "none";
+    else {
+      var tm = now.toLocaleTimeString([], CL.seconds ? {hour: "numeric", minute: "2-digit", second: "2-digit"} : {hour: "numeric", minute: "2-digit"});
+      var dt = now.toLocaleDateString([], {weekday: "long", month: "long", day: "numeric", year: "numeric"});
+      var html = CL.show === "date" ? dt : CL.show === "time" ? tm : tm + "<small>" + dt + "</small>";
+      if (big.getAttribute("data-h") !== html) { big.innerHTML = html; big.setAttribute("data-h", html); }
+      big.style.display = "";
+    }
+    if (cfg.views.length < 2) { prog.style.width = "0"; return; }
+    var el = (Date.now() - t0) / 1000, per = cfg.views[i].secs || cfg.secs;
+    if (!paused) { prog.style.width = Math.min(100, 100 * el / per) + "%"; if (el >= per) show(i + 1); }
+  }
+  function start(c) { cfg = c; paused = false; $("kpause").textContent = "Pause"; $("kpause").style.display = $("kprev").style.display = $("knext").style.display = c.views.length > 1 ? "" : "none"; show(0); }
+  // ---- exit and the bar that gets out of the way
+  function exit() { location.href = "/"; }
+  $("kexit").addEventListener("click", exit);
+  // after a time with no input the bar and the page's own menus and map controls hide; any input brings them back (the frame's page is told, and starts hidden again when the next page loads)
+  function applyIdle() { try { var h = f.contentDocument && f.contentDocument.documentElement; if (h && h.classList.contains("kiosk")) h.classList.toggle("kidle", idleNow); } catch (e) {} }
+  function wake() {
+    idleNow = false; bar.classList.remove("hide"); document.body.classList.add("bar-on"); applyIdle(); clearTimeout(idle);
+    if (!$("kset").classList.contains("open")) idle = setTimeout(function () { idleNow = true; bar.classList.add("hide"); document.body.classList.remove("bar-on"); applyIdle(); }, IDLE * 1000);
+  }
+  // the page inside the frame takes the mouse and the keys, so every way of waking the bar is hooked to the frame's own window as well, and again after each page loads
+  function hook(w) { try { ["mousemove", "mousedown", "touchstart", "keydown", "click", "wheel"].forEach(function (e) { w.addEventListener(e, wake, {passive: true}); }); w.addEventListener("keydown", keys); } catch (e) {} }
+  ["mousemove", "mousedown", "touchstart", "click", "wheel"].forEach(function (e) { document.addEventListener(e, wake, {passive: true}); });
+  $("khot").addEventListener("mouseenter", wake); $("khot").addEventListener("mousemove", wake);
+  f.addEventListener("load", function () { hook(f.contentWindow); applyIdle(); });
+  // leaving full screen with Esc: the browser keeps that key for itself, so show the bar (with Exit Kiosk) at once; Esc again, outside full screen, leaves the kiosk
+  document.addEventListener("fullscreenchange", function () { wake(); });
+  function keys(e) {
+    if (e.key === "Escape") { if ($("kset").classList.contains("open")) $("kset").classList.remove("open"); else if (!document.fullscreenElement) exit(); wake(); return; }
+    wake();
+    if (e.key === "ArrowRight") show(i + 1); else if (e.key === "ArrowLeft") show(i - 1);
+    else if (e.key === " " && !$("kset").classList.contains("open")) { e.preventDefault(); $("kpause").click(); }
+  }
+  document.addEventListener("keydown", keys);
+  $("kpause").addEventListener("click", function () { paused = !paused; this.textContent = paused ? "Play" : "Pause"; if (!paused) t0 = Date.now() - (parseFloat(prog.style.width) || 0) / 100 * (cfg.views[i].secs || cfg.secs) * 1000; });
+  $("kprev").addEventListener("click", function () { show(i - 1); });
+  $("knext").addEventListener("click", function () { show(i + 1); });
+  $("kfull").addEventListener("click", function () { var d = document.documentElement; (d.requestFullscreen || d.webkitRequestFullscreen || function () {}).call(d); });
+  // ---- setup
+  var edit = null;
+  function fill() {
+    $("kpreset").innerHTML = '<option value="">Custom (below)</option>' + PRESETS.map(function (p) { return '<option value="' + p.name.replace(/"/g, "&quot;") + '">' + p.name + "</option>"; }).join("");
+    $("kone").innerHTML = CATALOG.map(function (c) { return '<option value="' + c.path + '">' + c.name + "</option>"; }).join("");
+  }
+  function drawList() {
+    var h = "";
+    var chosen = edit.views.map(function (v) { return v.path; });
+    edit.views.forEach(function (v, k) {
+      h += '<div class="krow" data-k="' + k + '"><span class="nm">' + nameOf(v.path) + '</span><input type="number" class="ksec" min="0" max="3600" value="' + (v.secs || "") + '" placeholder="' + edit.secs + '" aria-label="Seconds for this page"><span class="ksmall">s</span><button type="button" data-a="up" aria-label="Move up">&uarr;</button><button type="button" data-a="down" aria-label="Move down">&darr;</button><button type="button" data-a="del" aria-label="Remove">&times;</button></div>';
+    });
+    var rest = CATALOG.filter(function (c) { return chosen.indexOf(c.path) < 0; });
+    h += rest.length ? '<div class="krow"><span class="nm ksmall">Add a page:</span><select id="kadd">' + rest.map(function (c) { return '<option value="' + c.path + '">' + c.name + "</option>"; }).join("") + '</select><button type="button" data-a="add">Add</button></div>' : "";
+    $("klist").innerHTML = h;
+  }
+  function openSetup() {
+    edit = JSON.parse(JSON.stringify(cfg)); fill();
+    $("kone").value = edit.views.length === 1 ? edit.views[0].path : CATALOG[0].path;
+    document.querySelector('input[name=kmode][value="' + (edit.views.length === 1 ? "one" : "cycle") + '"]').checked = true;
+    $("ksecs").value = edit.secs; $("kpreset").value = ""; $("kmsg").textContent = ""; drawList();
+    $("kset").classList.add("open"); wake();
+  }
+  $("ksetup").addEventListener("click", openSetup);
+  $("kclose").addEventListener("click", function () { $("kset").classList.remove("open"); wake(); });
+  $("kpreset").addEventListener("change", function () {
+    var p = PRESETS.filter(function (x) { return x.name === $("kpreset").value; })[0]; if (!p) return;
+    edit.views = p.views.slice(); document.querySelector('input[name=kmode][value="' + (p.views.length === 1 ? "one" : "cycle") + '"]').checked = true; if (p.views.length === 1) $("kone").value = p.views[0].path; drawList();
+  });
+  $("klist").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-a]"); if (!b) return;
+    var row = b.closest(".krow"), k = row ? parseInt(row.getAttribute("data-k"), 10) : -1, a = b.getAttribute("data-a");
+    syncSecs();
+    if (a === "add") edit.views.push({path: $("kadd").value, secs: 0});
+    else if (a === "del") edit.views.splice(k, 1);
+    else if (a === "up" && k > 0) edit.views.splice(k - 1, 0, edit.views.splice(k, 1)[0]);
+    else if (a === "down" && k < edit.views.length - 1) edit.views.splice(k + 1, 0, edit.views.splice(k, 1)[0]);
+    drawList();
+  });
+  function syncSecs() { document.querySelectorAll("#klist .krow[data-k]").forEach(function (r) { edit.views[parseInt(r.getAttribute("data-k"), 10)].secs = parseInt(r.querySelector(".ksec").value, 10) || 0; }); edit.secs = parseInt($("ksecs").value, 10) || SECS; }
+  function built() {
+    syncSecs();
+    var one = document.querySelector("input[name=kmode]:checked").value === "one";
+    return one ? {views: [{path: $("kone").value, secs: 0}], secs: edit.secs} : {views: edit.views.length ? edit.views : DEFAULT.slice(), secs: edit.secs};
+  }
+  function link(c) { return location.origin + "/kiosk?views=" + encodeURIComponent(serialize(c)) + "&secs=" + c.secs; }
+  $("kgo").addEventListener("click", function () {
+    var c = built(); try { localStorage.setItem("kiosk.cfg", JSON.stringify(c)); } catch (e) {}
+    history.replaceState(null, "", "/kiosk?views=" + encodeURIComponent(serialize(c)) + "&secs=" + c.secs);
+    $("kset").classList.remove("open"); start(c); wake();
+  });
+  $("kcopy").addEventListener("click", function () {
+    var u = link(built()); var done = function () { $("kmsg").textContent = "Link copied: it opens the kiosk with this setup."; };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(u).then(done, function () { window.prompt("Copy this link:", u); }); else window.prompt("Copy this link:", u);
+  });
+  $("kreset").addEventListener("click", function () { try { localStorage.removeItem("kiosk.cfg"); } catch (e) {} history.replaceState(null, "", "/kiosk"); $("kset").classList.remove("open"); start({views: DEFAULT.slice(), secs: SECS}); wake(); });
+  // ---- go
+  start(load()); setInterval(tick, 500); wake();
+  // a wall display runs for days: reload the whole page now and then so nothing ever gets stuck (it keeps its setup from the address or this browser)
+  setTimeout(function () { location.reload(); }, {{ reload_minutes }} * 60000);
+})();
+</script></body></html>

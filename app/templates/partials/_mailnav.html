@@ -1,0 +1,12 @@
+{# The folder bar of Messages: Compose, then Inbox, Sent, Drafts, Archive and Trash with their counts. #}
+<style>
+.mailnav{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:0 0 12px}
+.mailnav .btn{margin:0}
+.mailnav form{margin:0 0 0 auto;display:flex;gap:6px}
+.mailnav input[type=search]{width:190px;max-width:100%}
+</style>
+<div class="mailnav">
+  <a class="btn" href="/my/messages/compose">Write a Message</a>
+  {% for k, t in folders %}<a class="btn small {{ '' if k == folder else 'neutral' }}" href="/my/messages?folder={{ k }}">{{ t }}{% if k == 'inbox' and counts.unread %} <span class="msgbadge">{{ counts.unread }}</span>{% elif k == 'drafts' and counts.drafts %} ({{ counts.drafts }}){% elif k == 'trash' and counts.trash %} ({{ counts.trash }}){% endif %}</a>{% endfor %}
+  <form method="get" action="/my/messages"><input type="hidden" name="folder" value="{{ folder or 'inbox' }}"><input type="search" name="q" value="{{ q or '' }}" placeholder="Search this folder" aria-label="Search this folder"><button class="btn small neutral" type="submit">Search</button></form>
+</div>

@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% from "partials/_sonde_rows.html" import flight_table %}
+{% block title %}{{ r.callsign }} | My Radiosonde Station{% endblock %}
+{% block content %}
+<h1>My <span>Radiosonde Station</span> {{ r.callsign }}</h1>
+<div class="sub">{% if r.claim_status == 'claimed' %}Claimed{% else %}Waiting for proof{% endif %}{% if r.last_seen %} &middot; last heard {{ r.last_seen | localtime("%b %-d %H:%M") }}{% endif %}</div>
+{% with admin_back = '/admin/sondes' %}{% if managing %}<div class="panel" style="border-color:var(--acc2);margin-bottom:14px"><b>You are managing {{ managing }}'s station as an administrator.</b> Everything here works as it does for the owner and is recorded in the audit log under your name. <a href="{{ admin_back }}">Back to the admin list</a></div>{% endif %}
+{% endwith %}{% with active = 'sondes' %}{% include "partials/_my_subnav.html" %}{% endwith %}
+<p style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><a href="/my/sondes">&larr; My Radiosonde Stations</a>{% if r.public and not r.disabled %}<a class="btn small" href="/sondes/stations/{{ r.callsign | callurl }}">Public Page</a>{% endif %}</p>
+
+{% if r.claim_status != 'claimed' %}
+<details class="panel setsec" id="sec-prove" open><summary><span class="role-name">Prove This Station Is Yours</span></summary><div class="secbody">
+  <p style="margin-top:0">Put this code into the station's antenna description, then let it upload once. In auto_rx's <span class="mono">station.cfg</span>, under <span class="mono">[sondehub]</span>, set:</p>
+  <pre class="code">upload_station_antenna = {{ r.antenna or 'My antenna' }} {{ r.claim_code }}</pre>
+  <p style="margin-bottom:0">Restart auto_rx. When the portal sees the code on an upload from <b class="mono">{{ r.callsign }}</b> the claim completes by itself (usually within minutes of the next flight or station update). An administrator can also approve it. After it completes you can remove the code again.</p>
+</div></details>
+{% endif %}
+
+<details class="panel setsec" id="sec-station" open style="margin-top:14px"><summary><span class="role-name">Station</span></summary><form method="post" action="/my/sondes/{{ r.id }}/save" data-async>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <table style="max-width:640px">
+    <tr><th style="width:170px">Call sign</th><td class="mono copyable">{{ r.callsign }}</td></tr>
+    <tr><th>Software</th><td>{{ r.software or '-' }} {{ r.version }}</td></tr>
+    <tr><th>Antenna</th><td>{{ r.antenna or '-' }}</td></tr>
+    <tr><th>Position</th><td class="mono">{% if r.lat is not none %}{{ '%.4f' % r.lat }}, {{ '%.4f' % r.lon }}{% else %}<span class="dim">not known yet</span>{% endif %} <span class="dim">(from your uploads; only you see this exact value)</span></td></tr>
+  </table>
+  <label for="dn">Station Name</label><input type="text" id="dn" name="display_name" maxlength="60" value="{{ r.display_name }}" placeholder="For example Work tower, Little Rock">
+  <label for="nt">About the Station</label><input type="text" id="nt" name="notes" maxlength="500" value="{{ r.notes }}">
+  {% if r.claim_status == 'claimed' %}
+  <label for="pv">Location Privacy</label><select id="pv" name="privacy">{% for k, v in privacy.items() %}<option value="{{ k }}" {{ 'selected' if r.privacy == k }}>{{ v }}</option>{% endfor %}</select>
+  <div class="help">{% if r.mobile %}This station reports that it moves (a chase car or portable station), so its position is hidden unless you choose Exact.{% else %}What the public pages and maps show. {{ privacy_help() }}{% endif %}</div>
+  <label class="check"><input type="checkbox" name="public" value="1" {{ 'checked' if r.public }}><span><b>List this station publicly</b><br><span class="dim">On Receiving Stations, the maps and the flights it heard. Switch it off to keep the station out of the lists (flights it heard still show its call sign).</span></span></label>
+  {% endif %}
+  <button class="btn" type="submit">Save</button>
+</form></details>
+
+{% if r.claim_status == 'claimed' %}
+<details class="panel setsec" id="sec-direct" style="margin-top:14px"><summary><span class="role-name">Send Directly to ArkSignal (Optional)</span></summary><div class="secbody">
+  <p style="margin-top:0">A station that uploads to SondeHub is already counted here: nothing more is needed. This is for a station that wants its frames to arrive at once, or whose telemetry SondeHub does not get. auto_rx can broadcast what it decodes as a small UDP message (its "payload summary"); the <b>ArkSignal radiosonde bridge</b>, a small free program, passes that on to your own private address over https.</p>
+  {% if push %}
+  <p>Your upload address (it belongs to this station alone; anyone who has it can send frames as your station, so keep it private):</p>
+  <p><span class="mono copyable" style="word-break:break-all">{{ push }}</span></p>
+  <p>1. In auto_rx's <span class="mono">station.cfg</span> switch the output on, then restart auto_rx:</p>
+  <pre class="code">[oziplotter]
+payload_summary_enabled = True
+payload_summary_port = 55673</pre>
+  <p>2. On the computer that runs auto_rx (or any computer on the same network, with the output pointed at it):</p>
+  <pre class="code">curl -O {{ bridge }}
+python3 sonde_bridge.py {{ push }}</pre>
+  <p class="dim">{% if r.push_last %}Last frames received {{ r.push_last | localtime("%b %-d %H:%M") }}; {{ r.push_frames }} frames so far.{% else %}No frames received yet.{% endif %} The <a href="/feed/sondes#sec-send-directly">How to Feed Radiosondes</a> page has the Docker form.</p>
+  {% endif %}
+  <form method="post" action="/my/sondes/{{ r.id }}/push-address" {% if push %}data-confirm="Make a new upload address? The old one stops working at once."{% endif %}><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small neutral" type="submit">{{ 'Make a New Address' if push else 'Make an Upload Address' }}</button></form>
+</div></details>
+{% endif %}
+
+<details class="panel setsec" id="sec-flights" open style="margin-top:14px"><summary><span class="role-name">Flights My Station Heard</span></summary><div class="secbody">
+  {{ flight_table(flights, 'No flights heard yet.') }}
+  <p style="margin:10px 0 0"><a href="/sondes/flights?station={{ r.callsign | urlencode }}&amp;hours=0">All flights this station heard</a></p>
+</div></details>
+
+<details class="panel setsec" id="sec-release" style="margin-top:14px"><summary><span class="role-name">Release This Station</span></summary><form method="post" action="/my/sondes/{{ r.id }}/release" data-confirm="Release this station? It stays in the lists with the default location privacy, and anyone can claim it.">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <p style="margin-top:0" class="dim">Gives the station up. It keeps appearing on the public pages (it uploads to SondeHub whatever you do here) but is no longer yours.</p>
+  <button class="btn danger" type="submit">Release Station</button>
+</form></details>
+{% include "partials/_sondecredit.html" %}
+{% endblock %}

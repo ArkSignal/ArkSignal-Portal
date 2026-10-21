@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Usage{% endblock %}
+{% block content %}
+<h1><span>Admin</span> Usage</h1>
+<div class="sub">What the site asks of outside services, and what it stores for each service. Counts are added up from every web worker once a minute and kept {{ ("for " ~ keep ~ " days") if keep else "for all time" }} (<a href="/admin/settings/site#sec-service-status">Settings &gt; Service Status</a>).</div>
+{% include "partials/_admin_subnav.html" %}
+
+{% call sec('outside', 'Requests to Outside Services', True, True) %}
+  <form class="tfilterbar" method="get" id="usage-range" style="margin-bottom:6px">
+    <label style="margin:0">From <input type="datetime-local" id="u-from" style="max-width:220px"></label><label style="margin:0">To <input type="datetime-local" id="u-to" style="max-width:220px"></label>
+    <input type="hidden" name="from" id="u-from-h"><input type="hidden" name="to" id="u-to-h"><input type="hidden" name="all" id="u-all" value="{{ '1' if all_time else '' }}">
+    <button class="btn small" type="submit" style="margin:0">Show</button><button class="btn small neutral" type="button" id="u-alltime" style="margin:0">All Time</button>
+    <span class="dim" style="font-size:.8rem">Shown in your time zone. {% if first %}Counting since {{ first.strftime('%Y-%m-%d') }} (UTC).{% endif %}</span></form>
+  <div class="tfilterbar" style="margin-bottom:8px"><input type="search" class="tfilter" data-table="usage-out" placeholder="Filter by host or service" aria-label="Filter the table by host or service">
+    <label style="margin:0">Show <select id="u-kind" aria-label="Which hosts to show"><option value="">All hosts</option><option value="ext">Outside services only</option><option value="int">Internal only</option></select></label>
+    <label style="margin:0"><input type="checkbox" id="u-fail"> Only with failures</label><label style="margin:0"><input type="checkbox" id="u-used"> Only with requests in the range</label><span class="dim tcount" id="u-count"></span></div>
+  <p class="dim" style="margin-top:0">Every web request the portal makes, by host. Answers the code never reads count as a request but add no data. Addresses on the site's own network (the services below, the hub) are marked internal. Live subscriptions are not requests: see Live Feeds.</p>
+  {% if rows %}<table class="sortable" id="usage-out"><thead><tr><th data-sort="text">Host</th><th data-sort="text">Service</th><th data-sort="num">Today</th><th data-sort="num">7 Days</th><th data-sort="num">In Range</th><th data-sort="num">Failed</th><th data-sort="num">Data Read</th><th data-sort="text">Last Request</th></tr></thead><tbody>
+  {% for r in rows %}<tr data-int="{{ 1 if r.internal else 0 }}" data-err="{{ r.errors }}" data-calls="{{ r.calls }}"><td class="mono">{{ r.host }}{% if r.internal %} <span class="tag off">internal</span>{% endif %}</td><td>{{ r.name }}</td><td data-v="{{ r.today }}">{{ '{:,}'.format(r.today) }}</td><td data-v="{{ r.d7 }}">{{ '{:,}'.format(r.d7) }}</td><td data-v="{{ r.calls }}">{{ '{:,}'.format(r.calls) }}</td><td data-v="{{ r.errors }}">{{ '{:,}'.format(r.errors) }}</td><td data-v="{{ r.bytes }}">{{ human(r.bytes) }}</td><td>{% if r.last %}<time class="ts" datetime="{{ r.last.isoformat() }}" data-fmt="dt">{{ r.last.strftime('%Y-%m-%d %H:%M') }}</time>{% endif %}</td></tr>{% endfor %}</tbody></table>
+  {% else %}<p class="dim" style="margin:0">Nothing counted yet.</p>{% endif %}
+  {% if extra %}<h3>Made by the Service Containers</h3>
+  <table><thead><tr><th>Host</th><th>Service</th><th>Made by</th><th>Requests</th><th>Data Read</th></tr></thead><tbody>{% for x in extra %}<tr><td class="mono">{{ x.host }}</td><td>{{ x.name }}</td><td>{{ x.via }}</td><td>{{ '{:,}'.format(x.calls) }}</td><td>{{ human(x.bytes) }}</td></tr>{% endfor %}</tbody></table>
+  <p class="dim" style="margin-bottom:0">Counted by each service and added up here once a minute, by day, so a service restart loses nothing. The range counts whole days.</p>{% endif %}
+{% endcall %}
+
+{% call sec('stored', 'Stored Data', True, True) %}
+  <table id="usage-store"><thead><tr><th>Service</th><th>Database Size</th><th>Holds</th></tr></thead><tbody>
+  {% for s in services %}<tr><td>{{ s.service }}<br><span class="dim" style="font-size:.8rem">own container and database</span></td><td>{{ human(s.size) if s.size is not none else '-' }}</td><td>{% if s.note %}<span class="dim">{{ s.note }}</span>{% else %}{{ s.holds }}{% endif %}</td></tr>{% endfor %}
+  <tr><td colspan="3"><b>The portal's own database: {{ human(total) }}</b></td></tr>
+  {% for g, size, n in tables %}<tr><td>&nbsp;&nbsp;{{ g }}</td><td>{{ human(size) }}</td><td>about {{ '{:,}'.format(n) }} rows</td></tr>{% endfor %}
+  </tbody></table>
+  <p class="dim" style="margin-bottom:0">Sizes include indexes. The hub's own flight history is not ours and is not counted here.</p>
+{% endcall %}
+
+{% call sec('feeds', 'Live Feeds', True, True) %}
+  <p class="dim" style="margin-top:0">Subscriptions that stay connected, so nothing is requested over and over. Messages are added up here once a minute, so the totals cover the chosen range and all time, not only the time since a service started.</p>
+  <table><thead><tr><th>Feed</th><th>In Range</th><th>All Time</th><th>Right Now</th></tr></thead><tbody>
+    <tr><td>Radiosonde live feed (SondeHub)</td><td>{{ '{:,}'.format(feed_rng.get('Radiosonde live feed (SondeHub)', 0)) }}</td><td>{{ '{:,}'.format(feed_all.get('Radiosonde live feed (SondeHub)', 0)) }}</td><td>{{ sonde_feed or '-' }}</td></tr>
+    {% for s in services %}{% if s.feed %}<tr><td>{{ s.service }}</td><td>{{ '{:,}'.format(feed_rng.get(s.service, 0)) }}</td><td>{{ '{:,}'.format(feed_all.get(s.service, 0)) }}</td><td>{{ s.feed }}</td></tr>{% endif %}{% endfor %}
+  </tbody></table>
+{% endcall %}
+
+<script>
+(function () {
+  // the From and To boxes show your time; the page asks for them in UTC
+  function pad(n) { return (n < 10 ? "0" : "") + n; }
+  function local(iso) { var d = new Date(iso); return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + "T" + pad(d.getHours()) + ":" + pad(d.getMinutes()); }
+  var f = document.getElementById("u-from"), t = document.getElementById("u-to"), all = document.getElementById("u-all");
+  var allTime = all.value === "1";
+  if (!allTime) f.value = local({{ start | tojson }});
+  t.value = local({{ end | tojson }});
+  document.getElementById("usage-range").addEventListener("submit", function () {
+    document.getElementById("u-from-h").value = f.value ? new Date(f.value).toISOString() : "";
+    document.getElementById("u-to-h").value = t.value ? new Date(t.value).toISOString() : "";
+    if (f.value) all.value = "";   // choosing a start again leaves All Time
+  });
+  document.getElementById("u-alltime").addEventListener("click", function () { all.value = "1"; f.value = ""; document.getElementById("usage-range").submit(); });
+  // filters for the table of outside requests (the search box is the site's own table filter)
+  var tbl = document.getElementById("usage-out"); if (!tbl) return;
+  var kind = document.getElementById("u-kind"), fail = document.getElementById("u-fail"), used = document.getElementById("u-used"), count = document.getElementById("u-count");
+  function apply() {
+    var rows = tbl.tBodies[0].rows, shown = 0;
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i], hide = (kind.value === "ext" && r.dataset.int === "1") || (kind.value === "int" && r.dataset.int !== "1") || (fail.checked && !(+r.dataset.err > 0)) || (used.checked && !(+r.dataset.calls > 0));
+      r.classList.toggle("u-hide", hide);
+      if (!hide && r.style.display !== "none") shown++;
+    }
+    count.textContent = shown === rows.length ? "" : shown + " of " + rows.length;
+  }
+  [kind, fail, used].forEach(function (e) { e.addEventListener("change", apply); });
+  document.addEventListener("input", function (e) { if (e.target.classList && e.target.classList.contains("tfilter")) setTimeout(apply, 0); });
+  apply();
+})();
+</script>
+<style>#usage-out tr.u-hide{display:none}</style>
+{% endblock %}

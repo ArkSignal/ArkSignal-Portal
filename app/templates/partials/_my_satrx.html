@@ -1,0 +1,5 @@
+{% from "partials/_satrx.html" import card with context %}
+<div id="my-satrx">
+  {% for r in receivers %}{{ card(r, '/my/sat-receivers', imgs[r.id], '#my-satrx', false) }}
+  {% else %}<p class="dim" style="margin:0">You have no receivers yet. Add one above.</p>{% endfor %}
+</div>

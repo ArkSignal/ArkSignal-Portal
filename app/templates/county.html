@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}{{ c.name }}, {{ c.state }}{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ leaflet_base }}/leaflet.css" crossorigin="anonymous">
+<link rel="stylesheet" href="/static/mapshell.css?v={{ app_version }}">
+<h1>{{ c.base }} <span>County</span></h1>
+<div class="sub">{{ c.state }} &middot; {{ '{:,}'.format(c.area | round | int) }} square miles{% if ct %} &middot; <b>{{ ct.region }} Trauma Region</b> &middot; ADH Trauma Zone {{ ct.zone }}{% endif %}{% if media.website %} &middot; <a href="{{ media.website }}" target="_blank" rel="noopener">County website</a>{% endif %}</div>
+<p style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><a href="/counties/">&larr; County Map</a>
+  <a class="btn small show-on-map" href="/counties/?county={{ c.geoid }}&amp;only=1">Show on County Map</a>
+  {% if ct %}<a class="btn small show-on-map" href="/trauma/?county={{ c.geoid }}">Show on Trauma Map</a>{% endif %}
+  <a class="btn small show-on-map" href="/live?lat={{ '%.5f' % c.lat }}&amp;lon={{ '%.5f' % c.lon }}&amp;zoom=9&amp;layers=counties">Show on Aircraft Map</a></p>
+
+<div class="tiles" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr));margin-bottom:14px">
+  {% for k, l in metrics %}<div class="panel tile"><div class="tv" style="font-size:1.6rem">{{ counts.get(k, 0) }}</div><div class="tl">{{ l }}</div></div>{% endfor %}
+</div>
+
+{% if media.photo_url %}<div class="panel" style="padding:0;overflow:hidden;margin-bottom:14px"><img src="{{ media.photo_url }}" alt="{{ c.name }}" loading="lazy" style="display:block;width:100%;max-height:420px;object-fit:cover">
+  <div class="dim" style="padding:8px 12px;font-size:.78rem">Photo: {% if media.photo_page %}<a href="{{ media.photo_page }}" target="_blank" rel="noopener">{{ media.photo_credit or 'Wikimedia Commons' }}</a>{% else %}{{ media.photo_credit or 'Provided by an administrator' }}{% endif %}</div></div>{% endif %}
+
+{% call sec('feeders', 'Feeders', True) %}
+  {% if kinds.feeders %}<table><thead><tr><th>Station</th><th>Name</th><th>Status</th></tr></thead><tbody>
+  {% for f in kinds.feeders %}<tr><td><a class="mono" href="{{ f.href }}">{{ f.id }}</a></td><td>{{ f.name }}</td><td>{% if f.online %}<span class="tag live">online</span>{% else %}<span class="tag off">offline</span>{% endif %}</td></tr>{% endfor %}
+  </tbody></table><p class="dim" style="margin-bottom:0;font-size:.82rem">Stations are placed by the position they show publicly; a station that hides its location is not listed.</p>
+  {% else %}<p class="dim" style="margin:0">No feeders show a position in this county yet. <a href="/feed/">How to feed</a>.</p>{% endif %}
+{% endcall %}
+
+{% if wx_on %}{% call sec('weather', 'Weather Stations', True) %}
+  {% if kinds.weather %}<table><thead><tr><th>Station</th><th>Name</th><th>Temperature</th><th>Wind</th><th>Status</th></tr></thead><tbody>
+  {% for w in kinds.weather %}<tr><td><a class="mono" href="{{ w.href }}">{{ w.id }}</a></td><td>{{ w.name }}</td><td>{% if w.temp_f is not none %}{{ ((w.temp_f - 32) * 5 / 9) | u_temp(0, 'weather') }}{% else %}-{% endif %}</td><td>{% if w.wind_mph is not none %}{{ (w.wind_mph * 0.44704) | u_spd(0, 'weather') }}{% else %}-{% endif %}</td><td>{% if w.online %}<span class="tag live">reporting</span>{% else %}<span class="tag off">not reporting</span>{% endif %}</td></tr>{% endfor %}
+  </tbody></table>
+  {% else %}<p class="dim" style="margin:0">No weather stations show a position in this county yet. <a href="/feed/weather">Add yours</a>.</p>{% endif %}
+{% endcall %}{% endif %}
+
+{% call sec('hospitals', 'Hospitals', True) %}
+  {% if kinds.hospitals %}<table><thead><tr><th>Hospital</th><th>City</th><th>Trauma Level</th><th>Emergency</th></tr></thead><tbody>
+  {% for h in kinds.hospitals %}<tr><td><a href="{{ h.href }}">{{ h.name }}</a></td><td>{{ h.city }}</td><td>{% if h.trauma %}<span class="tag admin">Level {{ h.trauma }}</span>{% else %}-{% endif %}</td><td>{{ 'Yes' if h.emergency else 'No' }}</td></tr>{% endfor %}
+  </tbody></table>
+  {% else %}<p class="dim" style="margin:0">No hospital is listed in this county.</p>{% endif %}
+{% endcall %}
+
+{% call sec('airports', 'Airports', True) %}
+  {% if kinds.airports %}<table><thead><tr><th>Identifier</th><th>Name</th><th>City</th></tr></thead><tbody>
+  {% for a in kinds.airports %}<tr><td><a class="mono" href="{{ a.href }}">{{ a.id }}</a></td><td>{{ a.name }}</td><td>{{ a.city or '' }}</td></tr>{% endfor %}
+  </tbody></table>
+  {% else %}<p class="dim" style="margin:0">No airport is listed in this county.</p>{% endif %}
+{% endcall %}
+
+{% if sonde_on %}{% call sec('balloons', 'Weather Balloons', True) %}
+  {% if kinds.sonde_stations %}<p style="margin-top:0"><b>Receiving stations:</b> {% for s in kinds.sonde_stations %}<a href="{{ s.href }}">{{ s.name }}</a>{{ ', ' if not loop.last }}{% endfor %} <span class="dim">(at the position their owners show)</span></p>{% endif %}
+  {% if kinds.sonde_sites %}<p style="margin-top:0"><b>Launch sites:</b> {% for s in kinds.sonde_sites %}<a href="{{ s.href }}">{{ s.name }}</a>{{ ', ' if not loop.last }}{% endfor %}</p>{% endif %}
+  {% if kinds.balloons %}<table><thead><tr><th>Balloon</th><th>Type</th><th>Landed</th></tr></thead><tbody>
+  {% for b in kinds.balloons %}<tr><td><a class="mono" href="{{ b.href }}">{{ b.id }}</a></td><td>{{ b.type }}</td><td>{{ b.when | localtime("%b %-d %H:%M") if b.when else '' }}</td></tr>{% endfor %}
+  </tbody></table>
+  {% else %}<p class="dim" style="margin-bottom:0">No balloon has come down in this county in the last 30 days.</p>{% endif %}
+{% endcall %}{% endif %}
+
+{% if nearby %}{% call sec('neighbors', 'Neighboring Counties', False) %}
+  <p style="margin:0">{% for n in nearby %}<a href="/counties/{{ n.slug }}">{{ n.base }}</a>{{ ' &middot; ' | safe if not loop.last }}{% endfor %}</p>
+{% endcall %}{% endif %}
+<div class="panel" style="padding:0;overflow:hidden;margin:14px 0"><div id="cmap" style="height:560px"></div></div>
+<p class="dim" style="font-size:.8rem">County outlines: US Census Bureau (TIGERweb).{% if ct %} Trauma regions and zones: Arkansas Department of Health.{% endif %}</p>
+
+<script src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script>
+<script src="/static/touchhit.js"></script>
+<script src="/static/colocate.js"></script>
+<script src="/static/sondeicons.js"></script>
+<script>
+(function () {
+  var map = L.map("cmap");
+  L.tileLayer({{ tile_url | tojson }}, {maxZoom: 19, attribution: {{ tile_attr | tojson }}}).addTo(map);
+  var poly = L.geoJSON({type: "Feature", geometry: {{ c.geometry | tojson }}}, {style: {color: "#3ee6a8", weight: 2.5, fillColor: "#3ee6a8", fillOpacity: .08}}).addTo(map);
+  map.fitBounds(poly.getBounds(), {padding: [20, 20]});
+  var K = {{ kinds | tojson }};
+  function esc(t) { return String(t == null ? "" : t).replace(/[&<>"]/g, function (c) { return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]; }); }
+  function pop(html, href, text) { return html + (href ? '<br><a href="' + esc(href) + '">' + text + "</a>" : ""); }   // the same click-for-details popup as the other maps
+  function dot(list, color, title) { list.forEach(function (x) { L.circleMarker([x.lat, x.lon], {radius: 6, color: color, weight: 2, fillOpacity: .75}).addTo(map).bindTooltip(title(x)); }); }
+  function dotk(kind, list, color, title) { list.forEach(function (x) { var m = L.circleMarker([x.lat, x.lon], {radius: 6, color: color, weight: 2, fillOpacity: .75}).addTo(map).bindTooltip(title(x)).bindPopup(pop("<b>" + esc(title(x)) + "</b>", x.href, kind === "adsb" ? "View station" : "Weather page")); Colocate.track(map, kind, m, x.lat, x.lon); }); }   // fanned out when kinds share a place
+  dotk("adsb", K.feeders, "#4fb3ff", function (x) { return "Feeder " + x.id; });
+  dotk("weather", K.weather, "#ffb454", function (x) { return "Weather " + x.id; });
+  // the same symbols as the other maps: numbered trauma squares, blue and gray airport dots, the balloon icons
+  K.hospitals.forEach(function (x) {
+    var lvl = {I: 1, II: 2, III: 3, IV: 4, V: 5}[x.trauma], cls = "hico " + (lvl ? "t" + lvl : x.emergency ? "ed" : "noed") + (x.approx ? " approx" : "") + (x.heliport ? " heli" : "");
+    L.marker([x.lat, x.lon], {icon: L.divIcon({className: "", html: '<div class="' + cls + '">' + (x.trauma || "+") + "</div>", iconSize: [22, 22], iconAnchor: [11, 11]})}).addTo(map).bindTooltip(x.name + (x.trauma ? " · Trauma level " + x.trauma : "")).bindPopup(pop("<b>" + esc(x.name) + "</b><br>" + esc(x.city || "") + (x.trauma ? " · Trauma level " + esc(x.trauma) : "") + (x.emergency ? " · Emergency" : "") + (x.approx ? " · approximate position" : ""), x.href, "Hospital page") + (x.heliport ? '<br><a href="/airports/' + encodeURIComponent(x.heliport) + '">Heliport ' + esc(x.heliport) + "</a>" : ""));
+  });
+  K.airports.forEach(function (x) {
+    var big = x.type === "large_airport" || x.type === "medium_airport";
+    L.circleMarker([x.lat, x.lon], {radius: big ? 5 : 3.5, color: "#e8eef7", weight: 1, fillColor: big ? "#4fb3ff" : "#8a9bb3", fillOpacity: .9}).addTo(map).bindTooltip(x.id + " " + x.name).bindPopup(pop("<b>" + esc(x.id) + "</b> " + esc(x.name) + "<br>" + esc(x.city || ""), x.href, "Airport page"));
+  });
+  function bmark(list, kind, color, title) { list.forEach(function (x) { var m = L.marker([x.lat, x.lon], {icon: L.divIcon({className: "", iconSize: [0, 0], html: SondeIcons.marker(kind, color, "", {size: 26})})}).addTo(map).bindTooltip(title(x)).bindPopup(pop("<b>" + esc(title(x)) + "</b>", x.href, "Open page")); if (kind === "station") Colocate.track(map, "sonde", m, x.lat, x.lon); }); }
+  bmark(K.sonde_sites, "site", "#8fb8ff", function (x) { return "Balloon launch: " + x.name; });
+  bmark(K.sonde_stations, "station", "#c58bff", function (x) { return "Sonde receiving station " + x.name; });
+  bmark(K.balloons, "landed", "#ff8cd9", function (x) { return "Balloon landed: " + x.id; });
+})();
+</script>
+{% endblock %}

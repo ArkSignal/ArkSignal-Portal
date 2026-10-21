@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Restore Part of a Backup{% endblock %}
+{% block content %}
+<h1><span>Admin</span> Restore Part of a Backup</h1>
+<div class="sub">Bring back only what you choose from <span class="mono">{{ name }}</span>, by area or one record at a time. A safety backup of the current data is taken first, and the whole thing is undone if anything fails.</div>
+{% include "partials/_admin_subnav.html" %}
+<p><a href="/admin/backups">&larr; Back to Backups</a></p>
+
+<details class="panel setsec" id="sec-by-area" open style="margin-bottom:14px"><summary><span class="role-name">Restore Whole Areas</span></summary><div class="secbody">
+  <form method="post" action="/admin/backups/{{ name }}/parts/restore" data-confirm="Restore the ticked areas from this backup? A safety backup is taken first.">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div style="overflow-x:auto"><table>
+      <tr><th style="width:36px"></th><th>Area</th><th>In the backup</th><th>Now</th><th>What it contains</th></tr>
+      {% for a in pv.areas %}
+      <tr>
+        <td><input type="checkbox" name="area" value="{{ a.key }}" id="a-{{ a.key }}" aria-label="{{ a.label }}"></td>
+        <td><label for="a-{{ a.key }}" style="margin:0;font-weight:600">{{ a.label }}</label></td>
+        <td class="mono">{{ '{:,}'.format(a.backup_total) }}</td><td class="mono">{{ '{:,}'.format(a.now_total) }}</td>
+        <td class="dim" style="font-size:.84rem">{{ a.text }}<br><span class="mono" style="font-size:.74rem">{{ a.tables | join(', ') }}</span></td>
+      </tr>
+      {% endfor %}
+    </table></div>
+    <div class="grp">How to Restore Them</div>
+    <label class="check"><input type="radio" name="mode" value="merge" checked><span><b>Merge (safe)</b><br><span class="dim">Adds what the backup has and brings records that exist now back to how the backup had them. Nothing that is only in the portal now is deleted.</span></span></label>
+    <label class="check"><input type="radio" name="mode" value="replace"><span><b>Replace</b><br><span class="dim">First removes the current rows of the ticked areas, so they end up exactly as in the backup. Anything added since the backup is lost from those areas. Replacing Accounts also signs everyone out. Refused if it would also delete data in areas you did not tick.</span></span></label>
+    <button class="btn" type="submit">Restore the Ticked Areas</button>
+  </form>
+</div></details>
+
+<details class="panel setsec" id="sec-by-record" style="margin-bottom:14px"><summary><span class="role-name">Restore Individual Records</span></summary><div class="secbody">
+  <p class="dim" style="margin-top:0">Pick one person, station, role, alert rule or setting entry and bring just that back, together with what belongs to it (a station with its statistics and events, a person with their roles and recovery codes). Always merged: nothing is deleted.</p>
+  {% for t, info in pv.records.items() %}
+  <details class="recpick" data-table="{{ t }}" style="margin:8px 0;border:1px solid var(--line);border-radius:10px;padding:8px 12px">
+    <summary style="cursor:pointer"><b>{{ info[0] }}</b> <span class="dim">({{ '{:,}'.format(info[1]) }} in the backup)</span></summary>
+    <div class="recbody" style="margin-top:8px"><span class="dim">Loading...</span></div>
+  </details>
+  {% endfor %}
+</div></details>
+
+<script>
+(function () {
+  var NAME = {{ name | tojson }}, CSRF = {{ csrf_token() | tojson }};
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]; }); }
+  document.querySelectorAll(".recpick").forEach(function (d) {
+    d.addEventListener("toggle", async function () {
+      if (!d.open || d.dataset.loaded) return;
+      d.dataset.loaded = "1";
+      var body = d.querySelector(".recbody"), t = d.dataset.table;
+      try {
+        var r = await fetch("/admin/backups/" + encodeURIComponent(NAME) + "/records/" + t + ".json"), j = await r.json();
+        if (j.error) { body.textContent = j.error; return; }
+        var missing = j.records.filter(function (x) { return !x.exists; }).length;
+        body.innerHTML = '<form method="post" action="/admin/backups/' + encodeURIComponent(NAME) + '/records/restore" data-confirm="Restore the ticked records from this backup? A safety backup is taken first.">' +
+          '<input type="hidden" name="csrf_token" value="' + esc(CSRF) + '"><input type="hidden" name="table" value="' + t + '">' +
+          '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:6px"><input type="search" placeholder="Filter" style="max-width:220px" class="recq">' +
+          '<button class="btn small neutral recmiss" type="button" style="margin:0">Tick all that are missing now (' + missing + ')</button><button class="btn small" type="submit" style="margin:0">Restore Ticked Records</button></div>' +
+          '<div style="max-height:320px;overflow:auto">' + j.records.map(function (x) {
+            return '<label class="rec" data-t="' + esc(x.label.toLowerCase()) + '" data-missing="' + (x.exists ? 0 : 1) + '" style="display:flex;gap:8px;margin:2px 0"><input type="checkbox" name="id" value="' + esc(x.id) + '"><span>' + esc(x.label) +
+              (x.exists ? ' <span class="dim">(exists now)</span>' : ' <span class="tag off">not in the portal now</span>') + '</span></label>';
+          }).join("") + '</div></form>';
+        body.querySelector(".recq").addEventListener("input", function () {
+          var q = this.value.toLowerCase(); body.querySelectorAll(".rec").forEach(function (l) { l.style.display = !q || l.dataset.t.indexOf(q) >= 0 ? "flex" : "none"; });
+        });
+        body.querySelector(".recmiss").addEventListener("click", function () {
+          body.querySelectorAll('.rec[data-missing="1"] input').forEach(function (c) { c.checked = true; });
+        });
+      } catch (e) { body.textContent = "Could not load the list."; }
+    });
+  });
+})();
+</script>
+{% endblock %}

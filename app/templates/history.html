@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Flight History{% endblock %}
+{% block content %}
+{% from "partials/_sorthead.html" import sorthead %}
+{% include "partials/_airline_mark.html" %}
+<style>
+.hbar{display:flex;gap:12px 18px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px}
+.hbar form{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin:0}
+.hbar label{margin:0 0 3px;font-size:.75rem}
+.hbar select,.hbar input[type=datetime-local],.hbar input[type=text]{padding:6px 9px;border-radius:9px;border:1px solid var(--line);background:var(--input-bg);color:var(--text);font:inherit;font-size:.85rem;color-scheme:dark}
+html[data-theme=light] .hbar input[type=datetime-local]{color-scheme:light}
+.hbar .sep{width:1px;align-self:stretch;background:var(--line)}
+td.mk{width:34px}
+</style>
+<h1>Flight <span>History</span></h1>
+<div class="sub">Flights this portal has heard before{% if since %}, since <time class="ts" datetime="{{ since.isoformat() }}" data-fmt="d">{{ since.date() }}</time>{% endif %}. Pick a period, and optionally a callsign, registration, aircraft type or hex code. For aircraft in the air right now use <a href="/flight/">Flights</a>.</div>
+{% if not enabled %}<div class="flash error">Flight history is switched off on this site, so nothing new is being recorded.</div>{% endif %}
+{% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+<div class="panel" style="margin-bottom:14px">
+  <div class="hbar">
+    <form method="get">
+      <div><label for="hq">Callsign, Registration, Type or Hex</label><input type="text" id="hq" name="q" value="{{ q }}" maxlength="20" placeholder="for example AAL, N525US, B738" style="width:210px"></div>
+      <div><label for="duration">Show Flights From</label>
+        <select id="duration" name="duration">{% for k, l in durations %}<option value="{{ k }}" {{ 'selected' if k == duration and not custom }}>The last {{ l }}</option>{% endfor %}</select></div>
+      <div><label for="end">Ending</label>
+        <select id="end" name="end">{% for k, l in ends %}<option value="{{ k }}" {{ 'selected' if k == end and not custom }}>{{ l }}</option>{% endfor %}</select></div>
+      <button class="btn small" type="submit" style="margin:0 0 1px">Search</button>
+    </form>
+    <span class="sep"></span>
+    <form method="get">
+      <input type="hidden" name="q" value="{{ q }}">
+      <div><label for="from">From ({{ tz }})</label><input type="datetime-local" id="from" name="from" value="{{ shown_from }}" required></div>
+      <div><label for="to">To ({{ tz }})</label><input type="datetime-local" id="to" name="to" value="{{ shown_to }}" required></div>
+      <button class="btn small" type="submit" style="margin:0 0 1px">Show This Range</button>
+    </form>
+  </div>
+  <div class="help" style="margin-top:0">A flight is shown if it was in the air at any time during the period. Times are in {{ tz }}{% if days %}; flights are kept for {{ days }} days{% endif %}.</div>
+</div>
+<div class="panel" style="overflow-x:auto">
+  <table>
+    <tr><th></th>{{ sorthead("Flight", "flight", sort, direction, pager.args) }}{{ sorthead("Registration", "reg", sort, direction, pager.args) }}{{ sorthead("Type", "type", sort, direction, pager.args) }}{{ sorthead("First Heard", "first", sort, direction, pager.args) }}{{ sorthead("Last Heard", "last", sort, direction, pager.args) }}{{ sorthead("Highest", "alt", sort, direction, pager.args) }}{{ sorthead("Top Speed", "speed", sort, direction, pager.args) }}<th></th></tr>
+    {% for f in rows %}
+    <tr>
+      <td class="mk" data-cs="{{ f.callsign or '' }}" data-mil="{{ 1 if f.mil else 0 }}"></td>
+      <td class="mono"><b>{{ f.callsign or '-' }}</b></td>
+      <td>{{ f.reg or '' }}</td>
+      <td>{{ f.type or '' }}</td>
+      <td><time class="ts" datetime="{{ f.first_seen.isoformat() }}">{{ f.first_seen }}</time></td>
+      <td><time class="ts" datetime="{{ f.last_seen.isoformat() }}">{{ f.last_seen }}</time></td>
+      <td>{{ (f.max_alt | u_ft) if f.max_alt is not none else '' }}</td>
+      <td>{{ (f.max_gs | u_kt) if f.max_gs else '' }}</td>
+      <td><a class="btn small" style="margin:0" href="/flight/{{ f.hex }}?at={{ (f.first_seen.timestamp() + 1) | int }}">Flight Progress</a></td>
+    </tr>
+    {% else %}
+    <tr><td colspan="9" class="dim">No flights match that period{{ ' and search' if q }}. {% if not since %}Nothing has been recorded yet.{% endif %}</td></tr>
+    {% endfor %}
+  </table>
+  {% include "partials/_pager.html" %}
+</div>
+<script>
+(function () {
+  function marks() {
+    document.querySelectorAll("td.mk").forEach(function (td) { td.innerHTML = window.ADSB_MARK ? ADSB_MARK.html({flight: td.dataset.cs, mil: td.dataset.mil === "1"}) : ""; });
+  }
+  ADSB_MARK.onchange = marks; marks();
+})();
+</script>
+{% endblock %}

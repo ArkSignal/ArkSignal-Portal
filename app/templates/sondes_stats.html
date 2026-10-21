@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Radiosonde Statistics{% endblock %}
+{% block content %}
+<h1><span>Radiosonde</span> Statistics</h1>
+<div class="sub">Flights, how high they burst, how long they flew and which receiving stations heard them. Search for a flight (serial), a receiving station or a launch site, choose the kinds of balloon, the status and the dates.</div>
+<div class="panel">
+  <div class="rsx-filters">
+    <div><div class="lv-sub" style="margin-top:0">Dates</div><div class="lv-row" style="margin-top:0"><label>From <input type="date" id="rs-from"></label><label>To <input type="date" id="rs-to"></label></div>
+      <div class="lv-sub">Status</div><select id="rs-status"><option value="">All flights</option><option value="aloft">In the air</option><option value="landed">Landed</option><option value="lost">Signal lost</option></select></div>
+    <div><div class="lv-sub" style="margin-top:0">Kinds of balloon</div>{% for k, l in sources %}<label><input type="checkbox" data-src="{{ k }}" checked> {{ l }}</label>{% endfor %}</div>
+    <div style="grid-column:span 2;min-width:260px"><div class="lv-sub" style="margin-top:0">Search</div>
+      <div id="rs-chips"></div>
+      <input type="search" id="rs-find" list="rs-list" placeholder="A flight, a receiving station or a launch site" autocomplete="off" aria-label="Add a flight, a receiving station or a launch site" style="width:100%"><datalist id="rs-list"></datalist>
+      <input type="search" id="rs-q" placeholder="Or any text: type, maker, site name" aria-label="Search text" style="width:100%;margin-top:6px">
+      <div class="help dim" style="font-size:.78rem">Nothing added means every flight in the dates. Add several flights, stations or sites to compare them.</div></div>
+  </div>
+</div>
+<div class="tiles" style="margin-top:14px">
+  <div class="panel tile"><div class="tv" id="rs-n">-</div><div class="tl">Flights</div></div><div class="panel tile"><div class="tv" id="rs-burst">-</div><div class="tl">Average burst height</div></div>
+  <div class="panel tile"><div class="tv" id="rs-min">-</div><div class="tl">Typical flight time (median)</div></div><div class="panel tile"><div class="tv" id="rs-climb">-</div><div class="tl">Average climb</div></div></div>
+<div class="rsx-two" style="margin-top:14px">
+  <div class="panel"><h3 style="margin-top:0">Flights Per Day</h3><div id="rs-days"></div></div>
+  <div class="panel"><h3 style="margin-top:0">How High They Burst</h3><div id="rs-hist"></div></div>
+</div>
+<div class="rsx-two" style="margin-top:14px">
+  <div class="panel"><h3 style="margin-top:0">Stations That Heard the Most</h3><table id="rs-top"><thead><tr><th>Receiving station</th><th>Flights heard</th></tr></thead><tbody></tbody></table></div>
+  <div class="panel"><h3 style="margin-top:0">By Kind</h3><div id="rs-kinds" class="dim"></div></div>
+</div>
+<div class="panel" style="margin-top:14px;overflow-x:auto"><div class="tfilterbar"><input type="search" class="tfilter" data-table="#rs-tbl" placeholder="Search the flights listed" aria-label="Search the flights listed"><span class="dim tcount"></span></div>
+  <table class="sortable" id="rs-tbl"><thead><tr><th data-sort="text">Flight</th><th data-sort="text">Type</th><th data-sort="text">Source</th><th data-sort="text">Launch site</th><th data-sort="num">Launched</th><th data-sort="num">Burst</th><th data-sort="num">Flight time</th><th data-sort="num">Heard by</th><th data-sort="text">Status</th></tr></thead><tbody></tbody></table>
+  <div class="dim" style="font-size:.78rem" id="rs-more"></div></div>
+{% include "partials/_sondecredit.html" %}
+<script src="/static/sondechart.js"></script>
+<style>
+.rsx-filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}.rsx-filters label{display:flex;gap:6px;align-items:center;margin:4px 0;font-size:.9rem}
+.rsx-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}#rs-chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 6px}#rs-chips .chip{cursor:pointer}
+.rsx-two svg{width:100%;height:auto;display:block}
+</style>
+<script>
+(function () {
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]; }); }
+  var p = new URLSearchParams(location.search), st = {from: p.get("from") || "", to: p.get("to") || "", flights: [], stations: [], sites: [], q: p.get("q") || "", status: p.get("status") || "", src: {nws: true, other: true, amateur: true}}, timer = null, seq = 0, siteName = {};
+  ["flights", "stations", "sites"].forEach(function (k) { if (p.get(k)) st[k] = p.get(k).split("|").filter(Boolean); });
+  if (p.get("sources")) { st.src = {nws: false, other: false, amateur: false}; p.get("sources").split(",").forEach(function (s) { if (s in st.src) st.src[s] = true; }); }
+  function dstr(d) { var z = new Date(d.getTime() - d.getTimezoneOffset() * 60000); return z.toISOString().slice(0, 10); }
+  if (!st.to) st.to = dstr(new Date()); if (!st.from) st.from = dstr(new Date(Date.now() - 30 * 86400000));
+  $("rs-from").value = st.from; $("rs-to").value = st.to; $("rs-status").value = st.status; $("rs-q").value = st.q;
+  document.querySelectorAll("[data-src]").forEach(function (cb) { cb.checked = !!st.src[cb.getAttribute("data-src")]; });
+  function query() {
+    var o = new URLSearchParams(); o.set("from", st.from); o.set("to", st.to); if (st.q) o.set("q", st.q); if (st.status) o.set("status", st.status);
+    var s = Object.keys(st.src).filter(function (k) { return st.src[k]; }); if (s.length && s.length < 3) o.set("sources", s.join(","));
+    ["flights", "stations", "sites"].forEach(function (k) { if (st[k].length) o.set(k, st[k].join("|")); }); return o;
+  }
+  function chips() {
+    var h = ""; st.flights.forEach(function (x, i) { h += '<span class="chip" data-k="flights" data-i="' + i + '">Flight ' + esc(x) + "<b>×</b></span>"; });
+    st.stations.forEach(function (x, i) { h += '<span class="chip" data-k="stations" data-i="' + i + '">Station ' + esc(x) + "<b>×</b></span>"; });
+    st.sites.forEach(function (x, i) { h += '<span class="chip" data-k="sites" data-i="' + i + '">Site ' + esc(siteName[x] || x) + "<b>×</b></span>"; });
+    $("rs-chips").innerHTML = h || '<span class="dim" style="font-size:.84rem">Every flight in the dates</span>';
+  }
+  $("rs-chips").addEventListener("click", function (e) { var c = e.target.closest(".chip"); if (!c) return; st[c.getAttribute("data-k")].splice(parseInt(c.getAttribute("data-i"), 10), 1); chips(); refresh(); });
+  function bars(el, data, label, fmt, ylabel) {
+    window.SondeCharts.bars(el, {data: data.map(function (d) { return {n: d.n, label: label(d), tip: fmt(d)}; }), ylabel: ylabel, nfmt: function (n) { return n + (n === 1 ? " flight" : " flights"); }});
+  }
+  function show(d) {
+    var s = d.summary, U = window.ArkUnits;
+    $("rs-n").textContent = s.flights; $("rs-burst").textContent = s.burst_avg == null ? "-" : U.text.alt(s.burst_avg, 0); $("rs-min").textContent = s.minutes_avg == null ? "-" : Math.round(s.minutes_avg) + " min";
+    $("rs-climb").textContent = s.climb_avg == null ? "-" : U.text.vspd(s.climb_avg, 0);
+    bars($("rs-days"), d.per_day, function (x) { return x.day.slice(5); }, function (x) { return x.day; }, "Flights");
+    bars($("rs-hist"), d.burst_hist, function (x) { return U.text.alt(x.from_m, 0).replace(/\s/g, " "); }, function (x) { return "from " + U.text.alt(x.from_m, 0) + (x.from_m >= 40000 ? " up" : ""); }, "Flights");
+    $("rs-top").querySelector("tbody").innerHTML = d.top_stations.map(function (r) { return '<tr><td><a class="mono" href="/sondes/stations/' + encodeURIComponent(r.callsign.replace(/\//g, '~')) + '">' + esc(r.callsign) + "</a></td><td>" + r.flights + "</td></tr>"; }).join("") || '<tr><td colspan="2" class="dim">No station recorded.</td></tr>';
+    $("rs-kinds").innerHTML = s.flights ? s.nws + " from National Weather Service sites, " + (s.flights - s.nws - s.amateur) + " other radiosondes, " + s.amateur + " amateur balloons; " + s.landed + " landed." : "";
+    $("rs-tbl").querySelector("tbody").innerHTML = d.flights.map(function (f) {
+      return '<tr><td><a class="mono" href="/sondes/' + encodeURIComponent(f.serial) + '">' + esc(f.serial) + "</a></td><td>" + esc(f.type) + "</td><td>" + (f.agency || (f.kind === "amateur" ? "Amateur" : "Other")) + "</td><td>" + (f.site ? '<a href="/sondes/sites/' + esc(f.site_id) + '">' + esc(f.site) + "</a>" : "") + '</td><td data-v="' + f.launched + '">' + (window.fmtTime ? window.fmtTime(new Date(f.launched), "dt") : f.launched.slice(0, 16)) + '</td><td data-v="' + (f.max_alt == null ? "" : f.max_alt) + '">' + (f.max_alt == null ? "-" : U.text.alt(f.max_alt, 0)) + '</td><td data-v="' + (f.minutes == null ? "" : f.minutes) + '">' + (f.minutes == null ? "-" : Math.round(f.minutes) + " min") + '</td><td data-v="' + f.heard + '">' + f.heard + "</td><td>" + esc(f.status) + "</td></tr>";
+    }).join("") || '<tr><td colspan="9" class="dim">No flight matches these filters.</td></tr>';
+    $("rs-more").textContent = d.flights.length >= 500 ? "The 500 newest flights are listed; narrow the dates or add filters to see the rest." : "";
+  }
+  var last = null;
+  function refresh() {
+    var me = ++seq, q = query(); history.replaceState(null, "", "?" + q.toString());
+    fetch("/api/sondes/stats.json?" + q.toString()).then(function (r) { return r.json(); }).then(function (d) { if (me !== seq || d.error) return; last = d; show(d); }).catch(function () {});
+  }
+  ["rs-from", "rs-to"].forEach(function (id) { $(id).addEventListener("change", function () { st.from = $("rs-from").value; st.to = $("rs-to").value; refresh(); }); });
+  $("rs-status").addEventListener("change", function () { st.status = this.value; refresh(); });
+  $("rs-q").addEventListener("input", function () { st.q = this.value.trim(); clearTimeout(timer); timer = setTimeout(refresh, 400); });
+  document.querySelectorAll("[data-src]").forEach(function (cb) { cb.addEventListener("change", function () { st.src[cb.getAttribute("data-src")] = cb.checked; refresh(); }); });
+  document.addEventListener("adsb-prefs", function () { if (last) show(last); });
+  var ft = null;
+  $("rs-find").addEventListener("input", function () {
+    var v = this.value.trim(); if (v.length < 2) return; clearTimeout(ft);
+    ft = setTimeout(function () { fetch("/api/sondes/stats-find.json?q=" + encodeURIComponent(v)).then(function (r) { return r.json(); }).then(function (d) {
+      var up = v.toUpperCase(), f = (d.flights || []).filter(function (x) { return x.toUpperCase() === up; })[0], c = (d.stations || []).filter(function (x) { return x.toUpperCase() === up; })[0], s = (d.sites || []).filter(function (x) { return x.id === v || x.name.toLowerCase() === v.toLowerCase(); })[0];
+      if (f && st.flights.indexOf(f) < 0) st.flights.push(f); else if (c && st.stations.indexOf(c) < 0) st.stations.push(c); else if (s && st.sites.indexOf(s.id) < 0) { st.sites.push(s.id); siteName[s.id] = s.name; }
+      else { $("rs-list").innerHTML = (d.flights || []).map(function (x) { return '<option value="' + esc(x) + '">flight</option>'; }).join("") + (d.stations || []).map(function (x) { return '<option value="' + esc(x) + '">receiving station</option>'; }).join("") + (d.sites || []).map(function (x) { return '<option value="' + esc(x.id) + '">' + esc(x.name) + " (launch site)</option>"; }).join(""); return; }
+      $("rs-find").value = ""; chips(); refresh();
+    }); }, 250);
+  });
+  chips(); refresh();
+})();
+</script>
+{% endblock %}

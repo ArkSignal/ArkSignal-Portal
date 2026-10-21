@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% from "partials/_sonde_rows.html" import flight_table %}
+{% block title %}Balloon Flights{% endblock %}
+{% block content %}
+<h1>Balloon <span>Flights</span></h1>
+<div class="sub">Every radiosonde and balloon recorded over and around Arkansas. Search by serial, launch site or type.</div>
+<form method="get" action="/sondes/flights" class="panel" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px">
+  <div><label for="q">Search</label><input type="text" id="q" name="q" value="{{ args.get('q', '') }}" placeholder="Serial, site or type" style="width:200px"></div>
+  <div><label for="hours">Flown in</label><select id="hours" name="hours">{% for h, l in hours_choices %}<option value="{{ h }}" {{ 'selected' if h == hours }}>{{ 'Last ' ~ l if h else l }}</option>{% endfor %}</select></div>
+  <div><label for="agency">Source</label><select id="agency" name="agency"><option value="">All</option><option value="NWS" {{ 'selected' if args.get('agency') == 'NWS' }}>National Weather Service</option><option value="other" {{ 'selected' if args.get('agency') == 'other' }}>Other radiosondes</option></select></div>
+  <div><label for="kind">Kind</label><select id="kind" name="kind"><option value="">All</option><option value="radiosonde" {{ 'selected' if args.get('kind') == 'radiosonde' }}>Radiosondes</option><option value="amateur" {{ 'selected' if args.get('kind') == 'amateur' }}>Amateur balloons</option></select></div>
+  <div><label for="status">Status</label><select id="status" name="status"><option value="">All</option><option value="aloft" {{ 'selected' if args.get('status') == 'aloft' }}>In the air</option><option value="climbing" {{ 'selected' if args.get('status') == 'climbing' }}>Climbing</option><option value="falling" {{ 'selected' if args.get('status') == 'falling' }}>Burst, falling</option><option value="landed" {{ 'selected' if args.get('status') == 'landed' }}>Landed</option><option value="lost" {{ 'selected' if args.get('status') == 'lost' }}>Signal lost</option></select></div>
+  <div><label for="recovery">Recovery</label><select id="recovery" name="recovery"><option value="">All</option><option value="recovered" {{ 'selected' if args.get('recovery') == 'recovered' }}>Recovered</option><option value="planned" {{ 'selected' if args.get('recovery') == 'planned' }}>Recovery planned</option><option value="notfound" {{ 'selected' if args.get('recovery') == 'notfound' }}>Looked for, not found</option><option value="unreported" {{ 'selected' if args.get('recovery') == 'unreported' }}>Landed, no report</option></select></div>
+  <div><label for="type">Type</label><select id="type" name="type"><option value="">All</option>{% for t in types %}<option value="{{ t }}" {{ 'selected' if args.get('type') == t }}>{{ t }}</option>{% endfor %}</select></div>
+  <div><label for="site">Launch site</label><select id="site" name="site"><option value="">All</option>{% for s in sites %}<option value="{{ s.site_id }}" {{ 'selected' if args.get('site') == s.site_id }}>{{ s.site_name }}</option>{% endfor %}</select></div>
+  <div><label for="station">Heard by</label><input type="text" id="station" name="station" list="heard-stations" value="{{ args.get('station', '') }}" maxlength="40" placeholder="Start typing a call sign" autocomplete="off" style="width:190px"><datalist id="heard-stations">{% for c in heard %}<option value="{{ c }}"></option>{% endfor %}</datalist></div>
+  <div><label for="sort">Sort by</label><select id="sort" name="sort"><option value="last">Last heard</option><option value="first" {{ 'selected' if args.get('sort') == 'first' }}>First heard</option><option value="max_alt" {{ 'selected' if args.get('sort') == 'max_alt' }}>Highest</option><option value="serial" {{ 'selected' if args.get('sort') == 'serial' }}>Serial</option><option value="site" {{ 'selected' if args.get('sort') == 'site' }}>Launch site</option></select></div>
+  <button class="btn small" type="submit" style="margin:0">Search</button>
+</form>
+{% if current_user.is_authenticated and archive_on %}
+<form method="post" action="/sondes/load-serial" class="panel" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div><label for="ls-serial">Load a Flight by Serial</label><input type="text" id="ls-serial" name="serial" placeholder="For example 26013531" maxlength="40" required style="width:220px" autocomplete="off" autocapitalize="off"></div>
+  <button class="btn small" type="submit" style="margin:0 0 2px">Load Flight</button>
+  <div class="dim" style="font-size:.8rem;flex:1 1 260px">Fetches that flight from SondeHub's public archive, anywhere in the world, and keeps it here. The archive trails live data by a few days. Data: SondeHub, Creative Commons BY-SA 2.0.</div>
+</form>
+{% endif %}
+<div class="panel">
+  <p style="margin-top:0" class="dim">{{ total }} flight{{ '' if total == 1 else 's' }}</p>
+  {{ flight_table(rows, 'No flight matches.') }}
+  {% if pages > 1 %}<p style="display:flex;gap:10px;align-items:center;margin-bottom:0">
+    {% set qs = args.to_dict() %}{% if page > 1 %}{% set _ = qs.update({'page': page - 1}) %}<a href="/sondes/flights?{{ qs | urlencode }}">&larr; Newer</a>{% endif %}
+    <span class="dim">Page {{ page }} of {{ pages }}</span>
+    {% if page < pages %}{% set _ = qs.update({'page': page + 1}) %}<a href="/sondes/flights?{{ qs | urlencode }}">Older &rarr;</a>{% endif %}</p>{% endif %}
+</div>
+<p class="dim" style="font-size:.8rem">{{ credit }}.</p>
+{% include "partials/_sondecredit.html" %}
+{% endblock %}

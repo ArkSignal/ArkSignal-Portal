@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}ACARS{% endblock %}
+{% block content %}
+<h1><span>ACARS</span> Messages</h1>
+<div class="sub">Short text messages between aircraft and the ground (ACARS, VDL Mode 2 and HF datalink), heard by the receivers of this network's members on open, public airwaves. Where an aircraft is shown on the map, its card lists its latest messages.</div>
+{% if note %}<div class="panel" style="border-color:var(--acc2);margin-bottom:14px"><b>{{ note }}</b> The list below is empty until the ACARS service answers.</div>{% endif %}
+{% if st %}<div class="tiles" style="margin-bottom:14px">
+  <div class="panel tile"><div class="tv">{{ st.hour }}</div><div class="tl">Messages in the last hour</div></div>
+  <div class="panel tile"><div class="tv">{{ st.day }}</div><div class="tl">Messages in the last 24 hours</div></div>
+  <div class="panel tile"><div class="tv">{{ stations | length }}</div><div class="tl"><a href="/acars/stations/">Stations</a> shown publicly</div></div>
+  <div class="panel tile"><div class="tv">{{ st.messages }}</div><div class="tl">Kept ({{ st.config.keep_days }} days)</div></div>
+</div>
+{% if st.hourly | length > 2 %}<div class="panel" style="margin-bottom:14px"><h3 style="margin-top:0">Messages Per Hour, Last 48 Hours</h3><div id="ac-chart"></div></div>{% endif %}{% endif %}
+<form method="get" action="/acars/" class="panel" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px">
+  <div><label for="ac-tail">Tail number</label><input type="text" id="ac-tail" name="tail" value="{{ f.tail }}" style="width:120px" maxlength="10" placeholder="N123AB"></div>
+  <div><label for="ac-flight">Flight</label><input type="text" id="ac-flight" name="flight" value="{{ f.flight }}" style="width:110px" maxlength="10" placeholder="AAL123"></div>
+  <div><label for="ac-label">Label</label><input type="text" id="ac-label" name="label" value="{{ f.label }}" style="width:70px" maxlength="3" placeholder="H1"></div>
+  <div><label for="ac-mode">Link</label><select id="ac-mode" name="mode"><option value="">All</option>{% for k, l in modes.items() %}<option value="{{ k }}" {{ 'selected' if f.mode == k }}>{{ l }}</option>{% endfor %}</select></div>
+  <div><label for="ac-station">Station</label><select id="ac-station" name="station"><option value="">All</option>{% for s in stations %}<option value="{{ s.station_id }}" {{ 'selected' if f.station == s.station_id }}>{{ s.station_id }}</option>{% endfor %}</select></div>
+  <div><label for="ac-hours">Within</label><select id="ac-hours" name="hours">{% for h, l in [('1', 'the last hour'), ('6', '6 hours'), ('24', '24 hours'), ('72', '3 days'), ('168', '7 days'), ('336', '14 days')] %}<option value="{{ h }}" {{ 'selected' if f.hours == h }}>{{ l }}</option>{% endfor %}</select></div>
+  <div style="flex:1;min-width:180px"><label for="ac-q">Any text</label><input type="search" id="ac-q" name="q" value="{{ f.q }}" maxlength="60" style="width:100%"></div>
+  <div><label style="margin:0 0 2px"><input type="checkbox" name="position" value="1" {{ 'checked' if f.position }}> With a position</label></div>
+  <button class="btn small" type="submit" style="margin:0 0 2px">Search</button>
+</form>
+{% if visibility != 'everyone' and not text_ok %}<p class="dim">{% if visibility == 'members' %}The text of the messages is shown to signed-in members only. <a href="/my/login">Sign in</a> to read it.{% else %}This site shows who sent each message, when and what kind, not the text.{% endif %}</p>{% endif %}
+<div class="panel" style="overflow-x:auto">
+  {% if rows %}<table class="sortable" id="ac-tbl"><thead><tr><th data-sort="num">Time</th><th data-sort="text">Aircraft</th><th data-sort="text">Flight</th><th data-sort="text">Label</th><th data-sort="text">Link</th><th data-sort="text">Station</th><th>Message</th></tr></thead><tbody>
+  {% for m in rows %}<tr>
+    <td data-v="{{ m.ts }}" style="white-space:nowrap"><time class="ts" datetime="{{ m.ts }}" data-fmt="dts">{{ m.ts[:19].replace('T', ' ') }}</time></td>
+    <td class="mono">{% if m.hex %}<a href="/live?icao={{ m.hex }}" title="Show it on the live map">{{ m.tail or m.hex.upper() }}</a>{% else %}<a href="/acars/?tail={{ m.tail }}">{{ m.tail }}</a>{% endif %}</td>
+    <td class="mono">{{ m.flight }}</td>
+    <td title="{{ m.label_text }}"><span class="mono">{{ m.label }}</span>{% if m.label_text %}<br><span class="dim" style="font-size:.74rem">{{ m.label_text }}</span>{% endif %}</td>
+    <td>{{ modes.get(m.mode, m.mode) }}{% if m.freq %}<br><span class="dim mono" style="font-size:.74rem">{{ m.freq }} MHz</span>{% endif %}</td>
+    <td class="mono">{{ m.station_name or m.station }}{% if m.heard_by > 1 %}<br><span class="dim" style="font-size:.74rem">+{{ m.heard_by - 1 }} more heard it</span>{% endif %}</td>
+    <td style="min-width:260px;white-space:pre-wrap" class="mono">{% if m.text_hidden %}<span class="dim">text not shown</span>{% else %}{{ m.text }}{% endif %}{% if m.lat is not none %}<br><a class="dim" href="/live?lat={{ m.lat }}&lon={{ m.lon }}&zoom=9&pin=1" style="font-size:.74rem">position {{ '%.3f' % m.lat }}, {{ '%.3f' % m.lon }}</a>{% endif %}</td>
+  </tr>{% endfor %}</tbody></table>{% else %}<p class="dim" style="margin:0">No message matches{% if not note %} (nothing has arrived yet, or the filters are narrow){% endif %}.</p>{% endif %}
+</div>
+<p class="dim" style="font-size:.8rem">{{ credit }}. Want yours on it? <a href="/feed/acars">How to Feed ACARS</a>. An aircraft's owner who wants its messages left off can ask (<a href="/contact">Contact</a>).</p>
+{% if st and st.hourly | length > 2 %}<script src="/static/sondechart.js"></script>
+<script>
+(function () {
+  var h = {{ st.hourly | tojson }};
+  window.SondeCharts.bars(document.getElementById("ac-chart"), {data: h.map(function (r) { var d = new Date(r[0]); return {n: r[1], label: window.fmtTime ? window.fmtTime(d, "ts").replace(/:00 /, " ").replace(/:00$/, "") : String(d.getUTCHours()), tip: window.fmtTime ? window.fmtTime(d, "dt") : r[0]}; }), ylabel: "Messages", nfmt: function (n) { return n + (n === 1 ? " message" : " messages"); }});
+})();
+</script>{% endif %}
+{% endblock %}

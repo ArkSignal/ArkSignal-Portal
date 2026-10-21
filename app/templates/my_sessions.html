@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}Sign-Ins{% endblock %}
+{% block content %}
+<h1>My <span>Sign-Ins</span></h1>
+<div class="sub">Where you are signed in. If you see a device you do not recognise, sign it out and change your password.</div>
+{% with active = 'sessions' %}{% include "partials/_my_subnav.html" %}{% endwith %}
+{% include "partials/_sessions_list.html" %}
+{% endblock %}

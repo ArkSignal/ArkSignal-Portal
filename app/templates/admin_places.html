@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Places{% endblock %}
+{% block content %}
+<h1><span>Admin</span> Places</h1>
+<div class="sub">Cities and towns, ZIP code areas and counties, used so the live map can jump to a place when someone searches for it. Source: US Census Bureau Gazetteer files, a public-domain federal dataset (credit: US Census Bureau).</div>
+{% include "partials/_admin_subnav.html" %}
+<div class="tiles" style="margin-bottom:14px">
+  <div class="panel tile"><div class="tv">{{ st.counts.place }}</div><div class="tl">Cities and Towns</div></div>
+  <div class="panel tile"><div class="tv">{{ st.counts.zip }}</div><div class="tl">ZIP Areas</div></div>
+  <div class="panel tile"><div class="tv">{{ st.counts.county }}</div><div class="tl">Counties</div></div>
+</div>
+<details class="panel setsec" id="sec-update-places" open><summary><span class="role-name">Update Places</span></summary><form method="post" action="/admin/places/import" data-async
+      data-confirm="Download the Census Bureau files now? This replaces the current places data and takes under a minute.">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <p style="margin-top:0">Downloads the {{ year }} Gazetteer files for the whole United States (about 3 MB). The year and the address are under <a href="/admin/settings#sec-places-and-search">Settings &gt; Places and Search</a>, and the states listed first in a search are the Home States setting there.</p>
+  <p class="dim" style="margin:12px 0 0">{% if st.last %}Last updated {{ st.last | localtime }}: {{ st.summary }}.{% else %}The places data has not been loaded yet, so map search finds airports and aircraft only.{% endif %}</p>
+  <button class="btn" type="submit">Download and Update Now</button>
+</form></details>
+{% endblock %}

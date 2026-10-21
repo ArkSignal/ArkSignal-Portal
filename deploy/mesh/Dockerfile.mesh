@@ -1,0 +1,11 @@
+# The mesh service (meshd.py): keeps the Meshtastic nodes that publish themselves to the community MQTT broker, in its own Postgres database.
+# Built by build.yml as mallison01/adsb-mesh and released with everything else (same latest/stable tags). paho-mqtt (EPL/EDL) reads the broker.
+FROM python:3.12-slim
+RUN groupadd -r -g 10005 mesh && useradd -r -u 10005 -g mesh -d /app mesh
+WORKDIR /app
+RUN pip install --no-cache-dir "psycopg[binary]==3.2.*" "paho-mqtt==2.1.*" "cryptography>=42"
+COPY deploy/mesh/meshd.py /app/meshd.py
+COPY BUILD_INFO /BUILD_INFO
+USER mesh
+EXPOSE 8482
+CMD ["python", "-u", "/app/meshd.py"]

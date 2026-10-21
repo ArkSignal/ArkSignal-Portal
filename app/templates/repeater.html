@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}{{ r.callsign or 'Repeater' }} {{ rp_mhz(out) }}{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ leaflet_base }}/leaflet.css" crossorigin="anonymous">
+<h1><span>{{ r.callsign or 'Repeater' }}</span> {{ rp_mhz(out) }} MHz</h1>
+<div class="sub">{{ rp_kinds.get(r.kind, r.kind) }}{{ ' in ' ~ r.city if r.city }}. <a href="/repeaters/">All repeaters</a> &middot; <a href="/repeaters/map">Repeater Map</a>{% if r.lat is not none and r.lon is not none %} &middot; <a class="show-on-map" href="/repeaters/map?rep={{ r.id }}&amp;lat={{ '%.5f' % r.lat }}&amp;lon={{ '%.5f' % r.lon }}&amp;zoom=12">Show on Repeater Map</a>{% endif %}{% if not r.approved %} &middot; <b>Waiting for an editor</b>{% endif %}</div>
+<div class="panel" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px">
+  <div>
+    <table>
+      <tr><th>Output (you listen)</th><td class="mono">{{ rp_mhz(out) }} MHz</td></tr>
+      <tr><th>Input (you transmit)</th><td class="mono">{{ rp_mhz(inp) }} MHz{% if r.offset_hz %} ({{ '%+.1f' % (r.offset_hz / 1e6) }} MHz){% else %} (simplex){% endif %}</td></tr>
+      <tr><th>Band</th><td>{{ band }}</td></tr>
+      <tr><th>Modes</th><td>{{ r.modes.replace(',', ', ') }}</td></tr>
+      {% if r.tone %}<tr><th>Tone</th><td class="mono">{{ r.tone }}{% if r.tone[0] != 'D' %} Hz{% endif %}</td></tr>{% endif %}
+      {% if r.color_code %}<tr><th>DMR color code</th><td class="mono">{{ r.color_code }}</td></tr>{% endif %}
+      {% if r.dmr_id %}<tr><th>Repeater DMR ID</th><td class="mono">{{ r.dmr_id }}</td></tr>{% endif %}
+      {% if r.network %}<tr><th>Network</th><td>{{ r.network }}</td></tr>{% endif %}
+      {% for k, label, _h in attr_keys %}{% if attrs.get(k) %}<tr><th>{{ label }}</th><td>{% if k == 'website' %}<a href="{{ attrs[k] }}" target="_blank" rel="noopener nofollow">{{ attrs[k] }}</a>{% else %}{{ attrs[k] }}{% endif %}</td></tr>{% endif %}{% endfor %}
+      {% if call_lookup %}<tr><th>License</th><td id="rp-lic" class="dim">looking up {{ r.callsign }}...</td></tr>{% endif %}
+      <tr><th>Status</th><td>{{ rp_statuses.get(r.status, r.status) }}{% if r.verified_at %}, verified {{ r.verified_at.date() }} by {{ r.verified_by }}{% else %}, not verified by a person{% endif %}</td></tr>
+      {% if r.power %}<tr><th>Power</th><td>{{ r.power }}</td></tr>{% endif %}
+      {% if r.restriction %}<tr><th>Access</th><td>{{ r.restriction }}</td></tr>{% endif %}
+      <tr><th>Place</th><td>{{ r.city }}{{ ', ' ~ r.state if r.state and r.state != '-' else '' }} {% if r.lat is not none and r.lon is not none %}<span class="dim mono">({{ '%.4f' % r.lat }}, {{ '%.4f' % r.lon }})</span>{% else %}<span class="dim">(no position yet: an editor adds it)</span>{% endif %}</td></tr>
+      {% if r.owner_name and r.claim_status == 'approved' %}<tr><th>Looked after by</th><td>{{ r.owner_name }}</td></tr>{% endif %}
+      <tr><th>Listing from</th><td>{% if r.source == 'hearham' %}<a href="https://hearham.com" target="_blank" rel="noopener">Hearham</a> (open data){% elif r.source == 'member' %}an Arkansas ham{% else %}this network's editors{% endif %}{% if r.edited and r.source == 'hearham' %}, corrected here{% endif %}</td></tr>
+    </table>
+    {% if r.description %}<p style="white-space:pre-line;margin-bottom:0">{{ r.description }}</p>{% endif %}
+  </div>
+  {% if r.lat is not none and r.lon is not none %}<div id="rmap" style="height:300px;border-radius:12px;min-height:240px"></div>{% else %}<div class="panel" style="align-self:start"><b>No position yet</b><p class="dim" style="margin:6px 0 0">This repeater came from a radio's channel list, which has no location. It is in the list; it shows on the map once an editor adds its position.</p></div>{% endif %}
+</div>
+{% if linked or can_edit %}<div class="panel" id="rp-linked" style="margin-top:14px"><h3 style="margin-top:0">Linked Repeaters</h3>
+  {% if linked %}{% for g in linked %}<div style="margin-bottom:10px"><b>{{ g.name }}</b>{% if g.notes %} <span class="dim">{{ g.notes }}</span>{% endif %}
+    <a class="dim" href="/repeaters/?group={{ g.id }}" style="margin-left:8px">All in this system</a>
+    {% if can_edit %}<form method="post" action="/repeaters/{{ r.id }}/link/{{ g.id }}/remove" data-async style="display:inline;margin-left:8px" data-confirm="Take this repeater out of {{ g.name }}?"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small neutral" type="submit" style="margin:0">Remove</button></form>{% endif %}
+    {% if g.others %}<table style="margin-top:6px"><thead><tr><th>Output (MHz)</th><th>Call sign</th><th>Place</th></tr></thead><tbody>{% for o in g.others %}<tr><td class="mono"><a href="/repeaters/{{ o.id }}">{{ rp_mhz(o.freq_hz) }}</a></td><td class="mono">{{ o.callsign | cs }}</td><td>{{ o.city }}{{ ', ' ~ o.state if o.state and o.state != '-' else '' }}{% if o.lat is not none %} <a class="dim" href="/repeaters/map?rep={{ o.id }}&amp;lat={{ '%.4f' % o.lat }}&amp;lon={{ '%.4f' % o.lon }}&amp;zoom=11">on the map</a>{% endif %}</td></tr>{% endfor %}</tbody></table>{% else %}<p class="dim" style="margin:4px 0 0">No other repeater is in this system yet.</p>{% endif %}</div>{% endfor %}
+  {% else %}<p class="dim" style="margin-top:0">This repeater is not known to be linked to others.</p>{% endif %}
+  {% if can_edit %}<form method="post" action="/repeaters/{{ r.id }}/link" data-async style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if all_groups %}<div><label for="lk-group">Add to a linked system</label><select id="lk-group" name="group"><option value="">A new one (name it)...</option>{% for g in all_groups %}<option value="{{ g.id }}">{{ g.name }} ({{ g.n }})</option>{% endfor %}</select></div>{% endif %}
+    <div><label for="lk-name">New system name</label><input type="text" id="lk-name" name="name" maxlength="60" placeholder="For example Arkansas ARES Link" style="width:240px"></div>
+    <button class="btn small" type="submit" style="margin:0 0 2px">Link</button></form>{% endif %}
+</div>{% endif %}
+{% if can_edit %}<details class="panel setsec" id="rp-position" style="margin-top:14px" {{ 'open' if r.lat is none }}><summary><span class="role-name">{{ 'Set the Position' if r.lat is none else 'Correct the Position' }}</span><span class="dim" style="font-size:.8rem">pick it on the map or find it by address</span></summary><div class="secbody">
+  <p class="dim" style="margin-top:0">Click the map to place the repeater (drag the marker to adjust), or search an address, city or ZIP code and press Use This Position on an answer. Nothing changes until you press Save Position.</p>
+  <form id="rp-addr" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px"><div style="flex:1 1 260px"><label for="rp-q">Address, city or ZIP code</label><input type="text" id="rp-q" maxlength="200" value="{{ ((r.city or '') ~ (', ' ~ r.state if r.state and r.state != '-' else '')) | trim }}" style="width:100%"></div><button class="btn small" type="submit" style="margin:0 0 2px">Look Up</button></form>
+  <div id="rp-ans" style="margin-bottom:8px"></div>
+  <div id="rp-pickmap" style="height:340px;border-radius:12px"></div>
+  <form method="post" action="/repeaters/{{ r.id }}/position" data-async style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="lat" id="rp-lat"><input type="hidden" name="lon" id="rp-lon"><span id="rp-picked" class="dim">No place picked yet.</span><button class="btn" type="submit" id="rp-save" disabled style="margin:0">Save Position</button></form>
+</div></details>{% endif %}
+{% set is_dmr = 'DMR' in r.modes or r.color_code or r.dmr_id or tgs %}
+{% if is_dmr %}<div class="panel" style="margin-top:14px" id="rp-dmr"><h3 style="margin-top:0">DMR: Time Slots and Talkgroups</h3>
+  <div class="dim" style="font-size:.82rem;margin:0 0 10px">DMR shares one frequency between two conversations, one in each <b>time slot</b> (TDMA). A radio is programmed with the repeater's color code and, for each slot, the talkgroups to use. A <b>static</b> talkgroup is always linked; a <b>dynamic</b> one links when someone keys up on it and drops after a while.</div>
+  <div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:12px">
+    <div><span class="dim">Color code</span><div class="mono" style="font-size:1.4rem">{{ r.color_code or '-' }}</div></div>
+    <div><span class="dim">Repeater ID</span><div class="mono" style="font-size:1.4rem">{{ r.dmr_id or '-' }}</div></div>
+    <div><span class="dim">Network</span><div style="font-size:1.1rem;padding-top:4px">{{ r.network or '-' }}</div></div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">
+  {% for slot in (1, 2) %}
+    <div style="border:1px solid var(--line);border-radius:12px;padding:10px 14px"><b>Time Slot {{ slot }}</b>
+      {% set rows = tgs | selectattr('slot', 'equalto', slot) | list %}
+      {% if rows %}<table style="margin-top:6px"><tbody>
+        {% for t in rows %}<tr><td class="mono" style="width:70px">{{ t.tg_id if t.tg_id is not none else '' }}</td><td>{{ t.name }}</td><td><span class="tag {{ 'live' if t.mode == 'static' else 'off' }}">{{ {'static': 'static', 'dynamic': 'dynamic', 'timed': 'timed'}.get(t.mode, 'not stated') }}</span></td>
+          {% if can_edit %}<td style="text-align:right"><form method="post" action="/repeaters/{{ r.id }}/talkgroups/{{ t.id }}/remove" data-async style="margin:0"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small neutral" type="submit" style="margin:0" title="Remove this talkgroup">Remove</button></form></td>{% endif %}</tr>{% endfor %}
+      </tbody></table>
+      {% else %}<p class="dim" style="margin:6px 0 0">No talkgroups listed for this slot yet.</p>{% endif %}
+    </div>
+  {% endfor %}
+  </div>
+  {% if can_edit %}
+  <form method="post" action="/repeaters/{{ r.id }}/talkgroups/add" data-async style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:14px">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div><label for="tg-pick">Add a talkgroup</label><select id="tg-pick" name="tg" style="min-width:240px"><option value="">Choose...</option>
+      <optgroup label="Standard talkgroups">{% for c in tg_catalog if c.kind == 'Standard' %}<option value="{{ c.id }}">{{ c.id }}: {{ c.name }}</option>{% endfor %}</optgroup>
+      {% if tg_catalog | selectattr('kind', 'equalto', 'Imported') | list %}<optgroup label="From the imported list">{% for c in tg_catalog if c.kind == 'Imported' %}<option value="{{ c.id }}">{{ c.id }}: {{ c.name }}</option>{% endfor %}</optgroup>{% endif %}</select></div>
+    <div><label for="tg-num">or a number</label><input type="text" id="tg-num" style="width:110px" maxlength="9" placeholder="31051" inputmode="numeric"></div>
+    <div><label for="tg-name">and a name</label><input type="text" id="tg-name" name="name" style="width:160px" maxlength="60" placeholder="Arkansas Weather"></div>
+    <div><label for="tg-slot">Time slot</label><select id="tg-slot" name="slot"><option value="1">1</option><option value="2">2</option></select></div>
+    <div><label for="tg-mode">Link</label><select id="tg-mode" name="mode"><option value="static">Static</option><option value="dynamic">Dynamic</option><option value="timed">Timed</option></select></div>
+    <button class="btn small" type="submit" style="margin:0 0 2px">Add</button>
+  </form>
+  <script>(function(){var n=document.getElementById("tg-num"),p=document.getElementById("tg-pick");if(n&&p)n.addEventListener("input",function(){if(n.value.replace(/\D/g,"")){p.removeAttribute("name");n.name="tg";}else{n.removeAttribute("name");p.name="tg";}});})();</script>
+  {% endif %}
+  <div class="dim" style="font-size:.78rem;margin-top:10px">Standard talkgroups, the contact lists and who carries what: <a href="/callsign?tab=talkgroups">Talkgroups</a>. A call sign's DMR ID: <a href="/callsign?tab=contacts">Contacts</a> and <a href="https://radioid.net" target="_blank" rel="noopener">RadioID</a>.</div></div>{% endif %}
+{% if current_user.is_authenticated and r.approved %}
+<div class="panel" style="margin-top:14px">
+  <h3 style="margin-top:0">Report a Problem</h3>
+  <form method="post" action="/repeaters/{{ r.id }}/report" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div><label for="kind">What is wrong</label><select id="kind" name="kind">{% for k, l in report_kinds %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></div>
+    <div style="flex:1 1 220px"><label for="note">Details</label><input type="text" id="note" name="note" maxlength="600" placeholder="What you heard or know" style="width:100%"></div>
+    <div><label for="s_freq">Right output (MHz)</label><input type="text" id="s_freq" name="s_freq" style="width:110px"></div>
+    <div><label for="s_offset">Right offset (MHz)</label><input type="text" id="s_offset" name="s_offset" style="width:110px"></div>
+    <div><label for="s_tone">Right tone</label><input type="text" id="s_tone" name="s_tone" style="width:90px"></div>
+    <button class="btn small" type="submit" style="margin:0 0 2px">Send Report</button>
+  </form>
+  {% if not r.owner_id %}<form method="post" action="/repeaters/{{ r.id }}/claim" style="margin-top:12px"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small neutral" type="submit" style="margin:0">I Look After This Repeater</button> <span class="dim" style="font-size:.82rem">Sysops: an administrator checks the claim, then you can keep this listing current yourself.</span></form>{% endif %}
+  {% if mine or mod %}<p style="margin-bottom:0"><a class="btn small" href="/my/repeaters/{{ r.id }}">Edit This Repeater</a>{% if mod %} <span class="dim">(editor)</span>{% endif %}</p>{% endif %}
+</div>
+{% elif not current_user.is_authenticated %}<p class="dim">Sign in to report a problem or add a repeater.</p>{% endif %}
+{% if history %}<div class="panel" style="margin-top:14px"><h3 style="margin-top:0">History</h3>
+  <table><thead><tr><th>When</th><th>Who</th><th>What</th></tr></thead><tbody>{% for h in history %}<tr><td><time class="ts" datetime="{{ h.ts.isoformat() }}">{{ h.ts.strftime('%Y-%m-%d %H:%M') }}</time></td><td>{{ h.actor }}</td><td>{{ h.action }}{% if h.detail %}: <span class="dim">{{ h.detail }}</span>{% endif %}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+<p class="dim" style="font-size:.8rem">{{ credit }}. Look this repeater up on <a href="https://www.repeaterbook.com" target="_blank" rel="noopener">RepeaterBook</a> for more detail.</p>
+{% if call_lookup %}<script>
+fetch("/api/callsign/{{ r.callsign | urlencode }}.json").then(function (r) { return r.json(); }).then(function (d) {
+  var el = document.getElementById("rp-lic"), c = d.callsign; if (!el) return;
+  if (!c) { el.textContent = "not found in the FCC license search"; return; }
+  el.classList.remove("dim"); el.innerHTML = "";
+  var t = document.createElement("span"); t.textContent = c.name + (c.place ? ", " + c.place : "") + " · " + [c.oper_class, c.status].filter(Boolean).join(", ") + (c.expires ? " · expires " + c.expires : "") + " "; el.appendChild(t);
+  if (c.link && /^https:\/\//.test(c.link)) { var a = document.createElement("a"); a.href = c.link; a.target = "_blank"; a.rel = "noopener"; a.textContent = "FCC record"; el.appendChild(a); }
+}).catch(function () { var el = document.getElementById("rp-lic"); if (el) el.textContent = "the FCC license search did not answer"; });
+</script>{% endif %}
+{% if (r.lat is not none and r.lon is not none) or can_edit %}
+<script src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script>
+{% endif %}
+<script>
+(function () {
+  if (!document.getElementById("rmap")) return;   // no position yet: the page shows the position picker instead
+  var m = L.map("rmap", {scrollWheelZoom: false}).setView([{{ r.lat }}, {{ r.lon }}], 11);
+  L.tileLayer({{ tile_url | tojson }}, {maxZoom: 19, attribution: {{ tile_attr | tojson }}}).addTo(m);
+  L.circleMarker([{{ r.lat }}, {{ r.lon }}], {radius: 9, color: "#4fb3ff", weight: 3, fillColor: "#4fb3ff", fillOpacity: .6}).addTo(m);
+})();
+</script>
+{% if can_edit %}<script>
+(function () {
+  var $ = function (i) { return document.getElementById(i); }, box = $("rp-position"), m = null, mk = null, rec = {{ [r.lat, r.lon] | tojson }};
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]; }); }
+  function put(ll) {
+    if (!mk) { mk = L.marker(ll, {draggable: true, title: "The picked position"}).addTo(m); mk.on("dragend", function () { put(mk.getLatLng()); }); } else mk.setLatLng(ll);
+    $("rp-lat").value = ll.lat.toFixed(6); $("rp-lon").value = ll.lng.toFixed(6); $("rp-picked").textContent = "Picked: " + ll.lat.toFixed(5) + ", " + ll.lng.toFixed(5); $("rp-save").disabled = false;
+  }
+  function ensure() {
+    if (m) { m.invalidateSize(); return; }
+    var has = rec[0] != null && rec[1] != null;
+    m = L.map("rp-pickmap", {scrollWheelZoom: true}).setView(has ? rec : [{{ map_lat | float }}, {{ map_lon | float }}], has ? 14 : 8);
+    L.tileLayer({{ tile_url | tojson }}, {maxZoom: 19, attribution: {{ tile_attr | tojson }}}).addTo(m);
+    if (has) L.circleMarker(rec, {radius: 7, color: "#888", weight: 2, dashArray: "3", fillOpacity: .1}).addTo(m).bindTooltip("Position on record");
+    m.on("click", function (e) { put(e.latlng); });
+  }
+  box.addEventListener("toggle", function () { if (box.open) setTimeout(ensure, 50); }); if (box.open) setTimeout(ensure, 50);
+  $("rp-addr").addEventListener("submit", function (e) {
+    e.preventDefault(); var q = $("rp-q").value.trim(); if (q.length < 2) return;
+    $("rp-ans").innerHTML = '<span class="dim">Asking the finders...</span>';
+    fetch("/api/geocode.json?q=" + encodeURIComponent(q)).then(function (r) { return r.json(); }).then(function (d) {
+      var rs = d.results || [];
+      $("rp-ans").innerHTML = rs.length ? rs.map(function (x, i) { return '<div style="display:flex;gap:8px;align-items:center;margin:3px 0"><span>' + esc(x.label) + ' <span class="dim">(' + esc(x.kind) + ')</span></span><button type="button" class="btn small neutral" data-i="' + i + '" style="margin:0">Use This Position</button></div>'; }).join("") : '<span class="dim">Nothing found. Try fewer words, or click the map.</span>';
+      $("rp-ans").onclick = function (ev) { var b = ev.target.closest("button[data-i]"); if (!b) return; var x = rs[b.dataset.i]; ensure(); put(L.latLng(x.lat, x.lon)); m.setView([x.lat, x.lon], 15); };
+    }).catch(function () { $("rp-ans").innerHTML = '<span class="error">The lookup could not be completed.</span>'; });
+  });
+  document.addEventListener("asyncdone", function (e) { var f = e.target; if (f.matches && f.matches('form[action$="/position"]') && e.detail && e.detail.ok) setTimeout(function () { location.reload(); }, 600); });
+})();
+</script>{% endif %}
+{% endblock %}

@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Roles{% endblock %}
+{% block content %}
+<h1><span>Admin</span> Roles</h1>
+<div class="sub">A role is a named set of permissions. Users can hold several roles, and their access is the combination of all of them.</div>
+{% include "partials/_admin_subnav.html" %}
+<form class="panel inline-row" method="post" action="/admin/roles/create" data-async data-async-target="#roles-list" style="margin-bottom:16px">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="text" name="name" placeholder="New role name" maxlength="60" aria-label="New role name" required>
+  <button class="btn small" type="submit">Create Role</button>
+</form>
+{% include "partials/_roles_list.html" %}
+{% endblock %}

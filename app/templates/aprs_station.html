@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}{{ s.call }}{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ leaflet_base }}/leaflet.css" crossorigin="anonymous">
+<h1><span>{{ s.call }}</span></h1>
+<div class="sub">{{ kinds.get(s.kind, s.kind) }}. <a href="/aprs/">All APRS stations</a> &middot; <a href="/aprs/map?call={{ s.call }}&amp;only=1">on the APRS Map</a></div>
+<div class="panel" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px">
+  <div>
+    <table>
+      {% if cfg_callsign %}<tr><th>License</th><td class="cs-license dim" data-call="{{ s.call }}">looking up...</td></tr>{% endif %}
+      <tr><th>Position</th><td class="mono">{{ '%.4f' % s.lat }}, {{ '%.4f' % s.lon }}</td></tr>
+      {% if s.alt_m is not none %}<tr><th>Altitude</th><td>{{ s.alt_m | u_alt }}</td></tr>{% endif %}
+      {% if s.speed_kmh %}<tr><th>Speed</th><td>{{ (s.speed_kmh / 3.6) | u_spd }}{% if s.course is not none %} heading {{ s.course }}&deg;{% endif %}</td></tr>{% endif %}
+      <tr><th>Last heard</th><td><time class="ts" datetime="{{ s.last_heard }}" data-fmt="dt">{{ s.last_heard[:16].replace('T', ' ') }}</time></td></tr>
+      <tr><th>First heard here</th><td><time class="ts" datetime="{{ s.first_heard }}" data-fmt="dt">{{ s.first_heard[:16].replace('T', ' ') }}</time></td></tr>
+      <tr><th>Packets</th><td>{{ s.packets }}</td></tr>
+      {% if s.via %}<tr><th>Last gateway</th><td class="mono">{{ s.via }}</td></tr>{% endif %}
+    </table>
+    {% if s.comment %}<p>{{ s.comment }}</p>{% endif %}
+    {% if wx %}<h3>Weather</h3><table>
+      {% if wx.temp_c is not none %}<tr><th>Temperature</th><td>{{ wx.temp_c | u_temp(1) }}</td></tr>{% endif %}
+      {% if wx.wind_ms is not none %}<tr><th>Wind</th><td>{{ wx.wind_ms | u_spd }}{% if wx.wind_dir is not none %} from {{ wx.wind_dir }}&deg;{% endif %}</td></tr>{% endif %}
+      {% if wx.gust_ms is not none %}<tr><th>Gust</th><td>{{ wx.gust_ms | u_spd }}</td></tr>{% endif %}
+      {% if wx.humidity is not none %}<tr><th>Humidity</th><td>{{ wx.humidity }}%</td></tr>{% endif %}
+      {% if wx.pressure_hpa is not none %}<tr><th>Pressure</th><td>{{ wx.pressure_hpa | u_press(2) }}</td></tr>{% endif %}
+      {% if wx.rain_1h_mm is not none %}<tr><th>Rain, last hour</th><td>{{ wx.rain_1h_mm | u_rain }}</td></tr>{% endif %}
+      {% if wx.rain_24h_mm is not none %}<tr><th>Rain, 24 hours</th><td>{{ wx.rain_24h_mm | u_rain }}</td></tr>{% endif %}
+    </table>{% endif %}
+  </div>
+  <div id="smap" style="height:320px;border-radius:12px;min-height:240px"></div>
+</div>
+<p class="dim" style="font-size:.8rem">{{ credit }}. Only the latest position{% if trail %} and a short trail{% endif %} are kept. The owner of this call sign can ask for it to be hidden (<a href="/contact">Contact</a>).</p>
+<script src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script>
+<script>
+(function () {
+  var m = L.map("smap", {scrollWheelZoom: false}).setView([{{ s.lat }}, {{ s.lon }}], 11);
+  L.tileLayer({{ tile_url | tojson }}, {maxZoom: 19, attribution: {{ tile_attr | tojson }}}).addTo(m);
+  var trail = {{ trail | tojson }};
+  if (trail.length > 1) L.polyline(trail.map(function (p) { return [p[1], p[2]]; }), {color: "#ffb454", weight: 3, opacity: .8}).addTo(m);
+  L.circleMarker([{{ s.lat }}, {{ s.lon }}], {radius: 9, color: "#4fb3ff", weight: 3, fillColor: "#4fb3ff", fillOpacity: .6}).addTo(m);
+})();
+</script>
+{% endblock %}

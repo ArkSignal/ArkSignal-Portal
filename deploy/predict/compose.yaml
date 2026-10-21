@@ -1,0 +1,43 @@
+# Prediction and archive service: /opt/adsb/predict/compose.yaml on the hub VM, applied by the stack updater (adsb-stack) like every other service.
+# It has its own Postgres database (predict-db, kept in /opt/adsb/predict/db) separate from the portal's, so it can move to another host: point the portal's
+# Settings > Radiosondes > Prediction Service Address at wherever it runs. Nothing is published to the outside; the portal asks http://predict:8470 over the docker network.
+# The database holds only public archive data and forecasts (the archive import can rebuild it), so it is not part of the off-site backup.
+services:
+  predict:
+    image: mallison01/adsb-predict:stable
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
+    container_name: predict
+    restart: unless-stopped
+    init: true
+    depends_on:
+      predict-db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgresql://predict:${PREDICT_DB_PASSWORD:-predict}@predict-db:5432/predict"
+    networks:
+      - proxy
+      - predict_internal
+
+  predict-db:
+    image: postgres:17-alpine
+    container_name: predict-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: predict
+      POSTGRES_PASSWORD: "${PREDICT_DB_PASSWORD:-predict}"
+      POSTGRES_DB: predict
+    volumes:
+      - /opt/adsb/predict/db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U predict -d predict"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - predict_internal
+
+networks:
+  proxy:
+    external: true
+  predict_internal:

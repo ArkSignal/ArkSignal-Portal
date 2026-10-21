@@ -1,0 +1,5 @@
+<div class="pager">
+  <span class="dim">{{ pager.total }} record{{ '' if pager.total == 1 else 's' }}, page {{ pager.page }} of {{ pager.pages }}</span>
+  {% if pager.page > 1 %}<a class="btn small" href="?{{ (pager.args | urlencode) ~ '&' if pager.args else '' }}page={{ pager.page - 1 }}">Previous</a>{% endif %}
+  {% if pager.page < pager.pages %}<a class="btn small" href="?{{ (pager.args | urlencode) ~ '&' if pager.args else '' }}page={{ pager.page + 1 }}">Next</a>{% endif %}
+</div>

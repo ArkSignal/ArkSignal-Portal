@@ -1,0 +1,22 @@
+{% from "partials/_feedsec.html" import sec with context %}
+{% from "partials/_ridrx.html" import card with context %}
+<div id="drones-admin">
+{% call sec('stations', 'All Stations (' ~ stations | length ~ ')', True, True) %}
+  <p class="dim" style="margin-top:0">{{ c.now }} drone{{ '' if c.now == 1 else 's' }} heard lately, {{ c.day }} in 24 hours, {{ c.total }} known.</p>
+  {% for r in stations %}{{ card(r, '/admin/drones', '#drones-admin', true) }}
+  {% else %}<p class="dim" style="margin:0">No stations yet.</p>{% endfor %}
+{% endcall %}
+{% call sec('takedown', 'Takedown List (' ~ hidden | length ~ ')', False, True) %}
+  <p style="margin-top:0">A drone ID on this list is removed from every page and its broadcasts are no longer stored. Use it when a pilot asks (Remote ID is public by design, but a request is honored).</p>
+  <form method="post" action="/admin/drones/hide" data-async data-async-target="#drones-admin" data-reset class="tfilterbar" style="align-items:flex-end">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div><label for="ah-id">Drone ID</label><input type="text" id="ah-id" name="drone_id" maxlength="32" style="width:230px" required></div>
+    <div><label for="ah-reason">Reason (Optional)</label><input type="text" id="ah-reason" name="reason" maxlength="200" style="width:300px" placeholder="Pilot asked, by email"></div>
+    <button class="btn" type="submit" style="margin:0">Hide This Drone</button>
+  </form>
+  {% if hidden %}<table style="margin-top:10px"><tr><th>Drone ID</th><th>Reason</th><th>By</th><th></th></tr>
+    {% for h in hidden %}<tr><td class="mono">{{ h.drone_id }}</td><td>{{ h.reason or '-' }}</td><td>{{ h.hidden_by }}</td>
+      <td><form class="inline" method="post" action="/admin/drones/unhide" data-async data-async-target="#drones-admin" data-confirm="Show {{ h.drone_id }} again when it is heard?"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="drone_id" value="{{ h.drone_id }}"><button class="btn small neutral" type="submit">Show Again</button></form></td></tr>{% endfor %}</table>
+  {% else %}<p class="dim" style="margin:10px 0 0">No drone is hidden.</p>{% endif %}
+{% endcall %}
+</div>

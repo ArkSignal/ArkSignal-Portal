@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+{% block title %}Hospitals{% endblock %}
+{% block content %}
+<h1><span>Admin</span> Hospitals</h1>
+<div class="sub">The hospital list comes from the Centers for Medicare &amp; Medicaid Services (public domain) and is located with the US Census Bureau geocoder (credit: US Census Bureau). Trauma levels, services and heliport links are entered here, because the public list does not carry them; an update never replaces what you enter.</div>
+{% include "partials/_admin_subnav.html" %}
+<div class="tiles" style="margin-bottom:14px">
+  <div class="panel tile"><div class="tv">{{ st.counts.total }}</div><div class="tl">Hospitals</div></div>
+  <div class="panel tile"><div class="tv">{{ st.counts.emergency }}</div><div class="tl">With Emergency Care</div></div>
+  <div class="panel tile"><div class="tv">{{ st.counts.trauma }}</div><div class="tl">Trauma Level Set</div></div>
+  <div class="panel tile"><div class="tv">{{ st.counts.heliports }}</div><div class="tl">Linked to a Heliport</div></div>
+</div>
+<details class="panel setsec" id="sec-update-hospitals" data-tab-title="Load and Check" data-tab-order="10" open><summary><span class="role-name">Update Hospitals</span></summary><form method="post" action="/admin/hospitals/import" data-async
+      data-confirm="Download the hospital list and locate the new hospitals now? This takes under a minute and keeps everything entered by hand.">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <p style="margin-top:0">Loads the hospitals for these states: <b>{{ states }}</b> (change them, and the match distance for heliports, under <a href="/admin/settings#sec-hospitals">Settings &gt; Hospitals</a>). Heliports are matched from the airport data, so load <a href="/admin/airports">Airports</a> first.</p>
+  <p class="dim" style="margin:12px 0 0">{% if st.last %}Last updated {{ st.last | localtime }}: {{ st.summary }}.{% else %}The hospital list has not been loaded yet.{% endif %}</p>
+  <button class="btn" type="submit">Download and Update Now</button>
+</form>
+<form method="post" action="/admin/hospitals/apply-filter" data-async data-confirm="Remove loaded facilities that do not match the type filter? Anything you edited by hand is kept." style="margin-top:12px">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <p class="dim" style="margin:0 0 8px">Only these kinds are kept: <b>{{ kept_types }}</b>. Facility names containing <span class="mono" style="font-size:.78rem">{{ excluded_words }}</span> are left out. Change both under <a href="/admin/settings#sec-hospitals">Settings &gt; Hospitals</a>.</p>
+  <button class="btn small neutral" type="submit">Apply the Type Filter to the Loaded List</button>
+</form>
+<form method="post" action="/admin/hospitals/locate" data-async data-confirm="Ask OpenStreetMap where up to 12 hospitals with an approximate position are? This takes about 15 seconds." style="margin-top:12px">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <p class="dim" style="margin:0 0 8px">{{ st.counts.approx }} hospital{{ '' if st.counts.approx == 1 else 's' }} still ha{{ 's' if st.counts.approx == 1 else 've' }} only an approximate position (the Census locator did not know the street and no helipad matched). Locate asks OpenStreetMap, one hospital a second, 12 at a time. A trauma list with positions fixes the trauma centres too.</p>
+  <button class="btn small neutral" type="submit">Locate Approximate Hospitals With OpenStreetMap</button>
+</form></details>
+
+<details class="panel setsec" id="sec-data-issues" data-tab-title="Data Issues" data-tab-order="20" open style="margin-bottom:12px"><summary><span class="role-name">Data Issues</span><span class="dim" style="font-size:.8rem">{{ st.issue_counts.any }} hospital{{ '' if st.issue_counts.any == 1 else 's' }} flagged</span></summary>
+  <div class="secbody"><p style="margin-top:0">Every hospital is checked for missing or doubtful information. A <b>&#9873;</b> on a hospital below means at least one of these applies; pick one to see only those hospitals.</p>
+  <table style="width:100%">{% for k, label in st.issues %}<tr><th style="width:330px;text-align:left">{{ label }}</th><td>{% if st.issue_counts[k] %}<a href="/admin/hospitals?issue={{ k }}">{{ st.issue_counts[k] }}</a>{% else %}0{% endif %}</td></tr>{% endfor %}
+    <tr><th style="text-align:left">Any of these</th><td>{% if st.issue_counts.any %}<a href="/admin/hospitals?issue=any"><b>{{ st.issue_counts.any }}</b></a>{% else %}0{% endif %}{% if issue %} &middot; <a href="/admin/hospitals">show all hospitals</a>{% endif %}</td></tr></table>
+  <p class="dim" style="margin:8px 0 0">A heliport is flagged when it is more than {{ cfg_warn | dist('km') }} from its hospital (a wrong link or a wrong position; set the distance in Settings), or is not in the airport data. Trauma centres without a heliport are listed too, because most have one.</p></div></details>
+<details class="panel setsec" id="sec-check-positions" data-tab-title="Load and Check" data-tab-order="10" open style="margin-bottom:12px"><summary><span class="role-name">Check All Positions</span>{% if st.check_running %}<span class="tag live running">running: {{ st.check_progress or 'starting' }}</span>{% endif %}</summary>
+  <form method="post" action="/admin/hospitals/verify-all" data-async data-confirm="Check every hospital's address with the Census and Photon? It takes several minutes and runs in the background.">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p style="margin-top:0">Looks up every hospital's address with the US Census and our own Photon. Where the two place it within {{ cfg_agree | dist('m') }} of each other the position is <b>confirmed</b> and kept as verified (imports never overwrite it). Everything else goes to the review list so you only look at the doubtful ones. A position you set by hand is never touched.</p>
+    <table style="width:100%"><tr><th style="width:190px">Confirmed</th><td>{{ st.checks.agreed }}</td></tr>
+      <tr><th>Set by hand</th><td>{{ st.checks.manual }}</td></tr>
+      <tr><th>Need review</th><td><b>{{ st.checks.review }}</b>{% if st.checks.review %} (<a href="/admin/hospitals?check=review">show them</a>): {{ st.checks.conflict }} where the finders disagree, {{ st.checks.single }} where only one knew the address, {{ st.checks.none }} where neither did{% endif %}</td></tr>
+      <tr><th>Not checked yet</th><td>{{ st.checks.unchecked }}</td></tr></table>
+    <p class="dim" style="margin:8px 0 0">{% if st.check_last %}Last finished {{ st.check_last | localtime }}: {{ st.check_result }}.{% else %}Not run yet.{% endif %} OpenStreetMap is left out of the bulk check on purpose (its rules forbid bulk use); it is still one of the answers in each hospital's Address Lookup.</p>
+    <div class="setsec-actions"><button class="btn" type="submit" {{ 'disabled' if st.check_running }}>Check All Positions</button>{% if check %} <a class="btn neutral" href="/admin/hospitals">Show All Hospitals</a>{% endif %}</div>
+  </form></details>
+<details class="panel setsec" id="sec-import-hospital-data" data-tab-title="Load and Check" data-tab-order="10" style="margin-top:12px"><summary><span class="role-name">Import Hospital Data</span></summary><form method="post" action="/admin/hospitals/trauma-import" enctype="multipart/form-data" data-async>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <p style="margin-top:0">Load a CSV file with the columns <span class="mono">name, ccn, city, state, level, designated, lat, lon, services, source</span>. Only <b>name</b> is required, plus at least one of <b>level</b> (I to V or 1 to 5; blank or 0 means not designated) and <b>services</b> (words such as stroke, neuro, cardiac, OB, NICU, pediatric, burn, ortho, oncology, surgery, ICU, CT, vascular, IR, facial, eye, separated by semicolons; services in the file are added to the ones already on record). One file may carry levels, services or both, so the same box takes the state trauma list and the hospital capability list. A row with a <b>ccn</b> (the CMS certification number, the Facility ID in the CMS list) is matched exactly; otherwise by position and name. A row that matches nothing is added. <a href="/admin/hospitals/trauma-template.csv">Download an example file</a>.</p>
+  <label for="trfile">CSV file</label><input type="file" id="trfile" name="file" accept=".csv,text/csv,text/plain">
+  <label for="trpaste">Or paste the list</label><textarea id="trpaste" name="pasted" rows="4" style="width:100%;font-family:'JetBrains Mono',monospace;font-size:.8rem;background:var(--input-bg);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:8px"></textarea>
+  <div class="setsec-actions"><button class="btn neutral" type="submit" name="mode" value="preview">Preview</button> <button class="btn" type="submit" name="mode" value="import">Import</button></div>
+  <div class="help">Preview shows what would be matched and added without changing anything. Hospitals you already edited by hand are matched too; a trauma level in the file replaces the one on record.{% if st.last_trauma %} Last import: {{ st.last_trauma | localtime }}.{% endif %}</div>
+</form></details>
+
+<div data-tab-title="Edit a Hospital" data-tab-order="30" {{ "data-tab-default" if (q or request.args.get("issue") or request.args.get("check") or request.args.get("page")) }}>
+<h2 class="sec" style="font-size:.78rem;text-transform:uppercase;letter-spacing:.14em;color:var(--dim);margin:26px 0 12px">Edit a Hospital</h2>
+<form class="tfilterbar" method="get"><input type="search" name="q" value="{{ q }}" placeholder="Search by name, city, county or ZIP, then press Enter" aria-label="Search hospitals"><span class="dim">{{ total }} found{{ ', showing the first 200' if total > 200 }}</span></form>
+{% for h in rows %}
+<details class="panel setsec" id="h-{{ h.facility_id }}" style="margin-bottom:8px"><summary><span class="role-name">{{ h.name }}</span><span class="dim" style="font-size:.8rem">{{ h.city }}, {{ h.state }}{% if h.trauma %} &middot; Level {{ h.trauma }}{% endif %}{% if h.heliport_ident %} &middot; {{ h.heliport_ident }}{% endif %}{% if h.issues %} &middot; <b title="{% for k in h.issues %}{{ issue_labels[k] }}{{ '; ' if not loop.last }}{% endfor %}">&#9873; {{ h.issues | length }}</b>{% endif %}{% if h.pos_check == 'agreed' %} &middot; position confirmed{% elif h.pos_check in ('single', 'conflict', 'none') %} &middot; <b>needs review</b>{% endif %}{% if h.lat is none %} &middot; no position{% elif h.pos_source == 'zip' %} &middot; approximate position{% endif %}</span></summary>
+  {% if h.issues %}<p class="dim" style="margin:0 0 8px"><b>&#9873; Data issues:</b> {% for k in h.issues %}{{ issue_labels[k] }}{% if k == 'far_heliport' and h.heli_km is not none %} ({{ h.heli_km | dist('km') }}){% endif %}{{ '; ' if not loop.last }}{% endfor %}.</p>{% endif %}
+  <form method="post" action="/admin/hospitals/{{ h.facility_id }}/save" data-async>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+      <div><label for="t{{ h.facility_id }}">Trauma Level</label><select id="t{{ h.facility_id }}" name="trauma">{% for k, l in trauma %}<option value="{{ k }}" {{ 'selected' if k == h.trauma }}>{{ l }}</option>{% endfor %}</select></div>
+      <div><label for="hp{{ h.facility_id }}">Heliport Identifier</label><input type="text" id="hp{{ h.facility_id }}" name="heliport" value="{{ h.heliport_ident }}" style="width:130px" placeholder="for example 3AR2"></div>
+      <div><label for="la{{ h.facility_id }}">Latitude</label><input type="text" id="la{{ h.facility_id }}" name="lat" value="{{ h.lat if h.lat is not none else '' }}" style="width:120px"></div>
+      <div><label for="lo{{ h.facility_id }}">Longitude</label><input type="text" id="lo{{ h.facility_id }}" name="lon" value="{{ h.lon if h.lon is not none else '' }}" style="width:120px"></div>
+    </div>
+    <div class="grp">Services</div>
+    <div style="display:flex;gap:6px 18px;flex-wrap:wrap">{% for k, l in services %}<label class="check" style="margin:3px 0"><input type="checkbox" name="services" value="{{ k }}" {{ 'checked' if k in h.services.split(',') }}><span>{{ l }}</span></label>{% endfor %}</div>
+    <label for="n{{ h.facility_id }}">Notes</label><input type="text" id="n{{ h.facility_id }}" name="notes" value="{{ h.notes }}" maxlength="500">
+    {% set hm = hmedia.get(h.facility_id, {}) %}
+    <div class="grp">Website and Picture</div>
+    <label for="w{{ h.facility_id }}">Website</label><input type="text" id="w{{ h.facility_id }}" name="website" value="{{ hm.website or '' }}" maxlength="300" placeholder="https://">
+    <label for="pu{{ h.facility_id }}">Picture Address</label><input type="text" id="pu{{ h.facility_id }}" name="photo_url" value="{{ hm.photo_url or '' }}" maxlength="500" placeholder="https://">
+    <label for="pc{{ h.facility_id }}">Picture Credit</label><input type="text" id="pc{{ h.facility_id }}" name="photo_credit" value="{{ hm.photo_credit or '' }}" maxlength="200" placeholder="Photographer and license">
+    <div class="help">Found automatically in Wikidata and Wikimedia Commons ({{ 'typed in by an administrator: kept' if hm.edited else 'replaced by the next lookup if you leave it alone' }}). Fill any of the three to keep your own; clear all three to hand it back to the lookup.</div>
+    <div class="help">Leave the heliport blank to link none; a link set here is kept by updates. Setting a position here replaces the automatic one.</div>
+    <div class="setsec-actions"><button class="btn" type="submit">Save Hospital</button> <a href="/hospitals/{{ h.facility_id }}">View public page</a></div>
+  </form>
+  <details class="panel setsec addr-lookup" id="al-{{ h.facility_id }}" data-fid="{{ h.facility_id }}" data-lat="{{ h.lat if h.lat is not none else '' }}" data-lon="{{ h.lon if h.lon is not none else '' }}" style="margin:8px 0 0"><summary><span class="role-name">Address Lookup</span><span class="dim" style="font-size:.8rem">find a position from the address</span></summary>
+    <form class="al-form" method="post" action="/admin/hospitals/{{ h.facility_id }}/lookup" style="padding-top:0">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label for="alq{{ h.facility_id }}">Address</label>
+      <input type="text" id="alq{{ h.facility_id }}" name="q" value="{{ ([h.address, h.city, ((h.state or '') ~ ' ' ~ (h.zip or '')) | trim] | select | join(', ')) }}" maxlength="300">
+      <div class="help">Pre-filled with the CMS address; edit it or paste another. Look Up asks the US Census, our own Photon and OpenStreetMap and lists every answer; nothing changes until you press Use This Position.</div>
+      <div class="setsec-actions"><button class="btn small" type="submit">Look Up</button></div>
+    </form>
+    <form method="post" action="/admin/hospitals/{{ h.facility_id }}/check" data-async style="padding-top:0"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small neutral" type="submit">Check This Position</button></form>
+    <div class="al-out" aria-live="polite"></div>
+    <div class="al-pickbar help" style="margin-top:10px">The map is always here: click it (or drag the red marker) to place the hospital by hand, then press Use the Picked Position. Look Up answers show on it too.</div>
+    <div class="al-map" style="display:none;height:300px;border-radius:10px;margin-top:6px"></div>
+    <form class="al-pick" method="post" action="/admin/hospitals/{{ h.facility_id }}/position" data-async style="padding:6px 0 0;display:none"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="lat"><input type="hidden" name="lon"><input type="hidden" name="finder" value="picked on the map">
+      <span class="mono al-picked dim"></span> <button class="btn small" type="submit">Use the Picked Position</button></form>
+  </details>
+  {% if h.pos_source in ('zip', '') %}<form method="post" action="/admin/hospitals/locate" data-async style="padding-top:0"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="only" value="{{ h.facility_id }}"><button class="btn small neutral" type="submit">Locate This One With OpenStreetMap</button></form>{% endif %}
+</details>
+{% else %}<div class="panel dim">No hospitals to show.</div>{% endfor %}
+</div>
+
+<script>
+// Address lookup: ask the finders, list the candidates, show them on a small map, Use This Position stores one (a data-async form per candidate).
+(function () {
+  var leafletReady = null;
+  function loadLeaflet() {
+    if (window.L) return Promise.resolve();
+    if (leafletReady) return leafletReady;
+    leafletReady = new Promise(function (ok, bad) {
+      var c = document.createElement("link"); c.rel = "stylesheet"; c.href = "{{ leaflet_base }}/leaflet.css"; c.crossOrigin = "anonymous"; document.head.appendChild(c);
+      var s = document.createElement("script"); s.src = "{{ leaflet_base }}/leaflet.js"; s.crossOrigin = "anonymous"; s.onload = ok; s.onerror = bad; document.head.appendChild(s);
+    });
+    return leafletReady;
+  }
+  function esc(t) { var d = document.createElement("div"); d.textContent = t; return d.innerHTML; }
+  // the map is always there: it opens centered on the position on record (or on the state), a click or a drag of the red marker picks a position by hand
+  var SPOT = [{{ cfg_map_lat }}, {{ cfg_map_lon }}];
+  async function ensureMap(box) {
+    var mapEl = box.querySelector(".al-map");
+    mapEl.style.display = "block";
+    await loadLeaflet();
+    if (mapEl._map) { mapEl._map.invalidateSize(); return mapEl._map; }
+    var has = box.dataset.lat !== "", c = has ? [+box.dataset.lat, +box.dataset.lon] : SPOT;
+    var m = L.map(mapEl).setView(c, has ? 15 : 8); mapEl._map = m;
+    L.tileLayer({{ tile_url | tojson }}, {attribution: {{ tile_attr | tojson }}, maxZoom: 19}).addTo(m);
+    if (has) L.circleMarker(c, {radius: 6, color: "#888", weight: 2, dashArray: "3", fillOpacity: .1}).addTo(m).bindTooltip("Position on record");
+    var pick = box.querySelector(".al-pick"), mk = null;
+    function put(ll) {
+      if (!mk) { mk = L.marker(ll, {draggable: true, title: "The picked position"}).addTo(m); mk._icon && (mk._icon.style.filter = "hue-rotate(150deg) saturate(3)"); mk.on("dragend", function () { put(mk.getLatLng()); }); }
+      else mk.setLatLng(ll);
+      pick.querySelector("[name=lat]").value = ll.lat.toFixed(6); pick.querySelector("[name=lon]").value = ll.lng.toFixed(6);
+      pick.querySelector(".al-picked").textContent = ll.lat.toFixed(5) + ", " + ll.lng.toFixed(5); pick.style.display = "block";
+    }
+    m.on("click", function (ev) { put(ev.latlng); });
+    mapEl._put = put;
+    return m;
+  }
+  // a position saved from the map or from a lookup answer: the edit form's Latitude and Longitude (which Save Hospital would otherwise write back as the old position), the
+  // position on record and the red marker all follow it
+  document.addEventListener("asyncdone", function (e) {
+    var f = e.target; if (!f.matches || !f.matches('form[action$="/position"]') || !e.detail || !e.detail.ok) return;
+    var box = f.closest(".addr-lookup"); if (!box) return;
+    var lat = f.querySelector("[name=lat]").value, lon = f.querySelector("[name=lon]").value, fid = box.dataset.fid;
+    var la = document.getElementById("la" + fid), lo = document.getElementById("lo" + fid);
+    if (la) { la.value = parseFloat(lat).toFixed(6); la.defaultValue = la.value; } if (lo) { lo.value = parseFloat(lon).toFixed(6); lo.defaultValue = lo.value; }
+    box.dataset.lat = lat; box.dataset.lon = lon;
+    var mapEl = box.querySelector(".al-map");
+    if (mapEl && mapEl._map) {
+      if (mapEl._rec) mapEl._map.removeLayer(mapEl._rec);
+      mapEl._rec = L.circleMarker([+lat, +lon], {radius: 6, color: "#888", weight: 2, dashArray: "3", fillOpacity: .1}).addTo(mapEl._map).bindTooltip("Position on record");
+    }
+  });
+  document.querySelectorAll("details.addr-lookup").forEach(function (box) { box.addEventListener("toggle", function () { if (box.open) ensureMap(box).catch(function () {}); }); });
+  document.addEventListener("submit", async function (e) {
+    var form = e.target.closest("form.al-form");
+    if (!form) return;
+    e.preventDefault();
+    var box = form.closest(".addr-lookup"), out = box.querySelector(".al-out"), mapEl = box.querySelector(".al-map");
+    out.innerHTML = '<p class="dim">Asking the finders...</p>';
+    var data;
+    try {
+      var r = await fetch(form.action, {method: "POST", body: new FormData(form), headers: {"X-Requested-With": "XMLHttpRequest"}, credentials: "same-origin"});
+      data = await r.json();
+    } catch (err) { out.innerHTML = '<p class="error">The lookup could not be completed. Reload the page and try again.</p>'; return; }
+    var html = "", errs = Object.keys(data.errors || {});
+    if (!data.candidates.length) html += '<p class="dim">No finder knew this address. Try fewer words (street, city) or drop the suite number; a very new street may not be in any of them yet.</p>';
+    html += '<table class="data"><thead><tr><th>Finder</th><th>Answer</th><th>Position</th><th></th></tr></thead><tbody>';
+    data.candidates.forEach(function (c, i) {
+      html += '<tr data-i="' + i + '"><td>' + esc(c.finder_name) + '</td><td>' + esc(c.label) + '</td><td class="mono">' + c.lat + ', ' + c.lon + '</td><td>'
+        + '<form method="post" action="/admin/hospitals/' + box.dataset.fid + '/position" data-async style="padding:0"><input type="hidden" name="csrf_token" value="' + form.csrf_token.value + '">'
+        + '<input type="hidden" name="lat" value="' + c.lat + '"><input type="hidden" name="lon" value="' + c.lon + '"><input type="hidden" name="finder" value="' + esc(c.finder_name) + '">'
+        + '<button class="btn small" type="submit">Use This Position</button></form></td></tr>';
+    });
+    html += '</tbody></table>';
+    errs.forEach(function (k) { html += '<p class="dim">' + esc(k === "all" ? data.errors[k] : k + ": " + data.errors[k]) + '</p>'; });
+    out.innerHTML = html;
+    var m;
+    try { m = await ensureMap(box); } catch (err) { return; }   // the map stays, with or without answers, so a position can always be picked by hand
+    if (mapEl._cands) mapEl._cands.clearLayers(); mapEl._cands = L.layerGroup().addTo(m);
+    if (!data.candidates.length) return;
+    var pts = [], colors = {census: "#2f81f7", photon: "#3fb950", osm: "#d29922"};
+    data.candidates.forEach(function (c, i) {
+      var mk = L.circleMarker([c.lat, c.lon], {radius: 8, color: colors[c.finder] || "#2f81f7", weight: 3, fillOpacity: .5}).addTo(mapEl._cands).bindTooltip(c.finder_name + ": " + c.label);
+      mk.on("click", function () { var row = out.querySelector('tr[data-i="' + i + '"]'); if (row) { row.scrollIntoView({block: "nearest"}); row.style.outline = "2px solid var(--accent, #2f81f7)"; setTimeout(function () { row.style.outline = ""; }, 1500); } });
+      pts.push([c.lat, c.lon]);
+    });
+    if (box.dataset.lat) pts.push([+box.dataset.lat, +box.dataset.lon]);
+    m.fitBounds(pts, {padding: [30, 30], maxZoom: 16});
+    out.querySelectorAll("tr[data-i]").forEach(function (row) { row.addEventListener("mouseenter", function () { var c = data.candidates[row.dataset.i]; m.panTo([c.lat, c.lon]); }); });
+  });
+})();
+</script>
+{% endblock %}

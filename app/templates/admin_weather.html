@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Weather Stations{% endblock %}
+{% block content %}
+<h1><span>Admin</span> Weather Stations</h1>
+<div class="sub">Every member weather station. The service itself, how often accounts are read and how long readings are kept are in <a href="/admin/settings#sec-weather-stations">Settings &gt; Weather Stations</a>.{% if not enabled %} <b>The service is switched off.</b>{% endif %}</div>
+{% include "partials/_admin_subnav.html" %}
+<div data-tab-title="Add a Station for a Member" data-tab-order="20">
+<details class="panel setsec" id="sec-add-for-member" style="margin-bottom:14px"><summary><span class="role-name">Add a Weather Station for a Member</span></summary>
+<form method="post" action="/admin/weather/add">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <label for="aw-user">Member (User Name, Display Name, Call Sign or Email)</label>
+  <input type="text" id="aw-user" name="username" data-memberpicker maxlength="120" required style="width:320px" placeholder="Start typing to search members">
+  {% with fp = "aw", admin = true, feeders = [], want = "", pull = pull %}{% include "partials/_wx_form_fields.html" %}{% endwith %}
+  <div class="help">The station is created under the member's account and opened with their own page, where the upload address is ready to copy and give to them. Stations that read an Ecowitt.net or Tempest account need the owner's own keys. The per-member limit does not apply to you. Recorded in the audit log.</div>
+  <button class="btn" type="submit">Add Weather Station</button>
+</form>
+<script src="/static/memberpicker.js"></script></details>
+</div>
+<div data-tab-title="Stations" data-tab-order="10" data-tab-default>
+
+<div class="tiles" style="margin-bottom:14px">
+  <div class="panel tile"><div class="tv">{{ counts.total }}</div><div class="tl">Stations</div></div>
+  <div class="panel tile"><div class="tv">{{ counts.online }}</div><div class="tl">Reporting now</div></div>
+  <div class="panel tile"><div class="tv">{{ counts.public }}</div><div class="tl">Shown publicly</div></div>
+  <div class="panel tile"><div class="tv">{{ kinds_n.ecowitt_cloud + kinds_n.tempest_cloud }}</div><div class="tl">Read from owners' accounts</div></div>
+</div>
+{% call sec('stations', 'Weather Stations', True, True) %}
+  <table class="sortable" id="wxadmin">
+    <tr><th data-sort="text">Station</th><th data-sort="text">Owner</th><th data-sort="text">Source</th><th data-sort="text">Status</th><th data-sort="text">Last Report</th><th>Shown</th><th></th></tr>
+    {% for r in rows %}
+    <tr>
+      <td>{% if r.sid %}<a href="/weather/{{ r.sid }}" class="mono">{{ r.sid }}</a>{% else %}<span class="dim">no ID</span>{% endif %}{% if r.aprs_on %} <span class="tag live" title="Sends its readings to the APRS network">APRS</span>{% endif %}{% if r.name %}<br><span class="dim">{{ r.name }}</span>{% endif %}{% if r.fuuid %}<br><span class="dim">on an ADS-B feeder</span>{% endif %}</td>
+      <td>{{ r.owner_display or r.owner_name }}{% if r.owner_callsign %}<br><span class="dim mono">{{ r.owner_callsign }}</span>{% endif %}</td>
+      <td>{{ kinds[r.kind] }}{% if r.last_error %}<br><span class="dim mono" style="font-size:.75rem">{{ r.last_error[:90] }}</span>{% endif %}</td>
+      <td>{% if r.disabled %}<span class="tag off">switched off</span>{% elif online(r) %}<span class="tag live">reporting</span>{% else %}<span class="tag off">silent</span>{% endif %}</td>
+      <td class="dim">{{ r.last_report | localtime("%b %-d %H:%M") if r.last_report else 'never' }}</td>
+      <td>{{ 'public' if r.public else 'private' }}</td>
+      <td style="white-space:nowrap">
+        <a class="btn small" href="/my/weather/{{ r.id }}" title="Open this station with the owner's own pages">Manage</a>
+        <form method="post" action="/admin/weather/{{ r.id }}/{{ 'enable' if r.disabled else 'disable' }}" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small" type="submit">{{ 'Switch On' if r.disabled else 'Switch Off' }}</button></form>
+        <form method="post" action="/admin/weather/{{ r.id }}/delete" data-confirm="Delete this station and all its readings?" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small danger" type="submit">Delete</button></form>
+      </td>
+    </tr>
+    {% else %}<tr><td colspan="7" class="dim">No weather stations have been added yet.</td></tr>{% endfor %}
+  </table>
+{% endcall %}
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Sign In{% endblock %}
+{% block content %}
+<div class="authpage">
+<h1>Sign <span>In</span></h1>
+<div class="sub">Sign in to manage your feeders.</div>
+{% if passkeys_on %}<div class="panel narrow pk-box" style="margin-bottom:12px"><button class="btn neutral" type="button" id="pk-login" style="margin:0">Sign In with a Passkey</button> <span id="pk-msg" style="font-size:.9rem"></span>
+  <div class="help">Use your fingerprint, face, screen lock or security key: no user name or password needed. Or sign in with your password below.</div></div>
+<script src="/static/passkeys.js?v={{ app_version }}"></script>{% endif %}
+{% if google_on %}<div class="panel narrow" style="margin-bottom:12px"><a class="btn neutral" href="/login/google{{ '?next=' ~ (request.args.get('next') | urlencode) if request.args.get('next') }}" id="google-login" style="margin:0">Sign In with Google</a>
+  <div class="help">For an account you have linked to Google. Link one on My Account &gt; Google Sign-In after you sign in.</div></div>{% endif %}
+<form class="panel narrow" method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <label for="username">Username or email address</label>
+  <input type="text" id="username" name="username" autocomplete="username" autofocus required>
+  <label for="password">Password</label>
+  <input type="password" id="password" name="password" autocomplete="current-password" required>
+  <button class="btn" type="submit">Sign In</button>
+  <p class="dim">{% if registration_open %}No account? <a href="/my/register">Register</a>. {% endif %}<a href="/my/forgot">Forgot your password?</a> Need help? See <a href="/contact">Contact</a>.</p>
+</form>
+</div>
+{% endblock %}

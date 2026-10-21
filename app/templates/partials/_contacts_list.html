@@ -1,0 +1,32 @@
+{% macro cfields(c, pre) %}
+  <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+    <div><label for="{{ pre }}name">Name</label><input type="text" id="{{ pre }}name" name="name" value="{{ c.name if c else '' }}" maxlength="80" style="width:200px" required></div>
+    <div><label for="{{ pre }}role">Role</label><input type="text" id="{{ pre }}role" name="role" value="{{ c.role if c else '' }}" maxlength="120" style="width:240px" placeholder="Site administrator"></div>
+    <div><label for="{{ pre }}order">Order</label><input type="text" id="{{ pre }}order" name="sort_order" value="{{ c.sort_order if c else 100 }}" style="width:70px"></div>
+  </div>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+    <div><label for="{{ pre }}email">Email address</label><input type="text" id="{{ pre }}email" name="email" value="{{ c.email if c else '' }}" maxlength="254" style="width:280px"></div>
+    <div><label for="{{ pre }}url">Web address</label><input type="text" id="{{ pre }}url" name="url" value="{{ c.url if c else '' }}" maxlength="300" style="width:300px" placeholder="https://"></div>
+  </div>
+  <label for="{{ pre }}notes">Notes</label>
+  <input type="text" id="{{ pre }}notes" name="notes" value="{{ c.notes if c else '' }}" maxlength="300" placeholder="For example: station help, account problems">
+  <label class="check"><input type="checkbox" name="shown" value="1" {{ 'checked' if not c or c.shown }}><span>Shown on the public Contact page</span></label>
+{% endmacro %}
+{% if contacts is defined %}
+<div id="contacts-list">
+{% for c in contacts %}
+<details class="panel setsec" id="contact-{{ c.id }}" style="margin-bottom:10px">
+  <summary><span class="role-name">{{ c.name }}</span><span class="dim" style="font-size:.8rem">{{ c.role }}{% if not c.shown %} &middot; hidden{% endif %}</span></summary>
+  <form method="post" action="/admin/contacts/save" data-async data-async-target="#contacts-list">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="id" value="{{ c.id }}">
+    {{ cfields(c, 'c' ~ c.id ~ '-') }}
+    <div class="setsec-actions"><button class="btn" type="submit">Save Contact</button></div>
+  </form>
+  <form method="post" action="/admin/contacts/{{ c.id }}/delete" data-async data-async-target="#contacts-list" data-confirm="Delete {{ c.name }} from the contact list?">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn small warn" type="submit" style="margin-top:0">Delete Contact</button>
+  </form>
+</details>
+{% else %}<div class="panel dim">No contacts have been added yet.</div>{% endfor %}
+</div>
+{% endif %}

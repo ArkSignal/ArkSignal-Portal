@@ -1,0 +1,40 @@
+<div id="backups-list">
+<div class="panel" style="overflow-x:auto">
+  <div class="grp" style="margin-top:0">Available Backups</div>
+  {% if backups %}
+  <table>
+    <tr><th>Created</th><th>Type</th><th>Size</th><th>Rows</th><th>Actions</th></tr>
+    {% for b in backups %}
+    <tr>
+      <td>{{ b.when | localtime("%Y-%m-%d %H:%M:%S") }}</td>
+      <td><span class="tag {{ 'off' if not b.ok }}">{{ b.kind if b.ok else 'unreadable' }}</span>{% if b.encrypted %} <span class="tag live" title="Encrypted with this site's SECRET_KEY">encrypted</span>{% endif %}</td>
+      <td class="dim">{{ b.size | filesize }}</td>
+      <td class="dim">{{ b.rows }}</td>
+      <td>
+        <a class="btn small" href="/admin/backups/{{ b.name }}/download">Download</a>
+        {% if b.ok %}
+        <form class="inline" method="post" action="/admin/backups/{{ b.name }}/restore" data-async data-async-target="#backups-list"
+              data-confirm="Restore the backup from {{ b.when | localtime_text('%Y-%m-%d %H:%M') }}? All current accounts, roles, settings and history will be replaced by what this backup contains. A safety backup of the current data is taken first.">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn small" type="submit">Restore</button>
+        </form>
+        <a class="btn small neutral" href="/admin/backups/{{ b.name }}/parts" title="Restore only some areas or individual records">Restore Part</a>
+        {% endif %}
+        <form class="inline" method="post" action="/admin/backups/{{ b.name }}/delete" data-async data-async-target="#backups-list"
+              data-confirm="Delete this backup permanently? It cannot be recovered.">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn small warn" type="submit">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="dim" style="margin:0">No backups yet. Create one with Create Backup Now.</p>
+  {% endif %}
+</div>
+<div class="panel" style="margin-top:12px">
+  <div class="grp" style="margin-top:0">Last Scheduled Run</div>
+  <p style="margin:0">{% if last_run %}{{ last_run | localtime("%Y-%m-%d %H:%M") }}: <span class="dim">{{ last_status }}</span>{% else %}<span class="dim">The schedule has not run yet.</span>{% endif %}</p>
+</div>
+</div>

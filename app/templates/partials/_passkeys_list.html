@@ -1,0 +1,17 @@
+<div id="passkeys-list" class="panel" style="overflow-x:auto">
+  <table>
+    <tr><th>Name</th><th>Added</th><th>Last Used</th><th>Kind</th><th></th></tr>
+    {% for p in passkeys %}
+    <tr>
+      <td>
+        <form class="inline" method="post" action="/my/passkeys/{{ p.id }}/rename" data-async data-async-target="#passkeys-list" style="display:flex;gap:6px;align-items:center">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="text" name="name" value="{{ p.name }}" maxlength="60" aria-label="Name of this passkey" style="max-width:220px"><button class="btn small neutral" type="submit" style="margin:0">Rename</button></form></td>
+      <td><time class="ts" datetime="{{ p.created_at.isoformat() }}">{{ p.created_at }}</time></td>
+      <td>{% if p.last_used %}<time class="ts" datetime="{{ p.last_used.isoformat() }}">{{ p.last_used }}</time>{% else %}<span class="dim">never</span>{% endif %}</td>
+      <td>{% if p.backed_up %}<span class="tag live" title="Kept safe by your device's keychain, so it also works on your other devices">synced</span>{% else %}<span class="tag off" title="Lives on this one device or key only">this device</span>{% endif %}</td>
+      <td><form class="inline" method="post" action="/my/passkeys/{{ p.id }}/remove" data-async data-async-target="#passkeys-list" data-confirm="Remove this passkey? It can no longer sign in.">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small warn" type="submit" style="margin:0">Remove</button></form></td>
+    </tr>
+    {% else %}<tr><td colspan="5" class="dim">You have no passkeys yet. Add one above.</td></tr>{% endfor %}
+  </table>
+</div>

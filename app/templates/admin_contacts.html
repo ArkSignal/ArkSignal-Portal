@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Contacts{% endblock %}
+{% from "partials/_contacts_list.html" import cfields with context %}
+{% block content %}
+<h1><span>Admin</span> Contacts</h1>
+<div class="sub">The people visitors can contact, shown on the public <a href="/contact">Contact</a> page and linked from the footer and the sign-in page. The introduction line is under <a href="/admin/settings#sec-contacts">Settings &gt; Contacts</a>.</div>
+{% include "partials/_admin_subnav.html" %}
+<details class="panel setsec" id="sec-add-a-contact" open style="margin-bottom:14px"><summary><span class="role-name">Add a Contact</span></summary>
+<form method="post" action="/admin/contacts/save" data-async data-async-target="#contacts-list">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  {{ cfields(none, 'n-') }}
+  <div class="setsec-actions"><button class="btn" type="submit">Add Contact</button></div>
+</form></details>
+{% include "partials/_contacts_list.html" %}
+{% endblock %}

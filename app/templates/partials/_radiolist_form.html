@@ -1,0 +1,55 @@
+{# The fields of a net or a Winlink gateway, for the member's forms and the administrators': fields(kind, e, uid) with e the entry (or none) and uid a unique prefix for the label ids. Imported with context (the lists come from radiolists.form_ctx). #}
+{% macro fields(kind, e, uid) -%}
+{% set e = e or {} %}
+{% if kind == 'net' %}
+<label for="{{ uid }}-name">Net Name</label>
+<input type="text" id="{{ uid }}-name" name="name" maxlength="80" required value="{{ e.name or '' }}" placeholder="Pulaski County ARES Net">
+<div style="display:flex;gap:14px;flex-wrap:wrap">
+  <div><label for="{{ uid }}-rec">How Often</label>
+    <select id="{{ uid }}-rec" name="recurrence">{% for k, l in recurrence.items() %}<option value="{{ k }}" {{ 'selected' if (e.recurrence or 'weekly') == k }}>{{ l }}</option>{% endfor %}</select></div>
+  <div><label for="{{ uid }}-wd">Day of the Week</label>
+    <select id="{{ uid }}-wd" name="weekday">{% for d in weekdays %}<option value="{{ loop.index0 }}" {{ 'selected' if e.weekday == loop.index0 }}>{{ d }}</option>{% endfor %}</select></div>
+  <div><label for="{{ uid }}-nth">Which One (Monthly Nets)</label>
+    <select id="{{ uid }}-nth" name="nth">{% for k, l in nth.items() %}<option value="{{ k }}" {{ 'selected' if e.nth == k }}>{{ l }}</option>{% endfor %}</select></div>
+</div>
+<div style="display:flex;gap:14px;flex-wrap:wrap">
+  <div><label for="{{ uid }}-time">Starts at (24-Hour Clock)</label><input type="text" id="{{ uid }}-time" name="at_time" maxlength="5" value="{{ e.at_time or '' }}" placeholder="19:30" style="max-width:110px" class="mono"></div>
+  <div><label for="{{ uid }}-tz">Time Zone</label>
+    <select id="{{ uid }}-tz" name="tz">{% for z in tzs %}<option value="{{ z }}" {{ 'selected' if (e.tz or site_tz) == z }}>{{ z }}</option>{% endfor %}</select></div>
+</div>
+<div style="display:flex;gap:14px;flex-wrap:wrap">
+  <div><label for="{{ uid }}-mode">Mode</label>
+    <select id="{{ uid }}-mode" name="mode">{% for m in net_modes %}<option value="{{ m }}" {{ 'selected' if e.mode == m }}>{{ m }}</option>{% endfor %}</select></div>
+  <div><label for="{{ uid }}-freq">Frequency (MHz)</label><input type="text" id="{{ uid }}-freq" name="freq_mhz" maxlength="10" value="{{ '%g' % e.freq_mhz if e.freq_mhz else '' }}" placeholder="146.76" style="max-width:130px" class="mono"></div>
+</div>
+<label for="{{ uid }}-fn">Where to Tune (Repeater, Offset, Tone, Talkgroup)</label>
+<input type="text" id="{{ uid }}-fn" name="freq_note" maxlength="160" value="{{ e.freq_note or '' }}" placeholder="Little Rock repeater, minus offset, 100 Hz tone">
+<label for="{{ uid }}-ctl">Net Control or Contact</label>
+<input type="text" id="{{ uid }}-ctl" name="contact" maxlength="120" value="{{ e.contact or '' }}" placeholder="KD5VCF, net control rotates">
+{% else %}
+<label for="{{ uid }}-name">Gateway Call Sign</label>
+<input type="text" id="{{ uid }}-name" name="name" maxlength="12" required value="{{ e.name or '' }}" placeholder="KD5VCF-10" class="mono" style="max-width:200px">
+<div style="display:flex;gap:14px;flex-wrap:wrap">
+  <div><label for="{{ uid }}-mode">Mode</label>
+    <select id="{{ uid }}-mode" name="mode">{% for m in wl_modes %}<option value="{{ m }}" {{ 'selected' if e.mode == m }}>{{ m }}</option>{% endfor %}</select></div>
+  <div><label for="{{ uid }}-freq">Frequency (MHz)</label><input type="text" id="{{ uid }}-freq" name="freq_mhz" maxlength="10" value="{{ '%g' % e.freq_mhz if e.freq_mhz else '' }}" placeholder="145.710" style="max-width:130px" class="mono"></div>
+</div>
+<label for="{{ uid }}-fn">Details (Bandwidth, Center Frequency, Hours of Operation)</label>
+<input type="text" id="{{ uid }}-fn" name="freq_note" maxlength="160" value="{{ e.freq_note or '' }}" placeholder="2.4 kHz, on the air 24 hours">
+<label for="{{ uid }}-ctl">Operator or Contact</label>
+<input type="text" id="{{ uid }}-ctl" name="contact" maxlength="120" value="{{ e.contact or '' }}">
+{% endif %}
+<label for="{{ uid }}-area">{{ 'Area It Covers (City, County)' if kind == 'net' else 'Place (City, State)' }}</label>
+<input type="text" id="{{ uid }}-area" name="area" maxlength="120" value="{{ e.area or '' }}" placeholder="Little Rock, AR">
+{% if kind == 'winlink' %}
+<div style="display:flex;gap:14px;flex-wrap:wrap">
+  <div><label for="{{ uid }}-lat">Latitude (Optional)</label><input type="text" id="{{ uid }}-lat" name="lat" value="{{ e.lat if e.lat is not none else '' }}" style="max-width:150px"></div>
+  <div><label for="{{ uid }}-lon">Longitude (Optional)</label><input type="text" id="{{ uid }}-lon" name="lon" value="{{ e.lon if e.lon is not none else '' }}" style="max-width:150px"></div>
+</div>
+<div class="help">A position lets visitors sort gateways by distance from them. A gateway's place is public service information: use the place of the antenna as you are happy to share it.</div>
+{% endif %}
+<label for="{{ uid }}-url">Website (Optional)</label>
+<input type="text" id="{{ uid }}-url" name="url" maxlength="300" value="{{ e.url or '' }}" placeholder="https://">
+<label for="{{ uid }}-notes">Notes{{ ' (Required for an Irregular Net: When It Meets)' if kind == 'net' else '' }}</label>
+<textarea id="{{ uid }}-notes" name="notes" maxlength="1000" rows="3" style="width:100%;max-width:640px">{{ e.notes or '' }}</textarea>
+{%- endmacro %}

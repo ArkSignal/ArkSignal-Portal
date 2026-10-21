@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}My Radiosonde Stations{% endblock %}
+{% block content %}
+<h1>My <span>Sonde Stations</span></h1>
+<div class="sub">Signed in as {{ current_user.username }}. Claim the radiosonde receiving stations you run (the ones that upload to SondeHub with auto_rx or similar) to choose how their location is shown and to see what they hear.</div>
+{% set add_mode = request.args.get('add') == '1' or request.args.get('callsign') %}
+{% with active = 'sondes' %}{% include "partials/_my_subnav.html" %}{% endwith %}
+{% if rows %}
+<div class="tiles" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))">
+  {% for r in rows %}
+  <a class="panel tile" href="/my/sondes/{{ r.id }}" style="text-decoration:none;color:inherit">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <div class="tv" style="font-size:1.2rem">{{ r.callsign }}</div>
+      {% if r.claim_status == 'claimed' %}<span class="tag live">claimed</span>{% else %}<span class="tag off">waiting for proof</span>{% endif %}
+    </div>
+    <div class="tl">{{ r.display_name or r.antenna or 'Receiving station' }}</div>
+    <div class="tl">{% if r.last_seen %}Last heard {{ r.last_seen | localtime("%b %-d %H:%M") }}{% else %}Not heard yet{% endif %}</div>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+{% if full %}<div class="panel" style="margin-top:14px"><p class="dim" style="margin:0">You have {{ limit }} stations, the most one account may claim.</p></div>
+{% else %}
+<details class="panel setsec" id="sec-claim-a-station" {{ 'open' if (not rows) or add_mode }} style="margin-top:14px"><summary><span class="role-name">Claim a Receiving Station</span></summary><form method="post" action="/my/sondes/claim" data-async>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <label for="sc">Station Call Sign</label>
+  <input type="text" id="sc" name="callsign" maxlength="32" value="{{ request.args.get('callsign', my_call) }}" placeholder="For example KD5VCF or KD5VCF-LR" style="max-width:260px">
+  <div class="help">Enter it exactly as your station shows on <a href="/sondes/stations/">Receiving Stations</a> and on SondeHub (the <span class="mono">upload_station_callsign</span> in auto_rx). {% if mode == 'match' %}A station whose call sign starts with the call sign on <a href="/my/profile">your profile</a> ({{ my_call or 'set it there first' }}), with or without a suffix such as -LR, -10 or /P, is claimed for you by itself{% if auto %} (it happens as soon as the station is heard, and whenever you open this page){% endif %}; you can also enter it here. For any other, you prove it by putting a short code in the station's antenna description (we show it after you press the button); an administrator can also approve it.{% else %}To prove the station is yours you put a short code in its antenna description (we show it after you press the button), or an administrator approves it.{% endif %}</div>
+  <button class="btn" type="submit">Claim Station</button>
+</form></details>
+{% endif %}
+<p class="dim" style="margin-top:14px">Not receiving yet? <a href="/feed/sondes">How to feed radiosondes</a>. Where does a claimed station show? On <a href="/sondes/stations/">Receiving Stations</a>, the <a href="/sondes/map">Radiosonde Map</a> and the flights it heard, with the privacy you choose: you choose how precisely it is shown. {{ privacy_help() }}</p>
+{% include "partials/_sondecredit.html" %}
+{% endblock %}

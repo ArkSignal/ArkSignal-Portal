@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}{{ tool.name }}{% endblock %}
+{% block main_class %}wide{% endblock %}
+{% block content %}
+<style>
+.tbar{display:flex;gap:10px 18px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px}
+.tbar h1{margin:0;font-size:1.25rem}
+.tbar form{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin:0}
+.tbar label{margin:0 0 3px;font-size:.75rem}
+.tbar select,.tbar input[type=datetime-local]{padding:6px 9px;border-radius:9px;border:1px solid var(--line);background:var(--input-bg);color:var(--text);font:inherit;font-size:.85rem;color-scheme:dark}
+.tbar .sep{width:1px;align-self:stretch;background:var(--line)}
+.tbar .open{margin-left:auto}
+iframe.tool{height:calc(100vh - 150px - var(--sub,0px))}
+</style>
+<div class="tbar">
+  <h1>{{ tool.name }}</h1>
+  {% if heat %}
+  <form method="get">
+    <div><label for="duration">Show Traffic From</label>
+      <select id="duration" name="duration">{% for k, l in heat.durations %}<option value="{{ k }}" {{ 'selected' if k == heat.duration and not heat.custom }}>The last {{ l }}</option>{% endfor %}</select></div>
+    <div><label for="end">Ending</label>
+      <select id="end" name="end">{% for k, l in heat.ends %}<option value="{{ k }}" {{ 'selected' if k == heat.end and not heat.custom }}>{{ l }}</option>{% endfor %}</select></div>
+    <button class="btn small" type="submit" style="margin:0 0 1px">Update</button>
+  </form>
+  <span class="sep"></span>
+  <form method="get">
+    <div><label for="from">From ({{ heat.tz }})</label><input type="datetime-local" id="from" name="from" value="{{ heat.from }}" required></div>
+    <div><label for="to">To ({{ heat.tz }})</label><input type="datetime-local" id="to" name="to" value="{{ heat.to }}" required></div>
+    <button class="btn small" type="submit" style="margin:0 0 1px">Show This Range</button>
+  </form>
+  {% endif %}
+  <a class="dim open" href="{{ src }}" target="_blank" rel="noopener">Open in a new tab</a>
+</div>
+{% if heat and heat.error %}<div class="flash error" style="margin-bottom:10px">{{ heat.error }}</div>{% endif %}
+{% if heat %}<div class="dim" style="font-size:.78rem;margin:-4px 2px 8px">Ranges can be up to {{ heat.max_days }} days and need the hub to have kept that much history. Times are in {{ heat.tz }}.</div>{% endif %}
+<iframe class="tool" src="{{ src }}" title="{{ tool.name }}" loading="lazy" allow="fullscreen"></iframe>
+{% endblock %}

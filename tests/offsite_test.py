@@ -1,0 +1,63 @@
+import json, re, subprocess, time, requests
+exec(open("roles_test.py", encoding="utf-8").read().split("ok_all=True")[0])
+ok_all = True
+def check(name, cond, extra=""):
+    global ok_all
+    print(("PASS " if cond else "FAIL ") + name, "" if cond else extra); ok_all &= bool(cond)
+def psql(sql):
+    return subprocess.run(["ssh", "-q", "nastemp", f"echo $TEST_SUDO_PASSWORD | sudo -S -p '' /usr/local/bin/docker exec adsb-portal-db psql -U portal -d portal -tA -c \"{sql}\""], capture_output=True, text=True).stdout.strip()
+TOKEN = "testtoken123"
+H = {"Authorization": "Bearer " + TOKEN}
+adm = sess("marty", PW)
+def act2(sess_, endpoint, data):
+    data = dict(data); data["csrf_token"] = tok(sess_, "/admin/backups")
+    r = sess_.post(B + endpoint, data=data, headers={"X-Requested-With": "XMLHttpRequest"})
+    j = r.json(); return j["ok"], j["message"], j.get("html", "")
+base = dict(type="sftp", enabled="1", host="backup.example.org", port="22", user="adsb", path="adsb-backups", secret="supersecretpw", passphrase="a long test passphrase",
+            small_time="00:00", small_every_days="1", small_keep="3", big_time="00:00", big_every_days="7", big_keep="2", big_prometheus="1", big_globe="1")
+psql("DELETE FROM offsite_runs"); psql("DELETE FROM settings WHERE key IN ('offsite_config','offsite_secret','offsite_key','offsite_pass','offsite_command','offsite_test')")
+
+ok, msg, _ = act2(adm, "/admin/backups/offsite/save", {**base, "port": "99999"})
+check("a bad port is refused with a reason", not ok and "Port" in msg, msg)
+ok, msg, _ = act2(adm, "/admin/backups/offsite/save", {**base, "small_time": "25:99"})
+check("a bad time is refused", not ok and "HH:MM" in msg, msg)
+ok, msg, _ = act2(adm, "/admin/backups/offsite/save", {**base, "path": "../etc"})
+check("a path that climbs out is refused", not ok and "path" in msg.lower(), msg)
+ok, msg, _ = act2(adm, "/admin/backups/offsite/save", base)
+check("valid settings save", ok, msg)
+page = adm.get(B + "/admin/backups").text
+check("the Off-Site Copy section shows the saved values but never the secrets", 'id="sec-off-site-copy"' in page and "backup.example.org" in page and "supersecretpw" not in page and "a long test passphrase" not in page)
+check("it says secrets are saved", "saved: leave blank to keep it" in page)
+ok, msg, _ = act2(adm, "/admin/backups/offsite/save", {**base, "secret": "", "passphrase": "", "small_keep": "5"})
+check("saving again with the secret fields blank works", ok, msg)
+
+check("the service API is hidden without the token", requests.get(B + "/internal/backup/config").status_code == 404)
+check("and with a wrong token", requests.get(B + "/internal/backup/config", headers={"Authorization": "Bearer nope"}).status_code == 404)
+check("and when the request came through the public proxy (forwarded address present)", requests.get(B + "/internal/backup/config", headers={**H, "X-Forwarded-For": "203.0.113.5"}).status_code == 404)
+cfg = requests.get(B + "/internal/backup/config", headers=H)
+j = cfg.json() if cfg.status_code == 200 else {}
+check("the service gets the settings and the secrets over the internal network", cfg.status_code == 200 and j["config"]["host"] == "backup.example.org" and j["secrets"]["secret"] == "supersecretpw" and j["secrets"]["passphrase"] == "a long test passphrase" and j["config"]["small"]["keep"] == 5, cfg.text[:200])
+check("both copies are due on a fresh setup", set(j.get("due", [])) == {"small", "big"} and j.get("ready"), j.get("due"))
+st = requests.post(B + "/internal/backup/start", headers=H, json={"kind": "small"}).json()
+check("starting a small copy creates a fresh database backup", st.get("run_id") and st.get("db_backup", "").startswith("portal-backup-"), st)
+check("a copy that is running is not offered again", "small" not in requests.get(B + "/internal/backup/config", headers=H).json()["due"])
+requests.post(B + "/internal/backup/report", headers=H, json={"run_id": st["run_id"], "ok": True, "bytes": 123456, "remote_name": "small/adsb-small-x.tar.zst.enc", "detail": "5 items"})
+check("a finished copy is not due again until the next slot", "small" not in requests.get(B + "/internal/backup/config", headers=H).json()["due"])
+st2 = requests.post(B + "/internal/backup/start", headers=H, json={"kind": "big"}).json()
+requests.post(B + "/internal/backup/report", headers=H, json={"run_id": st2["run_id"], "ok": False, "detail": "disk full at the destination"})
+check("a failed copy waits before it is tried again", "big" not in requests.get(B + "/internal/backup/config", headers=H).json()["due"])
+page = adm.get(B + "/admin/backups").text
+check("the recent copies table shows both, with the failure reason", "disk full at the destination" in page and "adsb-small-x" in page and "120.6 KB" in page.replace("&nbsp;", " ") or "120.6 KB" in page)
+ok, msg, _ = act2(adm, "/admin/backups/offsite/command", {"action": "run-small"})
+j = requests.get(B + "/internal/backup/config", headers=H).json()
+check("Make the Small Copy Now becomes an order for the service", ok and j["command"] and j["command"]["action"] == "run-small", msg)
+st3 = requests.post(B + "/internal/backup/start", headers=H, json={"kind": "small", "manual": True}).json()
+check("the order is cleared once the copy starts", requests.get(B + "/internal/backup/config", headers=H).json()["command"] is None)
+requests.post(B + "/internal/backup/report", headers=H, json={"run_id": st3["run_id"], "ok": True, "bytes": 10, "remote_name": "small/b"})
+act2(adm, "/admin/backups/offsite/command", {"action": "test"})
+requests.post(B + "/internal/backup/test-result", headers=H, json={"ok": False, "detail": "Could not write a file: permission denied"})
+check("a connection test result is shown", "Could not write a file: permission denied" in adm.get(B + "/admin/backups").text and requests.get(B + "/internal/backup/config", headers=H).json()["command"] is None)
+plain = sess("plain1", "plainpassword1")
+check("an ordinary user cannot change it", plain.post(B + "/admin/backups/offsite/save", data={}, allow_redirects=False).status_code in (302, 400, 401, 403, 404))
+psql("DELETE FROM offsite_runs"); psql("DELETE FROM settings WHERE key IN ('offsite_config','offsite_secret','offsite_key','offsite_pass','offsite_command','offsite_test')")
+print("ALL PASS" if ok_all else "SOME FAILED")

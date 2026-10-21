@@ -1,0 +1,43 @@
+# APRS service: /opt/adsb/aprs/compose.yaml on the hub VM, applied by the stack updater (adsb-stack) like every other service.
+# It reads the public APRS-IS network (outbound TCP 14580, read-only login) and keeps its data in its own Postgres database (aprs-db, in /opt/adsb/aprs/db), separate from the portal's, so it can
+# move to another host: point the portal's Settings > APRS > APRS Service Address at wherever it runs. Nothing is published to the outside; the portal asks http://aprs:8480 over the docker network.
+# The database holds only the latest positions, short trails and weather of public amateur stations, so it is NOT part of the off-site backup (it refills within minutes).
+services:
+  aprs:
+    image: mallison01/adsb-aprs:stable
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
+    container_name: aprs
+    restart: unless-stopped
+    init: true
+    depends_on:
+      aprs-db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgresql://aprs:${APRS_DB_PASSWORD:-aprs}@aprs-db:5432/aprs"
+    networks:
+      - proxy
+      - aprs_internal
+
+  aprs-db:
+    image: postgres:17-alpine
+    container_name: aprs-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: aprs
+      POSTGRES_PASSWORD: "${APRS_DB_PASSWORD:-aprs}"
+      POSTGRES_DB: aprs
+    volumes:
+      - /opt/adsb/aprs/db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aprs -d aprs"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - aprs_internal
+
+networks:
+  proxy:
+    external: true
+  aprs_internal:

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Satellite Picture Loop{% endblock %}
+{% block content %}
+<h1><span>Picture</span> Loop</h1>
+<div class="sub">{{ a.satellite or 'Satellite' }}{% if a.product %} {{ a.product }}{% endif %}, received by {{ a.rname }}: {{ count }} pictures from <time class="ts" datetime="{{ first.isoformat() }}" data-fmt="dt">{{ first }}</time> to <time class="ts" datetime="{{ last.isoformat() }}" data-fmt="dt">{{ last }}</time>.</div>
+
+{% call sec('loop', 'Animation Loop', True) %}
+  <div class="looper" data-src="/sat/loop/{{ iid }}.json" data-alt="Loop of {{ a.satellite or 'satellite' }} pictures received by {{ a.rname }}"></div>
+{% endcall %}
+
+{% call sec('about', 'About This Loop', False) %}
+  <p style="margin-top:0">A loop is a series of pictures from one receiver, of the same satellite and product, taken close together in time (a picture more than {{ gap }} minutes after the one before starts a new loop). It is put together when you look, from the pictures the member sent; nothing extra is stored.</p>
+  <p class="dim" style="margin-bottom:0"><a href="/radio/satellite-images">All Satellite Images</a> &middot; <a href="/feed/satellites">How to Feed Satellite Pictures</a></p>
+{% endcall %}
+<script src="/static/looper.js?v={{ looper_v }}"></script>
+{% endblock %}

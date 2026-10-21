@@ -1,0 +1,43 @@
+# ACARS service: /opt/adsb/acars/compose.yaml on the hub VM, applied by the stack updater (adsb-stack) like every other service.
+# Members' receivers send their messages to the portal (which checks each station's token); the portal passes them on to http://acars:8481 over the docker network. Nothing is published to the outside.
+# Its own Postgres database (acars-db, in /opt/adsb/acars/db) keeps the messages for the number of days set in the portal, so it can move to another host: point the portal's
+# Settings > ACARS > ACARS Service Address at wherever it runs. The message history is a rolling few days that refills from the receivers, so it is NOT part of the off-site backup; the stations and the takedown list are in the portal's own backup.
+services:
+  acars:
+    image: mallison01/adsb-acars:stable
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
+    container_name: acars
+    restart: unless-stopped
+    init: true
+    depends_on:
+      acars-db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgresql://acars:${ACARS_DB_PASSWORD:-acars}@acars-db:5432/acars"
+    networks:
+      - proxy
+      - acars_internal
+
+  acars-db:
+    image: postgres:17-alpine
+    container_name: acars-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: acars
+      POSTGRES_PASSWORD: "${ACARS_DB_PASSWORD:-acars}"
+      POSTGRES_DB: acars
+    volumes:
+      - /opt/adsb/acars/db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U acars -d acars"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - acars_internal
+
+networks:
+  proxy:
+    external: true
+  acars_internal:

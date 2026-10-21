@@ -1,0 +1,1626 @@
+{% extends "base.html" %}
+{% block title %}Live Map{% endblock %}
+{% block main_class %}wide{% endblock %}
+{% block content %}
+{% include "partials/_airline_mark.html" %}
+{% include "partials/_wxicons.html" %}
+{% from "partials/_mapshell.html" import shell, boot with context %}
+{# The aircraft map is the same map page as every other one (partials/_mapshell.html): this page only gives it its sections, its card and its list. #}
+{% set lv_search_attrs %}title="Several terms with commas, * as a wildcard, ! in front to leave out. Example: N*,!N7*,A320" autocomplete="off"{% endset %}
+{% set lv_head_extra %}<div id="lv-hist" style="display:none"></div>
+    <div id="lv-places" style="display:none"></div>{% endset %}
+{% set lv_display_top %}<div class="lv-sub">Units</div>
+    <select id="l-units">{% for k, l in unit_choices %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select>
+    <div class="lv-sub">Altitude</div>
+    <select id="l-qnh" aria-label="Altitude as reported, or corrected for air pressure (QNH)" title="Aircraft report a pressure altitude (standard 1013 hPa). Corrected with QNH it is altitude above sea level for the pressure given; below the transition altitude only"><option value="std">As reported (standard pressure)</option><option value="plane">Corrected with the QNH the aircraft sends</option><option value="set">Corrected with a QNH I type</option></select>
+    <div class="lv-row" id="l-qnh-row" style="display:none"><label>QNH (hPa) <input type="number" id="l-qnh-v" min="900" max="1100" step="0.1" value="1013.2" style="width:90px"></label><span class="dim" style="font-size:.78rem">1013.25 hPa = 29.92 inHg</span></div>
+    <div class="lv-sub">Icon Size</div>
+    <select id="l-icons">{% for k, l in icon_choices %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select>{% endset %}
+{% set lv_labels_extra %}<select id="l-labels">{% for k, l in label_choices %}<option value="{{ k }}">{{ l }}</option>{% endfor %}<option value="custom">Choose what to show...</option></select>
+    <div id="l-fields"></div>{% endset %}
+{% set lv_display_extra %}<div class="lv-row"><label title="Show callsign, altitude, speed and source when the pointer rests on an aircraft"><input type="checkbox" id="lv-hover" checked> Hover details</label></div>{% endset %}
+{% set lv_display_bottom %}<div class="lv-row"><a href="#" id="lv-keyslink" style="font-size:.82rem">Keyboard shortcuts (?)</a></div>{% endset %}
+{% set lv_layers_extra %}
+    <div class="lv-sub">Layers</div>
+    <div class="lv-row">
+      <label><input type="checkbox" id="l-airports" checked> Airports</label>
+      <label><input type="checkbox" id="l-hospitals"> Hospitals</label>
+      <label><input type="checkbox" id="l-counties"> Counties</label>
+      {% if m.sondes %}<label><input type="checkbox" id="l-sondes"> Weather balloons</label>{% endif %}
+      {% if m.acars %}<label title="Aircraft out of ADS-B range that reported a position by ACARS, ADS-C or HFDL; dimmed, because the position can be minutes old"><input type="checkbox" id="l-acars"> ACARS positions</label>{% endif %}
+      <label><input type="checkbox" id="l-stations" checked> Stations</label>
+      <label><input type="checkbox" id="l-rings"> Range rings</label>
+      <label><input type="checkbox" id="l-trails"> All trails</label>
+      <label><input type="checkbox" id="l-coverage"> Station coverage</label>
+      <label><input type="checkbox" id="l-wxair"> Airport weather</label>
+      {% if m.wxStations %}<input type="checkbox" id="l-wxstations" hidden aria-hidden="true" tabindex="-1">{% endif %}   {# the weather stations are switched on and set up in the Weather panel; this only holds the state #}
+    </div>
+    <div class="legend"></div><div class="legend-l">{% if units_system() == 'metric' %}<span>0 m</span><span>3k</span><span>6k</span><span>9k</span><span>12k+</span>{% else %}<span>0 ft</span><span>10k</span><span>20k</span><span>30k</span><span>40k+</span>{% endif %}</div>
+    {% endset %}
+{% set lv_left_extra %}<div id="lv-keys" style="display:none"><div class="lv-panel keybox" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
+    <header><b>Keyboard Shortcuts</b><button class="btn small neutral" type="button" id="lv-keysclose" style="margin:0">Close</button></header>
+    <div class="k" style="display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:.84rem">
+      <span class="mono">Esc</span><span>Deselect the aircraft</span>
+      <span class="mono">F</span><span>Follow the selected aircraft</span>
+      <span class="mono">I</span><span>Hide other aircraft (isolate the selected one)</span>
+      <span class="mono">M</span><span>Select several aircraft, one click each</span>
+      <span class="mono">T</span><span>Select all aircraft shown</span>
+      <span class="mono">P</span><span>Keep aircraft that go quiet on the map (persistence)</span>
+      <span class="mono">U</span><span>Military only</span>
+      <span class="mono">V</span><span>Only aircraft in view</span>
+      <span class="mono">G</span><span>Only aircraft that send no position</span>
+      <span class="mono">A</span><span>Select an aircraft by itself (wall display)</span>
+      <span class="mono">L</span><span>Labels on or off</span>
+      <span class="mono">O</span><span>Detailed labels (callsign, speed, altitude, type)</span>
+      <span class="mono">K</span><span>Trail labels on or off</span>
+      <span class="mono">B</span><span>Dim the map</span>
+      <span class="mono">Y</span><span>Replay of past traffic on or off</span>
+      <span class="mono">R</span><span>Refresh now</span>
+      <span class="mono">H</span><span>Reset the view</span>
+      <span class="mono">Shift H</span><span>Hide or show the panels</span>
+      <span class="mono">Q E + &minus;</span><span>Zoom out / in</span>
+      <span class="mono">Arrow keys</span><span>Move the map</span>
+      <span class="mono">/</span><span>Search</span>
+      <span class="mono">?</span><span>This help</span>
+    </div>
+  </div></div>{% endset %}
+{% set lv_card_head %}<button class="btn small neutral" type="button" id="c-wide" style="margin:0" title="Make the details panel wider or narrower">Wide</button>{% endset %}
+{% set lv_card_actions %}<button class="btn small" type="button" id="c-follow" style="margin:0">Follow</button>
+      <button class="btn small" type="button" id="c-trail" style="margin:0">Trail</button>
+      <button class="btn small" type="button" id="c-route" style="margin:0">Route</button>
+      <button class="btn small" type="button" id="c-tlabels" style="margin:0">Labels</button>
+      <button class="btn small" type="button" id="c-lastleg" style="margin:0" title="Show only this aircraft's current flight, or every recorded flight of the day">Last Leg</button>
+      <button class="btn small" type="button" id="c-focus" style="margin:0">Hide Others</button>
+      <button class="btn small" type="button" id="c-kml" style="margin:0" title="Download the selected aircraft's track as a KML file for Google Earth">Export KML</button>
+      <a class="btn small" id="c-flight" style="margin:0" href="#">Flight Progress</a>
+      <a class="btn small" id="c-skyview" style="margin:0" href="#">Sky View</a>
+      <a class="btn small" id="c-watchbtn" style="margin:0" href="#">Watch This Aircraft</a>
+      <a class="btn small" id="c-photos" target="_blank" rel="noopener" style="margin:0" href="#">Photos</a>
+      <a class="btn small" id="c-fa" target="_blank" rel="noopener" style="margin:0" href="#">Flight Info</a>{% endset %}
+{% set lv_card_extra %}<div id="c-watch"></div>
+    <div id="c-acars"></div>
+    <div id="c-how"></div>
+    <div id="c-chart"></div>
+    <div id="c-extra"></div>{% endset %}
+{% set lv_list_actions %}<button class="btn small neutral" type="button" id="lv-colbtn">Columns</button>{% endset %}
+{% set lv_list_extra %}<div id="lv-cols"></div>{% endset %}
+{% set lv_legn %} <span class="dim" id="lv-legn"></span>{% endset %}
+{% call shell("Search callsign, registration, type, squawk or hex", "Search aircraft", "Aircraft", "Flight Progress", search_attrs=lv_search_attrs, legbtn_extra=lv_legn, head_extra=lv_head_extra, display_top=lv_display_top, labels_extra=lv_labels_extra, display_extra=lv_display_extra, display_bottom=lv_display_bottom, layers_extra=lv_layers_extra, left_extra=lv_left_extra, card_head_buttons=lv_card_head, card_actions=lv_card_actions, card_extra=lv_card_extra, list_actions=lv_list_actions, list_extra=lv_list_extra, alt_label="Altitude colour scale: the colour of an aircraft is its altitude", alt_name="Altitude", map_type="aircraft") %}
+<details class="fsec" data-k="stations"><summary><span class="ic">⌂</span>Stations</summary><div class="fbody">
+    {% if station %}<div class="lv-row" style="margin-top:10px"><span style="font-size:.85rem"><b>{{ station.station_id }}</b>{% if station.name %} &middot; {{ station.name }}{% endif %}</span>
+      <a class="btn small neutral" style="margin:0" href="/feeders/{{ station.station_id }}">Station Page</a></div>{% endif %}
+    <div id="lv-feeders"></div>
+    </div></details>
+    <details class="fsec" data-k="show" open><summary><span class="ic">◉</span>Show<span class="fbadge" data-fb="show"></span></summary><div class="fbody">
+    <div class="lv-row">
+      <label><input type="checkbox" id="f-ground"> Hide on ground</label>
+      <label><input type="checkbox" id="f-pos" checked> With position only</label>
+      <label title="Only aircraft that are heard but send no position (Mode S only): the opposite of the box above; key G"><input type="checkbox" id="f-nopos"> Without position only</label>
+      <label><input type="checkbox" id="f-view"> Only aircraft in view</label>
+      <label><input type="checkbox" id="f-focus"> Hide other aircraft when one is selected</label>
+      <label id="f-watch-l" style="display:none"><input type="checkbox" id="f-watch"> Only my alert matches</label>
+      <label title="Click several aircraft to follow them together, each with its track (key M)"><input type="checkbox" id="f-multi"> Select several aircraft</label>
+      <label title="Aircraft that stop being heard stay on the map, dimmed, for a while (key P)"><input type="checkbox" id="f-persist"> Keep aircraft that go quiet</label>
+      <label title="For a wall display: picks the aircraft nearest the middle of the map and shows its details and track, and picks the next one when it leaves the view (key A)"><input type="checkbox" id="f-auto"> Select an aircraft by itself</label>
+    </div>
+    <div class="lv-row"><button class="btn small neutral" type="button" id="f-selall" style="margin:0" title="Select every aircraft shown (key T)">Select All Shown</button><button class="btn small neutral" type="button" id="f-desel" style="margin:0" title="Deselect everything (Esc)">Deselect</button></div>
+    </div></details>
+    <details class="fsec" data-k="source"><summary><span class="ic">≋</span>Data Source<span class="fbadge" data-fb="source"></span></summary><div class="fbody">
+    <div class="lv-row" id="f-sources">
+      <label title="Broadcast by the aircraft on 1090 MHz"><input type="checkbox" data-src="adsb" checked> ADS-B <span class="dim" data-n="adsb"></span></label>
+      <label title="Position calculated by the network from timing across stations"><input type="checkbox" data-src="mlat" checked> MLAT <span class="dim" data-n="mlat"></span></label>
+      <label title="978 MHz UAT (US general aviation) and ground-station ADS-R rebroadcasts: the hub reports both as ADS-R"><input type="checkbox" data-src="adsr" checked> UAT / ADS-R <span class="dim" data-n="adsr"></span></label>
+      <label title="Position relayed from air-traffic radar"><input type="checkbox" data-src="tisb" checked> TIS-B <span class="dim" data-n="tisb"></span></label>
+      <label title="Heard, but no position broadcast"><input type="checkbox" data-src="modes" checked> Mode S <span class="dim" data-n="modes"></span></label>
+      <label title="Satellite/datalink reports and anything else"><input type="checkbox" data-src="other" checked> Other <span class="dim" data-n="other"></span></label>
+    </div>
+    </div></details>
+    <details class="fsec" data-k="flags"><summary><span class="ic">⚑</span>Aircraft Flags<span class="fbadge" data-fb="flags"></span></summary><div class="fbody">
+    <div class="lv-row" id="f-flags" title="Tick any to show only aircraft that have at least one of those flags">
+      <label><input type="checkbox" id="f-mil" data-flag="1"> Military</label>
+      <label><input type="checkbox" data-flag="2"> Interesting</label>
+      <label title="Privacy ICAO address (FAA PIA)"><input type="checkbox" data-flag="4"> PIA</label>
+      <label title="Limiting Aircraft Data Displayed (FAA LADD)"><input type="checkbox" data-flag="8"> LADD</label>
+      <label title="Medical helicopters: found from the aircraft database and the list kept in Admin > Air Ambulance"><input type="checkbox" data-flag="16"> Air ambulance (helicopter)</label>
+      <label title="Medical transport airplanes: found from the aircraft database and the list kept in Admin > Air Ambulance"><input type="checkbox" data-flag="32"> Air ambulance (fixed wing)</label>
+    </div>
+    </div></details>
+    <details class="fsec" data-k="type"><summary><span class="ic">✈</span>Aircraft Type<span class="fbadge" data-fb="type"></span></summary><div class="fbody">
+    <div class="lv-row" id="f-kinds" title="Tick any to show only those kinds of aircraft">
+      <label><input type="checkbox" data-kind="heli"> Helicopters <span class="dim" data-kn="heli"></span></label>
+      <label><input type="checkbox" data-kind="jet"> Jets <span class="dim" data-kn="jet"></span></label>
+      <label><input type="checkbox" data-kind="turboprop"> Turboprops <span class="dim" data-kn="turboprop"></span></label>
+      <label><input type="checkbox" data-kind="piston"> Piston props <span class="dim" data-kn="piston"></span></label>
+      <label title="Large and heavy aircraft: airliners and freighters"><input type="checkbox" data-kind="large"> Large and heavy <span class="dim" data-kn="large"></span></label>
+      <label><input type="checkbox" data-kind="light"> Light aircraft <span class="dim" data-kn="light"></span></label>
+      <label><input type="checkbox" data-kind="glider"> Gliders and balloons <span class="dim" data-kn="glider"></span></label>
+      <label><input type="checkbox" data-kind="uav"> Drones <span class="dim" data-kn="uav"></span></label>
+      <label><input type="checkbox" data-kind="vehicle"> Ground vehicles <span class="dim" data-kn="vehicle"></span></label>
+      <label title="Aircraft whose type is not known"><input type="checkbox" data-kind="unknown"> Unknown type <span class="dim" data-kn="unknown"></span></label>
+    </div>
+    </div></details>
+    <details class="fsec" data-k="altitude" open><summary><span class="ic">↕</span>Altitude<span class="fbadge" data-fb="altitude"></span></summary><div class="fbody">
+    <div class="lv-row"><span style="color:var(--dim);font-size:.82rem" id="f-altlbl">Altitude (ft)</span>
+      <input type="number" id="f-min" placeholder="Min" step="1000"><input type="number" id="f-max" placeholder="Max" step="1000"></div>
+    </div></details>
+    <details class="fsec" data-k="past"><summary><span class="ic">&#9202;</span>Past Traffic<span class="fbadge" data-fb="past"></span></summary><div class="fbody">
+    <div class="lv-row"><label title="Play back what the hub recorded, on this map (key Y)"><input type="checkbox" id="h-replay"> Replay</label>
+      <label title="Where aircraft flew during a period, from the hub's history"><input type="checkbox" id="h-heat"> Heat map</label></div>
+    <div id="h-heatopts" style="display:none">
+      <div class="lv-sub">Heat Map Period</div>
+      <select id="h-dur">{% for k, l in heat_durations %}<option value="{{ k }}">{{ l }}</option>{% endfor %}<option value="custom">Pick dates...</option></select>
+      <div class="lv-sub">Ending</div>
+      <select id="h-end">{% for k, l in heat_ends %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select>
+      <div id="h-customrow" style="display:none"><div class="lv-row"><label>From <input type="datetime-local" id="h-from"></label></div><div class="lv-row"><label>To <input type="datetime-local" id="h-to"></label></div>
+        <div class="help dim" style="font-size:.78rem;margin-top:4px">Up to {{ m.heatMaxDays }} days. Times are in the time zone chosen for the site.</div></div>
+      <div class="lv-row"><label>Strength <select id="h-strength"><option value="low">Low</option><option value="mid">Medium</option><option value="high">High</option></select></label>
+        <label>Spread <select id="h-radius"><option value="small">Small</option><option value="mid">Medium</option><option value="large">Large</option></select></label></div>
+      <div class="help dim" style="font-size:.78rem;margin-top:4px">The altitude limits above apply to the heat map too.</div>
+      <div id="h-status" class="dim" style="font-size:.8rem;margin-top:6px"></div>
+    </div>
+    </div></details>
+    
+{% endcall %}
+<div id="lv-replay" class="lv-replay" style="display:none" role="group" aria-label="Replay of past traffic">
+  <div class="rp-top"><b>Replay</b> <span id="rp-time" class="mono"></span> <span id="rp-state" class="dim"></span><button class="btn small neutral" type="button" id="rp-live" style="margin:0 0 0 auto">Back to Live</button><button class="btn small neutral" type="button" id="rp-more" aria-expanded="false" style="margin:0">More</button></div>
+  <div class="rp-ctl">
+    <button class="btn small neutral" type="button" id="rp-b5" title="Back five minutes">&minus;5 min</button><button class="btn small neutral" type="button" id="rp-b1" title="Back one minute">&minus;1 min</button>
+    <button class="btn small" type="button" id="rp-play">Play</button>
+    <button class="btn small neutral" type="button" id="rp-f1" title="Forward one minute">+1 min</button><button class="btn small neutral" type="button" id="rp-f5" title="Forward five minutes">+5 min</button>
+    <label>Speed <select id="rp-speed"><option value="1">1x</option><option value="2">2x</option><option value="5">5x</option><option value="10">10x</option><option value="20">20x</option><option value="40">40x</option><option value="100">100x</option></select></label>
+    <label>Date <input type="date" id="rp-date"></label><label>Time <input type="time" id="rp-clock"></label>
+  </div>
+  <input type="range" id="rp-slide" min="0" max="1439" step="1" aria-label="Time of day">
+</div>
+
+<script src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script>
+<script src="/static/touchhit.js"></script>
+{% if m.sondes %}<script src="/static/sondeicons.js"></script>{% endif %}
+<script src="/static/wxmap.js"></script>
+<script src="/static/maplayers.js"></script>
+<script src="/static/labelfit.js?v={{ app_version }}"></script>
+<script src="/static/replay.js?v={{ app_version }}"></script>
+<script src="/static/heatlayer.js?v={{ app_version }}"></script>
+<script src="/static/pasttraffic.js?v={{ app_version }}"></script>
+<script src="/static/drivetimes.js?v={{ app_version }}"></script>
+<script src="/static/mylocation.js?v={{ app_version }}"></script>
+<script src="/static/countyoutline.js?v={{ app_version }}"></script>
+<script>
+// the classic map's icon file expects these globals; none of them are used for drawing here
+var halloween = false, atcStyle = false, squareMania = false, usp = {has: function () { return false; }, getInt: function () { return null; }};
+</script>
+<script src="/api/markers.js"></script>
+<script>
+(function () {
+  var ALLSTATIONS = {{ stations | tojson }}, LAYERS = {{ layers | tojson }}, M = {{ m | tojson }}, STATIONS = {{ points | tojson }};
+  var $ = function (id) { return document.getElementById(id); };
+  var map = L.map("lvmap", {zoomControl: false, preferCanvas: true, zoomSnap: 0.25}).setView([M.lat, M.lon], M.zoom);
+  function homeView() { if (M.area) map.fitBounds([[M.area[0], M.area[1]], [M.area[2], M.area[3]]], {padding: [10, 10], animate: false}); else map.setView([M.lat, M.lon], M.zoom); }   // Settings > Map Areas > Aircraft Live Map Opens On
+  homeView();
+  L.control.zoom({position: "bottomright"}).addTo(map);
+
+  var PLANE = "M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z";
+  var STOPS = [[0, [245, 166, 35]], [4000, [232, 213, 29]], [10000, [68, 208, 98]], [20000, [46, 196, 201]], [30000, [59, 109, 240]], [40000, [138, 63, 252]], [46000, [232, 62, 140]]];
+  function altColor(a) {
+    if (a == null) return "#8a9bb3";
+    for (var i = 1; i < STOPS.length; i++) if (a <= STOPS[i][0]) {
+      var p = (a - STOPS[i - 1][0]) / (STOPS[i][0] - STOPS[i - 1][0]), c0 = STOPS[i - 1][1], c1 = STOPS[i][1];
+      return "rgb(" + c0.map(function (v, k) { return Math.round(v + (c1[k] - v) * p); }).join(",") + ")";
+    }
+    return "rgb(" + STOPS[STOPS.length - 1][1].join(",") + ")";
+  }
+  var haveShapes = typeof shapes !== "undefined" && typeof getBaseMarker === "function";
+  function shapeFor(a) {
+    if (!haveShapes) return null;
+    var base = getBaseMarker(a.cat, a.t, a.td || null, a.wtc || null, a.src && a.src.indexOf("ais") === 0 ? "ais" : null, a.gnd ? "ground" : a.alt, a.track != null && a.track < 180);
+    var shape = shapes[base[0]];
+    return shape ? {name: base[0], shape: shape, scale: base[1]} : null;
+  }
+  function icon(a, sel) {
+    // a seasonal theme (Santa at Christmas, bats and ghosts at Halloween...) gives some of the aircraft its own symbol, always the same ones; the rest keep their real shapes
+    var themed = !a.gnd && window.ArkThemes ? ArkThemes.plane(a.hex) : null;
+    if (themed) { var z = Math.round(30 * userScale()); return L.divIcon({className: "", iconSize: [0, 0], html: '<div class="ac' + (sel ? " sel" : "") + (a.watch ? " watch" : "") + (a.ghost ? " ghost" : "") + '" style="width:' + z + "px;height:" + z + "px;margin:" + (-z / 2) + "px 0 0 " + (-z / 2) + "px;font-size:" + Math.round(z * 0.8) + "px;line-height:" + z + 'px;text-align:center;filter:drop-shadow(0 1px 2px rgba(0,0,0,.7))">' + themed + "</div>"}); }
+    var color = a.gnd ? "#8a9bb3" : altColor(a.alt), stroke = a.mil ? "#ff6b6b" : "#071018", s = shapeFor(a);
+    var w = 26, h = 26, svg;
+    if (s) {
+      var k = s.scale * userScale() * (map.getZoom() > M.iconDivide ? M.iconBoost : 1);   // the classic map's formula
+      w = s.shape.w * k; h = s.shape.h * k;
+      svg = svgShapeToSVG(s.shape, color, stroke, 0.8, k);
+    } else {
+      svg = '<svg viewBox="0 0 24 24"><path d="' + PLANE + '" fill="' + color + '" stroke="' + stroke + '" stroke-width=".7"/></svg>';
+    }
+    return L.divIcon({className: "", iconSize: [0, 0], html: '<div class="ac' + (sel ? " sel" : "") + (a.watch ? " watch" : "") + (a.ghost ? " ghost" : "") + '" style="width:' + w + 'px;height:' + h + 'px;margin:' + (-h / 2) + 'px 0 0 ' + (-w / 2) + 'px;transform:rotate(' + (a.track || 0) + 'deg)">' + svg + '</div>'});
+  }
+  var onlyPlace = (function () { var m = /^(airports|hospitals|weather):(.+)$/.exec(new URLSearchParams(location.search).get("only") || ""); return m ? {layer: m[1], id: m[2]} : null; })();   // "Show on Map" from an airport, hospital or weather station page: that place alone (no aircraft, no other places)
+  var forceOnly = new URLSearchParams(location.search).get("only") === "1";   // a "Show on the live map" link from one aircraft's page: that aircraft alone, until the person unticks it
+  function focusOnly() { return forceOnly || ((window.PREFS || {}).focusOnly) === "1"; }
+  function userScale() { var p = (window.PREFS || {}).iconScale; return p ? parseFloat(p) : (window.innerWidth < 700 ? M.iconScale * 0.8 : M.iconScale); }   // a phone starts with smaller aircraft
+  function nm(a) { return (a.flight || a.r || a.hex).toUpperCase(); }
+  function esc(v) { return String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
+  function dist(a) { var r = Math.PI / 180, x = Math.sin((a.lat - M.lat) * r / 2) ** 2 + Math.cos(M.lat * r) * Math.cos(a.lat * r) * Math.sin((a.lon - M.lon) * r / 2) ** 2; return 3440.065 * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x)); }
+  function num(v, d) { return v == null ? "" : Number(v).toFixed(d || 0); }
+  // units: the three sets tar1090 has. Every value arrives in feet, knots, ft/min and nautical miles and is converted only for display.
+  var UNITSETS = {
+    aero: {alt: [1, "ft"], spd: [1, "kt"], vr: [1, "ft/min"], dist: [1, "nm"], name: "Aeronautical"},
+    metric: {alt: [0.3048, "m"], spd: [1.852, "km/h"], vr: [0.00508, "m/s"], dist: [1.852, "km"], name: "Metric"},
+    imperial: {alt: [1, "ft"], spd: [1.150779, "mph"], vr: [1, "ft/min"], dist: [1.150779, "mi"], name: "Imperial"}
+  };
+  var unitKey = UNITSETS[ArkUnits.system()] ? ArkUnits.system() : "imperial";   // one choice for the whole site: Display menu > Units (saved with the account), else the site default
+  function U(kind) { return UNITSETS[unitKey][kind]; }
+  function cv(kind, v, d) { if (v == null) return null; var x = v * U(kind)[0]; return d ? Number(x.toFixed(d)) : Math.round(x); }
+  function fAlt(v) { return v == null ? "" : cv("alt", v).toLocaleString(); }
+  function fSpd(v) { return v == null ? "" : String(cv("spd", v)); }
+  function fVr(v) { return v == null ? "" : (U("vr")[1] === "m/s" ? cv("vr", v, 1) : cv("vr", v)).toLocaleString(); }
+  function fDist(nm, d) { return nm == null ? "" : (nm * U("dist")[0]).toFixed(d || 0); }
+  // altitude corrected for air pressure (tar1090's "Altitude corrected for QNH"): the reported altitude is a pressure altitude (standard 1013.25 hPa); with a QNH it is the altitude above sea level, below the transition altitude (18,000 ft)
+  var qnhMode = pref("qnh") || "std", qnhSet = parseFloat(pref("qnhv")) || 1013.25;
+  function qnhOf(a) { return qnhMode === "plane" ? (a.qnh != null ? a.qnh : null) : qnhMode === "set" ? qnhSet : null; }
+  function qAlt(a) {   // the altitude to show, in feet
+    var v = a.alt, q = qnhOf(a);
+    if (v == null || q == null || a.gnd || v >= 18000) return v;
+    return Math.round(v - 145366.45 * (1 - Math.pow(q / 1013.25, 0.190284)));
+  }
+  window.qnhAltitude = qAlt;
+  function altTxt(a) { return a.gnd ? "GND" : a.alt != null ? fAlt(qAlt(a)) : ""; }
+
+  // list columns: header, how to show a value, and what to sort by (dir is the first-click direction)
+  var COLS = {
+    hex: {h: "Hex", v: function (a) { return a.hex.toUpperCase(); }, s: function (a) { return a.hex; }, dir: 1},
+    callsign: {h: "Callsign", v: function (a) { return a.flight || a.r || a.hex.toUpperCase(); }, s: nm, dir: 1},
+    reg: {h: "Reg", v: function (a) { return a.r || ""; }, s: function (a) { return a.r || ""; }, dir: 1},
+    type: {h: "Type", v: function (a) { return a.t || ""; }, s: function (a) { return a.t || ""; }, dir: 1},
+    squawk: {h: "Squawk", v: function (a) { return a.squawk || ""; }, s: function (a) { return a.squawk || ""; }, dir: 1},
+    alt: {h: "Alt (ft)", v: altTxt, s: function (a) { return qAlt(a); }},
+    gs: {h: "Spd (kt)", v: function (a) { return fSpd(a.gs); }, s: function (a) { return a.gs; }},
+    vr: {h: "V/S (ft/min)", v: function (a) { return fVr(a.vr); }, s: function (a) { return a.vr; }},
+    dist: {h: "Dist (nm)", v: function (a) { return a.lat == null ? "" : fDist(dist(a), 1); }, s: function (a) { return a.lat == null ? null : dist(a); }, dir: 1},
+    track: {h: "Track", v: function (a) { return a.track == null ? "" : Math.round(a.track) + "°"; }, s: function (a) { return a.track; }, dir: 1},
+    msgs: {h: "Msgs", v: function (a) { return a.msgs == null ? "" : a.msgs.toLocaleString(); }, s: function (a) { return a.msgs; }},
+    seen: {h: "Seen (s)", v: function (a) { return num(a.seen, 1); }, s: function (a) { return a.seen; }, dir: 1},
+    rssi: {h: "RSSI", v: function (a) { return num(a.rssi, 1); }, s: function (a) { return a.rssi; }},
+    lat: {h: "Lat", v: function (a) { return num(a.lat, 4); }, s: function (a) { return a.lat; }},
+    lon: {h: "Lon", v: function (a) { return num(a.lon, 4); }, s: function (a) { return a.lon; }},
+    src: {h: "Source", v: function (a) { return a.src || ""; }, s: function (a) { return a.src || ""; }, dir: 1},
+    airline: {h: "Airline", html: true, v: function (a) { var m = ADSB_MARK.html(a), c = ADSB_MARK.code(a); return m ? m + (m.indexOf("lv-badge") >= 0 ? "" : (c ? '<span class="dim">' + c + "</span>" : "")) : ""; }, s: function (a) { return ADSB_MARK.code(a) || ""; }, dir: 1},
+    mil: {h: "Mil.", v: function (a) { return a.mil ? "MIL" : ""; }, s: function (a) { return a.mil ? 1 : 0; }},
+    wd: {h: "Wind Dir", v: function (a) { return a.wd == null ? "" : Math.round(a.wd) + "°"; }, s: function (a) { return a.wd; }, dir: 1},
+    ws: {h: "Wind (kt)", v: function (a) { return fSpd(a.ws); }, s: function (a) { return a.ws; }}
+  };
+  function unitHeaders() {
+    COLS.alt.h = "Alt (" + U("alt")[1] + ")"; COLS.gs.h = "Spd (" + U("spd")[1] + ")"; COLS.vr.h = "V/S (" + U("vr")[1] + ")";
+    COLS.dist.h = "Dist (" + U("dist")[1] + ")"; COLS.ws.h = "Wind (" + U("spd")[1] + ")";
+  }
+  unitHeaders();
+  var LABELNAME = {{ column_names | tojson }};
+
+  // a visitor's own choices are remembered in this browser; the site defaults come from Admin > Settings
+  function pref(k, v) { try { if (v === undefined) return localStorage.getItem("lv." + k); localStorage.setItem("lv." + k, v); } catch (e) { return null; } }
+  var cols = (pref("cols") || M.columns.join(",")).split(",").filter(function (k) { return COLS[k]; });
+  if (!cols.length) cols = M.columns.filter(function (k) { return COLS[k]; });
+  var labelMode = pref("labels") || M.labels;
+  $("l-labels").value = labelMode;
+  var sortKey = "alt", sortDir = -1;
+  var PHONE = matchMedia("(max-width:700px)").matches;
+  setTimeout(function () { if (selected || PHONE || !PANELS_OPEN || pref("fold") === "1" || (pref("legend") === "1" && innerWidth > 720)) filters(false); else filters(true); }, 0);
+  if (PHONE) { setTimeout(function () { listVisible(false); }, 0); }
+
+  function buildColumnPicker() {
+    $("lv-cols").innerHTML = Object.keys(COLS).map(function (k) {
+      return '<label><input type="checkbox" id="col-' + k + '"' + (cols.indexOf(k) >= 0 ? " checked" : "") + '> ' + esc(LABELNAME[k] || COLS[k].h) + "</label>";
+    }).join("");
+  }
+  buildColumnPicker();
+
+  var WATCHNAMES = {};
+  if (M.signedIn) $("f-watch-l").style.display = "";
+  var chosen = new Set(M.focus || []);
+  var data = new Map(), markers = new Map(), trails = new Map(), trailLines = new Map(), selected = null, follow = false, trailSel = true;
+  var multi = new Set(), multiOn = false, multiTraces = new Map(), multiLayer = L.layerGroup().addTo(map), persist = false;   // several aircraft selected at once (key M, T); persistence: aircraft that went quiet stay on the map (key P)
+  function isSel(hex) { return hex === selected || multi.has(hex); }
+  var params = new URLSearchParams(location.search);
+  (function () {   // icao=ab12cd or icao=ab12cd,ef34ab: the first has the details card, all of them are selected
+    var l = (params.get("icao") || "").toLowerCase().split(",").filter(function (h) { return /^[0-9a-f]{6}$/.test(h); }).slice(0, 40);
+    if (l.length) selected = l[0]; if (l.length > 1) { multiOn = true; l.forEach(function (h) { multi.add(h); }); }
+  })();
+
+  // data source filter (tar1090 has the same): which kinds of position are shown, remembered per browser
+  var srcOff = new Set();
+  try { srcOff = new Set(JSON.parse(pref("srcoff") || "[]")); } catch (e) {}
+  function srcKind(a) { var k = howKind(a); return k === "adsc" || k == null ? "other" : k; }
+  function srcCounts() {
+    var n = {}; data.forEach(function (a) { var k = srcKind(a); n[k] = (n[k] || 0) + 1; });
+    document.querySelectorAll("#f-sources [data-n]").forEach(function (el) { el.textContent = n[el.dataset.n] ? "(" + n[el.dataset.n] + ")" : ""; });
+  }
+  document.querySelectorAll("#f-sources input").forEach(function (cb) {
+    cb.checked = !srcOff.has(cb.dataset.src);
+    cb.addEventListener("change", function () {
+      if (cb.checked) srcOff.delete(cb.dataset.src); else srcOff.add(cb.dataset.src);
+      pref("srcoff", JSON.stringify(Array.from(srcOff))); render();
+    });
+  });
+  // aircraft type classes, from the ICAO type description (L2J = landplane, 2 engines, jet; H = helicopter) and the ADS-B emitter category
+  // air ambulances: the hex codes and tail numbers kept by Admin > Air Ambulance
+  var HEMS = {hex: {}, reg: {}, fw: {hex: {}, reg: {}}};
+  function loadHems() { fetch("/api/hems.json").then(function (r) { return r.json(); }).then(function (d) { HEMS = d; try { render(); } catch (e) {} }).catch(function () {}); }
+  function hemsWho(a) { var w = HEMS.hex[a.hex]; if (w === undefined) w = HEMS.reg[String(a.r || "").toUpperCase()]; return w; }
+  function isHems(a) { return hemsWho(a) !== undefined; }
+  function hemsFwWho(a) { var f = HEMS.fw || {hex: {}, reg: {}}, w = f.hex[a.hex]; if (w === undefined) w = f.reg[String(a.r || "").toUpperCase()]; return w; }
+  function isHemsFw(a) { return hemsFwWho(a) !== undefined; }
+  var INTR = {hex: {}};
+  function loadInteresting() { fetch("/api/interesting.json").then(function (r) { return r.json(); }).then(function (d) { INTR = d; try { render(); } catch (e) {} }).catch(function () {}); }
+  function interestingWho(a) { return INTR.hex[a.hex]; }
+  function isInteresting(a) { return interestingWho(a) !== undefined; }
+  loadHems(); setInterval(loadHems, 600000);
+  loadInteresting(); setInterval(loadInteresting, 600000);
+  function typeKinds(a) {
+    var td = String(a.td || "").toUpperCase(), cat = String(a.cat || "").toUpperCase(), k = [];
+    var rot = td.charAt(0) === "H" || td.charAt(0) === "G" || td.charAt(0) === "T" || cat === "A7";
+    if (rot) k.push("heli");
+    else if (td.slice(-1) === "J") k.push("jet");
+    else if (td.slice(-1) === "T") k.push("turboprop");
+    else if (td.slice(-1) === "P") k.push("piston");
+    if (cat === "A3" || cat === "A4" || cat === "A5" || a.wtc === "H" || a.wtc === "J") k.push("large");
+    if (cat === "A1") k.push("light");
+    if (/^B[1-4]$/.test(cat)) k.push("glider");
+    if (cat === "B6") k.push("uav");
+    if (/^C[1-3]$/.test(cat)) k.push("vehicle");
+    if (!k.length) k.push("unknown");
+    return k;
+  }
+  var kindOn = new Set();
+  function kindCounts() {
+    var n = {}; data.forEach(function (a) { typeKinds(a).forEach(function (x) { n[x] = (n[x] || 0) + 1; }); });
+    document.querySelectorAll("#f-kinds [data-kn]").forEach(function (el) { el.textContent = n[el.dataset.kn] ? "(" + n[el.dataset.kn] + ")" : ""; });
+  }
+  document.querySelectorAll("#f-kinds input").forEach(function (cb) {
+    cb.addEventListener("change", function () { if (cb.checked) kindOn.add(cb.dataset.kind); else kindOn.delete(cb.dataset.kind); render(); });
+  });
+  // collapsible filter sections, like the details card: remembered open or closed in this browser, with a small count of what is active in each
+  var fOpen = {show: true, altitude: true, layers: true};
+  try { var fsaved = JSON.parse(pref("fsecs") || "null"); if (fsaved) fOpen = fsaved; } catch (e) {}
+  document.querySelectorAll("#lv-toolsbody details.fsec").forEach(function (d) {
+    if (fOpen[d.dataset.k] !== undefined) d.open = !!fOpen[d.dataset.k]; else if (d.dataset.k === "stations" && $("lv-feeders") && {{ 'true' if station else 'false' }}) d.open = true;
+    d.addEventListener("toggle", function () { fOpen[d.dataset.k] = d.open; pref("fsecs", JSON.stringify(fOpen)); });
+  });
+  function setBadge(k, n) { var b = document.querySelector('#lv-toolsbody .fbadge[data-fb="' + k + '"]'); if (b) b.textContent = n ? String(n) : ""; }
+  function filterBadges() {
+    setBadge("show", ["f-ground", "f-nopos", "f-view", "f-focus", "f-watch"].filter(function (id) { return $(id) && $(id).checked; }).length + ($("f-pos") && !$("f-pos").checked ? 1 : 0));
+    setBadge("source", srcOff.size);
+    setBadge("flags", flagMask ? flagMask.toString(2).replace(/0/g, "").length : 0);
+    setBadge("type", kindOn.size);
+    setBadge("altitude", ($("f-min").value !== "" ? 1 : 0) + ($("f-max").value !== "" ? 1 : 0));
+    renderChips();
+  }
+  // active-filter chips: one small chip per filter that is on, click to switch it off, plus Clear All
+  var FLAGNAMES = {1: "Military", 2: "Interesting", 4: "PIA", 8: "LADD", 16: "Air ambulance (helicopter)", 32: "Air ambulance (fixed wing)"}, SRCNAMES = {adsb: "ADS-B", mlat: "MLAT", adsr: "UAT / ADS-R", tisb: "TIS-B", modes: "Mode S", other: "Other"};
+  function fire(el, type) { el.dispatchEvent(new Event(type, {bubbles: true})); }   // the map listens for "input" on some controls and "change" on others
+  function fireBoth(el) { fire(el, "input"); fire(el, "change"); }
+  function chipList() {
+    var out = [];
+    function tick(id, label, on) { if ($(id) && $(id).checked === on) out.push([label, function () { $(id).checked = !on; fireBoth($(id)); }]); }
+    if ($("q").value.trim()) out.push(['Search: ' + $("q").value.trim().slice(0, 24), function () { $("q").value = ""; fireBoth($("q")); }]);
+    tick("f-ground", "Hide on ground", true); tick("f-nopos", "Without position only", true); tick("f-view", "Only in view", true); tick("f-focus", "Hide others when selected", true);
+    tick("f-watch", "My alert matches", true); if (multi.size > 1) out.push([multi.size + " aircraft selected", function () { setMulti(false); clearSelection(); }]); tick("f-persist", "Keeping aircraft that go quiet", true); tick("f-pos", "Including aircraft with no position", false);
+    srcOff.forEach(function (k) { out.push(["No " + (SRCNAMES[k] || k), function () { var cb = document.querySelector('#f-sources input[data-src="' + k + '"]'); cb.checked = true; fireBoth(cb); }]); });
+    document.querySelectorAll("#f-flags input:checked").forEach(function (cb) { out.push([FLAGNAMES[cb.dataset.flag] || "Flag", function () { cb.checked = false; fireBoth(cb); }]); });
+    document.querySelectorAll("#f-kinds input:checked").forEach(function (cb) { out.push([cb.parentNode.textContent.replace(/\(.*\)/, "").trim(), function () { cb.checked = false; fireBoth(cb); }]); });
+    if ($("f-min").value !== "") out.push(["Above " + $("f-min").value, function () { $("f-min").value = ""; fire($("f-min"), "input"); fire($("f-min"), "change"); }]);
+    if ($("f-max").value !== "") out.push(["Below " + $("f-max").value, function () { $("f-max").value = ""; fire($("f-max"), "input"); fire($("f-max"), "change"); }]);
+    return out;
+  }
+  function renderChips() {
+    var box = $("lv-chips"), list = chipList(), sig = list.map(function (c) { return c[0]; }).join("|");
+    if (box.dataset.sig === sig) return;
+    box.dataset.sig = sig; box.innerHTML = "";
+    list.forEach(function (c) {
+      var b = document.createElement("button"); b.type = "button"; b.className = "chip"; b.title = "Click to remove this filter";
+      b.appendChild(document.createTextNode(c[0])); var x = document.createElement("b"); x.innerHTML = "&times;"; b.appendChild(x);
+      b.addEventListener("click", function () { c[1](); }); box.appendChild(b);
+    });
+    if (list.length > 1) {
+      var all = document.createElement("button"); all.type = "button"; all.className = "chip chipall"; all.textContent = "Clear All";
+      all.addEventListener("click", function () { chipList().forEach(function (c) { c[1](); }); }); box.appendChild(all);
+    }
+  }
+  var flagMask = 0;
+  function readFlags() { flagMask = 0; document.querySelectorAll("#f-flags input:checked").forEach(function (c) { flagMask |= parseInt(c.dataset.flag, 10); }); }
+  document.querySelectorAll("#f-flags input").forEach(function (cb) {
+    ["change", "input"].forEach(function (ev) { cb.addEventListener(ev, function () { readFlags(); render(); }); });   // the U key and old links use "input"
+  });
+  function passes(a) {
+    if (onlyPlace) return false;
+    if (srcOff.size && srcOff.has(srcKind(a))) return false;
+    if (flagMask && !(((a.db || 0) | (a.mil ? 1 : 0) | (isInteresting(a) ? 2 : 0) | (isHems(a) ? 16 : 0) | (isHemsFw(a) ? 32 : 0)) & flagMask)) return false;
+    if (kindOn.size && !typeKinds(a).some(function (x) { return kindOn.has(x); })) return false;
+    if (focusOnly() && selected && !isSel(a.hex)) return false;
+    if ($("f-ground").checked && a.gnd) return false;
+    if ($("f-nopos").checked) { if (a.lat != null) return false; }   // the aircraft that are heard but send no position
+    else if ($("f-pos").checked && a.lat == null) return false;
+    if ($("f-watch").checked && !(a.watch && a.watch.length)) return false;
+    if ($("f-view").checked && (a.lat == null || !map.getBounds().contains([a.lat, a.lon]))) return false;
+    var mn = parseFloat($("f-min").value) / U("alt")[0], mx = parseFloat($("f-max").value) / U("alt")[0];   // typed in the chosen unit, compared in feet
+    if (!isNaN(mn) && (a.alt == null || a.alt < mn)) return false;
+    if (!isNaN(mx) && (a.alt == null || a.alt > mx)) return false;
+    if (!searchOk(a)) return false;
+    return true;
+  }
+  // search like tar1090: several terms separated by commas, * as a wildcard, ! in front of a term to leave those out; looks at callsign,
+  // registration, type, hex, squawk and the aircraft's model
+  var searchSig = null, searchInc = [], searchExc = [];
+  function termRe(t) { return t.indexOf("*") >= 0 ? new RegExp("^" + t.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*") + "$") : null; }
+  function parseSearch() {
+    var raw = $("q").value.trim().toLowerCase();
+    if (raw === searchSig) return;
+    searchSig = raw; searchInc = []; searchExc = [];
+    raw.split(",").forEach(function (t) {
+      t = t.trim(); if (!t) return;
+      var neg = t.charAt(0) === "!"; if (neg) t = t.slice(1).trim(); if (!t) return;
+      (neg ? searchExc : searchInc).push({t: t, re: termRe(t)});
+    });
+  }
+  function termHits(term, a) {
+    return [a.flight, a.r, a.t, a.hex, a.squawk, a.tl, a.desc].some(function (v) {
+      if (!v) return false; v = String(v).toLowerCase();
+      return term.re ? term.re.test(v) : v.indexOf(term.t) >= 0;
+    });
+  }
+  function searchOk(a) {
+    parseSearch();
+    if (searchExc.some(function (t) { return termHits(t, a); })) return false;
+    return !searchInc.length || searchInc.some(function (t) { return termHits(t, a); });
+  }
+
+  function airlineCode(a) { var m = /^([A-Z]{3})[0-9]/.exec((a.flight || "").trim().toUpperCase()); return m ? m[1] : null; }
+  function badgeColor(code) { var h = 0; for (var i = 0; i < code.length; i++) h = (h * 31 + code.charCodeAt(i)) % 360; return "hsl(" + h + ",55%,36%)"; }
+  // what a label shows is a set of fields: a preset fills the set, and the visitor can tick their own
+  var LABELFIELDS = [["logo", "Airline logo"], ["callsign", "Callsign"], ["vrate", "Climb / descent arrow"], ["reg", "Registration"], ["model", "Aircraft model"], ["type", "Aircraft type"], ["galt", "Geometric altitude (WGS84)"], ["gegm", "Geometric altitude, sea level (EGM96)"], ["wind", "Wind (slim: direction and speed)"],
+                     ["route", "Route"], ["togo", "Distance to destination"], ["alt", "Altitude"], ["speed", "Speed"], ["heading", "Heading"], ["squawk", "Squawk"], ["hex", "Hex code"], ["dist", "Distance from center"]];
+  var PRESETS = {off: [], name: ["callsign"], badge: ["logo", "callsign", "vrate"], detail: ["callsign", "type", "speed", "alt"]};
+  var labelFields = new Set(PRESETS[labelMode] || []);
+  if (labelMode === "custom") { try { labelFields = new Set(JSON.parse(pref("labelFields") || "[]")); } catch (e) { labelFields = new Set(["callsign"]); } }
+  ADSB_MARK.onchange = function () { rebuildMarkers(); render(); };
+  // label size and background: the visitor's own choice, else the site default
+  function applyLabelLook() {
+    var sc = parseInt(pref("lscale") || M.labelScale, 10) || 125, bg = pref("lbg") || M.labelBg;
+    $("lv").style.setProperty("--ls", sc / 100);
+    ["dark", "light", "yellow", "none"].forEach(function (b) { $("lv").classList.toggle("lb-" + b, b === bg); });
+    $("l-lscale").value = String(sc); $("l-lbg").value = bg;
+  }
+  // routes for labels that show them: fetched a few at a time, once per flight number
+  var routeCache = new Map(), routeQueue = [], routeBusy = 0, routeTimer = null;
+  function labelRoute(a) {
+    var cs = (a.flight || "").trim().toUpperCase();
+    if (!/^[A-Z]{3}[0-9][A-Z0-9]{0,4}$/.test(cs)) return null;
+    if (!routeCache.has(cs)) { routeCache.set(cs, null); routeQueue.push([cs, a]); pumpRoutes(); }
+    return routeCache.get(cs);
+  }
+  function pumpRoutes() {
+    while (routeBusy < 3 && routeQueue.length) {
+      (function (job) {
+        routeBusy++;
+        fetch("/api/route/" + job[0] + ".json" + (job[1].lat != null ? "?lat=" + job[1].lat + "&lon=" + job[1].lon : "")).then(function (r) { return r.ok ? r.json() : {}; }).catch(function () { return {}; }).then(function (d) {
+          routeCache.set(job[0], d && d.route && d.route.plausible !== false && d.route.airports && d.route.airports.length >= 2 ? d.route : false);
+          routeBusy--; pumpRoutes();
+          if (!routeTimer) routeTimer = setTimeout(function () { routeTimer = null; render(); }, 400);
+        });
+      })(routeQueue.shift());
+    }
+  }
+  function legOf(airports, a) {
+    var ap = airports.filter(function (x) { return x.lat != null && x.lon != null; });
+    if (ap.length < 2) return null;
+    var best = 0, bestCost = 1e12;
+    if (ap.length > 2 && a.lat != null) for (var i = 0; i + 1 < ap.length; i++) {
+      var c = gcNm(ap[i].lat, ap[i].lon, a.lat, a.lon) + gcNm(a.lat, a.lon, ap[i + 1].lat, ap[i + 1].lon) - gcNm(ap[i].lat, ap[i].lon, ap[i + 1].lat, ap[i + 1].lon);
+      if (c < bestCost) { bestCost = c; best = i; }
+    }
+    return {o: ap[best], t: ap[best + 1], via: ap.length > 2};
+  }
+  function labelsShown() { return labelFields.size > 0 && map.getZoom() >= M.labelMinZoom; }
+  function labelHtml(a) {
+    var f = labelFields, l1 = "", l2 = [], v = a.vr == null ? 0 : a.vr;
+    var lg = f.has("logo") ? ADSB_MARK.html(a) : "";
+    l1 += lg;
+    if (f.has("callsign") || (!l1 && !f.has("reg"))) { var badged = lg.indexOf("lv-badge") >= 0; l1 += esc(badged ? (a.flight || "").trim().toUpperCase().slice(3) : nm(a)); }
+    if (f.has("reg") && a.r) l1 += (l1 ? " " : "") + esc(a.r);
+    if (f.has("vrate") && Math.abs(v) >= 300) l1 += '<span class="lv-arrow">' + (v > 0 ? "↑" : "↓") + "</span>";
+    if (f.has("route") || f.has("togo")) {
+      var rt = labelRoute(a), lg2 = rt && legOf(rt.airports, a);
+      if (lg2) {
+        if (f.has("route")) l2.push(esc(lg2.o.iata || lg2.o.icao || "?") + " › " + esc(lg2.t.iata || lg2.t.icao || "?"));
+        if (f.has("togo") && a.lat != null) l2.push(Number(fDist(gcNm(a.lat, a.lon, lg2.t.lat, lg2.t.lon))).toLocaleString() + " " + U("dist")[1] + " to go");
+      }
+    }
+    if (f.has("model")) { var mk = (a.desc || a.tl || "").trim(); if (mk) l2.push(esc(mk)); }
+    if (f.has("type") && a.t) l2.push(esc(a.t));
+    if (f.has("alt")) l2.push(a.gnd ? "GND" : a.alt != null ? fAlt(qAlt(a)) + " " + U("alt")[1] : "");
+    if (f.has("galt") && a.ag != null) l2.push(fAlt(a.ag) + " " + U("alt")[1] + " geo");
+    if (f.has("wind") && a.ws != null && a.wd != null && !a.gnd) l2.push(String(Math.round(a.wd)).padStart(3, "0") + "&deg;/" + fSpd(a.ws) + " " + U("spd")[1]);   // slim wind label: the wind's direction (from) and speed
+    if (f.has("gegm") && a.ag != null) { var ge = egmAlt(a); if (ge != null) l2.push(fAlt(ge) + " " + U("alt")[1] + " geo MSL"); }
+    if (f.has("speed") && a.gs != null) l2.push(fSpd(a.gs) + " " + U("spd")[1]);
+    if (f.has("heading") && a.track != null) l2.push(Math.round(a.track) + "°");
+    if (f.has("squawk") && a.squawk) l2.push("sq " + esc(a.squawk));
+    if (f.has("hex")) l2.push(a.hex.toUpperCase());
+    if (f.has("dist") && a.lat != null) l2.push(fDist(dist(a)) + " " + U("dist")[1]);
+    l2 = l2.filter(Boolean);
+    return l1 + (l2.length ? "<br><small>" + l2.join(" · ") + "</small>" : "");
+  }
+  function bindLabel(m, a) {
+    m.unbindTooltip();
+    if (!labelsShown()) m.bindTooltip(esc(nm(a)), {className: "lv-tip", direction: "right", offset: [10, 0]});   // with labels on, the label engine draws them (static/labelfit.js)
+  }
+  // the labels of the aircraft shown: the shared label engine puts them beside their icons and leaves off any that would cover another (the selected aircraft first, then emergencies, watched and military)
+  var LE = ArkLabels.create(map);
+  function labelPriority(a) { return isSel(a.hex) ? -3 : a.emg ? -2 : (a.watch && a.watch.length) ? -1 : a.mil || isInteresting(a) ? 0 : 1; }
+  function drawLabels() {
+    LE.begin();
+    if (labelsShown()) markers.forEach(function (m, hex) {
+      var a = data.get(hex); if (!a || a.lat == null) return;
+      LE.add({key: hex, lat: a.lat, lon: a.lon, html: labelHtml(a), border: false, side: "right", gap: Math.round(14 * userScale()), priority: labelPriority(a), opacity: a.ghost ? .55 : 0, z: 1000, onClick: function () { select(hex); }});
+    });
+    LE.flush();
+  }
+  map.on("zoomend moveend", drawLabels);
+  var labelsWere = labelsShown();
+  map.on("zoomend", function () { var now = labelsShown(); if (now !== labelsWere) { labelsWere = now; rebuildMarkers(); } });
+  function rebuildMarkers() { markers.forEach(function (m) { map.removeLayer(m); }); markers.clear(); render(); }
+
+  var capped = null;   // phones: the hexes allowed a marker when there are more aircraft than the setting allows
+  function capNearest() {
+    capped = null;
+    if (!PHONE || data.size <= M.mobileMax) return;
+    var c = map.getCenter(), list = [];
+    data.forEach(function (a, hex) { if (a.lat != null && passes(a)) list.push([Math.pow(a.lat - c.lat, 2) + Math.pow((a.lon - c.lng) * Math.cos(c.lat * Math.PI / 180), 2), hex]); });
+    list.sort(function (x, y) { return x[0] - y[0]; });
+    capped = new Set(list.slice(0, M.mobileMax).map(function (x) { return x[1]; }));
+    if (selected) capped.add(selected);
+  }
+  function render() {
+    filterBadges();
+    capNearest();
+    data.forEach(function (a, hex) {
+      var ok = passes(a) && a.lat != null && (!capped || capped.has(hex));
+      var m = markers.get(hex);
+      if (!ok) { if (m) { map.removeLayer(m); markers.delete(hex); } return; }
+      if (!m) {
+        m = L.marker([a.lat, a.lon], {icon: icon(a, isSel(hex)), keyboard: false});
+        m.on("click", function () { select(hex); });
+        if (!PHONE && hoverOn()) { m.on("mouseover", function (ev) { showHover(hex, ev); }); m.on("mouseout", function () { hoverEl.style.display = "none"; }); }
+        bindLabel(m, a);
+        m.addTo(map); markers.set(hex, m);
+      } else {
+        m.setLatLng([a.lat, a.lon]);
+        var sig = Math.round((a.track || 0) / 3) + "|" + (a.gnd ? "g" : Math.round((a.alt || 0) / 500)) + "|" + isSel(hex) + "|" + (a.ghost ? "x" : "") + "|" + a.mil + "|" + a.t + "|" + a.td + "|" + a.cat + "|" + (map.getZoom() > M.iconDivide) + "|" + userScale() + "|" + (a.watch ? 1 : 0);
+        if (m._sig !== sig) { m.setIcon(icon(a, isSel(hex))); m._sig = sig; }
+        if (!labelsShown()) m.setTooltipContent(esc(nm(a)));
+      }
+    });
+    markers.forEach(function (m, hex) { if (!data.has(hex)) { map.removeLayer(m); markers.delete(hex); } });
+    drawLabels();
+    var shown = [];
+    data.forEach(function (a) { if (passes(a)) shown.push(a); });
+    var col = COLS[sortKey] || COLS.alt;
+    shown.sort(function (a, b) {
+      var x = col.s(a), y = col.s(b);
+      if (x == null || x === "") return 1;
+      if (y == null || y === "") return -1;
+      return (x < y ? -1 : x > y ? 1 : 0) * sortDir;
+    });
+    $("lv-count").textContent = shown.length + " of " + data.size + " aircraft";
+    $("lv-tbl").tHead.innerHTML = "<tr>" + cols.map(function (k) { return '<th data-k="' + k + '">' + COLS[k].h + (k === sortKey ? (sortDir < 0 ? " ▼" : " ▲") : "") + "</th>"; }).join("") + "</tr>";
+    var cap = rowCap || M.listRows || 300;   // tar1090's "more / even more / all table lines": the list shows this many rows and a row at the end shows more
+    $("lv-tbl").tBodies[0].innerHTML = shown.slice(0, cap).map(function (a) {
+      return '<tr class="it' + (isSel(a.hex) ? " sel" : "") + (a.ghost ? " ghost" : "") + (a.watch ? " w" : "") + '" data-hex="' + a.hex + '">' + cols.map(function (k) { return "<td>" + (COLS[k].html ? COLS[k].v(a) : esc(COLS[k].v(a))) + "</td>"; }).join("") + "</tr>";
+    }).join("") + (shown.length > cap ? '<tr class="more"><td colspan="' + cols.length + '" style="text-align:center;padding:10px">Showing ' + cap.toLocaleString() + " of " + shown.length.toLocaleString() + ' aircraft &nbsp; <a href="#" data-more="' + Math.min(shown.length, cap + (M.listRows || 300)) + '">Show more</a> &middot; <a href="#" data-more="' + shown.length + '">Show all</a></td></tr>' : "");
+    drawTrails();
+    updateTail();
+    drawWinds();
+    card();
+  }
+  var rowCap = 0;
+  $("lv-tbl").tBodies[0].addEventListener("click", function (e) { var a = e.target.closest && e.target.closest("a[data-more]"); if (!a) return; e.preventDefault(); e.stopPropagation(); rowCap = parseInt(a.getAttribute("data-more"), 10); render(); });
+
+  function drawTrails() {
+    var all = $("l-trails").checked;
+    // "All trails" honours the filters (military only, altitude, feeders...); the selected aircraft's own trail is always allowed
+    function wanted(hex) { var a = data.get(hex); if (!a) return false; return (all && passes(a)) || (hex === selected && trailSel && !trace.ok); }
+    trailLines.forEach(function (ln, hex) { if (!wanted(hex)) { map.removeLayer(ln); trailLines.delete(hex); } });
+    trails.forEach(function (pts, hex) {
+      if (!wanted(hex) || pts.length < 2) return;
+      var a = data.get(hex), ln = trailLines.get(hex);
+      if (!ln) { ln = L.polyline(pts, {color: altColor(a.alt), weight: 2, opacity: .8}).addTo(map); trailLines.set(hex, ln); }
+      else { ln.setLatLngs(pts); ln.setStyle({color: altColor(a.alt)}); }
+    });
+  }
+
+  function filters(open) { if (open && $("lv-wx").style.display === "block") wxOpen(false); if (open && legBtn && legBtn.getAttribute("aria-expanded") === "true") legOpen(false); $("lv-toolsbody").style.display = open ? "block" : "none"; $("lv-filtbtn").textContent = open ? "Hide Layers & Filters" : "Layers & Filters"; foldSync(); }
+  $("lv-filtbtn").addEventListener("click", function () { filters($("lv-toolsbody").style.display === "none"); pref("fold", $("lv-toolsbody").style.display === "none" ? "1" : "0"); });
+  // the small arrow centred on the bottom edge of whichever flyout (Filters or Weather) is open: folds it up so the map shows, the buttons bring it back
+  function foldSync() { var f = $("lv-fold"); if (f) f.style.display = ($("lv-toolsbody").style.display === "block" || $("lv-wx").style.display === "block" || $("lv-legend").style.display === "block") ? "block" : "none"; }
+  $("lv-fold").addEventListener("click", function () { if ($("lv-legend").style.display === "block") legOpen(false); else if ($("lv-wx").style.display === "block") wxOpen(false); else filters(false); pref("fold", "1"); });
+  // ---- the selected aircraft's real track from the hub's trace files (what tar1090 draws), with speed/altitude/time labels
+  var trace = {hex: null, layer: L.layerGroup().addTo(map), ok: false, at: 0};
+  var tail = L.polyline([], {weight: 3, opacity: .9, interactive: false}).addTo(map);
+  function updateTail() {   // the recorded track ends a little behind the aircraft; join the two with its live position
+    var a = selected && data.get(selected), pts = trace.pts;
+    if (!trace.ok || !a || a.lat == null || !pts || !pts.length || !trailSel) { tail.setLatLngs([]); return; }
+    var last = pts[pts.length - 1];
+    if (Date.now() / 1000 - last[0] > M.trailBreak) { tail.setLatLngs([]); return; }   // out of coverage for a while: no joining line
+    tail.setLatLngs([[last[1], last[2]], [a.lat, a.lon]]); tail.setStyle({color: altColor(a.alt)});
+  }
+  function legOn() { var p = (window.PREFS || {}).lastLeg; return p == null || p === "" ? M.lastLeg !== false : p === "1"; }   // last leg only (tar1090's option), else every recorded flight
+  function labelsOn() { var p = (window.PREFS || {}).trailLabels; return p == null || p === "" ? M.trailLabels : p === "1"; }
+  function drawTrace(pts, leg) {
+    trace.layer.clearLayers();
+    var seg = pts.slice(leg);
+    if (seg.length < 2) return;
+    // like the classic map: positions further apart than the break are NOT joined (out of coverage), a smaller gap is drawn dashed
+    // (an estimate), and the rest is solid, coloured by altitude
+    function line(a, b, color, dashed) {
+      L.polyline([[a[1], a[2]], [b[1], b[2]]], {color: color, weight: 3, opacity: dashed ? .6 : .9, dashArray: dashed ? "4 8" : null, interactive: false}).addTo(trace.layer);
+    }
+    var runStart = 0, runs = [];
+    for (var i = 1; i < seg.length; i++) {
+      var gap = seg[i][0] - seg[i - 1][0];
+      if (gap > M.trailBreak) { runs.push([runStart, i - 1]); runStart = i; }
+    }
+    runs.push([runStart, seg.length - 1]);
+    runs.forEach(function (r) {
+      var from = r[0], curColor = altColor(seg[from][3]), start = from, dashedNow = false;
+      function flush(end) {
+        if (end <= start) return;
+        L.polyline(seg.slice(start, end + 1).map(function (p) { return [p[1], p[2]]; }), {color: curColor, weight: 3, opacity: .9, interactive: false}).addTo(trace.layer);
+      }
+      for (var k = from + 1; k <= r[1]; k++) {
+        var estimated = seg[k][0] - seg[k - 1][0] > M.trailStale, c = altColor(seg[k][3]);
+        if (estimated) { flush(k - 1); line(seg[k - 1], seg[k], c, true); start = k; curColor = c; }
+        else if (c !== curColor) { flush(k); start = k; curColor = c; }
+      }
+      flush(r[1]);
+    });
+    if (!labelsOn()) return;
+    var today = window.fmtTime(new Date(), "d"), last = -1e12, runFirst = {};
+    runs.forEach(function (r) { runFirst[r[0]] = true; runFirst[r[1]] = true; });
+    seg.forEach(function (p, i) {
+      if (!runFirst[i] && p[0] - last < M.trailLabelSeconds) return;
+      last = p[0];
+      var when = new Date(p[0] * 1000), day = window.fmtTime(when, "d");
+      var txt = (p[4] != null ? fSpd(p[4]) + " " + U("spd")[1] + " " : "") + (p[3] != null ? fAlt(p[3]) + " " + U("alt")[1] : "") + "<br>" + (day === today ? "" : day + " ") + window.fmtTime(when, "ts");
+      L.circleMarker([p[1], p[2]], {radius: 3, color: "#000", weight: 1, fillColor: altColor(p[3]), fillOpacity: 1}).bindTooltip(txt, {permanent: true, direction: "right", className: "lv-label", offset: [6, 0]}).addTo(trace.layer);
+    });
+  }
+  // altitude over the selected aircraft's recorded track (points are [time, lat, lon, altitude ft, speed kt, ...])
+  function updateChart() {
+    var el = $("c-chart"); if (!el) return;
+    var pts = (trace.ok && trace.hex === selected && trace.pts) ? trace.pts.filter(function (p) { return typeof p[3] === "number" && p[0] != null; }) : [];
+    if (pts.length < 3) { el.innerHTML = ""; return; }
+    var t0 = pts[0][0], t1 = pts[pts.length - 1][0], lo = Infinity, hi = -Infinity;
+    pts.forEach(function (p) { lo = Math.min(lo, p[3]); hi = Math.max(hi, p[3]); });
+    if (hi - lo < 100) { hi = lo + 100; }
+    var W = 300, H = 64, path = pts.map(function (p, i) { return (i ? "L" : "M") + ((p[0] - t0) / Math.max(1, t1 - t0) * W).toFixed(1) + " " + (H - 4 - (p[3] - lo) / (hi - lo) * (H - 8)).toFixed(1); }).join(" ");
+    var mins = Math.round((t1 - t0) / 60), dur = mins >= 60 ? Math.floor(mins / 60) + " h " + (mins % 60) + " min" : mins + " min", u = U("alt")[1];
+    el.innerHTML = '<div class="chart"><b style="color:var(--text)">Altitude</b> over the last ' + dur + ": " + fAlt(lo) + " to " + fAlt(hi) + " " + u +
+      '<svg viewBox="0 0 ' + W + " " + H + '" preserveAspectRatio="none"><path d="' + path + '" fill="none" stroke="var(--acc)" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg></div>';
+  }
+  $("c-kml").addEventListener("click", function () {
+    var a = selected && data.get(selected), pts = trace.ok && trace.hex === selected ? trace.pts : null;
+    if (!a || !pts || pts.length < 2) { alert("There is no recorded track for this aircraft yet."); return; }
+    var name = esc(nm(a)), co = pts.filter(function (p) { return p[1] != null && p[2] != null; }).map(function (p) { return p[2] + "," + p[1] + "," + Math.round((typeof p[3] === "number" ? p[3] : 0) * 0.3048); }).join(" ");
+    var kml = '<?xml version="1.0" encoding="UTF-8"?>' + String.fromCharCode(10) + '<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>' + name + "</name><Placemark><name>" + name +
+      "</name><Style><LineStyle><color>ff7fe63e</color><width>3</width></LineStyle></Style><LineString><altitudeMode>absolute</altitudeMode><coordinates>" + co + "</coordinates></LineString></Placemark></Document></kml>";
+    var url = URL.createObjectURL(new Blob([kml], {type: "application/vnd.google-earth.kml+xml"})), l = document.createElement("a");
+    l.href = url; l.download = (a.hex || "aircraft") + ".kml"; document.body.appendChild(l); l.click(); l.remove(); setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+  });
+  async function loadTrace(force) {
+    if (!selected || !trailSel) { trace.layer.clearLayers(); trace.hex = null; trace.ok = false; return; }
+    var replaying = past && past.replayOn();
+    if (!force && trace.hex === selected && (replaying || Date.now() - trace.at < 14000)) return;
+    var hex = selected; trace.hex = hex; trace.at = Date.now();
+    try {
+      var d = await (await fetch("/api/trace/" + hex + ".json" + (replaying ? "?at=" + Math.floor(past.player().time() / 1000) : ""), {cache: "no-store"})).json();
+      if (selected !== hex) return;
+      if (replaying && (d.reg || d.type)) replayMeta[hex] = {r: d.reg || null, t: d.type || null};   // the replay files carry no registration or type: the trace file has them
+      trace.ok = d.points && d.points.length > 1;
+      trace.pts = d.points; trace.leg = d.leg;
+      if (trace.ok) drawTrace(d.points, legOn() ? d.leg : 0); else trace.layer.clearLayers();
+      updateTail(); updateChart();
+    } catch (e) { trace.ok = false; }
+    drawTrails();
+  }
+  document.addEventListener("adsb-prefs", function () { if (trace.ok) drawTrace(trace.pts, legOn() ? trace.leg : 0); var uk = ArkUnits.system(); if (UNITSETS[uk] && uk !== unitKey) { unitKey = uk; applyUnits(); card(); } rebuildMarkers(); if (typeof loadSondes === "function") loadSondes(); });   // a new theme may bring its own aircraft and balloon symbols; a unit change in the Display menu is followed too
+  setInterval(function () { loadTrace(false); }, 5000);
+
+  // choosing an aircraft: one at a time, or several while "Select several aircraft" is on (key M): each click adds or removes one, and every selected aircraft shows its track
+  function select(hex) {
+    if (multiOn && hex) {
+      if (selected && !multi.size) multi.add(selected);
+      if (multi.has(hex)) { multi.delete(hex); if (hex === selected) { var rest = Array.from(multi); if (rest.length) selectOne(rest[rest.length - 1]); else clearSelection(); } else render(); }
+      else { multi.add(hex); selectOne(hex); }
+      loadMulti(); return;
+    }
+    if (multi.size) { multi.clear(); loadMulti(); }
+    selectOne(hex);
+  }
+  // ACARS: the latest datalink messages heard for the selected aircraft (the ACARS service, when the site has it on)
+  function loadAcars() {
+    var el = $("c-acars"); if (!el || !M.acars) return;
+    var a = selected && data.get(selected); if (!a) { el.innerHTML = ""; return; }
+    fetch("/api/acars/aircraft/" + a.hex + ".json?tail=" + encodeURIComponent(a.r || "")).then(function (r) { return r.json(); }).then(function (d) {
+      if (selected !== a.hex) return;
+      var m = (d.messages || []).slice(0, 5);
+      el.innerHTML = m.length ? '<div class="csec" style="margin-top:10px"><b style="color:var(--text)">ACARS</b> <a href="/acars/?hours=336&' + (a.r ? "tail=" + encodeURIComponent(a.r) : "q=" + a.hex) + '" style="font-size:.78rem">all messages</a>' + m.map(function (x) {
+        return '<div style="margin-top:6px;font-size:.8rem"><span class="dim">' + esc(window.fmtTime ? window.fmtTime(new Date(x.ts), "dts") : x.ts.slice(11, 19)) + " &middot; " + esc(x.label_text || x.label || "") + (x.flight ? " &middot; " + esc(x.flight) : "") + "</span>" + (x.text ? '<div class="mono" style="white-space:pre-wrap;word-break:break-word">' + esc(x.text.slice(0, 280)) + "</div>" : "") + "</div>";
+      }).join("") + "</div>" : "";
+    }).catch(function () {});
+  }
+  setInterval(loadAcars, 30000);
+  function clearSelection() { filters(!PHONE); selected = null; multi.clear(); loadMulti(); loadTrace(true); follow = false; render(); }
+  var multiTimer = null;
+  function loadMulti() {   // the tracks of the other selected aircraft (the one with the details card has its own, drawn by loadTrace)
+    multiLayer.clearLayers(); clearTimeout(multiTimer);
+    var others = Array.from(multi).filter(function (h) { return h !== selected; }).slice(0, 40);
+    if (!others.length) return;
+    others.forEach(function (hex) {
+      var c = multiTraces.get(hex);
+      if (!c || Date.now() - c.at > 15000) {
+        multiTraces.set(hex, {at: Date.now(), pts: c ? c.pts : null});
+        fetch("/api/trace/" + hex + ".json" + (past && past.replayOn() ? "?at=" + Math.floor(past.player().time() / 1000) : ""), {cache: "no-store"}).then(function (r) { return r.json(); }).then(function (d) {
+          if (!multi.has(hex)) return; multiTraces.set(hex, {at: Date.now(), pts: (d.points || []).slice(d.leg || 0)}); paintMulti();
+        }).catch(function () {});
+      }
+    });
+    paintMulti(); multiTimer = setTimeout(loadMulti, 15000);
+  }
+  function paintMulti() {
+    multiLayer.clearLayers();
+    multi.forEach(function (hex) {
+      if (hex === selected) return;
+      var c = multiTraces.get(hex), pts = c && c.pts; if (!pts || pts.length < 2) return;
+      var run = [[pts[0][1], pts[0][2]]], rc = altColor(pts[0][3]);
+      for (var i = 1; i < pts.length; i++) {
+        var col = altColor(pts[i][3]); run.push([pts[i][1], pts[i][2]]);
+        if (pts[i][0] - pts[i - 1][0] > M.trailBreak) { run = [[pts[i][1], pts[i][2]]]; rc = col; continue; }
+        if (col !== rc || i === pts.length - 1) { L.polyline(run, {color: rc, weight: 3, opacity: .85, interactive: false}).addTo(multiLayer); run = [[pts[i][1], pts[i][2]]]; rc = col; }
+      }
+    });
+  }
+  function setMulti(on) { multiOn = !!on; if ($("f-multi")) $("f-multi").checked = multiOn; if (!multiOn && multi.size) { var keep = selected; multi.clear(); loadMulti(); if (keep) selectOne(keep); } renderChips(); }
+  function selectAll() {   // every aircraft the filters show and that has a position (up to forty)
+    var all = []; data.forEach(function (a, hex) { if (a.lat != null && passes(a) && markers.has(hex)) all.push(hex); });
+    if (!all.length) return; setMulti(true); multi = new Set(all.slice(0, 40)); selectOne(all[0]); loadMulti();
+  }
+  // auto-select (tar1090's "Auto select plane"): with nothing chosen by the visitor, pick the airborne aircraft nearest the middle of the view; when it drops out of view or off the map pick the next
+  var autoSel = null;
+  function autoPick() {
+    if (!$("f-auto") || !$("f-auto").checked) { autoSel = null; return; }
+    if (selected && selected !== autoSel) return;   // the visitor chose one: leave it alone
+    var b = map.getBounds(), c = map.getCenter();
+    if (selected) { var cur = data.get(selected); if (cur && cur.lat != null && !cur.ghost && b.contains([cur.lat, cur.lon])) return; }
+    var best = null, bd = 1e18;
+    data.forEach(function (a, hex) { if (a.lat == null || a.ghost || a.gnd || !b.contains([a.lat, a.lon]) || !passes(a)) return; var dd = c.distanceTo([a.lat, a.lon]); if (dd < bd) { bd = dd; best = hex; } });
+    if (best && best !== selected) { autoSel = best; selectOne(best); }
+  }
+  setInterval(function () { if (!document.hidden) autoPick(); }, 5000);
+  function selectOne(hex) { if (PHONE) listVisible(false); if (hex !== selected) { filters(false); trace.layer.clearLayers(); trace.ok = false; } selected = hex; loadTrace(true); follow = false; $("c-follow").textContent = "Follow"; var a = data.get(hex); if (a && a.lat != null) map.panTo([a.lat, a.lon]); render(); loadAcars(); }
+
+  // ---- the planned route of the selected aircraft: origin and destination marked, a dashed great-circle line from the aircraft
+  // to its destination (what is left of the flight), and a progress readout on the card. Only when the route service knows
+  // the flight and the route fits where the aircraft is.
+  var route = {layer: L.layerGroup().addTo(map), key: null, line: null};
+  function routeOn() { var p = (window.PREFS || {}).route; return p == null || p === "" ? M.routeDefault : p === "1"; }
+  function rad(x) { return x * Math.PI / 180; }
+  function gcNm(a, b, c, d) { var x = Math.sin(rad(c - a) / 2) ** 2 + Math.cos(rad(a)) * Math.cos(rad(c)) * Math.sin(rad(d - b) / 2) ** 2; return 3440.065 * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x)); }
+  function gcPoints(lat1, lon1, lat2, lon2, n) {
+    var p1 = rad(lat1), l1 = rad(lon1), p2 = rad(lat2), l2 = rad(lon2);
+    var d = 2 * Math.asin(Math.sqrt(Math.sin((p2 - p1) / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin((l2 - l1) / 2) ** 2)), out = [];
+    if (d < 1e-9) return [[lat1, lon1], [lat2, lon2]];
+    for (var i = 0; i <= n; i++) {
+      var f = i / n, A = Math.sin((1 - f) * d) / Math.sin(d), B = Math.sin(f * d) / Math.sin(d);
+      var x = A * Math.cos(p1) * Math.cos(l1) + B * Math.cos(p2) * Math.cos(l2), y = A * Math.cos(p1) * Math.sin(l1) + B * Math.cos(p2) * Math.sin(l2), z = A * Math.sin(p1) + B * Math.sin(p2);
+      out.push([Math.atan2(z, Math.sqrt(x * x + y * y)) * 180 / Math.PI, Math.atan2(y, x) * 180 / Math.PI]);
+    }
+    return out;
+  }
+  function routeOf(a) {
+    var d = a && info.hex === a.hex && info.data, r = d && d.route;
+    if (!r || r.plausible === false || !r.airports || r.airports.length < 2) return null;
+    return legOf(r.airports, a);
+  }
+  function drawRoute(a) {
+    var ra = a && a.lat != null && routeOn() && routeOf(a);
+    if (!ra) { if (route.key) { route.layer.clearLayers(); route.key = null; route.line = null; } return; }
+    var key = a.hex + "|" + ra.o.icao + "|" + ra.t.icao;
+    if (route.key !== key) {
+      route.layer.clearLayers(); route.key = key;
+      [ra.o, ra.t].forEach(function (x, i) {
+        L.circleMarker([x.lat, x.lon], {radius: 5, color: "#071018", weight: 1.5, fillColor: i ? "#4fb3ff" : "#3ee6a8", fillOpacity: 1})
+          .bindTooltip(esc(x.iata || x.icao || "?"), {permanent: true, direction: "top", className: "lv-label", offset: [0, -6]}).addTo(route.layer);
+      });
+      route.line = L.polyline([], {color: "#4fb3ff", weight: 2, opacity: .85, dashArray: "2 8", interactive: false}).addTo(route.layer);
+    }
+    route.line.setLatLngs(gcPoints(a.lat, a.lon, ra.t.lat, ra.t.lon, 64));
+  }
+  function updateProg(a) {
+    var el = $("c-prog"), ra = routeOf(a);
+    if (!el) return;
+    if (!ra || a.lat == null) { el.innerHTML = ""; return; }
+    var flown = gcNm(ra.o.lat, ra.o.lon, a.lat, a.lon), left = gcNm(a.lat, a.lon, ra.t.lat, ra.t.lon), pct = Math.max(0, Math.min(100, Math.round(100 * flown / Math.max(1, flown + left))));
+    var eta = !a.gnd && a.gs > 60 ? Math.round(left / a.gs * 60) : null;
+    el.innerHTML = '<div class="prog"><i style="width:' + pct + '%"></i></div><div class="progtxt"><span>' + Number(fDist(flown)).toLocaleString() + " " + U("dist")[1] + " flown · " + Number(fDist(left)).toLocaleString() + " " + U("dist")[1] + " to go</span><span>" +
+      (eta != null ? "about " + (eta >= 60 ? Math.floor(eta / 60) + " h " + (eta % 60) + " min" : eta + " min") + " at current speed" : "") + "</span></div>";
+  }
+
+  // the details card: every value the hub reports for the aircraft, grouped like the classic map
+  function ft(v) { return v == null ? null : fAlt(v) + " " + U("alt")[1]; }
+  // geometric altitude as height above sea level: the EGM96 geoid (static/egm96.js, 2.7 MB, loaded the first time an aircraft shows it)
+  var egm = {fn: null, loading: false};
+  function egmAlt(a) {
+    if (!egm.fn) {
+      if (!egm.loading) { egm.loading = true; var s = document.createElement("script"); s.src = "/static/egm96.js?v={{ app_version }}"; s.onload = function () { egm.fn = window.EGM96 && window.EGM96.ellipsoidToEgm96; if (egm.fn) render(); }; document.head.appendChild(s); }
+      return null;
+    }
+    return a.ag == null || a.lat == null ? null : Math.round(egm.fn(a.lat, a.lon, a.ag * 0.3048) / 0.3048);
+  }
+  function kt(v) { return v == null ? null : fSpd(v) + " " + U("spd")[1]; }
+  function deg(v, d) { return v == null ? null : Number(v).toFixed(d || 0) + "°"; }
+  function sections(a) {
+    var db = (info.hex === a.hex && info.data && info.data.aircraft) || {};
+    var modes = Array.isArray(a.modes) ? a.modes.map(function (m) { return m.replace(/_/g, " "); }).join(", ") : null;
+    var moved = a.seen_pos != null ? a.seen_pos.toFixed(1) + " s ago" : null, last = a.seen != null ? a.seen.toFixed(1) + " s ago" : null;
+    return [
+      ["Identification", [["Registration", a.r], ["Interesting", isInteresting(a) ? (interestingWho(a)[0] || "Yes") + (interestingWho(a)[1] ? " (" + interestingWho(a)[1] + ")" : "") : null], ["Air ambulance", isHems(a) ? "Helicopter" + (hemsWho(a) ? " (" + hemsWho(a) + ")" : "") : isHemsFw(a) ? "Fixed wing" + (hemsFwWho(a) ? " (" + hemsFwWho(a) + ")" : "") : null], ["Make and model", ((a.year ? a.year + " " : "") + (a.desc || a.tl || (db.manufacturer ? db.manufacturer + " " : "") + (db.type || ""))).trim() || null], ["Type code", a.t], ["Type description", a.td ? a.td + (a.wtc ? " (wake " + a.wtc + ")" : "") : null], ["Owner", db.registered_owner], ["Operator", a.op], ["Hex", a.hex.toUpperCase()],
+        ["Squawk", a.squawk], ["Category", a.cat], ["Military", a.mil ? "Yes" : null]]],
+      ["Position", [[qnhOf(a) != null && a.alt != null && a.alt < 18000 ? "Altitude (QNH " + qnhOf(a) + " hPa)" : "Barometric altitude", a.gnd ? "On ground" : ft(qAlt(a))], ["Geometric altitude", ft(a.ag)], ["Geometric altitude above sea level (EGM96)", a.ag == null ? null : ft(egmAlt(a))],
+        ["Vertical rate", a.vr == null ? null : fVr(a.vr) + " " + U("vr")[1]], ["Geometric rate", a.gr == null ? null : fVr(a.gr) + " " + U("vr")[1]],
+        ["Position", a.lat != null ? a.lat.toFixed(4) + "°, " + a.lon.toFixed(4) + "°" : null], ["Distance", a.lat != null ? fDist(dist(a), 1) + " " + U("dist")[1] + " from center" : null]]],
+      ["Signal", [["Source", a.src], ["Signal strength", a.rssi != null ? a.rssi.toFixed(1) + " dB" : null], ["Messages", a.msgs == null ? null : a.msgs.toLocaleString()],
+        ["Last position", moved], ["Last heard", last]]],
+      ["Speed", [["Ground speed", kt(a.gs)], ["True airspeed", kt(a.tas)], ["Indicated airspeed", kt(a.ias)], ["Mach", a.mach == null ? null : Number(a.mach).toFixed(3)]]],
+      ["Direction", [["Ground track", deg(a.track, 1)], ["True heading", deg(a.tru, 1)], ["Magnetic heading", deg(a.mag, 1)],
+        ["Track rate", a.trk_rate == null ? null : a.trk_rate.toFixed(2) + "°/s"], ["Roll", deg(a.roll, 1)]]],
+      ["Autopilot", [["Selected altitude", ft(a.sel_alt)], ["Selected heading", deg(a.sel_hdg, 1)], ["QNH", a.qnh == null ? null : a.qnh.toFixed(1) + " hPa"], ["Modes", modes]]],
+      ["Wind", [["Wind speed", kt(a.ws)], ["Wind from", deg(a.wd)], ["Total / outside air temp.", a.tat != null || a.oat != null ? (a.tat == null ? "-" : a.tat) + " / " + (a.oat == null ? "-" : a.oat) + " °C" : null]]],
+      ["Accuracy", [["ADS-B version", a.ver == null ? null : "v" + a.ver], ["NIC", a.nic], ["NIC baro", a.nicb], ["NACp", a.nacp], ["NACv", a.nacv], ["SIL", a.sil], ["Containment radius", a.rc == null ? null : a.rc + " m"]]]
+    ];
+  }
+  // photo, make and model, owner and route come from the portal's own lookup (cached on the server)
+  var info = {hex: null, callsign: null, data: null};
+  async function loadInfo(a) {
+    var cs = a.flight || "";
+    if (info.hex === a.hex && info.callsign === cs && info.reg === (a.r || "") && info.make === (a.desc || a.tl || "")) return;
+    info = {hex: a.hex, callsign: cs, reg: a.r || "", make: a.desc || a.tl || "", data: null};
+    var mine = info;
+    try {
+      var r = await fetch("/api/aircraft-info/" + a.hex + ".json?reg=" + encodeURIComponent(a.r || "") + "&make=" + encodeURIComponent(((a.desc || a.tl || "").split(" ")[0]) || "") + "&callsign=" + encodeURIComponent(cs) + (a.lat != null ? "&lat=" + a.lat + "&lon=" + a.lon : ""));
+      mine.data = r.ok ? await r.json() : {};
+    } catch (e) { mine.data = {}; }
+    if (info === mine) card();
+  }
+  function infoHtml(a) {
+    var d = info.hex === a.hex && info.data;
+    if (!d) return "";
+    var h = "";
+    if (d.route && d.route.airports && d.route.airports.length >= 2) {
+      var leg = routeOf(a) || {o: d.route.airports[0], t: d.route.airports[d.route.airports.length - 1]}, o = leg.o, t = leg.t, via = "";
+      var code = function (x) { return esc(x.iata || x.icao || "?"); }, place = function (x) { return esc(x.city || x.name || ""); };
+      h += '<div class="rt"><div>' + code(o) + "<small>" + place(o) + '</small></div><div class="arrow">✈' + (leg.via ? "<small>this leg of " + d.route.airports.map(function (x) { return esc(x.iata || x.icao || "?"); }).join(" › ") + "</small>" : "") +
+        '</div><div style="text-align:right">' + code(t) + "<small>" + place(t) + "</small></div></div><div id=\"c-prog\"></div>" + (d.route.airline ? '<div class="dim" style="font-size:.74rem;margin-top:4px">' + esc(d.route.airline) + "</div>" : "");
+      if (d.route.plausible === false) h += '<div class="dim" style="font-size:.72rem;margin-top:4px">This route does not fit the position of this aircraft, so it may belong to another flight.</div>';
+      else if (d.route.source === "callsign") h += '<div class="dim" style="font-size:.72rem;margin-top:4px">Typical route for this flight number; not confirmed.</div>';
+    }
+    if (d.photo && d.photo.src) {
+      h += '<div class="photo"><a href="' + esc(d.photo.link || "#") + '" target="_blank" rel="noopener"><img src="' + esc(d.photo.src) + '" alt="Aircraft photo" loading="lazy"></a><small>Photo by ' +
+        esc(d.photo.photographer || "unknown") + ' · <a href="' + esc(d.photo.link || "#") + '" target="_blank" rel="noopener">Planespotters.net</a></small></div>';
+    }
+    return h;
+  }
+  window.lvDebug = function () { return {routeKey: route.key, routePts: route.line ? route.line.getLatLngs().length : 0, trailLines: trailLines.size, metars: Object.keys(metars).length, airports: Object.keys(airportMarkers).length, coverage: coverageLayer.getLayers().length, hospitals: hospLayer.getLayers().length, watched: (function () { var n = 0; data.forEach(function (a) { if (a.watch) n++; }); return n; })(), selected: selected, labelsShown: labelsShown(), zoom: map.getZoom()}; };   // for the browser test
+  var openSecs = {Identification: true, Position: true};
+  try { var saved = JSON.parse(pref("secs") || "null"); if (saved) openSecs = saved; } catch (e) {}
+  $("c-body").addEventListener("toggle", function (e) {
+    var d = e.target; if (!d.classList || !d.classList.contains("csec")) return;
+    openSecs[d.dataset.k] = d.open; pref("secs", JSON.stringify(openSecs));
+  }, true);
+  $("c-route").addEventListener("click", function () { window.adsbSavePrefs({route: routeOn() ? "0" : "1"}); card(); });
+  // how the position of the selected aircraft is known, in plain words (readsb's "type" field says which source it came from)
+  var HOW = {
+    adsb: ["ADS-B (1090 MHz)", "The aircraft works out its own GPS position and broadcasts it. A station of the network received that broadcast directly."],
+    mlat: ["MLAT (multilateration)", "This aircraft does not broadcast its position, so the network calculated it: three or more stations noted the exact moment the same signal arrived, and the tiny timing differences give its location. Less exact than ADS-B and slightly delayed."],
+    tisb: ["TIS-B (ground radar relay)", "A ground station relayed this position from air-traffic radar. The aircraft did not report it itself."],
+    adsr: ["UAT / ADS-R", "This aircraft was heard on the 978 MHz UAT datalink used by US general aviation, or a ground station rebroadcast its report from UAT onto 1090 MHz (ADS-R). The hub reports both the same way."],
+    uat: ["UAT (978 MHz)", "Reported by the aircraft on the 978 MHz datalink used by general aviation below 18,000 ft in the US."],
+    adsc: ["ADS-C (satellite)", "Position reported by satellite or datalink rather than heard directly, mostly over oceans."],
+    modes: ["Mode S only", "The aircraft answers radar but does not broadcast a position. Nothing is known about where it is until enough stations hear it for MLAT to work it out."],
+    other: ["Other source", "The hub reports this position from a source that is not a standard ADS-B broadcast."]
+  };
+  var mlatNow = {hex: null, at: 0, d: null};
+  function howKind(a) {
+    var s = String(a.src || "");
+    if (s === "mlat") return "mlat";
+    if (s.indexOf("tisb") === 0) return "tisb";
+    if (s.indexOf("adsr") === 0) return "adsr";
+    if (s.indexOf("uat") === 0) return "uat";
+    if (s === "adsc") return "adsc";
+    if (s === "mode_s") return "modes";
+    if (s.indexOf("adsb") === 0) return "adsb";
+    return s ? "other" : null;
+  }
+  function howHtml(a) {
+    var k = howKind(a);
+    if (!k) return "";
+    var h = HOW[k], extra = "";
+    if (k === "mlat" || k === "modes") {
+      if (mlatNow.hex !== a.hex || Date.now() - mlatNow.at > 15000) {
+        mlatNow = {hex: a.hex, at: Date.now(), d: mlatNow.hex === a.hex ? mlatNow.d : null};
+        fetch("/api/mlat/aircraft/" + a.hex + ".json").then(function (r) { return r.ok ? r.json() : {}; }).then(function (d) { if (mlatNow.hex === a.hex) { mlatNow.d = d; card(); } }).catch(function () {});
+      }
+      var d = mlatNow.hex === a.hex && mlatNow.d;
+      if (d && d.stations_hearing != null) extra = "<br>Heard right now by " + d.stations_hearing + " station" + (d.stations_hearing === 1 ? "" : "s") + (d.mlat_positions ? "; " + d.mlat_positions.toLocaleString() + " MLAT positions calculated for it so far." : ".");
+    }
+    return '<div class="how ' + (k === "mlat" ? "mlat" : "") + '"><b>How it is tracked</b>' + esc(h[0]) + ". " + esc(h[1]) + extra + "</div>";
+  }
+  function card() {
+    var a = selected && data.get(selected);
+    $("lv-card").style.display = a ? "block" : "none";
+    $("lv").classList.toggle("has-card", !!a);
+    if (!a) { drawRoute(null); return; }
+    $("c-name").textContent = nm(a);
+    $("c-sub").textContent = [a.hex.toUpperCase(), a.r, a.t].filter(Boolean).join(" · ");
+    var keep = $("lv-card").scrollTop;
+    loadInfo(a);
+    var hw = howHtml(a);
+    if ($("c-how").dataset.sig !== hw) { $("c-how").innerHTML = hw; $("c-how").dataset.sig = hw; }
+    var ex = infoHtml(a);
+    if ($("c-extra").dataset.sig !== ex) { $("c-extra").innerHTML = ex; $("c-extra").dataset.sig = ex; }
+    drawRoute(a); updateProg(a);
+    // grouped like the classic map; Identification and Position open, the technical groups folded until wanted
+    var ICONS = {Identification: "✈", Position: "⌖", Signal: "≋", Speed: "➤", Direction: "↻", Autopilot: "⚙", Wind: "≈", Accuracy: "◎"};
+    $("c-body").innerHTML = sections(a).map(function (sec) {
+      var rows = sec[1].filter(function (r) { return r[1] != null && r[1] !== ""; });
+      return rows.length ? '<details class="csec" data-k="' + sec[0] + '"' + (openSecs[sec[0]] ? " open" : "") + '><summary><span class="ic">' + (ICONS[sec[0]] || "•") + "</span>" + sec[0] + '</summary><div class="k">' + rows.map(function (r) { return "<div>" + r[0] + "</div><div>" + esc(r[1]) + "</div>"; }).join("") + "</div></details>" : "";
+    }).join("");
+    $("lv-card").scrollTop = keep;
+    $("c-photos").href = "https://www.planespotters.net/hex/" + a.hex.toUpperCase();
+    $("c-fa").href = a.flight ? "https://flightaware.com/live/flight/" + encodeURIComponent(a.flight) : "https://flightaware.com/live/modes/" + a.hex + "/redirect";
+    $("c-fa").textContent = "Flight History";
+    $("c-trail").textContent = trailSel ? "Hide Trail" : "Show Trail";
+    $("c-route").textContent = routeOn() ? "Hide Route" : "Show Route";
+    $("c-route").style.display = routeOf(a) ? "" : "none";
+    $("c-tlabels").textContent = labelsOn() ? "Hide Labels" : "Show Labels";
+    $("c-lastleg").textContent = legOn() ? "All Flights" : "Last Flight Only";
+    $("c-focus").textContent = focusOnly() ? "Show Others" : "Hide Others";
+    $("f-focus").checked = focusOnly();
+    $("c-flight").href = "/flight/" + a.hex;
+    $("c-skyview").href = "/skyview/" + a.hex;
+    // alert rules: say which of the visitor's rules this aircraft matches (link to it), or offer to watch it
+    var wn = $("c-watch"), wb = $("c-watchbtn");
+    if (a.watch && a.watch.length) {
+      wn.style.display = "block";
+      wn.innerHTML = "★ Matches your alert" + (a.watch.length > 1 ? "s" : "") + ": " + a.watch.map(function (id) { return '<a href="/my/alerts#rule-' + id + '">' + esc((WATCHNAMES[id] || "alert " + id)) + "</a>"; }).join(", ");
+      wb.textContent = "My Alerts"; wb.href = "/my/alerts";
+    } else {
+      wn.style.display = "none";
+      wb.textContent = "Watch This Aircraft";
+      wb.href = M.signedIn ? "/my/alerts?kind=icao&value=" + a.hex.toUpperCase() + "&name=" + encodeURIComponent(nm(a)) : "/my/login?next=" + encodeURIComponent("/live?icao=" + a.hex);
+    }
+    if (follow && a.lat != null) map.panTo([a.lat, a.lon], {animate: true, duration: .8});
+  }
+
+  async function poll() {
+    if (past && past.replayOn()) return;   // the Replay is feeding the map
+    try {
+      var r = await fetch("/api/aircraft.json" + (chosen.size ? "?feeder=" + encodeURIComponent(Array.from(chosen).join(",")) : ""), {cache: "no-store"});
+      if (!r.ok) throw 0;
+      var d = await r.json();
+      if (past && past.replayOn()) return;
+      ingest(d);
+      if (chosen.size) {
+        var fl = d.filter || {};
+        $("lv-fnote").textContent = fl.available === false ? "The hub's receiver feed is not reachable, so feeders cannot be filtered right now." :
+          (fl.unknown && fl.unknown.length ? "Unknown station: " + fl.unknown.join(", ") + ". " : "") + "Showing only aircraft heard by the selected feeders.";
+      } else if ($("lv-fnote")) $("lv-fnote").textContent = "";
+    } catch (e) { $("lv-status").textContent = "Hub offline"; }
+  }
+  // a set of aircraft from the live feed or from the Replay (the same fields) becomes what the map, the list and the card show
+  function ingest(d) {
+    var prev = data;
+    data = new Map(d.aircraft.map(function (a) { return [a.hex, a]; }));
+    if (persist && !d.replay_jump) {   // persistence: what was on the map and is no longer heard stays, dimmed, until the time in Settings has passed
+      var keepMs = M.persistMinutes * 60000, nowMs = Date.now();
+      prev.forEach(function (a, hex) { if (!data.has(hex) && a.lat != null) { var since = a.ghostAt || nowMs; if (nowMs - since < keepMs) data.set(hex, Object.assign({}, a, {ghost: true, ghostAt: since})); } });
+    }
+    srcCounts(); kindCounts();
+    WATCHNAMES = d.watch_rules || {};
+    d.aircraft.forEach(function (a) {
+      if (a.lat == null || M.trail <= 0) return;
+      var pts = trails.get(a.hex) || [];
+      var last = pts[pts.length - 1];
+      if (!last || last[0] !== a.lat || last[1] !== a.lon) pts.push([a.lat, a.lon]);
+      if (pts.length > M.trail) pts.shift();
+      trails.set(a.hex, pts);
+    });
+    trails.forEach(function (_, hex) { if (!data.has(hex)) trails.delete(hex); });
+    $("lv-status").textContent = d.replay ? "Replay · " + d.aircraft.length + " aircraft" : "Live · " + (d.totals.messages_per_second | 0) + " msg/s";
+    render();
+  }
+
+  // places: while you type, matching cities, ZIP codes and counties are offered; Enter on text that matches nothing else goes to the first one
+  var placeTimer = null, placeSeq = 0, placeList = [];
+  function goPlace(p) { map.setView([p.lat, p.lon], p.zoom); $("lv-places").style.display = "none"; }
+  async function findPlaces() {
+    var t = $("q").value.trim(), box = $("lv-places"), my = ++placeSeq;
+    if (t.length < 2 || /^[0-9a-f]{6}$/i.test(t) || t.indexOf("*") >= 0 || t.charAt(0) === "!") { placeList = []; box.style.display = "none"; return; }
+    try {
+      var c = map.getCenter(), r = await fetch("/api/places/search.json?q=" + encodeURIComponent(t) + "&lat=" + c.lat.toFixed(2) + "&lon=" + c.lng.toFixed(2));
+      if (my !== placeSeq || !r.ok) return;
+      placeList = (await r.json()).results || [];
+      box.innerHTML = "";
+      placeList.slice(0, 5).forEach(function (p) {
+        var a = document.createElement("a"); a.href = "#"; a.innerHTML = "<b></b><span></span>"; a.firstChild.textContent = p.label; a.lastChild.textContent = {place: "city or town", zip: "ZIP code", county: "county"}[p.kind] || "";
+        a.addEventListener("click", function (e) { e.preventDefault(); goPlace(p); }); box.appendChild(a);
+      });
+      box.style.display = placeList.length ? "" : "none";
+    } catch (e) { box.style.display = "none"; }
+  }
+  $("q").addEventListener("input", function () { clearTimeout(placeTimer); placeTimer = setTimeout(findPlaces, 250); });
+  // earlier flights: while you type in the search box, the portal's flight history is searched too
+  var histTimer = null, histSeq = 0;
+  $("q").addEventListener("input", function () {
+    clearTimeout(histTimer);
+    var t = this.value.trim(), box = $("lv-hist");
+    if (t.length < 3) { box.style.display = "none"; return; }
+    histTimer = setTimeout(async function () {
+      var seq = ++histSeq, d;
+      try { d = await (await fetch("/api/history/flights.json?limit=6&q=" + encodeURIComponent(t), {cache: "no-store"})).json(); } catch (e) { return; }
+      if (seq !== histSeq) return;
+      var fl = d.flights || [];
+      if (!fl.length) { box.style.display = "none"; return; }
+      box.innerHTML = "<h6>Earlier flights</h6>" + fl.map(function (f) {
+        return '<a href="/flight/' + f.hex + "?at=" + Math.round(f.first + 1) + '"><span>' + (window.ADSB_MARK ? ADSB_MARK.html({flight: f.callsign, mil: f.mil}) : "") + "<b>" + esc(f.callsign || f.reg || f.hex.toUpperCase()) + "</b> " + esc(f.reg || "") + " " + esc(f.type || "") + '</span><span class="m">' + window.fmtTime(new Date(f.first * 1000), "dt") + "</span></a>";
+      }).join("") + '<a href="/history/?q=' + encodeURIComponent(t) + '" class="m" style="justify-content:flex-end">More in Flight History &rarr;</a>';
+      box.style.display = "block";
+    }, 350);
+  });
+  ["q", "f-mil", "f-ground", "f-pos", "f-nopos", "f-view", "f-min", "f-max", "l-trails", "f-watch"].forEach(function (id) { $(id).addEventListener("input", render); });
+  (function () {
+    var sel = $("l-icons"), mine = (window.PREFS || {}).iconScale || "";
+    sel.insertAdjacentHTML("afterbegin", '<option value="">Site default</option>');
+    sel.value = mine;
+    sel.addEventListener("change", function () { window.adsbSavePrefs({iconScale: sel.value}); render(); });
+    map.on("zoomend", function () { render(); });
+  })();
+  function buildFields() {
+    $("l-fields").style.display = labelMode === "custom" ? "grid" : "none";
+    $("l-fields").innerHTML = LABELFIELDS.map(function (f) { return '<label><input type="checkbox" data-f="' + f[0] + '"' + (labelFields.has(f[0]) ? " checked" : "") + "> " + f[1] + "</label>"; }).join("");
+  }
+  $("l-labels").value = labelMode; buildFields();
+  $("l-labels").addEventListener("change", function () {
+    labelMode = this.value;
+    if (labelMode !== "custom") labelFields = new Set(PRESETS[labelMode] || []); else { try { labelFields = new Set(JSON.parse(pref("labelFields") || '["callsign"]')); } catch (e) { labelFields = new Set(["callsign"]); } }
+    pref("labels", labelMode); buildFields(); rebuildMarkers();
+  });
+  applyLabelLook();
+  // keyboard: the same keys tar1090 uses where we have the feature, ignored while typing
+  var dimOn = false, labelsBefore = null;
+  function clickIf(id) { var e = $(id); if (e && e.offsetParent !== null) e.click(); }
+  function flip(id) { var e = $(id); e.checked = !e.checked; e.dispatchEvent(new Event("input")); }
+  function setLabelMode(v) { var s = $("l-labels"); s.value = v; s.dispatchEvent(new Event("change")); }
+  document.body.appendChild($("lv-keys"));   // outside the map's stacking context so it really is on top of everything
+  $("lv-keys").addEventListener("click", function (e) { if (e.target === this) showKeys(false); });
+  function showKeys(on) { $("lv-keys").style.display = on === undefined ? ($("lv-keys").style.display === "none" ? "flex" : "none") : (on ? "flex" : "none"); }
+  $("lv-keyslink").addEventListener("click", function (e) { e.preventDefault(); showKeys(true); });
+  $("lv-keysclose").addEventListener("click", function () { showKeys(false); });
+  window.addEventListener("keydown", function (e) {
+    if (e.ctrlKey || e.altKey || e.metaKey || e.defaultPrevented) return;
+    var t = e.target, tag = t && t.nodeName;
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (t && t.isContentEditable)) return;
+    var k = e.key, step = 120, used = true;
+    if (k === "Escape") { if ($("lv-keys").style.display !== "none") showKeys(false); else if (multi.size) { setMulti(false); clearSelection(); } else clickIf("c-close"); }
+    else if (k === "m" || k === "M") setMulti(!multiOn);
+    else if (k === "t" || k === "T") selectAll();
+    else if (k === "p" || k === "P") { $("f-persist").checked = !$("f-persist").checked; $("f-persist").dispatchEvent(new Event("change")); }
+    else if (k === "f" || k === "F") clickIf("c-follow");
+    else if (k === "i" || k === "I") { if (selected) clickIf("c-focus"); else flip("f-focus"); }
+    else if (k === "u" || k === "U") flip("f-mil");
+    else if (k === "v" || k === "V") flip("f-view");
+    else if (k === "g" || k === "G") flip("f-nopos");
+    else if (k === "a" || k === "A") flip("f-auto");
+    else if (k === "l" || k === "L") { if (labelMode !== "off") { labelsBefore = labelMode; setLabelMode("off"); } else setLabelMode(labelsBefore || "badge"); }
+    else if (k === "o" || k === "O") setLabelMode(labelMode === "detail" ? (labelsBefore && labelsBefore !== "detail" ? labelsBefore : "badge") : (labelsBefore = labelMode, "detail"));
+    else if (k === "k" || k === "K") clickIf("c-tlabels");
+    else if (k === "b" || k === "B") { dimOn = !dimOn; $("lvmap").classList.toggle("dim", dimOn); }
+    else if (k === "r" || k === "R") poll();
+    else if (k === "H") { var l = $("lv-left"); l.style.display = l.style.display === "none" ? "" : "none"; }
+    else if (k === "h") homeView();
+    else if (k === "q" || k === "Q" || k === "-" || k === "_") map.zoomOut();
+    else if (k === "e" || k === "E" || k === "+" || k === "=") map.zoomIn();
+    else if (k === "ArrowUp") map.panBy([0, -step]);
+    else if (k === "ArrowDown") map.panBy([0, step]);
+    else if (k === "ArrowLeft") map.panBy([-step, 0]);
+    else if (k === "ArrowRight") map.panBy([step, 0]);
+    else if (k === "/") { $("q").focus(); }
+    else if (k === "?") showKeys();
+    else used = false;
+    if (used) e.preventDefault();
+  });
+  // jump: Enter in the search box with a coordinate pair, an aircraft hex or an airport code moves the map there
+  $("q").addEventListener("keydown", async function (e) {
+    if (e.key !== "Enter") return;
+    var t = this.value.trim(), m = /^(-?\d+(?:\.\d+)?)\s*[, ]\s*(-?\d+(?:\.\d+)?)$/.exec(t);
+    if (m && Math.abs(+m[1]) <= 90 && Math.abs(+m[2]) <= 180) { map.setView([+m[1], +m[2]], Math.max(map.getZoom(), 11)); this.value = ""; render(); return; }
+    if (/^[0-9a-f]{6}$/i.test(t) && data.has(t.toLowerCase())) { select(t.toLowerCase()); this.value = ""; render(); return; }
+    if (placeList.length && !Array.from(data.values()).some(function (a) { return passes(a); }) && !/^[A-Za-z0-9]{3,4}$/.test(t)) { goPlace(placeList[0]); this.value = ""; render(); return; }
+    if (/^[A-Za-z0-9]{3,4}$/.test(t) && !Array.from(data.values()).some(function (a) { return passes(a); })) {
+      try {
+        var r = await fetch("/api/airports/" + encodeURIComponent(t.toUpperCase()) + ".json");
+        if (r.ok) { var ap = await r.json(); if (ap.lat != null) { map.setView([ap.lat, ap.lon], 12); this.value = ""; render(); } }
+      } catch (x) {}
+    }
+  });
+  function viewUrl() {
+    var c = map.getCenter(), p = new URLSearchParams();
+    p.set("lat", c.lat.toFixed(4)); p.set("lon", c.lng.toFixed(4)); p.set("zoom", String(map.getZoom()));
+    if (multi.size > 1) p.set("icao", Array.from(multi).join(",")); else if (selected) p.set("icao", selected);
+    if ($("q").value.trim()) p.set("q", $("q").value.trim());
+    var mn = parseFloat($("f-min").value), mx = parseFloat($("f-max").value);
+    if (!isNaN(mn)) p.set("altMin", String(Math.round(mn / U("alt")[0]))); if (!isNaN(mx)) p.set("altMax", String(Math.round(mx / U("alt")[0])));
+    if (srcOff.size) p.set("srcOff", Array.from(srcOff).join(","));
+    if (flagMask) p.set("flags", String(flagMask));
+    if (kindOn.size) p.set("types", Array.from(kindOn).join(","));
+    if (unitKey !== M.units) p.set("units", unitKey);
+    if (past) past.params(p);
+    return location.origin + "/live?" + p.toString();
+  }
+  if (window.ArkDrive) ArkDrive.init({map: map});
+  if (window.ArkLocate) ArkLocate.init({map: map});
+  if (window.ArkCounties) ArkCounties.init({map: map, box: document.getElementById("l-county")});
+  window.arkMap = map; window.arkViewURL = viewUrl;   // for the one search and the saved views (static/mapsearch.js, static/mapviews.js)
+  $("lv-sharelink").addEventListener("click", function () {
+    var url = viewUrl(), note = $("lv-sharenote");
+    var done = function () { note.textContent = "Link copied."; setTimeout(function () { note.textContent = ""; }, 3000); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, function () { window.prompt("Copy this link:", url); });
+    else window.prompt("Copy this link:", url);
+  });
+  // links and bookmarks: the view, the selected aircraft and the filters can all come from the address
+  function applyUrl() {
+    var q = new URLSearchParams(location.search), lat = parseFloat(q.get("lat")), lon = parseFloat(q.get("lon")), z = parseFloat(q.get("zoom"));
+    if (!isNaN(lat) && !isNaN(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) map.setView([lat, lon], !isNaN(z) ? Math.min(18, Math.max(1, z)) : map.getZoom());
+    if (q.get("units") && UNITSETS[q.get("units")]) { unitKey = q.get("units"); applyUnits(); }
+    if (q.get("q")) $("q").value = q.get("q");
+    if (q.get("mil") === "1") { $("f-mil").checked = true; readFlags(); }   // old links
+    var amn = parseFloat(q.get("altMin")), amx = parseFloat(q.get("altMax"));
+    if (!isNaN(amn)) $("f-min").value = Math.round(amn * U("alt")[0]); if (!isNaN(amx)) $("f-max").value = Math.round(amx * U("alt")[0]);
+    if (q.get("srcOff")) { srcOff = new Set(q.get("srcOff").split(",").filter(Boolean)); document.querySelectorAll("#f-sources input").forEach(function (cb) { cb.checked = !srcOff.has(cb.dataset.src); }); }
+    var fl = parseInt(q.get("flags"), 10);
+    if (fl > 0) { flagMask = fl & 63; document.querySelectorAll("#f-flags input").forEach(function (cb) { cb.checked = !!(flagMask & parseInt(cb.dataset.flag, 10)); }); }
+    if (past) past.apply(q);
+    if (q.get("types")) { kindOn = new Set(q.get("types").split(",").filter(Boolean)); document.querySelectorAll("#f-kinds input").forEach(function (cb) { cb.checked = kindOn.has(cb.dataset.kind); }); }
+    if (q.has("hideSidebar") || q.has("hideButtons")) $("lv-left").style.display = "none";
+    // "Show on Map" links from a place's page: switch that kind of place on and ring the spot
+    (q.get("layers") || "").split(",").forEach(function (k) { var cb = $({airports: "l-airports", hospitals: "l-hospitals", counties: "l-counties", sondes: "l-sondes", weather: "l-wxstations", "weather-air": "l-wxair"}[k] || "none"); if (cb && !cb.checked) { cb.checked = true; cb.dispatchEvent(new Event("change")); } });
+    if (onlyPlace) { ["l-stations", "l-coverage", "l-rings", "l-wxair"].forEach(function (id) { var c = $(id); if (c && c.checked) { c.checked = false; c.dispatchEvent(new Event("change")); } }); }   // the feeders and the other layers are not "only that place"
+    if (q.get("pin") === "1" && !isNaN(lat) && !isNaN(lon)) { L.circleMarker([lat, lon], {radius: 22, color: "#ffd24f", weight: 3, fillOpacity: 0, interactive: false}).addTo(map); }
+  }
+  // hover block (tar1090's mouse-over block): callsign, type, altitude, speed and source of the aircraft under the pointer
+  function hoverOn() { return pref("hover") !== "0"; }
+  var hoverEl = document.createElement("div");
+  hoverEl.style.cssText = "position:absolute;z-index:1100;display:none;pointer-events:none;padding:4px 8px;border-radius:6px;background:rgba(10,18,28,.94);border:1px solid var(--line);font-size:.78rem;max-width:260px";
+  $("lv").appendChild(hoverEl);
+  function showHover(hex, ev) {
+    var b = data.get(hex); if (!b) return;
+    var p = map.latLngToContainerPoint(ev.latlng);
+    hoverEl.innerHTML = hoverHtml(b); hoverEl.style.left = (p.x + 14) + "px"; hoverEl.style.top = Math.max(4, p.y - 38) + "px"; hoverEl.style.display = "block";
+  }
+  function hoverHtml(a) {
+    var bits = [a.t, a.alt != null ? (a.gnd ? "GND" : fAlt(qAlt(a)) + " " + U("alt")[1]) : "", a.gs != null ? fSpd(a.gs) + " " + U("spd")[1] : "", (HOW[howKind(a)] || [""])[0].split(" (")[0]].filter(Boolean);
+    return "<b>" + esc(nm(a)) + "</b><br>" + esc(bits.join(" · "));
+  }
+  // wide details card (tar1090's Wide Infoblock) and reset
+  function applyWide() { $("lv-left").style.width = pref("wide") === "1" ? "min(560px, calc(100% - 24px))" : ""; $("c-wide").textContent = pref("wide") === "1" ? "Narrow" : "Wide"; }
+  $("c-wide").addEventListener("click", function () { pref("wide", pref("wide") === "1" ? "0" : "1"); applyWide(); });
+  applyWide();
+  $("lv-hover").checked = hoverOn();
+  $("lv-hover").addEventListener("change", function () { pref("hover", this.checked ? "1" : "0"); rebuildMarkers(); });
+  $("lv-reset").addEventListener("click", function () {
+    if (!window.confirm("Reset all of your map settings in this browser (filters, columns, labels, units, layout) to the site defaults?")) return;
+    try { Object.keys(localStorage).filter(function (k) { return k.indexOf("lv.") === 0 || k.indexOf("ark.wx") === 0; }).forEach(function (k) { localStorage.removeItem(k); }); } catch (e) {}
+    location.href = "/live";
+  });
+  // the altitude scale under the map: always visible, built from the same colour stops as the aircraft, labelled in the chosen units
+  function buildAltBar() {
+    var top = STOPS[STOPS.length - 1][0];
+    $("lv-altgrad").style.background = "linear-gradient(90deg," + STOPS.map(function (st) { return "rgb(" + st[1].join(",") + ") " + (st[0] / top * 100).toFixed(1) + "%"; }).join(",") + ")";
+    $("lv-altname").textContent = "Altitude (" + U("alt")[1] + ")";
+    $("lv-alticks").innerHTML = [0, 10000, 20000, 30000, 40000].map(function (ft) {
+      var v = Math.round(ft * U("alt")[0] / 1000);
+      return '<span style="left:' + (ft / top * 100).toFixed(1) + '%">' + (ft ? v + "k" : "0") + (ft === 40000 ? "+" : "") + "</span>";
+    }).join("");
+  }
+  function applyUnits() {
+    buildAltBar();
+    var al = $("f-altlbl"); if (al) al.textContent = "Altitude (" + U("alt")[1] + ")";
+    if (typeof wxs !== "undefined" && wxs) wxs.setUnits(unitKey === "metric" ? "metric" : "imperial");
+    unitHeaders(); $("l-units").value = unitKey; if (typeof updateChart === "function") updateChart();
+  }
+  applyUnits();
+  $("l-units").addEventListener("change", function () {
+    unitKey = UNITSETS[this.value] ? this.value : "imperial"; ArkUnits.save(unitKey); applyUnits(); rebuildMarkers(); card();
+  });
+  $("l-qnh").value = qnhMode; $("l-qnh-row").style.display = qnhMode === "set" ? "" : "none"; $("l-qnh-v").value = String(qnhSet);
+  function qnhChanged() { pref("qnh", qnhMode); pref("qnhv", String(qnhSet)); $("l-qnh-row").style.display = qnhMode === "set" ? "" : "none"; rebuildMarkers(); card(); render(); }
+  $("l-qnh").addEventListener("change", function () { qnhMode = this.value; qnhChanged(); });
+  $("l-qnh-v").addEventListener("change", function () { var v = parseFloat(this.value); if (v >= 900 && v <= 1100) { qnhSet = v; qnhChanged(); } });
+  $("l-lscale").addEventListener("change", function () { pref("lscale", this.value); applyLabelLook(); rebuildMarkers(); });
+  $("l-lbg").addEventListener("change", function () { pref("lbg", this.value); applyLabelLook(); });
+  $("l-fields").addEventListener("change", function (e) {
+    var f = e.target.dataset.f; if (!f) return;
+    if (e.target.checked) labelFields.add(f); else labelFields.delete(f);
+    pref("labelFields", JSON.stringify(Array.from(labelFields))); rebuildMarkers();
+  });
+  map.on("moveend", function () { if ($("f-view").checked) render(); });
+  $("lv-rows").addEventListener("click", function (e) { var it = e.target.closest("tr.it"); if (it) select(it.dataset.hex); });
+  $("lv-tbl").tHead.addEventListener("click", function (e) { var th = e.target.closest("th"); if (!th) return; var k = th.dataset.k; if (sortKey === k) sortDir = -sortDir; else { sortKey = k; sortDir = COLS[k].dir || -1; } render(); });
+  $("c-close").addEventListener("click", function () { clearSelection(); });
+  $("c-follow").addEventListener("click", function () { follow = !follow; this.textContent = follow ? "Stop Following" : "Follow"; card(); });
+  $("c-trail").addEventListener("click", function () { trailSel = !trailSel; drawTrails(); loadTrace(true); card(); });
+  function setFocus(on) { forceOnly = false; window.adsbSavePrefs({focusOnly: on ? "1" : "0"}); render(); }
+  $("c-focus").addEventListener("click", function () { setFocus(!focusOnly()); });
+  $("f-focus").addEventListener("change", function () { setFocus(this.checked); });
+  $("c-lastleg").addEventListener("click", function () { window.adsbSavePrefs({lastLeg: legOn() ? "0" : "1"}); this.textContent = legOn() ? "All Flights" : "Last Flight Only"; });
+  $("c-tlabels").addEventListener("click", function () { window.adsbSavePrefs({trailLabels: labelsOn() ? "0" : "1"}); this.textContent = labelsOn() ? "Hide Labels" : "Show Labels"; });
+  var PANELS_OPEN = {{ 'true' if map_panels_open else 'false' }};
+  function listVisible(show) { $("lv-list").style.display = show ? "flex" : "none"; $("lv-hide").style.display = show ? "none" : "block"; }
+  $("lv-listhide").addEventListener("click", function () { listVisible(false); });
+  $("lv-hide").addEventListener("click", function () { listVisible(true); });
+  listVisible({{ 'true' if map_panels_open else 'false' }});   // closed or open when the page loads: Settings > Map Tiles and Weather (list, filters and legend)
+  $("lv-colbtn").addEventListener("click", function () { var c = $("lv-cols"); c.style.display = c.style.display === "grid" ? "none" : "grid"; });
+  $("lv-cols").addEventListener("change", function () {
+    cols = Object.keys(COLS).filter(function (k) { return $("col-" + k).checked; });
+    if (!cols.length) { cols = ["callsign"]; buildColumnPicker(); }
+    pref("cols", cols.join(",")); render();
+  });
+  map.on("dragstart", function () { follow = false; $("c-follow").textContent = "Follow"; });
+
+  // ---- map layers and the Weather panel: shared with the Weather Map (static/maplayers.js); the winds measured by the aircraft are this page's own tile
+  var windOn = false, windBand = "all", windLayer = L.layerGroup();
+  function windColor(kt) { return kt < 15 ? "#9fd3ff" : kt < 35 ? "#4fb3ff" : kt < 60 ? "#3ee6a8" : kt < 90 ? "#e8d51d" : kt < 120 ? "#f5a623" : "#e83e8c"; }
+  function inBand(alt) { if (alt == null) return false; return windBand === "all" || (windBand === "low" && alt < 10000) || (windBand === "mid" && alt >= 10000 && alt < 25000) || (windBand === "high" && alt >= 25000); }
+  function drawWinds() {
+    if (!windLayer) return;
+    windLayer.clearLayers();
+    if (!windOn) return;
+    var cells = {};
+    data.forEach(function (a) {
+      if (a.lat == null || a.ws == null || a.wd == null || a.gnd || !inBand(a.alt)) return;
+      var key = Math.round(a.lat * 2) + "," + Math.round(a.lon * 2);   // one arrow per half-degree cell (drawn at the cell centre, like a wind field), so the map stays readable
+      if (cells[key] && cells[key].ws >= a.ws) return;
+      cells[key] = a;
+    });
+    Object.keys(cells).forEach(function (k) {
+      var a = cells[k], col = windColor(a.ws), blow = (a.wd + 180) % 360;
+      var svg = '<svg class="wx-wind" viewBox="0 0 34 34"><circle cx="17" cy="17" r="15" fill="rgba(7,16,24,.82)" stroke="' + col + '" stroke-width="2"/><g style="transform-origin:17px 17px;transform:rotate(' + blow + 'deg)"><path d="M17 5 L24 19 L18.5 16.5 L18.5 28 L15.5 28 L15.5 16.5 L10 19 Z" fill="' + col + '" stroke="#071018" stroke-width="1" stroke-linejoin="round"/></g></svg><div style="position:absolute;left:0;right:0;top:35px;text-align:center;color:#fff;font:700 .68rem JetBrains Mono,monospace;text-shadow:0 0 3px #000,0 0 3px #000">' + Math.round(a.ws) + "</div>";
+      var cl = k.split(",").map(function (v) { return v / 2; });
+      L.marker(cl, {icon: L.divIcon({className: "", iconSize: [34, 34], iconAnchor: [17, 17], html: svg}), keyboard: false, zIndexOffset: -500})
+        .bindTooltip("Wind from " + Math.round(a.wd) + "° at " + fSpd(a.ws) + " " + U("spd")[1] + ", " + (a.alt != null ? fAlt(a.alt) + " " + U("alt")[1] : "") + " (measured by " + esc(nm(a)) + ")", {className: "lv-tip", direction: "top"}).addTo(windLayer);
+    });
+  }
+  var AL = ArkLayers.init({map: map, $: $, esc: esc, LAYERS: LAYERS, M: M, onLegend: function () { renderLegend(); }, foldSync: function () { foldSync(); },
+    closeOthers: function () { filters(false); if (legBtn && legBtn.getAttribute("aria-expanded") === "true") legOpen(false); },
+    extraHtml: function () {
+      var stn = wxs ? '<h4>Weather Stations</h4><div class="wx-tile" id="wx-stations"><div class="wx-thumb" style="display:flex;align-items:center;justify-content:center;pointer-events:none"><svg class="wxi" style="width:38px;height:38px;color:var(--acc)"><use href="#wxi-compass"/></svg></div>' +
+        '<div class="wx-info"><b>Station Weather</b><span>Wind, temperature, rain and more from the weather stations of members. Each station is a small wind rose; the arrow points the way the wind is blowing.</span></div>' +
+        '<label class="wx-sw"><input type="checkbox" id="wx-stn-on" aria-label="Weather stations"><i></i></label><div class="wx-ctl" id="wx-stn-ctl"></div></div>' : "";
+      return stn + "<h4>Winds</h4>" + '<div class="wx-tile" id="wx-winds"><div class="wx-thumb" style="display:flex;align-items:center;justify-content:center;pointer-events:none"><svg class="wx-wind" viewBox="0 0 30 30" style="width:40px;height:40px;transform:rotate(60deg)"><path d="M15 3 L22 17 L16.5 14.5 L16.5 27 L13.5 27 L13.5 14.5 L8 17 Z" fill="#3ee6a8" stroke="#071018" stroke-width="1.2" stroke-linejoin="round"/></svg></div>' +
+      '<div class="wx-info"><b>Winds Aloft</b><span>Arrows show where the wind is blowing, measured by the aircraft overhead. Colour is speed.</span></div>' +
+      '<label class="wx-sw"><input type="checkbox" id="wx-wind-on" aria-label="Winds aloft"><i></i></label>' +
+      '<div class="wx-ctl"><select id="wx-band"><option value="all">All altitudes</option><option value="low">Below ' + ArkUnits.avia.alt(10000, 0) + '</option><option value="mid">' + ArkUnits.avia.alt(10000, 0) + ' to ' + ArkUnits.avia.alt(25000, 0) + '</option><option value="high">Above ' + ArkUnits.avia.alt(25000, 0) + '</option></select></div></div>';
+    // h = h.replace("<h4>Winds</h4>", "<h4>Winds</h4>");
+    },
+    onSync: function () {
+      var wt = document.getElementById("wx-winds"); if (wt) wt.classList.toggle("on", windOn);
+      var st = document.getElementById("wx-stations"); if (st && $("l-wxstations")) { st.classList.toggle("on", $("l-wxstations").checked); $("wx-stn-on").checked = $("l-wxstations").checked; }
+    },
+    afterBuild: function () { var c = $("wx-stn-ctl"); if (c && wxs) { c.innerHTML = '<div style="width:100%">' + wxs.controlsHtml(false) + wxs.displayHtml() + '<div class="dim" style="font-size:.74rem;margin-top:6px"><a href="/weather/map">Open the full weather map</a></div></div>'; wxs.bind(c); } },
+    onChange: function (e) {
+      if (e.target.id === "wx-stn-on") { var cb = $("l-wxstations"); if (cb) { cb.checked = e.target.checked; cb.dispatchEvent(new Event("change")); if (e.target.checked && !wxs.state.arrows) wxs.set("arrows", true); } AL.sync(); return true; }
+      if (e.target.id === "wx-wind-on") { windOn = e.target.checked; if (windOn) windLayer.addTo(map); else map.removeLayer(windLayer); $("wx-winds").classList.toggle("on", windOn); drawWinds(); return true; }
+      if (e.target.id === "wx-band") { windBand = e.target.value; drawWinds(); return true; }
+      return false;
+    }});
+  var wxOpen = AL.wxOpen;
+  window.lvWx = function () { return {built: AL.built(), tiles: document.querySelectorAll("#lv-wx .wx-tile[data-slug]").length, windArrows: windLayer.getLayers().length, windOn: windOn}; };   // for the browser test
+
+  // ---- feeder filter: show only the aircraft chosen feeders are hearing (the portal reads the hub's per-receiver feed)
+  (function () {
+    var box = $("lv-feeders");
+    if (!M.feederFilter) { box.previousElementSibling.style.display = "none"; box.style.display = "none"; return; }
+    if (!ALLSTATIONS.length) { box.innerHTML = '<div class="note dim" style="font-size:.78rem">Stations appear here once their owners have claimed and named them.</div>'; return; }
+    var sorted = ALLSTATIONS.slice().sort(function (a, b) { return (b.online - a.online) || a.id.localeCompare(b.id); });
+    box.innerHTML = '<div class="items">' + sorted.map(function (s) {
+      return '<label><input type="checkbox" class="lv-fd" value="' + esc(s.id) + '"' + (chosen.has(s.id) ? " checked" : "") + "> " + esc(s.id) +
+        ' <span class="dim" style="font-size:.72rem">' + (s.name && s.name !== s.id ? esc(s.name) : "") + (s.online ? "" : (s.name && s.name !== s.id ? " " : "") + "(offline)") + "</span></label>";
+    }).join("") + '</div><div class="note" id="lv-fnote"></div>' +
+      '<div class="lv-row"><button class="btn small neutral" type="button" id="lv-fclear" style="margin:0">Show All Feeders</button></div>';
+    function sync() {
+      var ids = Array.from(chosen);
+      try { history.replaceState(null, "", location.pathname + (ids.length && location.pathname === "/live" ? "?feeder=" + encodeURIComponent(ids.join(",")) : "")); } catch (e) {}
+      poll();
+    }
+    box.addEventListener("change", function (e) {
+      if (!e.target.classList.contains("lv-fd")) return;
+      e.target.checked ? chosen.add(e.target.value) : chosen.delete(e.target.value);
+      sync();
+    });
+    $("lv-fclear").addEventListener("click", function () {
+      chosen.clear(); box.querySelectorAll(".lv-fd").forEach(function (c) { c.checked = false; }); sync();
+    });
+  })();
+
+  // layers
+  var airportLayer = L.layerGroup().addTo(map), stationLayer = L.layerGroup().addTo(map), ringLayer = L.layerGroup();
+  STATIONS.forEach(function (s) {
+    var color = s.online ? "#3ee6a8" : "#8a9bb3";
+    var shape = s.approx ? L.circle([s.lat, s.lon], {radius: s.radius_m || M.radius_m, color: color, weight: 1, fillOpacity: .2}) : L.circleMarker([s.lat, s.lon], {radius: 6, color: color, fillOpacity: .7});
+    shape.bindPopup("<b>" + s.id + "</b><br>" + s.name.replace(/</g, "&lt;") + '<br><a href="/feeders/' + encodeURIComponent(s.id) + '">View station</a>').addTo(stationLayer);
+    if (!s.approx && window.Colocate) Colocate.track(map, "adsb", shape, s.lat, s.lon);   // fanned out when a weather or balloon station stands at the same place
+  });
+  for (var n = M.ring; n <= M.range; n += M.ring) L.circle([M.lat, M.lon], {radius: n * 1852, color: "#4fb3ff", weight: 1, opacity: .35, fill: false, interactive: false}).addTo(ringLayer);
+  $("l-stations").addEventListener("change", function () { this.checked ? stationLayer.addTo(map) : map.removeLayer(stationLayer); });
+  $("l-rings").addEventListener("change", function () { this.checked ? ringLayer.addTo(map) : map.removeLayer(ringLayer); });
+
+  var CATCOLOR = {VFR: "#3ee6a8", MVFR: "#4fb3ff", IFR: "#ff6b6b", LIFR: "#e83e8c"}, airportMarkers = {}, metars = {};
+  $("l-wxair").checked = (pref("wxair") != null ? pref("wxair") === "1" : M.wxAirports);
+  function wxHtml(m) {
+    if (!m) return "";
+    var wind = m.wspd == null ? "" : (m.wdir === "VRB" || m.wdir == null ? "Variable" : m.wdir + "°") + " at " + m.wspd + (m.wgst ? "G" + m.wgst : "") + " kt";
+    var ceil = (m.clouds || []).filter(function (c) { return c.base != null && (c.cover === "BKN" || c.cover === "OVC" || c.cover === "OVX"); })[0];
+    var bits = [wind, m.vis != null ? "vis " + m.vis + " SM" : "", ceil ? "ceiling " + ceil.base.toLocaleString() + " ft" : "", m.temp != null ? Math.round(m.temp) + "°C" + (m.dewp != null ? " / " + Math.round(m.dewp) + "°" : "") : "",
+      m.altim != null ? (m.altim * 0.02953).toFixed(2) + " inHg" : ""].filter(Boolean).join(" · ");
+    return '<div style="margin-top:6px"><span class="wxcat" style="background:' + (CATCOLOR[m.cat] || "#8a9bb3") + '">' + esc(m.cat || "?") + "</span>" + esc(bits) + '</div><div class="mtr">' + esc((m.raw || "").replace(/^METAR /, "")) + "</div>" +
+      (m.obs ? '<div class="dim" style="font-size:.7rem">Observed ' + window.fmtTime(new Date(m.obs * 1000), "ts") + "</div>" : "");
+  }
+  async function loadMetars(b) {
+    if (!$("l-wxair").checked) { metars = {}; styleAirports(); return; }
+    try {
+      var d = await (await fetch("/api/metars.json?south=" + b.getSouth() + "&west=" + b.getWest() + "&north=" + b.getNorth() + "&east=" + b.getEast())).json();
+      metars = d.metars || {};
+    } catch (e) { metars = {}; }
+    styleAirports();
+  }
+  function styleAirports() {
+    Object.keys(airportMarkers).forEach(function (id) {
+      var m = metars[id], mk = airportMarkers[id];
+      if (m && m.cat) mk.setStyle({fillColor: CATCOLOR[m.cat] || "#8a9bb3", radius: mk._big ? 6.5 : 5, weight: 1.5});
+      else mk.setStyle({fillColor: mk._big ? "#4fb3ff" : "#8a9bb3", radius: mk._big ? 5 : 3.5, weight: 1});
+      mk.setTooltipContent(id + (m && m.cat ? " · " + m.cat : ""));
+    });
+  }
+  setInterval(function () { if ($("l-wxair").checked) loadMetars(map.getBounds()); }, Math.max(1, M.wxRefresh) * 60000);   // the same refresh as the weather layers
+  $("l-wxair").addEventListener("change", function () { pref("wxair", this.checked ? "1" : "0"); loadMetars(map.getBounds()); });
+  var airportTimer = null, airportSeq = 0;
+  async function loadAirports() {
+    airportLayer.clearLayers(); airportMarkers = {};
+    if (!$("l-airports").checked) return;
+    var b = map.getBounds(), seq = ++airportSeq;
+    try {
+      var r = await fetch("/api/airports.json?south=" + b.getSouth() + "&west=" + b.getWest() + "&north=" + b.getNorth() + "&east=" + b.getEast() + "&z=" + map.getZoom());
+      var d = await r.json();
+      if (seq !== airportSeq) return;
+      (d.airports || []).forEach(function (a) {
+        if (onlyPlace && !(onlyPlace.layer === "airports" && onlyPlace.id === a.ident)) return;
+        var big = a.type === "large_airport" || a.type === "medium_airport";
+        var mk = L.circleMarker([a.lat, a.lon], {radius: big ? 5 : 3.5, color: "#e8eef7", weight: 1, fillColor: big ? "#4fb3ff" : "#8a9bb3", fillOpacity: .9});
+        mk._big = big; airportMarkers[a.ident] = mk;
+        mk.bindTooltip(a.ident, {className: "lv-tip", direction: "top"});
+        mk.on("click", async function () {
+          var pop = L.popup().setLatLng([a.lat, a.lon]).setContent("<b>" + a.ident + "</b> " + a.name.replace(/</g, "&lt;") + "<br>Loading...").openOn(map);
+          try {
+            var x = await (await fetch("/api/airports/" + encodeURIComponent(a.ident) + ".json")).json();
+            var f = (x.frequencies || []).map(function (q) { return q.type + " " + q.mhz.toFixed(3); }).join("<br>");
+            var rw = (x.runways || []).map(function (q) { return q.name + (q.length_ft ? " " + q.length_ft.toLocaleString() + " ft" : ""); }).join(", ");
+            pop.setContent("<b>" + x.ident + "</b> " + x.name.replace(/</g, "&lt;") + "<br>" + (x.municipality || "") + (x.elevation_ft != null ? " · " + x.elevation_ft + " ft" : "") + (rw ? "<br>Runways: " + rw : "") + (f ? "<br>" + f : "") + wxHtml(metars[a.ident]) + '<br><a href="/airports/' + encodeURIComponent(x.ident) + '">Airport page</a>');
+          } catch (e) { pop.setContent("<b>" + a.ident + "</b> " + a.name.replace(/</g, "&lt;")); }
+        });
+        mk.addTo(airportLayer);
+      });
+      loadMetars(b);
+    } catch (e) { /* the layer simply stays empty */ }
+  }
+  function scheduleAirports() { clearTimeout(airportTimer); airportTimer = setTimeout(loadAirports, 250); }
+  map.on("moveend", scheduleAirports);
+  $("l-airports").addEventListener("change", loadAirports);
+  loadAirports();
+
+  // ---- station coverage: around every public station, how far it has heard aircraft in each direction
+  var coverageLayer = L.layerGroup(), coverageAt = 0;
+  function hueOf(id) { var h = 0; for (var i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) % 360; return h; }
+  async function loadCoverage() {
+    if (Date.now() - coverageAt < 300000 && coverageLayer.getLayers().length) return;
+    try {
+      var d = await (await fetch("/api/coverage.json")).json();
+      coverageLayer.clearLayers(); coverageAt = Date.now();
+      (d.stations || []).forEach(function (st) {
+        var sec = st.sectors.slice(), n = sec.length, pts = [];
+        for (var i = 0; i < n; i++) if (!sec[i]) { var a = sec[(i + n - 1) % n], b = sec[(i + 1) % n]; sec[i] = a && b ? (a + b) / 2 : 0; }   // a direction with no sample yet borrows from its neighbours
+        for (var k = 0; k < n; k++) {
+          var r = sec[k] * 1852, br = k * 10 * Math.PI / 180, lat = st.lat * Math.PI / 180, lon = st.lon * Math.PI / 180, dd = r / 6371008.8;
+          var la = Math.asin(Math.sin(lat) * Math.cos(dd) + Math.cos(lat) * Math.sin(dd) * Math.cos(br));
+          var lo = lon + Math.atan2(Math.sin(br) * Math.sin(dd) * Math.cos(lat), Math.cos(dd) - Math.sin(lat) * Math.sin(la));
+          pts.push([la * 180 / Math.PI, lo * 180 / Math.PI]);
+        }
+        var col = "hsl(" + hueOf(st.id) + ",70%," + (st.online ? 60 : 45) + "%)";
+        L.polygon(pts, {color: col, weight: 1.5, opacity: .8, fillColor: col, fillOpacity: .09, interactive: false, pane: "lvoverlay"}).addTo(coverageLayer);
+      });
+    } catch (e) { /* the layer simply stays empty */ }
+  }
+  // legend: explains the colours and symbols of whatever is switched on right now
+  var legBody = $("lv-legbody"), legBtn = $("lv-legbtn");
+  function sw(col, cls, fade) { return '<span class="sw ' + (cls || "") + '" style="border-color:' + col + ';background:' + col + (fade ? "33" : "88") + '"></span>'; }
+  function lg(sym, text) { return '<div class="lg">' + sym + '<span>' + text + '</span></div>'; }
+  function legendHtml() {
+    var h = '<h6>Aircraft</h6><div class="legend" style="margin:4px 0 2px"></div><div class="legend-l">' + (ArkUnits.system() === "metric" ? "<span>0 m</span><span>3k</span><span>6k</span><span>9k</span><span>12k+</span>" : "<span>0 ft</span><span>10k</span><span>20k</span><span>30k</span><span>40k+</span>") + '</div>' +
+      '<div class="dim" style="font-size:.74rem;margin-top:4px">The colour is the altitude. A dashed trail is a gap in coverage.</div>';
+    if (past) h += past.heatLegend();
+    if ($("l-stations").checked) h += "<h6>Stations</h6>" + lg(sw("#3ee6a8"), "Receiver, online") + lg(sw("#8a9bb3"), "Receiver, offline") + lg(sw("#3ee6a8", "", true), "A wide ring: the owner chose an approximate place");
+    if ($("l-coverage").checked) h += "<h6>Coverage</h6>" + lg('<span class="sw sq" style="border-color:#4fb3ff;background:#4fb3ff22"></span>', "How far each station has heard aircraft in each direction (last " + M.coverageDays + " days)");
+    if ($("l-airports").checked) h += "<h6>Airports</h6>" + lg(sw("#4fb3ff"), "Large or medium airport") + lg(sw("#8a9bb3"), "Small airport or heliport");
+    if ($("l-wxair").checked) h += "<h6>Airport weather</h6>" + Object.keys(CATCOLOR).map(function (k) { return lg(sw(CATCOLOR[k]), {VFR: "VFR: clear flying weather", MVFR: "MVFR: marginal", IFR: "IFR: instruments needed", LIFR: "LIFR: very low visibility or cloud"}[k]); }).join("");
+    if ($("l-hospitals").checked) h += "<h6>Hospitals</h6>" + [["I", "Trauma level I (the number is the level)"], ["II", "Level II"], ["III", "Level III"], ["IV", "Level IV"], ["V", "Level V"]].map(function (x) { return lg('<span class="hico t' + {I: 1, II: 2, III: 3, IV: 4, V: 5}[x[0]] + '">' + x[0] + "</span>", x[1]); }).join("") +
+      lg('<span class="hico ed">+</span>', "Emergency department, no trauma level known") + lg('<span class="hico noed">+</span>', "No emergency department") + lg('<span class="hico t3 heli">&nbsp;</span>', "A blue H: a heliport is linked") + lg('<span class="hico ed approx">+</span>', "Faint with a dashed edge: the position is only approximate");
+    if ($("l-wxstations") && $("l-wxstations").checked && typeof wxs !== "undefined" && wxs) h += "<h6>Weather stations</h6>" + wxs.legend();
+    if ($("l-rings").checked) h += "<h6>Range rings</h6>" + lg('<span class="ln" style="border-color:#4fb3ff"></span>', "A ring every " + M.ring + " nautical miles");
+    return h + (typeof AL !== "undefined" && AL && AL.dataLegend ? AL.dataLegend() : "");
+  }
+  function renderLegend() {
+    var n = 1 + ["l-stations", "l-coverage", "l-airports", "l-wxair", "l-hospitals", "l-counties", "l-sondes", "l-wxstations", "l-rings"].filter(function (id) { return $(id) && $(id).checked; }).length;
+    $("lv-legn").textContent = "(" + n + ")";
+    if (legBtn.getAttribute("aria-expanded") === "true") legBody.innerHTML = legendHtml();
+  }
+  function legOpen(open) {
+    if (open) { filters(false); if ($("lv-wx").style.display === "block") wxOpen(false); }
+    legBtn.setAttribute("aria-expanded", open ? "true" : "false"); $("lv-legend").style.display = open ? "block" : "none"; pref("legend", open ? "1" : "0"); renderLegend(); foldSync();
+  }
+  legBtn.addEventListener("click", function () { legOpen(legBtn.getAttribute("aria-expanded") !== "true"); });
+  ["l-stations", "l-coverage", "l-airports", "l-wxair", "l-hospitals", "l-wxstations", "l-rings"].forEach(function (id) { if ($(id)) $(id).addEventListener("change", function () { setTimeout(renderLegend, 0); }); });
+  if (PANELS_OPEN && pref("legend") === "1" && window.innerWidth > 720) legOpen(true); else renderLegend();
+  // hospitals: loaded for the part of the map in view while the layer is on, coloured by trauma level
+  var hospLayer = L.layerGroup(), hospTimer = null;
+  var TRCOL = {I: "#ff3b3b", II: "#ff8c42", III: "#f5c542", IV: "#c9d66b", V: "#9fc5a0"};
+  async function loadHospitals() {
+    if (!$("l-hospitals").checked) return;
+    var b = map.getBounds();
+    try {
+      var d = await (await fetch("/api/hospitals.json?south=" + b.getSouth().toFixed(3) + "&west=" + b.getWest().toFixed(3) + "&north=" + b.getNorth().toFixed(3) + "&east=" + b.getEast().toFixed(3))).json();
+      hospLayer.clearLayers();
+      (d.hospitals || []).forEach(function (h) {
+        if (onlyPlace && !(onlyPlace.layer === "hospitals" && onlyPlace.id === h.id)) return;
+        var lvl = {I: 1, II: 2, III: 3, IV: 4, V: 5}[h.trauma];
+        var cls = "hico " + (lvl ? "t" + lvl : h.emergency ? "ed" : "noed") + (h.approx ? " approx" : "") + (h.heliport ? " heli" : "");
+        var m = L.marker([h.lat, h.lon], {icon: L.divIcon({className: "", html: '<div class="' + cls + '">' + (h.trauma || "+") + "</div>", iconSize: [22, 22], iconAnchor: [11, 11]}), zIndexOffset: -200, title: h.name});
+        var pop = document.createElement("div"); var t = document.createElement("b"); t.textContent = h.name; pop.appendChild(t);
+        pop.appendChild(document.createElement("br")); pop.appendChild(document.createTextNode(h.city + ", " + h.state + (h.trauma ? " · Trauma level " + h.trauma : "") + (h.emergency ? " · Emergency" : "") + (h.approx ? " · approximate position" : "")));
+        pop.appendChild(document.createElement("br")); var a = document.createElement("a"); a.href = "/hospitals/" + encodeURIComponent(h.id); a.textContent = "Hospital page"; pop.appendChild(a);
+        if (h.heliport) { pop.appendChild(document.createTextNode(" · ")); var b2 = document.createElement("a"); b2.href = "/airports/" + encodeURIComponent(h.heliport); b2.textContent = "Heliport " + h.heliport; pop.appendChild(b2); }
+        m.bindPopup(pop).addTo(hospLayer);
+      });
+    } catch (e) { /* the layer keeps what it had */ }
+  }
+  // for the browser tests: where the hospital markers are on screen, and a way to move the map
+  window.lvHospitalPoints = function () { return hospLayer.getLayers().map(function (l) { var p = map.latLngToContainerPoint(l.getLatLng()); return {x: p.x, y: p.y}; }); };
+  window.lvGoTo = function (lat, lon, z) { map.setView([lat, lon], z, {animate: false}); };
+  $("l-hospitals").addEventListener("change", function () { if (this.checked) { hospLayer.addTo(map); loadHospitals(); } else map.removeLayer(hospLayer); });
+  // counties: the outlines of the state's counties with their names (one file, kept by the browser); a click opens the county page
+  var cntyLayer = L.layerGroup(), cntyLoaded = false;
+  async function loadCounties() {
+    if (cntyLoaded) return; cntyLoaded = true;
+    try {
+      var d = await (await fetch("/api/counties/shapes.json")).json();
+      (d.counties || []).forEach(function (c) {
+        var g = L.geoJSON({type: "Feature", geometry: c.geometry}, {style: {color: "#8fb8ff", weight: 1.4, fillOpacity: 0, dashArray: "5 4"}, interactive: true});
+        g.bindTooltip("<b>" + c.name + "</b>", {className: "lv-tip", sticky: true});
+        g.on("click", function () { location.href = "/counties/" + c.slug; });
+        g.addTo(cntyLayer);
+        if (c.lat != null) L.marker([c.lat, c.lon], {interactive: false, keyboard: false, icon: L.divIcon({className: "", html: '<div style="color:#8fb8ff;font:600 11px Inter,sans-serif;text-shadow:0 0 3px #000,0 0 3px #000;white-space:nowrap;transform:translate(-50%,-50%);opacity:.85">' + c.base + "</div>", iconSize: [0, 0]})}).addTo(cntyLayer);
+      });
+    } catch (e) { cntyLoaded = false; }
+  }
+  // ACARS positions: aircraft that told their position by ACARS, ADS-C or HFDL and are not on the map by ADS-B right now: dimmed diamonds with their age (a lower quality source, so drawn quietly)
+  var acarsLayer = L.layerGroup(), acarsTimer = null;
+  async function loadAcarsPos() {
+    if (!$("l-acars") || !$("l-acars").checked) return;
+    try {
+      var d = await (await fetch("/api/acars/positions.json", {cache: "no-store"})).json(), now = Date.now();
+      acarsLayer.clearLayers();
+      (d.positions || []).forEach(function (p) {
+        if (p.lat == null || p.lon == null) return;
+        var a0 = p.hex ? data.get(p.hex) : null, live = a0 && a0.lat != null && !a0.ghost;   // already on the map from its own ADS-B: nothing to add
+        if (live) return;
+        var min = Math.max(0, Math.round((now - new Date(p.ts).getTime()) / 60000)), name = p.flight || p.tail || p.hex || "";
+        var m = L.marker([p.lat, p.lon], {icon: L.divIcon({className: "", html: '<div style="opacity:' + (min < 15 ? .85 : .55) + ';color:#c58bff;font:700 11px system-ui;white-space:nowrap;text-shadow:0 0 3px #000"><span style="display:inline-block;width:9px;height:9px;background:#c58bff;transform:rotate(45deg);margin-right:4px"></span>' + esc(name) + "</div>", iconSize: [0, 0], iconAnchor: [5, 5]}), zIndexOffset: -100});
+        m.bindTooltip(esc(name) + " by ACARS, " + min + " min ago", {className: "lv-tip", direction: "top"});
+        m.on("click", function () {
+          L.popup().setLatLng([p.lat, p.lon]).setContent("<b>" + esc(name) + "</b>" + (p.tail && p.flight ? " " + esc(p.tail) : "") + "<br>Position from an ACARS message, " + min + " minute" + (min === 1 ? "" : "s") + " ago" + (p.alt_ft != null ? ", " + Math.round(p.alt_ft).toLocaleString() + " ft" : "") + "<br><span class=\"dim\">Not ADS-B: the aircraft may have moved on since. " + (p.hex ? '<a href="/acars/?q=' + encodeURIComponent(p.hex) + '">Its ACARS messages</a>' : "") + "</span>").openOn(map);
+        });
+        m.addTo(acarsLayer);
+      });
+    } catch (e) {}
+  }
+  if ($("l-acars")) {
+    $("l-acars").addEventListener("change", function () { pref("acars", this.checked ? "1" : "0"); clearInterval(acarsTimer); if (this.checked) { acarsLayer.addTo(map); loadAcarsPos(); acarsTimer = setInterval(loadAcarsPos, 60000); } else { map.removeLayer(acarsLayer); acarsLayer.clearLayers(); } });
+    if (pref("acars") === "1") { $("l-acars").checked = true; $("l-acars").dispatchEvent(new Event("change")); }
+  }
+  // weather balloons: the radiosondes and balloons recorded lately, as small labels with their track; a click opens the flight page. Refreshed like the balloon map (Settings > Radiosondes).
+  var sondeLayer = L.layerGroup([], {attribution: 'Radiosonde data: <a href="https://sondehub.org" target="_blank" rel="noopener">SondeHub</a> (CC BY-SA 2.0)'}), sondeTimer = null;   // shown in the map's credits while the balloons are on
+  var SONDE_STOPS = [[0, "#3ee6a8"], [5000, "#6be28f"], [10000, "#c8f06a"], [15000, "#ffd24f"], [20000, "#ff9f43"], [25000, "#ff6b6b"], [30000, "#c58bff"]];
+  function sondeColor(m) { var c = SONDE_STOPS[0][1]; SONDE_STOPS.forEach(function (s) { if (m != null && m >= s[0]) c = s[1]; }); return c; }
+  async function loadSondes() {
+    if (!$("l-sondes") || !$("l-sondes").checked) return;
+    try {
+      var d = await (await fetch("/api/sondes/map.json?static=0&hours=" + (M.sondeHours || 24))).json();
+      sondeLayer.clearLayers();
+      (d.flights || []).forEach(function (f) {
+        var aloft = f.status === "aloft", col = sondeColor(f.alt);
+        if (f.trail && f.trail.length > 1) {
+          var run = [[f.trail[0][0], f.trail[0][1]]], rc = sondeColor(f.trail[0][2]);
+          for (var i = 1; i < f.trail.length; i++) {
+            var c = sondeColor(f.trail[i][2]); run.push([f.trail[i][0], f.trail[i][1]]);
+            if (c !== rc || i === f.trail.length - 1) { L.polyline(run, {color: rc, weight: 2, opacity: aloft ? .9 : .45, interactive: false}).addTo(sondeLayer); run = [[f.trail[i][0], f.trail[i][1]]]; rc = c; }
+          }
+        }
+        var feet = f.alt == null ? "" : " " + Math.round(f.alt * 3.28084).toLocaleString() + " ft";
+        var isz = Math.round(34 * (parseInt(pref("sm.isize"), 10) || 125) / 100), withLabel = pref("sm.label") !== "none";
+        var m = L.marker([f.lat, f.lon], {icon: L.divIcon({className: "", html: window.SondeIcons ? SondeIcons.marker(f.phase, col, withLabel ? f.id + "<small>" + feet + "</small>" : "", {size: isz, dim: !aloft, border: col, serial: f.id}) : '<span class="lv-label" style="border:2px solid ' + col + ';transform:translate(-50%,-50%);display:inline-block">' + f.id + "<small>" + feet + "</small></span>", iconSize: [0, 0]}), zIndexOffset: aloft ? 400 : -100}).addTo(sondeLayer);
+        m.bindTooltip(f.id + " " + (f.type || "") + (f.agency ? " (" + f.agency + ")" : "") + (f.site ? " from " + f.site : ""), {className: "lv-tip", direction: "top", offset: [0, -10]});
+        m.on("click", function () {   // a balloon opens its details here, like an airport or a hospital, instead of taking you to another page
+          L.popup().setLatLng([f.lat, f.lon]).setContent("<b>" + esc(f.id) + "</b> " + esc(f.type || "") + (f.agency ? " (" + esc(f.agency) + ")" : "") + "<br>" + esc(f.label || "") + (f.alt != null ? " · " + Math.round(f.alt * 3.28084).toLocaleString() + " ft" : "") + (f.site ? "<br>Launched from " + esc(f.site) : "") +
+            '<br><a href="' + esc(f.href) + '">Flight page</a> · <a href="/sondes/map?only=' + encodeURIComponent(f.id) + '">Only this on the Radiosonde Map</a>').openOn(map);
+        });
+      });
+    } catch (e) { /* the layer keeps what it had */ }
+  }
+  if ($("l-sondes")) {
+    $("l-sondes").addEventListener("change", function () { pref("sondes", this.checked ? "1" : "0"); clearInterval(sondeTimer); if (this.checked) { sondeLayer.addTo(map); loadSondes(); sondeTimer = setInterval(function () { if (!document.hidden) loadSondes(); }, Math.max(5, M.sondeLive || 20) * 1000); } else map.removeLayer(sondeLayer); });
+    if (pref("sondes") === "1") { $("l-sondes").checked = true; $("l-sondes").dispatchEvent(new Event("change")); }
+  }
+  $("l-counties").addEventListener("change", function () { pref("counties", this.checked ? "1" : "0"); if (this.checked) { cntyLayer.addTo(map); loadCounties(); } else map.removeLayer(cntyLayer); });
+  if (pref("counties") === "1") { $("l-counties").checked = true; $("l-counties").dispatchEvent(new Event("change")); }
+  map.on("moveend", function () { clearTimeout(hospTimer); hospTimer = setTimeout(loadHospitals, 400); });
+  // weather stations: the shared component (static/wxmap.js): what the markers show, wind arrows and filters are the visitor's choice and are remembered
+  var wxs = null;
+  if ($("l-wxstations") && window.ArkWx) {
+    wxs = ArkWx.create(map, {units: unitKey === "metric" ? "metric" : "imperial", defaults: {metric: M.wxMetric, arrows: M.wxArrows === "1"}, initial: {online: !!M.wxHideOffline && pref("wxoff") !== "1"}, onChange: function (st) { if (st) pref("wxoff", st.online ? "0" : "1"); renderLegend(); }, onRender: function () { renderLegend(); }});
+    if (onlyPlace && onlyPlace.layer === "weather") wxs.set("q", onlyPlace.id, true);   // that one station alone
+    window.lvWxStationPoints = function () { return wxs.group.getLayers().map(function (l) { var p = map.latLngToContainerPoint(l.getLatLng()); return {x: p.x, y: p.y}; }); };
+    $("l-wxstations").addEventListener("change", function () { pref("wxs", this.checked ? "1" : "0"); if (this.checked) { wxs.group.addTo(map); wxs.load(); } else map.removeLayer(wxs.group); AL.sync(); });
+    if (pref("wxs") === "1") { $("l-wxstations").checked = true; $("l-wxstations").dispatchEvent(new Event("change")); }   // remembered, like the other layers
+    setInterval(function () { if ($("l-wxstations").checked && !document.hidden) wxs.load(); }, Math.max(5, M.wxLive) * 1000);   // as readings arrive, not on the slow weather refresh
+  }
+  $("l-coverage").addEventListener("change", function () { if (this.checked) { loadCoverage(); coverageLayer.addTo(map); } else map.removeLayer(coverageLayer); });
+
+  $("f-multi").addEventListener("change", function () { setMulti(this.checked); });
+  $("f-selall").addEventListener("click", selectAll); $("f-desel").addEventListener("click", function () { setMulti(false); clearSelection(); });
+  $("f-persist").addEventListener("change", function () { persist = this.checked; pref("persist", persist ? "1" : "0"); if (!persist) { data.forEach(function (a, hex) { if (a.ghost) data.delete(hex); }); } renderChips(); render(); });
+  if (pref("persist") === "1") { $("f-persist").checked = true; persist = true; }
+  // ---- past traffic: the Replay bar and the heat map (static/pasttraffic.js, static/replay.js, static/heatlayer.js)
+  var replayMeta = {}, past = null;
+  if (window.ArkPast && window.ArkReplay && window.ArkHeat) {
+    past = ArkPast.init({map: map, speed: M.replaySpeed, startAgoMinutes: M.replayStart, heatDuration: M.heatDuration, heatMaxDays: M.heatMaxDays,
+      ingest: function (f) { f.aircraft.forEach(function (a) { var m = replayMeta[a.hex]; if (m) { a.r = m.r; a.t = m.t; } }); ingest(f); },
+      clear: function () { data = new Map(); trails.clear(); },
+      altitude: function () { var mn = parseFloat($("f-min").value), mx = parseFloat($("f-max").value), k = U("alt")[0]; return {min: isNaN(mn) ? null : Math.round(mn / k), max: isNaN(mx) ? null : Math.round(mx / k)}; },
+      onMode: function (on) { replayMeta = {}; if (!on) { poll(); } if (selected) loadTrace(true); setTimeout(renderLegend, 0); }});
+    document.addEventListener("ark-heat-state", function () { setTimeout(renderLegend, 0); setBadge("past", (past.heatOn() ? 1 : 0) + (past.replayOn() ? 1 : 0)); });
+    document.addEventListener("keydown", function (e) { if ((e.key === "y" || e.key === "Y") && !e.ctrlKey && !e.metaKey && !e.altKey && !/^(INPUT|TEXTAREA|SELECT)$/.test((e.target || {}).tagName || "")) { past.toggleReplay(); setBadge("past", (past.heatOn() ? 1 : 0) + (past.replayOn() ? 1 : 0)); } });
+    past.boot();
+  } else { var ps = document.querySelector('.fsec[data-k="past"]'); if (ps) ps.style.display = "none"; }
+  if (multiOn) { $("f-multi").checked = true; loadMulti(); }
+  applyUrl(); poll(); setInterval(poll, (PHONE ? Math.max(M.refresh, M.mobileRefresh) : M.refresh) * 1000);
+})();
+</script>
+<script src="/static/mapsearch.js?v={{ app_version }}" data-ark-rerun></script>
+<script src="/static/mapfull.js?v={{ app_version }}" data-ark-rerun></script>
+<script src="/static/mapfit.js?v={{ app_version }}" data-ark-rerun></script>
+<script src="/static/mapfs.js?v={{ app_version }}" data-ark-rerun></script>
+<script src="/static/mapheadfold.js?v={{ app_version }}" data-ark-rerun></script>
+<script src="/static/mapviews.js?v={{ app_version }}" data-ark-rerun></script>
+{% endblock %}

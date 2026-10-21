@@ -1,0 +1,30 @@
+{# Shared by My AIS Stations and the admin page: the form fields and one station's card. #}
+{% macro fields(r, p) %}
+  <label for="{{ p }}-name">Name</label>
+  <input type="text" id="{{ p }}-name" name="name" value="{{ r.name if r else '' }}" maxlength="60" required style="max-width:340px" placeholder="For example Pine Bluff river station">
+  <label for="{{ p }}-place">Where It Is (Town, River or Lake, Optional)</label>
+  <input type="text" id="{{ p }}-place" name="place" value="{{ r.place if r else '' }}" maxlength="120" style="max-width:340px" placeholder="Arkansas River, Pine Bluff">
+  <label for="{{ p }}-public">Show the Station Name on Vessels It Hears</label>
+  <select id="{{ p }}-public" name="public"><option value="1" {{ 'selected' if not r or r.public }}>Yes: vessel pages say which station heard them last</option><option value="0" {{ 'selected' if r and not r.public }}>No: keep the station out of the pages</option></select>
+  <label for="{{ p }}-notes">Notes (Optional)</label>
+  <input type="text" id="{{ p }}-notes" name="notes" value="{{ r.notes if r else '' }}" maxlength="500" style="max-width:520px" placeholder="Antenna, receiver, software">
+{% endmacro %}
+
+{% macro card(r, base, target, admin) %}
+<details class="panel role" id="ais-{{ r.id }}" style="margin-bottom:8px"><summary><span class="role-name">{{ r.name }}</span>
+  <span class="tag {{ 'live' if r.enabled and r.last_report else 'off' }}" style="margin-left:8px">{{ 'switched off' if not r.enabled else ('reporting' if r.last_report else 'nothing heard yet') }}</span>
+  <span class="dim" style="font-size:.82rem;margin-left:8px">{{ r.msgs }} message{{ '' if r.msgs == 1 else 's' }}{% if r.last_report %}, last <time class="ts" datetime="{{ r.last_report.isoformat() }}" data-fmt="dt">{{ r.last_report }}</time>{% endif %}{% if admin %}, {% if r.owner_name %}{{ r.owner_display or r.owner_name }}{% else %}the network{% endif %}{% endif %}</span></summary>
+  <p style="margin:8px 0 2px"><b>Upload Address</b> (private: anyone who has it can send vessels as this station)</p>
+  <input type="text" readonly value="{{ url_of(r) }}" onclick="this.select()" style="width:100%;max-width:640px" class="mono" aria-label="Upload address of {{ r.name }}">
+  <form method="post" action="{{ base }}/{{ r.id }}/save" data-async data-async-target="{{ target }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {{ fields(r, 'r' ~ r.id) }}
+    <button class="btn" type="submit">Save</button>
+  </form>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+    {% if admin %}<form class="inline" method="post" action="{{ base }}/{{ r.id }}/enabled" data-async data-async-target="{{ target }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="on" value="{{ '0' if r.enabled else '1' }}"><button class="btn small neutral" type="submit">{{ 'Switch Off' if r.enabled else 'Switch On' }}</button></form>{% endif %}
+    <form class="inline" method="post" action="{{ base }}/{{ r.id }}/newaddress" data-async data-async-target="{{ target }}" data-confirm="Make a new upload address for {{ r.name }}? The old one stops working."><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small neutral" type="submit">New Upload Address</button></form>
+    <form class="inline" method="post" action="{{ base }}/{{ r.id }}/delete" data-async data-async-target="{{ target }}" data-confirm="Delete {{ r.name }}?"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small warn" type="submit">Delete</button></form>
+  </div>
+</details>
+{% endmacro %}

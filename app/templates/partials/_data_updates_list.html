@@ -1,0 +1,45 @@
+<div id="du-list">
+{% if busy %}<div class="panel" data-busy style="margin-bottom:12px;border-color:var(--acc)"><b>Running now: {{ busy }}.</b> Different sources can run at the same time; a source cannot start while it, or one it uses the data of (or that uses its data), is running. This page looks again every few seconds.</div>{% endif %}
+<div class="panel" style="margin-bottom:12px;display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end">
+  <form method="post" action="/admin/data-updates/time" data-async data-async-target="#du-list" style="display:flex;gap:10px;align-items:flex-end;margin:0">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div><label for="du-time" style="margin-top:0">Time of day to start ({{ tzname }})</label><input type="text" id="du-time" name="time" value="{{ time }}" style="width:110px"></div>
+    <button class="btn small" type="submit" style="margin:0 0 2px">Save Time</button>
+  </form>
+  <span class="dim" style="font-size:.85rem">One time for all sources. They run one after another, in the order shown, because later ones use what the earlier ones load.</span>
+</div>
+{% for j in jobs %}
+<details class="panel setsec" id="du-{{ j.key }}" open style="margin-bottom:10px"><summary><span class="role-name">{{ j.label }}</span>
+  {% if j.running %}<span class="tag live running">running now{% if j.progress %}: {{ j.progress }}{% endif %}</span>{% elif j.error %}<span class="tag off">last try failed</span>{% elif j.last %}<span class="tag live">ok</span>{% elif not j.configured %}<span class="tag">not set up</span>{% else %}<span class="tag">never run</span>{% endif %}
+  <span class="dim" style="font-size:.8rem">{{ 'every ' ~ j.days ~ ' day' ~ ('' if j.days == 1 else 's') if j.days else 'automatic updates off' }}</span></summary>
+  <div class="secbody">
+    <p style="margin:0 0 6px">{{ j.what }}.{% if j.needs %} <span class="dim">Uses the {{ j.needs }} data: it should be loaded first.</span>{% endif %}</p>
+    <table style="width:100%">
+      <tr><th style="width:150px">Last success</th><td>{% if j.last %}<time class="ts" datetime="{{ j.last }}">{{ j.last }}</time>{% else %}<span class="dim">never</span>{% endif %}</td></tr>
+      <tr><th>Result</th><td>{{ j.last_result or '-' }}</td></tr>
+      {% if j.error %}<tr><th>Last error</th><td style="color:var(--err)">{{ j.error }}</td></tr>{% endif %}
+      <tr><th>Next automatic run</th><td>{{ j.next }}</td></tr>
+    </table>
+    {% if j.key == 'trauma' %}
+    <form method="post" action="/admin/data-updates/trauma-url" data-async data-async-target="#du-list" style="margin-top:10px">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label for="du-turl">Source address (a CSV file)</label>
+      <input type="text" id="du-turl" name="url" value="{{ trauma_url }}" placeholder="https://.../trauma-levels.csv" maxlength="500">
+      <div class="help">A CSV with the columns of Admin &gt; Hospitals &gt; Import Hospital Data (name, ccn, level, designated, lat, lon, services, source). Point it at a file the trauma system keeps current and the levels and services stay up to date by themselves.</div>
+      <button class="btn small" type="submit">Save Address</button>
+    </form>
+    {% endif %}
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:12px">
+      <form method="post" action="/admin/data-updates/{{ j.key }}/schedule" data-async data-async-target="#du-list" style="display:flex;gap:8px;align-items:flex-end;margin:0">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div><label for="du-d-{{ j.key }}" style="margin-top:0">Update every (days, 0 = off)</label><input type="text" id="du-d-{{ j.key }}" name="days" value="{{ j.days }}" style="width:90px"></div>
+        <button class="btn small neutral" type="submit" style="margin:0 0 2px">Save</button>
+      </form>
+      <form method="post" action="/admin/data-updates/{{ j.key }}/run" data-async data-async-target="#du-list" style="margin:0">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn small" type="submit" style="margin:0 0 2px" {% if j.running %}disabled title="This update is running"{% elif j.blocked_by %}disabled title="{{ j.blocked_by }} is running and is linked to this source: wait for it to finish"{% endif %}>Run Now</button>
+      </form>
+    </div>
+  </div></details>
+{% endfor %}
+</div>

@@ -1,0 +1,32 @@
+# Planefence and Plane-Alert: /opt/adsb/planefence/compose.yaml on the hub VM, applied by the stack updater like every other service. It reads the hub's
+# BaseStation feed (hub:30003) and watches a large circle around the middle of Arkansas. The portal shows its pages (/pf/) and, for administrators only, its
+# configuration page (Admin > Planefence): nothing to open in Nginx Proxy Manager and no file to edit by hand. Notifications (Discord, Mastodon, ...) are set up
+# on that configuration page; their keys stay in /opt/adsb/planefence/config on the hub.
+services:
+  planefence:
+    image: mallison01/adsb-planefence:stable
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
+    container_name: planefence
+    hostname: planefence
+    restart: unless-stopped
+    environment:
+      TZ: America/Chicago
+      LOGLEVEL: INFO
+      FEEDER_LAT: "34.80"
+      FEEDER_LON: "-92.30"
+      PF_SOCK30003HOST: hub
+      PF_MAXDIST: "160"
+      PF_NAME: "Arkansas ADS-B"
+    volumes:
+      - /opt/adsb/planefence/config:/usr/share/planefence/persist
+      - /opt/adsb/planefence/html:/usr/share/planefence/html
+    tmpfs:
+      - /run:rw,nosuid,nodev,exec,relatime,size=512M
+      - /tmp:rw,nosuid,nodev,noexec,relatime,size=128M
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true

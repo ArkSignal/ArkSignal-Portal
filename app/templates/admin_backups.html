@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Backups{% endblock %}
+{% block content %}
+<h1><span>Admin</span> Backups</h1>
+<div class="sub">Backups contain every account, role, setting and history record, including password hashes and the encrypted SMTP password. Store downloaded files securely.</div>
+{% include "partials/_admin_subnav.html" %}
+
+<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;margin-bottom:16px">
+  <details class="panel setsec" id="sec-schedule" open style="flex:1;min-width:300px"><summary><span class="role-name">Schedule</span></summary><form method="post" action="/admin/backups/schedule" data-async data-async-target="#backups-list">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    
+    <label for="schedule">Run</label>
+    <select id="schedule" name="schedule">
+      {% for key, label in [('off','Off'),('hourly','Every hour'),('daily','Every day'),('weekly','Every Sunday')] %}
+      <option value="{{ key }}" {{ 'selected' if v.backup_schedule == key }}>{{ label }}</option>{% endfor %}
+    </select>
+    <label for="time">Time of Day</label>
+    <input type="text" id="time" name="time" value="{{ v.backup_time }}" style="max-width:110px">
+    <div class="help">24-hour HH:MM in the display timezone ({{ v.timezone }}). Ignored for hourly.</div>
+    <label for="retention">Keep Scheduled Backups</label>
+    <input type="text" id="retention" name="retention" value="{{ v.backup_retention }}" style="max-width:110px">
+    <div class="help">The newest this many scheduled backups are kept. Manual backups are kept until you delete them.</div>
+    <button class="btn" type="submit">Save Schedule</button>
+  </form></details>
+
+  <div style="flex:1;min-width:300px;display:flex;flex-direction:column;gap:16px">
+    <details class="panel setsec" id="sec-create-a-backup" open><summary><span class="role-name">Create a Backup</span></summary><form method="post" action="/admin/backups/run" data-async data-async-target="#backups-list">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      
+      <p class="dim" style="margin:0">Takes a consistent snapshot of the database right now.</p>
+      <button class="btn" type="submit">Create Backup Now</button>
+    </form></details>
+    <details class="panel setsec" id="sec-restore-from-a-file"><summary><span class="role-name">Restore from a File</span></summary><form method="post" action="/admin/backups/upload" enctype="multipart/form-data" data-async data-async-target="#backups-list"
+          data-confirm="Restore from the uploaded file? All current accounts, roles, settings and history will be replaced. A safety backup of the current data is taken first.">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      
+      <p class="dim" style="margin:0 0 8px">Upload a backup downloaded from this page. The file is checked before anything changes.</p>
+      <input type="file" name="file" accept=".gz,.tar.gz" aria-label="Backup file" required>
+      <button class="btn" type="submit">Upload and Restore</button>
+    </form></details>
+  </div>
+</div>
+
+{% include "partials/_offsite_section.html" %}
+{% include "partials/_backups_list.html" %}
+{% endblock %}

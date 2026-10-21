@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% from "partials/_radiolist_form.html" import fields with context %}
+{% block title %}My Nets and Gateways{% endblock %}
+{% block content %}
+<h1>My <span>Nets and Gateways</span></h1>
+<div class="sub">The amateur radio nets you run and the Winlink gateways you operate, for the <a href="/radio/nets">Nets</a> and <a href="/radio/winlink">Winlink Gateways</a> pages.{% if approval %} An editor checks a new entry or a change before it shows.{% endif %} You can keep {{ limit }} entries.</div>
+{% with active = 'listings' %}{% include "partials/_my_subnav.html" %}{% endwith %}
+
+{% call sec('add-net', 'Add a Net', False) %}
+  <form method="post" action="/my/nets/add" data-async data-async-target="#my-listings" data-reset>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="kind" value="net">
+    {{ fields('net', none, 'an') }}
+    <button class="btn" type="submit">Add the Net</button>
+  </form>
+{% endcall %}
+
+{% call sec('add-gateway', 'Add a Winlink Gateway', False) %}
+  <form method="post" action="/my/nets/add" data-async data-async-target="#my-listings" data-reset>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="kind" value="winlink">
+    {{ fields('winlink', none, 'ag') }}
+    <button class="btn" type="submit">Add the Gateway</button>
+  </form>
+{% endcall %}
+
+{% call sec('mine', 'Your Entries', True) %}
+  {% include "partials/_my_listings.html" %}
+{% endcall %}
+{% endblock %}

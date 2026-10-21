@@ -1,0 +1,21 @@
+# Photon address search: /opt/adsb/photon/compose.yaml on the hub VM, applied by the stack updater (adsb-stack) like every other service.
+# The US index (about 10 GB download, 30 to 40 GB unpacked) lives in /opt/adsb/photon/photon_data on the 500 GB+ data disk. Nothing is published
+# to the outside: the portal asks http://photon:2322 over the docker network and shows the answers to administrators (Admin > Hospitals address lookup).
+services:
+  photon:
+    image: mallison01/adsb-photon:stable
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
+    container_name: photon
+    restart: unless-stopped
+    init: true
+    environment:
+      - PHOTON_HEAP=8g
+    volumes:
+      - /opt/adsb/photon:/data
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true

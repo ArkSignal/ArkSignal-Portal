@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Themes{% endblock %}
+{% block content %}
+<h1><span>Admin</span> Themes</h1>
+<div class="sub">Color schemes anyone can pick, and seasonal and holiday themes that switch on by date. Today the site shows <b>{{ names[site_theme] }}</b>{% if forced %} (you are showing it to everyone below){% elif today_theme %} (the {{ names[today_theme] }} theme is on today){% endif %}. Whether the site follows the seasons, the decorations and the normal look are in <a href="/admin/settings/site#sec-themes">Settings &gt; Themes</a>. Anyone can go back to the normal look with the button that shows while a seasonal theme is on, or pick any theme in their Display menu.</div>
+{% include "partials/_admin_subnav.html" %}
+{% call sec('seasons', 'Seasons and Holidays', True, True) %}<form method="post" action="/admin/themes/save">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <p class="dim" style="margin-top:0">Dates repeat every year (write them as month-day, for example 10-15). When several themes match a day the one higher in this list wins, so a holiday beats its season. Thanksgiving and Easter move with the calendar, so their dates are worked out each year.</p>
+  <table><thead><tr><th>On</th><th>Theme</th><th>From</th><th>To</th><th>This Year</th><th>Looks</th><th></th></tr></thead><tbody>
+  {% for r in rows %}<tr id="th-{{ r.id }}"><td><input type="checkbox" name="en_{{ r.id }}" value="1" {{ 'checked' if r.enabled }} aria-label="{{ r.name }} on"></td>
+    <td><b>{{ r.name }}</b>{% if r.today %} <span class="tag live">today</span>{% endif %}</td>
+    <td>{% if r.type == 'range' %}<input type="text" name="from_{{ r.id }}" value="{{ r.from }}" maxlength="5" style="width:70px" aria-label="{{ r.name }} from">{% else %}<span class="dim">moves</span>{% endif %}</td>
+    <td>{% if r.type == 'range' %}<input type="text" name="to_{{ r.id }}" value="{{ r.to }}" maxlength="5" style="width:70px" aria-label="{{ r.name }} to">{% else %}<span class="dim">moves</span>{% endif %}</td>
+    <td>{{ r.when }}</td>
+    <td><span class="swatch" style="display:inline-flex;gap:3px;vertical-align:middle">{% for k in ('--bg', '--acc', '--acc2') %}<i style="display:inline-block;width:16px;height:16px;border-radius:50%;border:1px solid #fff4;background:{{ r.vars.get(k, base.get(k) if r.mode == 'dark' else light.get(k)) }}"></i>{% endfor %}</span> <span style="font-size:1.1rem">{{ r.deco | safe }}</span>{% if r.balloons %}<br><span class="dim" style="font-size:.78rem">balloons</span> {{ r.balloons | safe }}{% endif %}{% if r.planes %} <span class="dim" style="font-size:.78rem">aircraft</span> {{ r.planes | safe }}{% endif %}</td>
+    <td><button type="button" class="btn small neutral" data-try="{{ r.id }}" style="margin:0">Try It</button></td></tr>{% endfor %}</tbody></table>
+  <h3>Show a Theme to Everyone Now</h3>
+  <p class="dim" style="margin-top:0">For an event or a day not on the calendar. People who picked their own theme keep it; everyone else sees this one (with the Normal Look button) until you clear it.</p>
+  <select name="force" aria-label="Theme shown to everyone"><option value="">None: follow the dates above</option>{% for r in rows %}<option value="{{ r.id }}" {{ 'selected' if forced == r.id }}>{{ r.name }}</option>{% endfor %}{% for s in schemes %}<option value="{{ s.id }}" {{ 'selected' if forced == s.id }}>{{ s.name }}</option>{% endfor %}</select>
+  <p style="margin-bottom:0"><button class="btn" type="submit">Save Themes</button></p>
+</form>{% endcall %}
+{% call sec('schemes', 'Color Schemes', True, False) %}
+  <p class="dim" style="margin-top:0">Always in the Display menu for anyone to pick. The look the site uses when no seasonal theme is on (Normal Look) is set in Settings.</p>
+  <div style="display:flex;gap:10px;flex-wrap:wrap">{% for s in schemes %}<button type="button" class="btn small neutral" data-try="{{ s.id }}" style="margin:0"><span style="display:inline-flex;gap:3px;vertical-align:middle">{% for k in ('--bg', '--acc', '--acc2') %}<i style="display:inline-block;width:12px;height:12px;border-radius:50%;border:1px solid #fff4;background:{{ s.vars.get(k, base.get(k) if s.mode == 'dark' else light.get(k)) }}"></i>{% endfor %}</span> {{ s.name }}</button>{% endfor %}</div>
+{% endcall %}
+<script>
+document.querySelectorAll("[data-try]").forEach(function (b) {
+  b.addEventListener("click", function () { ArkThemes.apply({theme: b.getAttribute("data-try")}); ArkThemes.ready({theme: b.getAttribute("data-try")}); });   // a look at it on this page only; nothing is saved
+});
+</script>
+{% endblock %}

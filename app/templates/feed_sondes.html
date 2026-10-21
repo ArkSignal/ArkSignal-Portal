@@ -1,0 +1,64 @@
+{% extends "feed_base.html" %}
+{% from "partials/_feedsec.html" import sec, other_feeds with context %}
+{% block title %}Radiosondes | How to Feed{% endblock %}
+{% block feed_body %}
+<h1>Feed <span>Radiosondes</span></h1>
+<div class="sub">Pick up weather balloons with a small radio and add your station to the Arkansas picture. Everything you receive already goes to SondeHub; ArkSignal records the flights around Arkansas from there and lets you claim your station.</div>
+
+{% call sec('the-short-version', 'The Short Version', True) %}
+  <ol class="plain" style="margin:0">
+    <li>Run <a href="https://github.com/projecthorus/radiosonde_auto_rx/wiki" target="_blank" rel="noopener">radiosonde_auto_rx</a> (a Raspberry Pi or any small Linux computer, an RTL-SDR radio and an antenna for 400-406 MHz) with SondeHub upload turned on and your call sign as the station name.</li>
+    <li><a href="/my/register">Create an account</a> and sign in, then open <a href="/my/sondes">My Radiosonde Stations</a> and claim your station by its call sign.</li>
+    <li>Choose how precisely your location is shown (the list on the form runs from Exact through twelve steps of rounding to Hidden). Your station then appears on <a href="/sondes/stations/">Receiving Stations</a> and the <a href="/sondes/map">Radiosonde Map</a>, with every flight it heard.</li>
+  </ol>
+{% endcall %}
+
+{% call sec('how-it-works', 'How It Works', True) %}
+  <p style="margin-top:0">National Weather Service balloons go up from Little Rock, Shreveport, Jackson, Springfield, Norman, Fort Worth and other sites twice a day and climb for about two hours. Receiving stations decode each balloon's telemetry (position, altitude, temperature, humidity, pressure, wind) and upload it to <a href="https://sondehub.org" target="_blank" rel="noopener">SondeHub</a>, which shares it openly. ArkSignal listens to SondeHub's live feed, keeps the flights over and around Arkansas with their tracks and charts, works out which launch site each came from, and shows who heard it.</p>
+  <p style="margin-bottom:0">Nothing extra is installed on your station for ArkSignal: if it already uploads to SondeHub, it is already counted. Amateur high-altitude balloons are recorded too.</p>
+{% endcall %}
+
+{% call sec('claiming', 'Claiming Your Station', True) %}
+  <ul class="plain" style="margin-top:0">
+    <li><b>Same call sign as your profile:</b> add your call sign to <a href="/my/profile">your profile</a>. Every station named with it, with or without a suffix (<span class="mono">KD5VCF</span>, <span class="mono">KD5VCF-LR</span>, <span class="mono">KD5VCF-10</span>, <span class="mono">KD5VCF/P</span>), is claimed for you automatically, as soon as the station is heard and whenever you open My Radiosonde Stations.</li>
+    <li><b>Any other name:</b> the claim page gives you a short code. Put it in the antenna description in <span class="mono">station.cfg</span> (<span class="mono">upload_station_antenna</span>), restart auto_rx, and the claim completes when the portal sees it. An administrator can also approve a claim.</li>
+    <li>Stations that move (a chase car or portable station) are hidden on the public pages unless you choose Exact.</li>
+  </ul>
+{% endcall %}
+
+{% call sec('send-directly', 'Send Directly to ArkSignal (Optional)', False) %}
+  <p style="margin-top:0">SondeHub's upload is all most stations need: ArkSignal already listens to its live feed. To send your frames to ArkSignal yourself as well, claim the station, open it on <a href="/my/sondes">My Radiosonde Stations</a> and make an upload address. Then switch on auto_rx's payload summary output and run the small bridge program, which sends it on over https:</p>
+  <pre class="code">[oziplotter]
+payload_summary_enabled = True
+payload_summary_port = 55673</pre>
+  <pre class="code">curl -O https://{{ feed_host }}/static/sonde_bridge.py
+python3 sonde_bridge.py https://{{ feed_host }}/sondes/push/YOUR-TOKEN</pre>
+  <p>With Docker, next to auto_rx (the bridge needs nothing but Python):</p>
+  <pre class="code">  ark_sonde_bridge:
+    image: python:3-alpine
+    container_name: ark_sonde_bridge
+    restart: unless-stopped
+    ports:
+      - "55673:55673/udp"
+    volumes:
+      - ./sonde_bridge.py:/b.py:ro
+    command: ["python", "-u", "/b.py", "https://{{ feed_host }}/sondes/push/YOUR-TOKEN"]</pre>
+  <p style="margin-bottom:0" class="dim">auto_rx broadcasts the payload summary on your local network, so the bridge can run on the computer that runs auto_rx or on any other computer on the same network. The same frames reach the same flights as the SondeHub feed: a flight is one flight whichever way it arrived.</p>
+{% endcall %}
+
+{% call sec('your-data-and-privacy', 'Your Data and Privacy', False) %}
+  <ul class="plain" style="margin-top:0">
+    <li>Telemetry is public flight data, shared by SondeHub under <a href="https://creativecommons.org/licenses/by-sa/2.0/" target="_blank" rel="noopener">Creative Commons BY-SA 2.0</a>; ArkSignal credits SondeHub on every page and what you download carries the same license.</li>
+    <li>Your position is shown only as you choose. The pages never show a more exact position than your choice, even though the upload itself carries the one you configured in auto_rx.</li>
+    <li>You can release a station or hide it from the lists at any time.</li>
+  </ul>
+{% endcall %}
+
+{% call sec('more-help', 'More Help', False) %}
+  <ul class="plain" style="margin:0">
+    <li><a href="/sondes/">Radiosondes and Balloons</a>: the overview, <a href="/sondes/map">map</a> and <a href="/sondes/flights">flights</a>.</li>
+    <li>{{ other_feeds() }}</li>
+    <li><a href="/contact">Contact</a> someone from the network if you are stuck.</li>
+  </ul>
+{% endcall %}
+{% endblock %}

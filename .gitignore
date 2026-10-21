@@ -1,0 +1,8 @@
+.env
+__pycache__/
+*.pyc
+data/
+tests/shots/
+TEST_CREDENTIALS.md
+ha_token.txt
+tests/*_fixture.json

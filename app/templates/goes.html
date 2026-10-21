@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}GOES Imagery{% endblock %}
+{% block content %}
+<h1><span>GOES</span> Imagery</h1>
+<div class="sub">NOAA's GOES weather satellites, high above the equator: the view over Arkansas and the Mississippi Valley, the Southern Plains, the whole country and each satellite's full disk, as the newest picture or an animation loop.</div>
+
+{% call sec('viewer', 'Satellite Viewer', True) %}
+  <div class="looper" id="goes-looper" data-fit="1" data-src="/goes/{{ sector }}/{{ product }}/frames.json?n={{ 1 if mode == 'latest' else n }}" data-alt="GOES satellite picture"></div>
+  <div id="goes-ctl" class="looper-ui" style="position:absolute;left:8px;top:8px;z-index:4;max-width:calc(100% - 64px)">
+    <button type="button" class="btn small" id="goes-ctl-btn" aria-expanded="true" style="margin:0">Controls</button>
+    <div id="goes-panel" class="looper-panel" style="margin-top:6px;width:340px;max-width:100%;overflow:auto;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.25);background:rgba(18,12,30,.93);color:#fff">
+      <div style="margin-bottom:10px"><label for="goes-sector">Area</label><select id="goes-sector" style="width:100%">{% for k, s in secs %}<option value="{{ k }}" {{ 'selected' if k == sector }}>{{ s[0] }}</option>{% endfor %}</select></div>
+      <div style="margin-bottom:10px"><label>Show</label>
+        <div style="display:flex;gap:6px"><button type="button" class="btn small {{ '' if mode == 'latest' else 'neutral' }}" data-mode="latest" style="margin:0">Newest Picture</button><button type="button" class="btn small {{ '' if mode == 'loop' else 'neutral' }}" data-mode="loop" style="margin:0">Loop</button></div></div>
+      <div id="goes-length-box" style="margin-bottom:10px"><label for="goes-length">Length of the loop</label><select id="goes-length" style="width:100%">{% for v, t in lengths %}<option value="{{ v }}" {{ 'selected' if v == n }}>{{ t }}</option>{% endfor %}</select></div>
+      <label>View</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap" id="goes-products">
+        {% for k, p in prods %}<button type="button" class="btn small {{ '' if k == product else 'neutral' }}" data-product="{{ k }}" style="margin:0">{{ p[0] }}</button>{% endfor %}
+      </div>
+    </div>
+  </div>
+  <p id="goes-caption" style="margin:8px 0 0"></p>
+  <p class="dim" id="goes-desc" style="margin:4px 0 0"></p>
+  <p class="dim" style="margin:6px 0 0">NOAA also makes ready-made animations of every area: <a id="goes-noaa" href="#" target="_blank" rel="noopener">NOAA's folder for this area</a> (look in a view's folder for the .gif and .mp4 files).</p>
+{% endcall %}
+
+{% call sec('about', 'About These Pictures', False) %}
+  <p style="margin-top:0">GOES-19 (GOES-East) and GOES-18 (GOES-West) sit about 22,000 miles above the equator and photograph the Western Hemisphere every few minutes. Arkansas is seen by GOES-East. The pictures come from NOAA's public image server and are in the public domain; this site keeps the newest pictures and asks NOAA for new ones at most every {{ refresh }} minutes, only when somebody looks.</p>
+  <p class="dim" style="margin-bottom:0">Want to catch the pictures with your own radio? Members with a weather satellite receiver can send their decoded pictures on <a href="/my/sat-receivers">My Account &gt; My Satellite Receivers</a>, shown on <a href="/radio/satellite-images">Satellite Images</a>. More animations are on <a href="https://www.star.nesdis.noaa.gov/GOES/index.php" target="_blank" rel="noopener">NOAA's GOES page</a>. Source: NOAA/NESDIS STAR.</p>
+{% endcall %}
+<script src="/static/looper.js?v={{ looper_v }}"></script>
+<script>
+(function () {
+  var M = {{ meta | tojson }};
+  var S = {sector: {{ sector | tojson }}, product: {{ product | tojson }}, mode: {{ mode | tojson }}, n: {{ n }}};
+  var box = document.getElementById("goes-looper"), cap = document.getElementById("goes-caption"), desc = document.getElementById("goes-desc");
+  var selSector = document.getElementById("goes-sector"), selLen = document.getElementById("goes-length"), lenBox = document.getElementById("goes-length-box");
+  function src() { return "/goes/" + S.sector + "/" + S.product + "/frames.json?n=" + (S.mode === "latest" ? 1 : S.n); }
+  function paint() {
+    document.querySelectorAll("[data-mode]").forEach(function (b) { b.classList.toggle("neutral", b.dataset.mode !== S.mode); });
+    document.querySelectorAll("[data-product]").forEach(function (b) { b.classList.toggle("neutral", b.dataset.product !== S.product); });
+    lenBox.style.display = S.mode === "loop" ? "" : "none";
+    var sec = M.secs[S.sector], p = M.prods[S.product];
+    cap.innerHTML = ""; var b = document.createElement("b"); b.textContent = p[0] + ": " + sec[0]; cap.appendChild(b); cap.appendChild(document.createTextNode(", from " + sec[1] + "."));
+    desc.textContent = p[1];
+    document.getElementById("goes-noaa").href = M.folders[S.sector];
+    try { history.replaceState(null, "", "?sector=" + S.sector + "&product=" + S.product + "&mode=" + S.mode + (S.mode === "loop" ? "&n=" + S.n : "")); } catch (e) { /* no history */ }
+  }
+  function reload(keepZoom) { paint(); var go = function () { if (box.looper) box.looper.load(src(), keepZoom); else setTimeout(go, 50); }; go(); }
+  selSector.addEventListener("change", function () {
+    S.sector = selSector.value;
+    var opts = M.lengths[S.sector], keep = false;
+    selLen.innerHTML = "";
+    opts.forEach(function (o) { var e = document.createElement("option"); e.value = o[0]; e.textContent = o[1]; if (o[0] === S.n) { e.selected = true; keep = true; } selLen.appendChild(e); });
+    if (!keep && opts.length) S.n = opts[0][0];
+    selLen.value = String(S.n);
+    reload(false);
+  });
+  selLen.addEventListener("change", function () { S.n = parseInt(selLen.value, 10); reload(true); });
+  document.querySelectorAll("[data-mode]").forEach(function (b) { b.addEventListener("click", function () { S.mode = b.dataset.mode; reload(true); }); });
+  document.querySelectorAll("[data-product]").forEach(function (b) { b.addEventListener("click", function () { S.product = b.dataset.product; reload(true); }); });
+  var ctl = document.getElementById("goes-ctl"), panel = document.getElementById("goes-panel"), btn = document.getElementById("goes-ctl-btn");
+  function sizePanel() { var st = box.looper && box.looper.stage; if (st) panel.style.maxHeight = Math.max(160, st.clientHeight - 150) + "px"; }
+  function setOpen(o) { panel.style.display = o ? "" : "none"; btn.setAttribute("aria-expanded", o ? "true" : "false"); btn.classList.toggle("neutral", !o); if (o) sizePanel(); }
+  btn.addEventListener("click", function () { setOpen(panel.style.display === "none"); });
+  window.addEventListener("resize", sizePanel);
+  (function attach() { if (box.looper) { box.looper.addOverlay(ctl); setOpen(window.innerWidth >= 700); } else setTimeout(attach, 30); })();
+  paint();
+})();
+</script>
+{% endblock %}

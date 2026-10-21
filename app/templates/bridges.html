@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Radio Bridges{% endblock %}
+{% block content %}
+<h1>Radio <span>Bridges</span></h1>
+<div class="sub">Link one of your <a href="/chat/">chats</a> to an amateur radio operator on APRS, or to a node on the Meshtastic mesh. What you write in that chat goes out over the radio network, and what comes back shows up in the chat. Everything here is opt in.</div>
+{% include "partials/_my_subnav.html" %}
+
+{% if aprs_on %}{% call sec('aprs', 'APRS Messaging', True) %}
+  <p style="margin-top:0">APRS messages go from your own call sign to another operator's call sign through the APRS-IS network (the same way aprs.fi and other web clients send them). Replies addressed to your call sign from that operator appear in the chat.</p>
+  <ul class="plain">
+    <li>Your call sign comes from your <a href="/my/profile">Profile</a>: {% if call %}<b>{{ call }}</b>{% elif profile_call %}<b>{{ profile_call }}</b> is not a call sign this bridge can use{% else %}none yet{% endif %}.</li>
+    <li>Only what <b>you</b> write in the linked chat is sent, under your call sign. Other people's messages in the chat are never sent, because only a licensed operator may transmit under a call sign.</li>
+    <li>APRS messages are plain ASCII text of at most {{ max_text }} characters, never encrypted, coded or hidden. A message that does not fit is not sent, and the chat tells you so.</li>
+    <li>You can send about {{ per_hour }} an hour. Each message sent and received is in the site's audit log (who and when, never the words).</li>
+  </ul>
+  <div class="panel" id="ham-status" style="margin:0 0 12px">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><b>Amateur license:</b> <span class="tag {{ 'live' if ham.status == 'verified' else 'off' }}">{{ ham.word }}</span>
+      <button class="btn small neutral" type="button" id="ham-check" style="margin:0" {{ 'disabled' if not call }}>{{ 'Check Again' if ham.checked else 'Check My License' }}</button> <span id="ham-note" class="dim" role="status"></span></div>
+    <p style="margin:8px 0 0">{{ ham.reason }}</p>
+    {% if ham.licensee %}<p class="dim" style="margin:4px 0 0;font-size:.85rem">FCC record: {{ ham.licensee }}{% if ham.expires %}, license valid to {{ ham.expires }}{% endif %}.{% if ham.checked %} Checked <time class="ts" datetime="{{ ham.checked.isoformat() }}" data-fmt="dt">{{ ham.checked }}</time>.{% endif %}</p>
+    {% elif ham.checked %}<p class="dim" style="margin:4px 0 0;font-size:.85rem">Checked <time class="ts" datetime="{{ ham.checked.isoformat() }}" data-fmt="dt">{{ ham.checked }}</time>.</p>{% endif %}
+    {% if ham.warn %}<p style="margin:4px 0 0;color:var(--acc2);font-size:.85rem">{{ ham.warn }}</p>{% endif %}
+    <p class="dim" style="margin:6px 0 0;font-size:.82rem">{% if verify_required %}APRS can be used only by a verified, licensed operator: your call sign is looked up in the FCC's amateur license data and must be active and in the name on your Profile (US call signs). A name that does not match goes to an administrator.{% else %}License checking is switched off by the site's administrator.{% endif %} Changing your call sign or your profile name means checking again.</p>
+  </div>
+  <label class="check"><input type="checkbox" id="aprs-ack" {{ 'checked' if aprs_ok }}><span>I hold an amateur radio license for this call sign, I understand I am responsible for what is sent under it, and I know APRS is for plain, unencrypted amateur communication.</span></label>
+  <button class="btn" type="button" id="aprs-opt" data-on="{{ 0 if aprs_ok else 1 }}" {{ 'disabled' if (not call) or (verify_required and ham.status != 'verified' and not aprs_ok) }}>{{ 'Switch APRS Off for My Account' if aprs_ok else 'Switch APRS On for My Account' }}</button> <span id="aprs-note" class="dim" role="status"></span>
+{% endcall %}{% endif %}
+
+{% if mesh_on %}{% call sec('mesh', 'Meshtastic Mesh', True) %}
+  <p style="margin-top:0">A chat can be linked to a mesh node (for example <span class="mono">!a1b2c3d4</span>): what you write is queued for the mesh gateway to send to that node as a text message, and text the gateway hears from that node is added to the chat. The mesh messages are text only and as plain as the mesh channel they use. The gateway that talks to the mesh is still being built, so a message may wait in the queue.</p>
+  <button class="btn" type="button" id="mesh-opt" data-on="{{ 0 if mesh_ok else 1 }}">{{ 'Switch the Mesh Bridge Off for My Account' if mesh_ok else 'Switch the Mesh Bridge On for My Account' }}</button> <span id="mesh-note" class="dim" role="status"></span>
+{% endcall %}{% endif %}
+
+{% call sec('links', 'My Links (' ~ links | length ~ ' of up to ' ~ max_links ~ ')', True) %}
+  {% for l in links %}<div class="panel" style="margin:0 0 8px"><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+    <b>{{ 'APRS' if l.kind == 'aprs' else 'Mesh' }} {{ l.remote }}</b><span class="dim">in <a href="/chat/{{ l.conv_id }}">{{ l.title }}</a></span>
+    <span class="tag {{ 'live' if l.enabled else 'off' }}">{{ 'on' if l.enabled else 'off' }}</span>
+    <span style="margin-left:auto;display:flex;gap:6px"><button class="btn small neutral" type="button" data-act="/my/bridges/{{ l.id }}/toggle" style="margin:0">{{ 'Turn Off' if l.enabled else 'Turn On' }}</button><button class="btn small neutral" type="button" data-act="/my/bridges/{{ l.id }}/delete" data-confirm="Remove this link?" style="margin:0">Remove</button></span></div>
+    {% if l.last_result %}<div class="dim" style="font-size:.8rem;margin-top:4px">Last: {{ l.last_result }}</div>{% endif %}</div>
+  {% else %}<p class="dim" style="margin:0">No links yet.</p>{% endfor %}
+  {% if (aprs_on and aprs_ok) or (mesh_on and mesh_ok) %}
+  <form id="br-add" style="margin-top:12px">
+    <label for="br-kind">Link a Chat to</label>
+    <select id="br-kind" name="kind" style="max-width:260px">{% if aprs_on and aprs_ok %}<option value="aprs">APRS call sign</option>{% endif %}{% if mesh_on and mesh_ok %}<option value="mesh">Mesh node</option>{% endif %}</select>
+    <label for="br-remote">Call Sign (with SSID, like W5ABC-9) or Node ID (like !a1b2c3d4)</label>
+    <input type="text" id="br-remote" name="remote" maxlength="20" required style="max-width:260px">
+    <label for="br-conv">Chat</label>
+    <select id="br-conv" name="conv_id" style="max-width:360px">{% for c in convs %}<option value="{{ c.id }}">{{ c.name or c.others or ('Chat ' ~ c.id) }}{{ ' (group)' if c.kind == 'group' }}</option>{% endfor %}</select>
+    <p class="help">Make a chat first on the <a href="/chat/">Chat</a> page (with a friend, or a group), then link it here. The people in the chat see the radio messages and who they came from.</p>
+    <button class="btn" type="submit">Link the Chat</button> <span id="br-note" class="dim" role="status"></span>
+  </form>{% else %}<p class="dim" style="margin:10px 0 0">Switch a bridge on for your account above to link a chat.</p>{% endif %}
+{% endcall %}
+<script>
+(function () {
+  var csrf = "{{ csrf_token() }}";
+  function post(url, data) { var f = new FormData(); f.append("csrf_token", csrf); Object.keys(data || {}).forEach(function (k) { f.append(k, data[k]); }); return fetch(url, { method: "POST", body: f, credentials: "same-origin" }).then(function (r) { return r.json(); }); }
+  function opt(id, kind, noteId, ackId) {
+    var b = document.getElementById(id); if (!b) return;
+    b.addEventListener("click", function () {
+      var data = { kind: kind, on: b.getAttribute("data-on") }; var ack = ackId && document.getElementById(ackId); if (ack && ack.checked) data.ack = "1";
+      post("/my/bridges/optin", data).then(function (d) { document.getElementById(noteId).textContent = d.message || ""; if (d.ok) setTimeout(function () { location.reload(); }, 600); });
+    });
+  }
+  var hc = document.getElementById("ham-check");
+  if (hc) hc.addEventListener("click", function () { hc.disabled = true; post("/my/bridges/verify").then(function (d) { document.getElementById("ham-note").textContent = d.message || ""; setTimeout(function () { location.reload(); }, 1800); }).catch(function () { hc.disabled = false; }); });
+  opt("aprs-opt", "aprs", "aprs-note", "aprs-ack"); opt("mesh-opt", "mesh", "mesh-note", null);
+  Array.prototype.forEach.call(document.querySelectorAll("[data-act]"), function (b) { b.addEventListener("click", function () { var c = b.getAttribute("data-confirm"); if (c && !confirm(c)) return; post(b.getAttribute("data-act")).then(function () { location.reload(); }); }); });
+  var f = document.getElementById("br-add");
+  if (f) f.addEventListener("submit", function (e) { e.preventDefault(); post("/my/bridges/add", { kind: f.kind.value, remote: f.remote.value, conv_id: f.conv_id.value }).then(function (d) { document.getElementById("br-note").textContent = d.message || ""; if (d.ok) setTimeout(function () { location.reload(); }, 600); }); });
+})();
+</script>
+{% endblock %}

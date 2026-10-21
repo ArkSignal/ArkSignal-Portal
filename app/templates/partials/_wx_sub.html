@@ -1,0 +1,3 @@
+Weather station{% if who %} of {{ who }}{% if r.owner_callsign %} ({{ r.owner_callsign }}){% endif %}{% endif %} &middot; {% if online %}<span class="tag live">reporting</span>{% else %}<span class="tag off">offline</span>{% endif %}
+  {% if r.last_report %}last report {{ r.last_report | localtime("%b %-d %H:%M") }}{% endif %}
+  {% if approx and loc %} &middot; approximate position{% elif not loc %} &middot; position hidden{% endif %}

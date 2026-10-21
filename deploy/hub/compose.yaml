@@ -1,0 +1,63 @@
+# The hub (ultrafeeder/readsb/tar1090) and its landing page: /opt/adsb/hub/compose.yaml on the hub VM, applied by the stack updater (adsb-stack).
+# The image is upstream's and is NOT labelled for Watchtower (it only changes when this file changes). Recreating it briefly drops the feeds;
+# stations reconnect by themselves.
+services:
+  hub:
+    image: ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:telegraf
+    container_name: hub
+    hostname: hub
+    restart: unless-stopped
+    networks:
+      - proxy
+    ports:
+      - 30004:30004        # Beast input from stations (public via NLR NAT)
+      - 8080:80            # tar1090, LAN test only (not in ADSB_HUB_PORTS)
+      - 30003:30003        # SBS output for QGroundControl
+    environment:
+      - TZ=America/Chicago
+      # no READSB_DEVICE_TYPE = no SDR, network input only
+      # reference point ~center of Arkansas (not a real antenna)
+      - READSB_LAT=34.80
+      - READSB_LON=-92.30
+      - READSB_ALT=350ft
+      - READSB_RX_LOCATION_ACCURACY=0
+      - PROMETHEUS_ENABLE=true
+      # per-feeder tracking: UUID forwarding + clients.json (full UUID, source IP, msg/s, pos/s)
+      # MLAT results: the hub connects to the MLAT server's BaseStation output (adsb-mlat, see ../mlat) and shows them as MLAT positions
+      - READSB_EXTRA_ARGS=--net-receiver-id --write-receiver-id-json --devel=enableClientsJson --net-connector adsb-mlat,30105,sbs_in_mlat
+      # tar1090
+      - TAR1090_PAGETITLE=Arkansas ADS-B
+      - TAR1090_SITENAME=Arkansas ADS-B
+      - TAR1090_DEFAULTCENTERLAT=34.80
+      - TAR1090_DEFAULTCENTERLON=-92.30
+      - TAR1090_DEFAULTZOOMLVL=7
+      - TAR1090_USEROUTEAPI=true
+      - TAR1090_ENABLE_AC_DB=true
+      - TAR1090_FLIGHTAWARELINKS=true
+      # history: traces + heatmap, 3 years
+      # MLAT positions also go to the BaseStation feed (port 30003) that Planefence reads
+      - READSB_FORWARD_MLAT_SBS=true
+      - READSB_ENABLE_TRACES=true
+      - MAX_GLOBE_HISTORY=1095
+    volumes:
+      - /opt/adsb/hub/globe_history:/var/globe_history
+      - /opt/adsb/hub/graphs1090:/var/lib/collectd
+      - /proc/diskstats:/proc/diskstats:ro
+    tmpfs:
+      - /run:exec,size=256M
+      - /tmp:size=128M
+      - /var/log:size=32M
+
+  # landing page (static), reached by NPM as portal:80
+  portal:
+    image: nginx:alpine
+    container_name: portal
+    restart: unless-stopped
+    networks:
+      - proxy
+    volumes:
+      - /opt/adsb/hub/portal:/usr/share/nginx/html:ro
+
+networks:
+  proxy:
+    external: true

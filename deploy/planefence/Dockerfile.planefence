@@ -1,0 +1,6 @@
+# Planefence and Plane-Alert for the network: the upstream sdr-enthusiasts container (kx1t) with first-run defaults for this network, so no one edits a
+# config file by hand. Built by build.yml as mallison01/adsb-planefence and released with everything else. The daily build re-pulls the base image.
+FROM ghcr.io/sdr-enthusiasts/docker-planefence:latest
+COPY adsb-entry.sh /adsb-entry.sh
+RUN chmod 755 /adsb-entry.sh
+ENTRYPOINT ["/adsb-entry.sh"]

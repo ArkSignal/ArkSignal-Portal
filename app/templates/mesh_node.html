@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}{{ n.long_name or n.id[:12] }} | Mesh Nodes{% endblock %}
+{% block content %}
+{% set mc = n.network == 'meshcore' %}
+<h1><span>Mesh</span> Node {{ n.long_name or n.id[:12] }}</h1>
+<div class="sub">{{ 'MeshCore' if mc else 'Meshtastic' }} &middot; <span class="mono">{{ n.id[:19] }}{{ '...' if n.id | length > 19 }}</span>{% if n.short_name %} &middot; {{ n.short_name }}{% endif %} &middot; <span class="sw" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:{{ colors.get(n.role_name, '#8a9bb3') }}"></span> {{ n.role_name or ('kind not stated' if mc else 'role not stated') }} &middot; last heard <time class="ts" datetime="{{ n.last_seen }}" data-fmt="dt">{{ n.last_seen[:16].replace('T', ' ') }}</time></div>
+<div class="tiles" style="margin-bottom:14px">
+  {% if mc %}
+  <div class="panel tile"><div class="tv" style="font-size:1.05rem">{{ n.role_name or '-' }}</div><div class="tl">Kind</div></div>
+  <div class="panel tile"><div class="tv" style="font-size:1.05rem">{{ n.advert_time[:16].replace('T', ' ') if n.advert_time else '-' }}</div><div class="tl">Last advert (UTC)</div></div>
+  <div class="panel tile"><div class="tv" style="font-size:1.05rem">{{ n.packets }}</div><div class="tl">Adverts heard</div></div>
+  <div class="panel tile"><div class="tv" style="font-size:1.05rem">{{ heard | length }}</div><div class="tl">Observers that heard it</div></div>
+  {% else %}
+  <div class="panel tile"><div class="tv" style="font-size:1.05rem">{{ n.hardware or '-' }}</div><div class="tl">Hardware</div></div>
+  <div class="panel tile"><div class="tv" style="font-size:1.05rem">{{ n.firmware or '-' }}</div><div class="tl">Firmware</div></div>
+  <div class="panel tile"><div class="tv" style="font-size:1.05rem">{{ n.region_name or '-' }}{% if n.preset_name %} &middot; {{ n.preset_name }}{% endif %}</div><div class="tl">Region and preset</div></div>
+  <div class="panel tile"><div class="tv" style="font-size:1.05rem">{% if n.battery is not none %}{{ ('%d%%' % n.battery) if n.battery <= 100 else 'powered' }}{% else %}-{% endif %}</div><div class="tl">Battery</div></div>
+  {% endif %}
+</div>
+<div class="panel" style="margin-bottom:14px">
+  <table style="max-width:700px">
+    <tr><th style="width:190px">Position</th><td class="mono">{% if n.lat is not none %}{{ '%.4f' % n.lat }}, {{ '%.4f' % n.lon }}{% if not mc and n.precision_bits %} <span class="dim">(rounded by the owner's setting: {{ n.precision_bits }} bits)</span>{% endif %}{% if not mc and n.alt is not none %} &middot; {{ n.alt }} m{% endif %}{% else %}<span class="dim">not published</span>{% endif %}</td></tr>
+    {% if mc %}
+    <tr><th>Public key</th><td class="mono" style="word-break:break-all">{{ n.pubkey }}</td></tr>
+    <tr><th>First heard</th><td>{{ n.first_seen[:16].replace('T', ' ') }} UTC</td></tr>
+    {% else %}
+    <tr><th>Other nodes it hears</th><td>{{ n.online_local if n.online_local is not none else '-' }}</td></tr>
+    <tr><th>Channel use, air time</th><td>{{ ('%.1f%%' % n.channel_util) if n.channel_util is not none else '-' }}{% if n.air_util is not none %}, {{ '%.1f%%' % n.air_util }}{% endif %}</td></tr>
+    <tr><th>Voltage, uptime</th><td>{{ ('%.2f V' % n.voltage) if n.voltage is not none else '-' }}{% if n.uptime is not none %}, {{ (n.uptime // 3600) }} h{% endif %}</td></tr>
+    <tr><th>First heard, packets seen</th><td>{{ n.first_seen[:16].replace('T', ' ') }} UTC, {{ n.packets }}</td></tr>
+    {% endif %}
+  </table>
+  {% if not mc and n.battery is none and n.voltage is none and n.uptime is none and n.channel_util is none %}<p class="dim" style="font-size:.85rem">Battery, voltage, uptime and channel use are not in the map report a node sends. They show here only when the node, or a gateway that hears it, sends its telemetry in the clear: the owner can turn <b>Encryption Enabled</b> off and the primary channel's <b>Uplink</b> on (see <a href="/feed/mesh">How to Join</a>). Nothing private is read either way.</p>{% endif %}
+  {% if n.lat is not none %}<p style="margin-bottom:0"><a class="btn small" href="/mesh/map?lat={{ n.lat }}&lon={{ n.lon }}&zoom=12&node={{ n.slug }}">Show on the Mesh Map</a></p>{% endif %}
+</div>
+{% if owners %}<p class="dim">Run by {{ owners | join(", ") }}.</p>{% endif %}
+{% if my_claim == 'claimed' %}<p class="dim">This is your node. You can change how it is shown on <a href="/my/mesh#sec-claims">My Mesh Nodes</a>.</p>
+{% elif my_claim == 'pending' %}<p class="dim">Your claim on this node is waiting: put its code in the node's name, then press Check Now on <a href="/my/mesh#sec-claims">My Mesh Nodes</a>.</p>
+{% elif not owners %}{% if current_user.is_authenticated %}<form method="post" action="/my/mesh/claim" style="margin:0 0 14px"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="node" value="{{ n.id }}"><button class="btn small" type="submit" id="claim-node">Claim This Node</button> <span class="dim">Is this your node? Claim it to show you run it: you get a code to put in the node's name.</span></form>
+{% else %}<p class="dim"><a href="/my/login">Sign in</a> to claim this node if it is yours.</p>{% endif %}{% endif %}
+{% if neighbors %}<h2>Neighbors (Direct)</h2>
+<div class="panel" style="overflow-x:auto">
+  <p class="dim" style="margin-top:0">Nodes this one reported hearing directly, with no relay in between (from its Neighbor Info reports), and nodes that reported hearing it. SNR is the signal quality at the receiving end: above 5 dB is strong, below -5 dB is weak.</p>
+  <table class="sortable"><thead><tr><th data-sort="text">Node</th><th data-sort="text">Link</th><th data-sort="num">SNR (dB)</th><th data-sort="text">Reported</th></tr></thead><tbody>
+  {% for x in neighbors %}<tr><td class="mono">{% if x.name %}<a href="/mesh/{{ x.slug }}">{{ x.name }}</a> <span class="dim">{{ x.id }}</span>{% else %}{{ x.id }}{% endif %}</td><td>{{ 'this node hears it' if x.direction == 'hears' else 'it hears this node' }}</td>
+    <td data-v="{{ x.snr if x.snr is not none else -99 }}">{{ x.snr if x.snr is not none else '-' }}</td><td><time class="ts" datetime="{{ x.last_seen }}" data-fmt="dt">{{ x.last_seen[:16].replace('T', ' ') }}</time></td></tr>{% endfor %}</tbody></table>
+</div>
+{% endif %}
+<h2>Heard By</h2>
+<div class="panel" style="overflow-x:auto">
+  {% if heard %}<p class="dim" style="margin-top:0">{{ 'The observers (repeaters and companions that report to the broker) that heard this node\'s adverts' if mc else 'The gateways (nodes that uplink to the broker) that heard this node' }}, with the signal at the last packet. This is measured from what was heard, not a prediction.</p>
+  <table class="sortable"><thead><tr><th data-sort="text">{{ 'Observer' if mc else 'Gateway' }}</th><th data-sort="num">SNR (dB)</th><th data-sort="num">Best SNR</th><th data-sort="num">RSSI (dBm)</th>{% if mc %}<th data-sort="num">Hops</th>{% endif %}<th data-sort="num">Packets</th><th data-sort="text">Last</th></tr></thead><tbody>
+  {% for h in heard %}<tr><td class="mono">{% if h.slug %}<a href="/mesh/{{ h.slug }}">{{ h.name or h.gateway[:15] }}</a>{% elif mc %}{{ h.name or h.gateway[:15] }}{% else %}{{ h.gateway }}{% endif %}</td><td data-v="{{ h.snr if h.snr is not none else -99 }}">{{ h.snr if h.snr is not none else '-' }}</td><td data-v="{{ h.best_snr if h.best_snr is not none else -99 }}">{{ h.best_snr if h.best_snr is not none else '-' }}</td><td>{{ h.rssi if h.rssi is not none else '-' }}</td>{% if mc %}<td>{{ h.hops if h.hops is not none else '-' }}</td>{% endif %}<td>{{ h.count }}</td>
+    <td><time class="ts" datetime="{{ h.ts }}" data-fmt="dt">{{ h.ts[:16].replace('T', ' ') }}</time></td></tr>{% endfor %}</tbody></table>
+  {% else %}<p class="dim" style="margin:0">No {{ 'observer' if mc else 'gateway' }} has been recorded hearing this node yet.</p>{% endif %}
+  {% if gateway_for %}<p style="margin-bottom:0">This node is itself {{ 'an observer' if mc else 'a gateway' }} for {{ gateway_for }} node{{ '' if gateway_for == 1 else 's' }}.</p>{% endif %}
+</div>
+<p><a href="/mesh/nodes">&larr; All nodes</a> &middot; <a href="/mesh/">Mesh overview</a></p>
+<p class="dim" style="font-size:.8rem">{{ credit }}.</p>
+{% endblock %}

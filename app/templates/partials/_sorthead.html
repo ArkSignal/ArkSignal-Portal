@@ -1,0 +1,6 @@
+{# Sortable column heading that links to the same page sorted by that column; keeps the other filters. #}
+{% macro sorthead(label, key, cur, direction, args) -%}
+{% set nd = 'asc' if (cur == key and direction == 'desc') else ('desc' if cur == key else 'asc') -%}
+{% set a = args | dictsort | rejectattr(0, 'in', ['sort', 'dir', 'page']) | list -%}
+<th aria-sort="{{ ('ascending' if direction == 'asc' else 'descending') if cur == key else 'none' }}"><a href="?{{ (dict(a + [('sort', key), ('dir', nd)])) | urlencode }}" style="color:inherit;text-decoration:none">{{ label }}{% if cur == key %} {{ '▲' if direction == 'asc' else '▼' }}{% endif %}</a></th>
+{%- endmacro %}

@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Radiosondes{% endblock %}
+{% block content %}
+<h1><span>Admin</span> Radiosondes</h1>
+<div class="sub">The live balloon feed, the recorded flights and the receiving stations members claim. Everything configurable is in <a href="/admin/settings#sec-radiosondes">Settings &gt; Radiosondes</a>; the launch-site list reloads from <a href="/admin/data-updates/">Data Updates</a>.{% if not enabled %} <b>The service is switched off.</b>{% endif %}</div>
+{% include "partials/_admin_subnav.html" %}
+<div class="tiles" style="margin-bottom:14px">
+  <div class="panel tile"><div class="tv">{% if not live %}off{% elif alive %}live{% else %}down{% endif %}</div><div class="tl">Feed{% if feed.per_min %}, {{ feed.per_min }} messages a minute worldwide{% endif %}</div></div>
+  <div class="panel tile"><div class="tv">{{ counts.flights.total }}</div><div class="tl">Flights recorded ({{ counts.flights.nws }} NWS)</div></div>
+  <div class="panel tile"><div class="tv">{{ counts.flights.aloft }}</div><div class="tl">In the air now</div></div>
+  <div class="panel tile"><div class="tv">{{ '{:,}'.format(points) }}</div><div class="tl">Positions stored</div></div>
+  <div class="panel tile"><div class="tv">{{ counts.stations.total }}</div><div class="tl">Receiving stations ({{ counts.stations.claimed }} claimed)</div></div>
+</div>
+{% if feed.error %}<div class="panel" style="border-color:var(--acc2);margin-bottom:14px"><b>Feed problem:</b> <span class="mono">{{ feed.error }}</span></div>{% endif %}
+<details class="panel setsec" id="sec-history" data-tab-title="Historical Flights" data-tab-order="20" style="margin-bottom:14px"><summary><span class="role-name">Historical Flights</span> <span class="dim" id="hi-sum" style="font-size:.85rem">checking...</span></summary>
+  <div class="secbody">
+    <p class="help" style="margin-top:0">Every flight SondeHub's archive holds for the launch sites in <a href="/admin/settings#sec-radiosondes">Settings &gt; Radiosondes</a>, brought in as full flights (one request per flight, slowly, newest month first, remembering what is done). Data: SondeHub, Creative Commons BY-SA 2.0.</p>
+    <div id="hi-body" class="dim">Asking...</div>
+    <div class="lv-row" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      {% for act, label in [('start', 'Start or Resume'), ('stop', 'Stop')] %}<form method="post" action="/admin/sondes/history/{{ act }}" style="margin:0"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small{{ ' neutral' if act == 'stop' }}" style="margin:0" type="submit">{{ label }}</button></form>{% endfor %}
+    </div>
+  </div>
+</details>
+<script>
+(function () {
+  var sum = document.getElementById("hi-sum"), body = document.getElementById("hi-body");
+  function esc(t) { var d = document.createElement("div"); d.textContent = t == null ? "" : t; return d.innerHTML; }
+  function load() {
+    fetch("/admin/sondes/history/status.json", {credentials: "same-origin"}).then(function (r) { return r.json(); }).then(function (j) {
+      var c = j.counts, p = j.progress || {};
+      sum.textContent = Number(c.flights).toLocaleString() + " historical flights" + (j.enabled ? (c.months_left ? ", working" : ", up to date") : ", off");
+      body.innerHTML = "<div>" + Number(c.flights).toLocaleString() + " flights brought in" + (c.oldest ? ", the oldest from " + esc(String(c.oldest).slice(0, 10)) : "") + ". Months finished: " + c.months_done + ", still to look at: " + c.months_left + ". Flights the archive could not give: " + c.skipped + ". Sites: " + esc((j.sites || []).join(", ")) + " back to " + esc(j.since) + ".</div>"
+        + (p.at ? "<div style='margin-top:6px'>Last worked on " + esc(p.site) + " " + esc(p.ym) + " at " + esc(String(p.at).slice(0, 16).replace("T", " ")) + " UTC; this run: " + p.imported + " imported, " + p.skipped + " skipped, " + p.errors + " problems" + (p.error ? " (last: " + esc(p.error) + ")" : "") + ".</div>" : "");
+    }).catch(function () { sum.textContent = "could not ask"; });
+  }
+  load(); setInterval(function () { if (document.getElementById("sec-history").open) load(); }, 10000);
+})();
+</script>
+<details class="panel setsec" id="sec-predict" data-tab-title="Prediction Service" data-tab-order="30" style="margin-bottom:14px"><summary><span class="role-name">Prediction Service</span> <span class="dim" id="pr-sum" style="font-size:.85rem">checking...</span></summary>
+  <div class="secbody">
+    <p class="help" style="margin-top:0">The prediction and archive service is its own container with its own database (<span class="mono">{{ predict_url }}</span>). It imports SondeHub's open archive as one summary per flight, back to the date set in <a href="/admin/settings#sec-prediction-service">Settings &gt; Prediction Service</a>, and forecasts where the balloons of upcoming launches will land. Everything is set there; press Apply to send the settings to the service.</p>
+    <div id="pr-body" class="dim">Asking the service...</div>
+    <div class="lv-row" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      {% for act, label in [('apply', 'Apply Settings'), ('start', 'Start Archive Import'), ('stop', 'Stop Import'), ('push', 'Send Flights Recorded Here'), ('gfs', 'Read the Newest GFS Cycle Now')] %}
+      <form method="post" action="/admin/sondes/predict/{{ act }}" style="margin:0"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small{{ ' neutral' if act in ('stop', 'push') }}" style="margin:0" type="submit">{{ label }}</button></form>
+      {% endfor %}
+    </div>
+  </div>
+</details>
+<script>
+(function () {
+  var sum = document.getElementById("pr-sum"), body = document.getElementById("pr-body");
+  function esc(t) { var d = document.createElement("div"); d.textContent = t == null ? "" : t; return d.innerHTML; }
+  function load() {
+    fetch("/admin/sondes/predict/status.json", {credentials: "same-origin"}).then(function (r) { return r.json(); }).then(function (j) {
+      if (!j.enabled) { sum.textContent = "switched off in Settings"; body.textContent = ""; return; }
+      if (!j.ok) { sum.textContent = "not answering"; body.innerHTML = "<b>" + esc(j.note) + "</b> The container may be stopped or starting; Service Status says more."; return; }
+      var s = j.stats, im = s.import || {};
+      sum.textContent = Number(s.flights).toLocaleString() + " flights" + (im.running ? ", importing " + (im.current || "") : "");
+      var rows = (s.by_site || []).slice(0, 14).map(function (r) { return "<tr><td>" + esc(r.site) + "</td><td>" + Number(r.flights).toLocaleString() + "</td><td>" + esc((r.first || "").slice(0, 10)) + "</td><td>" + esc((r.last || "").slice(0, 10)) + "</td></tr>"; }).join("");
+      body.innerHTML = "<div>Version " + esc(s.version) + ". " + Number(s.flights).toLocaleString() + " flights from " + s.sites + " launch sites, " + esc((s.first || "").slice(0, 10)) + " to " + esc((s.last || "").slice(0, 10)) + ". Forecasts stored: " + s.predictions + " (" + s.scored + " scored against the real flight). Months imported: " + ((s.months || {}).done || 0) + ((s.months || {}).error ? ", with errors: " + s.months.error : "") + ".</div>"
+        + (s.gfs ? "<div id='pr-gfs' style='margin-top:6px'><b>NOAA GFS (read by this site):</b> " + (s.gfs.enabled ? (s.gfs.ready ? "cycle " + esc((s.gfs.cycle || '').slice(0, 13).replace('T', ' ')) + "z, " + s.gfs.steps + " forecast hours, " + Math.round((s.gfs.bytes || 0) / 1024 / 1024 * 10) / 10 + " MB, " + s.gfs.age_hours + " hours old" : "no cycle is stored yet") + (s.gfs.running ? " (reading a cycle now)" : "") + (s.gfs.error ? " <span class='tag off'>" + esc(s.gfs.error) + "</span>" : "") : "switched off in Settings") + "</div>" : "")
+        + (im.running ? "<div style='margin-top:6px'><b>Import running:</b> " + esc(im.current) + ", month " + im.months_done + " of " + im.months_total + ", " + im.requests + " requests, " + im.flights + " flights added." + "</div>" : (im.error ? "<div style='margin-top:6px'>Last import: " + esc(im.error) + "</div>" : ""))
+        + (rows ? "<table style='margin-top:8px'><thead><tr><th>Site</th><th>Flights</th><th>First</th><th>Latest</th></tr></thead><tbody>" + rows + "</tbody></table>" : "");
+    }).catch(function () { sum.textContent = "could not ask"; });
+  }
+  load(); setInterval(function () { if (document.getElementById("sec-predict").open) load(); }, 8000);
+})();
+</script>
+<div data-tab-title="Stations" data-tab-order="10" data-tab-default>
+{% if sites_summary %}<p class="dim">Launch sites: {{ sites_summary }}.</p>{% endif %}
+
+<details class="panel setsec" id="sec-assign" open style="margin-bottom:14px"><summary><span class="role-name">Assign a Station to a Member</span></summary>
+<form method="post" action="/admin/sondes/assign" data-async data-reset>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <label for="as-user">Member (User Name, Display Name, Call Sign or Email)</label>
+  <input type="text" id="as-user" name="username" data-memberpicker maxlength="120" required style="width:320px" placeholder="Start typing to search members">
+  <label for="as-call">Station Call Sign</label>
+  <input type="text" id="as-call" name="callsign" list="as-stations" maxlength="32" required placeholder="For example KD5VCF-LR" style="max-width:260px">
+  <datalist id="as-stations">{% for r in stations %}<option value="{{ r.callsign }}">{% endfor %}</datalist>
+  <label for="as-mode">What to Do</label>
+  <select id="as-mode" name="mode"><option value="assign">Give it to them now</option><option value="claim">Start a claim for them (they prove it)</option></select>
+  <label for="as-dn">Station Name</label><input type="text" id="as-dn" name="display_name" maxlength="60" placeholder="For example Work tower, Little Rock">
+  <label for="as-nt">About the Station</label><input type="text" id="as-nt" name="notes" maxlength="500">
+  <div id="as-owned">
+    <label for="as-pv">Location Privacy</label>
+    <select id="as-pv" name="privacy">{% for k, v in privacy.items() %}<option value="{{ k }}" {{ 'selected' if k == default_privacy }}>{{ v }}</option>{% endfor %}</select>
+    <label class="check"><input type="checkbox" name="public" value="1" checked><span><b>List this station publicly</b><br><span class="dim">On Receiving Stations, the maps and the flights it heard.</span></span></label>
+  </div>
+  <div class="help">The station may be one not heard yet. A station that belongs to someone else is taken over. Starting a claim gives the member a code to put in the station's antenna description (or you approve it below); giving it now makes it theirs at once, and then the privacy and listing choices apply (a claim offers the member those once it completes). The member can then manage it from My Radiosonde Stations, and you can open it from the lists below with Manage. Recorded in the audit log.</div>
+  <button class="btn" type="submit">Assign</button>
+</form><script src="/static/memberpicker.js"></script>
+<script>(function(){var m=document.getElementById("as-mode"),o=document.getElementById("as-owned");function s(){o.style.display=m.value==="assign"?"":"none";o.querySelectorAll("input,select").forEach(function(i){i.disabled=m.value!=="assign";});}m.addEventListener("change",s);s();})();</script></details>
+
+{% call sec('waiting', 'Claims Waiting', True, True) %}<table>
+  <tr><th>Station</th><th>Member</th><th>Profile Call Sign</th><th>Code</th><th>Heard</th><th></th></tr>
+  {% for r in pending %}<tr>
+    <td class="mono">{{ r.callsign }}</td><td>{{ r.owner_name }}</td><td class="mono">{{ r.owner_callsign or '-' }}</td><td class="mono">{{ r.claim_code }}</td>
+    <td class="dim">{{ r.last_seen | localtime("%b %-d %H:%M") if r.last_seen else 'never' }}</td>
+    <td style="white-space:nowrap">
+      <a class="btn small" href="/my/sondes/{{ r.id }}">Manage</a>
+      <form method="post" action="/admin/sondes/{{ r.id }}/approve" data-async style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small" type="submit">Approve</button></form>
+      <form method="post" action="/admin/sondes/{{ r.id }}/reject" data-async style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small danger" type="submit">Reject</button></form>
+    </td></tr>
+  {% else %}<tr><td colspan="6" class="dim">No claim is waiting.</td></tr>{% endfor %}
+</table>
+{% endcall %}
+
+{% call sec('claimed', 'Claimed Stations', True, True) %}<table>
+  <tr><th>Station</th><th>Owner</th><th>Privacy</th><th>Listed</th><th>Last Heard</th><th></th></tr>
+  {% for r in claimed %}<tr>
+    <td><a class="mono" href="/sondes/stations/{{ r.callsign | callurl }}">{{ r.callsign }}</a></td><td>{{ r.owner_name }}</td><td>{{ r.privacy }}</td><td>{{ 'yes' if r.public and not r.disabled else 'no' }}</td>
+    <td class="dim">{{ r.last_seen | localtime("%b %-d %H:%M") if r.last_seen else 'never' }}</td>
+    <td style="white-space:nowrap">
+      <a class="btn small" href="/my/sondes/{{ r.id }}">Manage</a>
+      <form method="post" action="/admin/sondes/{{ r.id }}/{{ 'enable' if r.disabled else 'disable' }}" data-async style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small" type="submit">{{ 'Show' if r.disabled else 'Hide' }}</button></form>
+      <form method="post" action="/admin/sondes/{{ r.id }}/release" data-async data-confirm="Take this station away from its owner?" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small danger" type="submit">Release</button></form>
+    </td></tr>
+  {% else %}<tr><td colspan="6" class="dim">No station has been claimed yet.</td></tr>{% endfor %}
+</table>
+{% endcall %}
+
+{% call sec('unclaimed', 'Unclaimed Stations', True, True) %}<table>
+  <tr><th>Station</th><th>Software</th><th>Privacy</th><th>Last Heard</th><th></th></tr>
+  {% for r in stations %}<tr>
+    <td class="mono">{{ r.callsign }}</td><td>{{ r.software }} <span class="dim">{{ r.version }}</span></td><td>{{ 'hidden (mobile)' if r.mobile and r.privacy != 'exact' else r.privacy }}</td>
+    <td class="dim">{{ r.last_seen | localtime("%b %-d %H:%M") if r.last_seen else 'never' }}</td>
+    <td style="white-space:nowrap"><a class="btn small" href="#sec-assign" onclick="document.getElementById('as-call').value='{{ r.callsign | e }}';document.getElementById('as-user').focus();">Assign</a>
+      <form method="post" action="/admin/sondes/{{ r.id }}/{{ 'enable' if r.disabled else 'disable' }}" data-async style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small" type="submit">{{ 'Show' if r.disabled else 'Hide' }}</button></form></td></tr>
+  {% else %}<tr><td colspan="5" class="dim">No station has been heard yet.</td></tr>{% endfor %}
+</table>
+{% endcall %}
+</div>
+{% endblock %}

@@ -1,0 +1,14 @@
+# Grafana with this network's datasource and dashboards baked in, so an update is just a new image (no files to copy).
+# Built and published by .github/workflows/build.yml as mallison01/adsb-grafana.
+FROM grafana/grafana-oss:latest
+USER root
+RUN apk add --no-cache curl
+# the portal's statistics files are read through the Infinity (JSON API) data source plugin, installed here so an update needs nothing on the hub
+RUN grafana cli --pluginsDir /usr/share/grafana/data/plugins-bundled plugins install yesoreyeram-infinity-datasource
+COPY provisioning /etc/grafana/provisioning
+COPY ultrafeeder-dashboard.json feeders-dashboard.json weather-dashboard.json sondes-dashboard.json REV /dash/
+COPY setup.sh /adsb-setup.sh
+COPY entrypoint.sh /adsb-entrypoint.sh
+RUN chmod 755 /adsb-setup.sh /adsb-entrypoint.sh
+USER grafana
+ENTRYPOINT ["/adsb-entrypoint.sh"]

@@ -1,0 +1,223 @@
+{% extends "feed_base.html" %}
+{% from "partials/_feedsec.html" import sec, other_feeds with context %}
+{% block title %}Mesh Nodes | How to Feed{% endblock %}
+{% block feed_body %}
+<h1>How to <span>Feed</span> the Mesh Map</h1>
+<div class="sub">Share your Meshtastic or MeshCore node with {{ site_name }}. A Meshtastic node needs a few settings in its app; a MeshCore repeater or companion runs one small program. Your node then appears on the <a href="/mesh/">Mesh Nodes</a> list and the <a href="/mesh/map">Mesh Map</a>, and any node that uplinks tells us what it hears, so the map can show who hears whom.</div>
+
+{% call sec('the-short-version', 'The Short Version', True) %}
+  {% if configured %}<table style="max-width:640px">
+    <tr><th class="kvh">MQTT server</th><td class="mono copyable">{% for p in host.split('.') %}{{ p }}{% if not loop.last %}.<wbr>{% endif %}{% endfor %}</td></tr>
+    <tr><th>Port (TLS)</th><td class="mono copyable">{{ port }}</td></tr>
+    <tr><th>Username and password</th><td>{% if signed_in %}Your own, from <a href="/my/mesh">My Mesh Nodes</a>{% else %}Your own, made on <a href="/my/mesh">My Mesh Nodes</a> (<a href="/my/login">sign in</a> or <a href="/register">register</a> first){% endif %}</td></tr>
+    <tr><th>Meshtastic root topic</th><td class="mono copyable">{{ topic }}</td></tr>
+    <tr><th>MeshCore topics</th><td class="mono">meshcore/&lt;your airport code&gt;/&lt;your public key&gt;/packets</td></tr>
+  </table>
+  <p style="margin:10px 0 0">Put those into your node (Meshtastic: MQTT module; MeshCore: the <span class="mono">meshcoretomqtt</span> program), switch on <b>map reporting</b> for Meshtastic, and wait for the next report (Meshtastic's default is once an hour). The exact steps are under <a href="#sec-app-setup">Set Up Your Node With the App</a> and <a href="#sec-software-setup">Software Setup</a>.</p>
+  <p style="margin:10px 0 0"><b>The least you need to get on the map:</b> region US, a name and a position, MQTT on with the address, your login and TLS on, the root topic above, and Map Reporting on. <b>To also listen for other nodes</b> (a gateway) add Uplink on the primary channel and Encryption off: see <a href="#sec-gateway">Work as a Gateway</a>. Every setting is explained under <a href="#sec-settings-explained">Every Setting Explained</a>.</p>
+  {% else %}<p style="margin:0">The administrators have not opened the community broker to nodes yet, so there is nothing to connect to today. When it is open, this page shows the server, port and login in this box and nodes can use the steps below. You can already set a Meshtastic node up for the map and have it ready.</p>{% endif %}
+  <p class="dim" style="margin:10px 0 0">Your node is identified by its own number (Meshtastic, shown as <span class="mono">!a1b2c3d4</span>) or its public key (MeshCore). Everything the network is doing right now is on the <a href="/status">service status</a> page.</p>
+{% endcall %}
+
+{% call sec('how-it-works', 'How It Works', True) %}
+  <p style="margin-top:0"><b>Mesh radio</b> networks let small LoRa radios pass short messages from one to the next with no towers and no internet. Two systems are common in Arkansas: <b>Meshtastic</b>, which nearly all of the area's nodes run, and <b>MeshCore</b>, a newer one built around repeaters. Neither needs the internet to work, but a node that does have internet can tell a map about itself and about what it hears. That is what you share here.</p>
+  <table style="width:100%">
+    <tr><th style="width:190px">System</th><th>What you send and what we keep</th></tr>
+    <tr><td><b>Meshtastic map report</b></td><td>Your node tells the map who it is on purpose: its name, hardware, role, firmware, region and position (as rough as you set it). It is a public packet by design.</td></tr>
+    <tr><td><b>Meshtastic gateway</b></td><td>A node with MQTT uplink also passes on what it hears: other nodes' position, node information and telemetry, with the signal. That is how the map learns who hears whom. Only those packet types are kept.</td></tr>
+    <tr><td><b>MeshCore observer</b></td><td>A repeater or companion running <span class="mono">meshcoretomqtt</span> passes on the packets its radio hears. Only the <b>adverts</b> (a node announcing its name, kind and position, signed with its own key) are kept; the signature is checked.</td></tr>
+    <tr><td><b>Everything else</b></td><td>Text messages and private channels are encrypted and are never decrypted, stored or shown. They are dropped as soon as they arrive.</td></tr>
+  </table>
+  <p style="margin-bottom:0">So <b>your node can send what it sees about other nodes directly to us</b>: turn on MQTT uplink on a Meshtastic node, or run the observer program for MeshCore, and point it at the server above. Each message carries which gateway or observer heard it and how well, and the node pages show that as <b>Heard By</b>. It is measured from what was heard, not a prediction.</p>
+{% endcall %}
+
+{% call sec('what-you-need', 'What You Need', True) %}
+  <ul class="plain">
+    <li><b>A node:</b> a Meshtastic device (a T-Echo, RAK WisBlock, Heltec or T-Beam, for example) or a MeshCore repeater or companion.</li>
+    <li><b>A way onto the internet:</b> for Meshtastic, the node's own Wi-Fi or Ethernet (ESP32 boards and some RAK boards), or the Meshtastic phone app with <b>MQTT proxy</b> turned on. For MeshCore, a small computer (a Raspberry Pi) connected to the repeater or companion by USB or serial, running <span class="mono">meshcoretomqtt</span>.</li>
+    <li><b>A good position:</b> the node's location, shared as roughly as you like (Meshtastic's map precision setting).</li>
+    <li><b>A network connection</b> that can reach <span class="mono">{{ host or 'the server above' }}</span> on TCP port <span class="mono">{{ port }}</span> (see <a href="#sec-ports">Ports</a>).</li>
+  </ul>
+{% endcall %}
+
+{% call sec('hardware', 'Hardware', False, True) %}
+  <table>
+    <tr><th>Item</th><th>Options and Notes</th></tr>
+    <tr><td>Meshtastic node</td><td><a href="https://meshtastic.org/docs/hardware/devices/" target="_blank" rel="noopener">The supported devices</a> include the LILYGO T-Echo and T-Beam, RAKwireless WisBlock kits and Heltec V3. Wi-Fi capable boards (ESP32) can uplink to MQTT on their own; nRF52 boards (T-Echo, RAK4631) use the phone app's MQTT proxy or a Wi-Fi gateway node.</td></tr>
+    <tr><td>MeshCore node</td><td><a href="https://github.com/meshcore-dev/MeshCore" target="_blank" rel="noopener">MeshCore</a> runs on many of the same boards. A <b>repeater</b> sits high and links the mesh; a <b>companion</b> pairs with a phone. Either can serve as an observer when a small computer reads its packets.</td></tr>
+    <tr><td>Antenna</td><td>A 915 MHz (US) antenna; outdoors and high beats indoors and low, and a better antenna helps the whole mesh more than a stronger radio.</td></tr>
+    <tr><td>Observer computer</td><td>A <a href="https://www.raspberrypi.com/products/" target="_blank" rel="noopener">Raspberry Pi</a> or any small Linux machine for <span class="mono">meshcoretomqtt</span> (MeshCore only).</td></tr>
+  </table>
+{% endcall %}
+
+{% call sec('hardware-setup', 'Hardware Setup', True) %}
+  <ol class="plain">
+    <li>Mount the antenna as high as practical with a clear view; keep metal and other radios away from it.</li>
+    <li>Set the node's <b>region to US</b> and keep a LoRa preset the Arkansas mesh uses (Meshtastic: Long Fast is the default; ask your local community, below, if unsure).</li>
+    <li>Give the node a real position (a GPS fix or a position set in the app) so the map can place it.</li>
+    <li>For MeshCore, connect the repeater or companion to the observer computer by USB and note its serial port (<span class="mono">ls /dev/ttyACM*</span>).</li>
+    <li>Give the node or the observer computer a reliable internet connection.</li>
+  </ol>
+{% endcall %}
+
+{% call sec('software-setup', 'Software Setup', True) %}
+  <p style="margin-top:0">After the <a href="#sec-app-setup">app setup</a> above. The MQTT values:</p>
+  <h3 style="margin:6px 0 6px;font-size:1rem">Meshtastic: in the app</h3>
+  <ol class="plain">
+    <li>Open the node in the Meshtastic app (or the web client). Under <b>Radio Config &rarr; Module Config &rarr; MQTT</b> turn <b>Enabled</b> on.</li>
+    <li>Make a login on <a href="/my/mesh">My Mesh Nodes</a> (it fills in every value below for you), then enter the <b>Address</b>, <b>Username</b> and <b>Password</b>, turn <b>TLS Enabled</b> on and set the <b>Root topic</b> to <span class="mono">{{ topic }}</span>.</li>
+    <li>Turn <b>Map Reporting</b> on, accept the notice, and choose the <b>position precision</b> (the coarser, the more private). The node then sends its map report about once an hour (the default; it is also the shortest allowed).</li>
+    <li><b>To also tell us what your node hears</b> (who hears whom): leave MQTT on, turn <b>Encryption Enabled</b> off and, under <b>Channels</b>, turn <b>Uplink Enabled</b> on for the primary channel only. <b>Do this only if the primary channel is the public default (Long Fast with the default key).</b> Uplink sends the channel's packets to the broker in the clear, so never switch it on for a private channel. We keep only positions, node information and telemetry, never text.</li>
+    <li>If the node has no Wi-Fi, turn <b>MQTT proxy to client</b> on in the same module and keep the phone app connected to the node.</li>
+    <li>Optional: turn the <a href="#sec-neighbor-info">Neighbor Info</a> module on.</li>
+  </ol>
+  <h3 style="margin:14px 0 6px;font-size:1rem">Meshtastic: the same with the command line</h3>
+  <pre class="code">meshtastic --set mqtt.enabled true \
+  --set mqtt.address {{ host or 'MQTT_SERVER' }} \
+  --set mqtt.username YOUR_USERNAME --set mqtt.password YOUR_PASSWORD \
+  --set mqtt.tls_enabled true --set mqtt.root {{ topic }} \
+  --set mqtt.map_reporting_enabled true
+# to also report what the node hears (public default channel only):
+meshtastic --set mqtt.encryption_enabled false --ch-index 0 --ch-set uplink_enabled true</pre>
+  <h3 style="margin:14px 0 6px;font-size:1rem">MeshCore: the observer program</h3>
+  <ol class="plain">
+    <li>Install <a href="https://github.com/Cisien/meshcoretomqtt" target="_blank" rel="noopener">meshcoretomqtt</a> on the computer the repeater or companion is plugged into (its README has the install steps and the serial port setting).</li>
+    <li>Add our broker in its <span class="mono">config.d/99-user.toml</span>. You can keep any other broker it already uses.</li>
+    <li>Restart it. Adverts heard by your radio appear on the map within a few minutes; each shows your observer in <b>Heard By</b>.</li>
+  </ol>
+  <pre class="code">[[broker]]
+name = "arksignal"
+enabled = true
+server = "{{ host or 'MQTT_SERVER' }}"
+port = {{ port }}
+tls.enabled = true
+auth.method = "password"
+auth.username = "YOUR_USERNAME"
+auth.password = "YOUR_PASSWORD"</pre>
+  <p class="dim" style="margin-bottom:0">Your username and password are on your page of <a href="/my/mesh">My Mesh Nodes</a>, already written into these lines.</p>
+  <p class="dim" style="margin-bottom:0">Only adverts are kept: the program forwards every packet it hears, and everything that is not an advert (the encrypted chat) is dropped unread when it reaches us. Your radio also needs its <b>location</b> and a <b>name</b> set on the repeater so its advert carries them.</p>
+{% endcall %}
+
+{% call sec('app-setup', 'Set Up Your Node With the App', True) %}
+  <p style="margin-top:0">Do this once, before any of the MQTT settings. It is the same for every node.</p>
+  <ol class="plain">
+    <li><b>Install the Meshtastic app</b> (Android: Google Play; iPhone: App Store) or use the <a href="https://client.meshtastic.org" target="_blank" rel="noopener">web client</a> in Chrome over USB or Bluetooth.</li>
+    <li><b>Switch the node on, open the app and pair by Bluetooth</b> (the node asks for a PIN shown on its screen, or 123456 when it has no screen). Choose the node under <b>Connections</b>.</li>
+    <li><b>Region:</b> under <b>Radio Config &rarr; LoRa</b> set <b>Region</b> to <b>US</b>. Nothing transmits until a region is set. Keep the <b>Modem preset</b> the Arkansas mesh uses (Long Fast unless your local group says otherwise).</li>
+    <li><b>Name it:</b> under <b>Radio Config &rarr; User</b> give the node a long name and a short name (four characters). This is what shows on the <a href="/mesh/">Mesh Nodes</a> list.</li>
+    <li><b>Role:</b> under <b>Radio Config &rarr; Device</b> leave <b>Client</b> for a node you carry or keep indoors. Use <b>Router</b> only for a node sitting high with a good view, and only if it is meant to carry the mesh.</li>
+    <li><b>Position:</b> under <b>Radio Config &rarr; Position</b> set a fixed position (or let the GPS get a fix). Without one the node is listed but never drawn on the map.</li>
+    <li><b>Wi-Fi (for a node that uplinks by itself):</b> under <b>Radio Config &rarr; Network</b> turn <b>Wi-Fi</b> on and enter your network's name and password. A node without Wi-Fi uses your phone instead (<b>MQTT proxy</b>, below).</li>
+  </ol>
+{% endcall %}
+
+{% call sec('settings-explained', 'Every Setting Explained', False) %}
+  <p style="margin-top:0">In the app these are under <b>Radio Config</b> (Module Config) and <b>Channels</b>. The values to type are on <a href="/my/mesh">My Mesh Nodes</a>. Defaults are Meshtastic's own.</p>
+  <div id="mesh-settings">
+    <h3 style="margin:16px 0 6px;font-size:1rem">Module Config &rarr; MQTT</h3>
+    <div style="margin:0 0 10px;padding-left:10px;border-left:3px solid var(--line)"><b>Enabled</b><div>Turns the MQTT module on. Off by default. <b>Turn on.</b></div></div>
+    <div style="margin:0 0 10px;padding-left:10px;border-left:3px solid var(--line)"><b>Address</b><div>The server to connect to. <b>{{ host or 'the server shown above' }}</b>. If it is left empty the node uses Meshtastic's public server instead, not ours.</div></div>
+    <div style="margin:0 0 10px;padding-left:10px;border-left:3px solid var(--line)"><b>Username, Password</b><div><b>Your own login from <a href="/my/mesh">My Mesh Nodes</a>.</b> It lets your node publish and never read. The public server's <span class="mono">meshdev</span> login does not work here.</div></div>
+    <div style="margin:0 0 10px;padding-left:10px;border-left:3px solid var(--line)"><b>TLS Enabled</b><div>Makes the connection secure. <b>Turn on</b>; our server uses port {{ port }}, which is the TLS port. With TLS off the connection is refused.</div></div>
+    <div style="margin:0 0 10px;padding-left:10px;border-left:3px solid var(--line)"><b>Root topic</b><div>The first part of every topic the node publishes to. <b><span class="mono">{{ topic }}</span></b>. The node adds the rest (<span class="mono">/2/e/&hellip;</span>, <span class="mono">/2/map/</span>) by itself.</div></div>
+    <div style="margin:0 0 10px;padding-left:10px;border-left:3px solid var(--line)"><b>Map Reporting Enabled</b><div>The node publishes its own listing: name, hardware, role, firmware, region, modem preset and position. <b>Turn on</b> (accept the notice). This alone puts your node on the list and the map.</div></div>
+    <div style="margin:0 0 10px;padding-left:10px;border-left:3px solid var(--line)"><b>Map report publish interval</b><div>How often that listing goes out. Meshtastic's default is <b>3600 seconds (one hour)</b>, which is also the least allowed. A new node can take up to an hour to appear.</div></div>
+    <div style="margin:0 0 10px;padding-left:10px;border-left:3px solid var(--line)"><b>Map report position precision</b><div>How exactly the position is shared. A smaller number is a bigger fuzzy area. The default is about 1.5 km. Pick what you are comfortable with; the pages show exactly what the node published and never more.</div></div>
+    <div style="margin:0 0 10px;padding-left:10px;border-left:3px solid var(--line)"><b>Encryption Enabled</b><div>On: the node sends the packets it hears still encrypted with the channel key, and we cannot use them. Off: it sends them as they are. <b>For a gateway, turn off</b> (public default channel only, see below). The map report is always unencrypted and does not need this.</div></div>
+    <div style="margin:0 0 10px;padding-left:10px;border-left:3px solid var(--line)"><b>JSON Enabled</b><div>Also publishes packets as JSON. <b>Leave off.</b> We read the standard form, and JSON is not supported on nRF52 boards.</div></div>
+    <div style="margin:0 0 10px;padding-left:10px;border-left:3px solid var(--line)"><b>MQTT proxy (&ldquo;Proxy to client&rdquo;)</b><div>Uses your phone's internet instead of the node's own Wi-Fi. <b>Turn on only for a node with no Wi-Fi</b>, and keep the phone connected to the node and the app open. The server address and login are still filled in on the node.</div></div>
+    <h3 style="margin:16px 0 6px;font-size:1rem">Channels &rarr; Primary channel</h3>
+    <div style="margin:0 0 10px;padding-left:10px;border-left:3px solid var(--line)"><b>Uplink Enabled</b><div>The node publishes what it hears on this channel to MQTT. <b>Turn on for a gateway.</b> Only for a channel that is public (see the warning below). Off for every private channel.</div></div>
+    <div style="margin:0 0 10px;padding-left:10px;border-left:3px solid var(--line)"><b>Downlink Enabled</b><div>The node also pushes what is published on the server onto your radio mesh. <b>Leave off.</b> It floods your mesh with traffic from elsewhere and the ArkSignal broker never sends any.</div></div>
+    <div style="margin:0 0 10px;padding-left:10px;border-left:3px solid var(--line)"><b>Position precision (channel)</b><div>Limits how exactly positions on this channel are shared, for every packet, not only the map report. Keep the default for the public channel.</div></div>
+    <h3 style="margin:16px 0 6px;font-size:1rem">Radio Config &rarr; LoRa</h3>
+    <div style="margin:0 0 10px;padding-left:10px;border-left:3px solid var(--line)"><b>Region</b><div><b>US.</b></div></div>
+    <div style="margin:0 0 10px;padding-left:10px;border-left:3px solid var(--line)"><b>Modem preset</b><div>The speed and range trade-off. Use the one the other Arkansas nodes use (Long Fast by default) or you will not hear each other.</div></div>
+    <div style="margin:0 0 10px;padding-left:10px;border-left:3px solid var(--line)"><b>Okay to MQTT</b><div>Newer firmware has this switch. On, it tells other people's gateways they may pass your node's packets on to MQTT. <b>Leave on</b> if you want neighbors' gateways to report your node; off keeps your node off the internet unless you uplink it yourself.</div></div>
+    <h3 style="margin:16px 0 6px;font-size:1rem">Module Config &rarr; Neighbor Info</h3>
+    <div style="margin:0 0 10px;padding-left:10px;border-left:3px solid var(--line)"><b>Enabled</b><div>The node reports which nodes it hears directly and how strongly. Off by default. See <a href="#sec-neighbor-info">Neighbor Info</a>.</div></div>
+    <div style="margin:0 0 10px;padding-left:10px;border-left:3px solid var(--line)"><b>Update interval</b><div>How often. Default 6 hours, at least 4 hours.</div></div>
+    <div style="margin:0 0 10px;padding-left:10px;border-left:3px solid var(--line)"><b>Transmit over LoRa</b><div>Also sends the report over the air. Not available on the public default channel. <b>Leave off.</b></div></div>
+  </div>
+{% endcall %}
+
+{% call sec('neighbor-info', 'Neighbor Info', False) %}
+  <p style="margin-top:0">The Neighbor Info module makes a node announce <b>which nodes it hears directly</b> (zero hops) and the signal-to-noise ratio of each link. Put together from many nodes, that is a picture of how the mesh is really connected. It does not change how messages are routed, it is off by default, and it sends little: one report every few hours.</p>
+  <ul class="plain">
+    <li><b>To use it:</b> Radio Config &rarr; Module Config &rarr; <b>Neighbor Info</b> &rarr; Enabled on; leave the interval at the default (6 hours; the shortest allowed is 4).</li>
+    <li>The report goes to the <b>MQTT broker</b> and to your phone app. It goes out over the radio only when <b>Transmit over LoRa</b> is on, which needs firmware 2.5.13 or later and a primary channel that is not the public default. Keep that off.</li>
+    <li>It reaches us only from a node that has MQTT uplink on for the channel it uses, like any other packet.</li>
+    <li><b>What we do with it:</b> ArkSignal reads Neighbor Info that a gateway passes on <b>in the clear</b> (the same rule as telemetry: the gateway needs <b>Encryption Enabled</b> off and <b>Uplink</b> on for the channel, and an encrypted report is never read). The direct links are kept for {{ links_keep_days }} days, drawn as lines on the <a href="/mesh/map">Mesh Map</a> (the Direct Links layer, colored by signal) where both nodes have a position, and listed on each node's page. Only nodes inside our area are kept and a hidden node is never shown. Turn the module on: it costs one short report every few hours.</li>
+  </ul>
+{% endcall %}
+
+{% call sec('gateway', 'Work as a Gateway: Listen for Other Nodes', True) %}
+  <p style="margin-top:0">A <b>gateway</b> is a node that also passes on what it hears from other nodes, so the map learns about nodes that have no internet of their own and about who hears whom. One good gateway covers a whole neighborhood of nodes. Everything in the steps above still applies; then add these:</p>
+  <ol class="plain">
+    <li><b>A reliable internet connection for the node itself:</b> Wi-Fi or Ethernet on the node, or a phone running the app with MQTT proxy on. A gateway on a phone only gateways while the phone is connected, so a node with its own Wi-Fi on steady power is best.</li>
+    <li><b>Placement:</b> as high and clear as you can; a gateway hears as far as its radio does. Indoors by a window is fine to start.</li>
+    <li><b>Channel:</b> on <b>Channels &rarr; Primary</b> turn <b>Uplink Enabled</b> on and leave <b>Downlink Enabled</b> off.</li>
+    <li><b>Encryption Enabled</b> off in the MQTT module, so what the gateway hears is passed on as it is.</li>
+    <li><b>Only on the public default channel.</b> With encryption off, everything the channel carries goes to the server unscrambled. <b>Never switch uplink on for a private channel</b>, and never share the key of a private channel with the broker. If your primary channel is private, add the public default as a <b>secondary</b> channel and uplink only that one.</li>
+    <li>Keep <b>Map Reporting</b> on so the gateway itself is listed.</li>
+    <li>Wait a few minutes. Open <a href="/mesh/map">the Mesh Map</a>, open your node's page: it says <b>This node is itself a gateway for</b> a number of nodes, and the pages of those nodes list your node under <b>Heard By</b>, with the signal it measured.</li>
+  </ol>
+  <p><b>The public channel rules:</b> this site follows the public Meshtastic server's rules on the public channels (the default key): only the usual kinds of packet are kept, and a position more exact than 16 bits (about 700 meters) is made coarser before it is stored, whatever your node sent. Your own node's map report is yours to set. A member login can publish only under <span class="mono">{{ topic }}</span>, so set that as the root topic.</p>
+  <p><b>What we keep from a gateway:</b> positions, node information and telemetry from other nodes, with the signal. Text messages and every private channel are dropped unread as soon as they arrive.</p>
+  <p class="dim" style="margin-bottom:0">More than one gateway hearing the same node is fine: the site counts each separately. A busy public channel can overload a small node; if yours reboots or lags, turn uplink off and use the map report alone.</p>
+{% endcall %}
+
+{% call sec('after-you-are-feeding', 'After You Are Feeding', True) %}
+  <ol class="plain">
+    <li>Search for your node's name on the <a href="/mesh/">Mesh Nodes</a> list; its page shows what it published and which gateways or observers heard it.</li>
+    <li>Find it on the <a href="/mesh/map">Mesh Map</a>; select it to see lines to everything that hears it, colored by signal.</li>
+    <li>A node without a published position is listed but not mapped: turn on map reporting (Meshtastic) or set the location on the repeater (MeshCore).</li>
+    <li>To have a node left off the pages, ask (<a href="/contact">Contact</a>).</li>
+  </ol>
+{% endcall %}
+
+{% call sec('local-meshes', 'Local Meshes and Maps', False) %}
+  <p style="margin-top:0">Communities in Arkansas and the states around it, and the public maps. Their data is theirs; these are links.</p>
+  <ul class="plain" style="margin-bottom:0">{% for name, url, what in resources %}<li><a href="{{ url }}" target="_blank" rel="noopener">{{ name }}</a>: {{ what }}</li>{% endfor %}</ul>
+{% endcall %}
+
+{% call sec('ports', 'Ports and Firewall', False, True) %}
+  <p style="margin-top:0">Your node only makes <b>outbound</b> connections. You do not need to open or forward anything on your router.</p>
+  <table>
+    <tr><th>What</th><th>Direction</th><th>Destination</th><th>Port</th></tr>
+    <tr><td>Meshtastic MQTT, MeshCore observer</td><td>outbound TCP (TLS)</td><td class="mono">{{ host or 'the MQTT server above' }}</td><td class="mono">{{ port }}</td></tr>
+  </table>
+  <p class="dim" style="margin-bottom:0">If your network filters outbound traffic (some schools, businesses and carrier-grade NAT connections do), allow that port to the host name above. A Meshtastic node on the phone app's MQTT proxy uses the phone's own connection.</p>
+{% endcall %}
+
+{% call sec('troubleshooting', 'Troubleshooting', False, True) %}
+  <table>
+    <tr><th style="width:230px">Symptom</th><th>What to check</th></tr>
+    <tr><td>My Meshtastic node is not on the list</td><td>The map report goes out about once an hour, so a new node can take up to an hour to appear. Check MQTT is enabled, the node or phone is online, TLS is on with the port above, the username and password are right, the region is US and Map Reporting is on with a position.</td></tr>
+    <tr><td>It is listed but not on the map</td><td>A node without a published position is listed only. Turn on position sharing in the map report settings (Meshtastic) or set the location on the repeater (MeshCore).</td></tr>
+    <tr><td>The position is not exact</td><td>That is the precision you set; the pages show what the node published, never more.</td></tr>
+    <tr><td>Heard By is empty</td><td>Only a gateway (Meshtastic uplink with Encryption off) or an observer (MeshCore) reports who heard whom. A node that only sends its own map report appears, but nothing says who heard it.</td></tr>
+    <tr><td>The broker refuses the connection</td><td>The login or the TLS setting is wrong, or the broker is not open to nodes yet (the box under The Short Version is empty). Check <a href="/status">service status</a>.</td></tr>
+    <tr><td>A MeshCore node is missing</td><td>Only adverts with a valid signature are used, and only nodes in the Arkansas area (with a margin) are kept. A repeater must advertise (flood advert) for observers to hear it.</td></tr>
+  </table>
+{% endcall %}
+
+{% call sec('your-data-and-privacy', 'Your Data and Privacy', False) %}
+  <ul class="plain" style="margin-top:0">
+    <li>Only what a node publishes in the clear is used: the Meshtastic map report, position, node information and telemetry, and MeshCore adverts. Anything encrypted, chat above all, is never decrypted, stored or shown.</li>
+    <li>The pages show the node's name, hardware or kind, firmware, the position it published at the precision its owner chose, when it was last heard and which gateways or observers heard it. Nodes not heard for a while are forgotten.</li>
+    <li>To have a node left off, ask (<a href="/contact">Contact</a>): it is removed and not shown again.</li>
+    <li>Each member's login is their own. It lets a node publish to the mesh topics and never read anything, and switching one off or deleting it refuses that node at once without touching anyone else's. Passwords are kept sealed.</li>
+    <li>If you tick "show my name" on a login, the pages of the nodes you list say they are run by you; otherwise your name is never shown.</li>
+  </ul>
+{% endcall %}
+
+{% call sec('more-help', 'More Help', False) %}
+  <ul class="plain" style="margin:0">
+    <li><a href="/mesh/">Mesh Nodes</a>: the list, and the <a href="/mesh/map">Mesh Map</a>.</li>
+    <li>{{ other_feeds() }}</li>
+    <li><a href="/status">Service status</a>: is the network itself working right now?</li>
+    <li><a href="/contact">Contact</a> someone from the network if you are stuck.</li>
+  </ul>
+{% endcall %}
+{% endblock %}

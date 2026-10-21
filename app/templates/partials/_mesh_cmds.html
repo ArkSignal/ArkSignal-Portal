@@ -1,0 +1,18 @@
+{# The filled-in commands for one login. Needs: host, port, topic, user, pw. #}
+<h3 style="margin:10px 0 6px;font-size:1rem">Meshtastic: command line</h3>
+<pre class="mono" style="overflow-x:auto;margin:0">meshtastic --set mqtt.enabled true \
+  --set mqtt.address {{ host }} \
+  --set mqtt.username {{ user }} --set mqtt.password {{ pw }} \
+  --set mqtt.tls_enabled true --set mqtt.root {{ topic }} \
+  --set mqtt.map_reporting_enabled true</pre>
+<p class="dim" style="margin:6px 0 0">In the app or web client the same values go under Radio Config &rarr; Module Config &rarr; MQTT: Address, Username, Password, TLS on, Root topic, Map Reporting on.</p>
+<h3 style="margin:14px 0 6px;font-size:1rem">MeshCore: meshcoretomqtt (<span class="mono">config.d/99-user.toml</span>)</h3>
+<pre class="mono" style="overflow-x:auto;margin:0">[[broker]]
+name = "arksignal"
+enabled = true
+server = "{{ host }}"
+port = {{ port }}
+tls.enabled = true
+auth.method = "password"
+auth.username = "{{ user }}"
+auth.password = "{{ pw }}"</pre>

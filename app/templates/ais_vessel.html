@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}{{ v.name or ('MMSI ' ~ v.mmsi) }} | River Traffic{% endblock %}
+{% block content %}
+<h1><span>Vessel</span> {{ v.name or ('MMSI ' ~ v.mmsi) }}</h1>
+<div class="sub"><span class="sw" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:{{ cats[v.category][1] }}"></span> {{ v.type_name }} &middot; MMSI <span class="mono">{{ v.mmsi }}</span>{% if v.callsign %} &middot; call sign <span class="mono">{{ v.callsign }}</span>{% endif %}{% if flag %} &middot; {{ flag }}{% endif %} &middot; <a href="/ais/">All vessels</a> &middot; <a href="/ais/map?mmsi={{ v.mmsi }}">On the map</a></div>
+
+<div class="tiles" style="margin-bottom:14px">
+  <div class="panel tile"><div class="tv" style="font-size:1.05rem">{% if v.speed is not none %}{{ '%.1f' % v.speed }} knots{% else %}-{% endif %}</div><div class="tl">Speed{% if v.speed is not none %} ({{ '%.1f' % (v.speed * 1.15078) }} mph){% endif %}</div></div>
+  <div class="panel tile"><div class="tv" style="font-size:1.05rem">{% if v.course is not none %}{{ '%.0f' % v.course }}&deg;{% else %}-{% endif %}</div><div class="tl">Course{% if v.heading is not none %}, pointing {{ v.heading }}&deg;{% endif %}</div></div>
+  <div class="panel tile"><div class="tv" style="font-size:1.05rem">{{ v.destination or '-' }}</div><div class="tl">Going to</div></div>
+  <div class="panel tile"><div class="tv" style="font-size:1.05rem">{{ v.status_name or '-' }}</div><div class="tl">Status</div></div>
+</div>
+
+{% call sec('where', 'Where It Is', True) %}
+  <div id="v-map" style="height:340px;border-radius:10px;overflow:hidden"></div>
+  <p class="dim" style="margin:8px 0 0" id="v-note">{% if v.lat is none %}No position has been heard for this vessel yet.{% else %}Heard <time class="ts" datetime="{{ v.last_seen }}" data-fmt="dt">{{ v.last_seen[:16].replace('T', ' ') }}</time>. The line is where it has been in the last {{ keep }} hours.{% endif %}</p>
+{% endcall %}
+
+{% call sec('details', 'Details', True) %}
+  <table style="max-width:640px">
+    <tr><th style="width:190px">Name</th><td>{{ v.name or 'Not broadcast yet' }}</td></tr>
+    <tr><th>Kind</th><td>{{ v.type_name }}</td></tr>
+    <tr><th>MMSI</th><td class="mono">{{ v.mmsi }}</td></tr>
+    {% if v.imo %}<tr><th>IMO number</th><td class="mono">{{ v.imo }}</td></tr>{% endif %}
+    {% if v.callsign %}<tr><th>Call sign</th><td class="mono">{{ v.callsign }}</td></tr>{% endif %}
+    <tr><th>Size</th><td>{% if v.length %}{{ v.length }} m long{% if v.beam %} by {{ v.beam }} m wide{% endif %} <span class="dim">({{ (v.length * 3.28084) | round | int }} ft{% if v.beam %} by {{ (v.beam * 3.28084) | round | int }} ft{% endif %})</span>{% else %}Not broadcast{% endif %}</td></tr>
+    {% if v.draught %}<tr><th>Draught (how deep it sits)</th><td>{{ '%.1f' % v.draught }} m ({{ '%.1f' % (v.draught * 3.28084) }} ft)</td></tr>{% endif %}
+    <tr><th>Position</th><td class="mono">{% if v.lat is not none %}{{ '%.4f' % v.lat }}, {{ '%.4f' % v.lon }}{% else %}-{% endif %}</td></tr>
+    <tr><th>First heard, last heard</th><td><time class="ts" datetime="{{ v.first_seen }}" data-fmt="dt">{{ v.first_seen[:16].replace('T', ' ') }}</time>, <time class="ts" datetime="{{ v.last_seen }}" data-fmt="dt">{{ v.last_seen[:16].replace('T', ' ') }}</time></td></tr>
+    <tr><th>Messages heard</th><td>{{ v.msgs }}{% if v.station %}; last by {{ v.station }}{% endif %}</td></tr>
+  </table>
+{% endcall %}
+<p class="dim" style="font-size:.8rem">{{ credit }}. The owner of a vessel can ask for it to be hidden (<a href="/contact">Contact</a>).</p>
+<link rel="stylesheet" href="{{ leaflet_base }}/leaflet.css" crossorigin="anonymous">
+<script src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script>
+<script>
+(function () {
+  var el = document.getElementById("v-map"); if (!el || !window.L) return;
+  var map = L.map(el, {zoomControl: true}).setView([{{ (v.lat if v.lat is not none else map_lat) | float }}, {{ (v.lon if v.lon is not none else map_lon) | float }}], {{ 11 if v.lat is not none else 6 }});
+  L.tileLayer({{ tile_url | tojson }}, {maxZoom: 19, attribution: {{ tile_attr | tojson }}}).addTo(map);
+  fetch("/api/ais/{{ v.mmsi }}.json").then(function (r) { return r.json(); }).then(function (d) {
+    var pts = (d.trail || []).map(function (t) { return [t[0], t[1]]; });
+    if (pts.length > 1) { var line = L.polyline(pts, {color: "{{ cats[v.category][1] }}", weight: 3, opacity: .85}).addTo(map); map.fitBounds(line.getBounds(), {padding: [20, 20], maxZoom: 14}); }
+    if (d.vessel && d.vessel.lat != null) L.circleMarker([d.vessel.lat, d.vessel.lon], {radius: 8, color: "#fff", weight: 2, fillColor: "{{ cats[v.category][1] }}", fillOpacity: .95}).addTo(map);
+  }).catch(function () {});
+})();
+</script>
+{% endblock %}

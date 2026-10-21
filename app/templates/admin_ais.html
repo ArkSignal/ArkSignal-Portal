@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% from "partials/_aisrx.html" import fields with context %}
+{% block title %}River Traffic{% endblock %}
+{% block content %}
+<h1><span>Admin</span> River Traffic</h1>
+<div class="sub">The AIS stations members have added to <a href="/ais/">River Traffic</a>: add a station for a member, switch one off, make a new upload address, and keep the takedown list of vessels that are not to be shown.</div>
+{% include "partials/_admin_subnav.html" %}
+
+{% call sec('add-for-member', 'Add a Station for a Member', False) %}
+  <form method="post" action="/admin/ais/add" data-async data-async-target="#ais-admin" data-reset>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="aa-user">Member (User Name, Display Name, Call Sign or Email; Leave Blank for the Network Itself)</label>
+    <input type="text" id="aa-user" name="username" data-memberpicker maxlength="120" style="width:320px" placeholder="Start typing to search members">
+    {{ fields(none, 'new') }}
+    <button class="btn" type="submit">Add the Station</button>
+  </form>
+{% endcall %}
+
+{% include "partials/_admin_ais.html" %}
+{% endblock %}

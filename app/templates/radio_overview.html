@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Radio{% endblock %}
+{% block content %}
+<h1><span>Radio</span></h1>
+<div class="sub">Amateur radio on the network: the repeaters of Arkansas, the APRS network, satellite passes and pictures, nets and Winlink gateways, space weather, the frequencies people ask about, and call sign, DMR contact and talkgroup lookups.</div>
+<div class="tiles" style="grid-template-columns:repeat(auto-fill,minmax(280px,1fr));margin-top:14px">
+  {% if rep_on %}<div class="panel tile"><div class="tl" style="font-weight:700;font-size:1.05rem">Repeaters</div><div class="tv">{{ rep.total }}</div>
+    <div class="tl">{{ rep.active }} active{% if rep.dmr %}, {{ rep.dmr }} DMR{% endif %}. FM, DMR, D-STAR, Fusion and P25 around Arkansas.</div>
+    <p style="margin:10px 0 0;display:flex;gap:8px;flex-wrap:wrap"><a class="btn small" href="/repeaters/">Repeater List</a><a class="btn small neutral" href="/repeaters/map">Repeater Map</a><a class="btn small neutral" href="/my/repeaters">My Repeaters</a></p></div>{% endif %}
+  {% if aprs_on %}<div class="panel tile"><div class="tl" style="font-weight:700;font-size:1.05rem">APRS</div><div class="tv">{{ aprs.get('stations', aprs.get('total', '-')) if aprs else '-' }}</div>
+    <div class="tl">Stations heard on the APRS network: digipeaters, gateways, weather stations and more.</div>
+    <p style="margin:10px 0 0;display:flex;gap:8px;flex-wrap:wrap"><a class="btn small" href="/aprs/">APRS Stations</a><a class="btn small neutral" href="/aprs/map">APRS Map</a><a class="btn small neutral" href="/aprs/weather">APRS Weather</a></p></div>{% endif %}
+  {% if satpass_on or satimg_on %}<div class="panel tile"><div class="tl" style="font-weight:700;font-size:1.05rem">Satellites</div><div class="tv">{{ sat.pictures if sat else '-' }}</div>
+    <div class="tl">{% if satimg_on %}Weather satellite pictures decoded by members' own receivers{% if sat %} ({{ sat.active }} receiver{{ '' if sat.active == 1 else 's' }} sending){% endif %}. {% endif %}{% if satpass_on %}When the space station, weather satellites and amateur radio satellites pass over you, with their frequencies and how to work them.{% endif %}</div>
+    <p style="margin:10px 0 0;display:flex;gap:8px;flex-wrap:wrap">{% if satpass_on %}<a class="btn small" href="/radio/satellites">Satellite Passes</a>{% endif %}{% if satimg_on %}<a class="btn small neutral" href="/radio/satellite-images">Satellite Images</a><a class="btn small neutral" href="/feed/satellites">How to Feed</a><a class="btn small neutral" href="/my/sat-receivers">My Receivers</a>{% endif %}</p></div>{% endif %}
+  {% if lists_on %}<div class="panel tile"><div class="tl" style="font-weight:700;font-size:1.05rem">Nets and Winlink Gateways</div><div class="tv">{{ nets.nets + nets.gateways if nets else '-' }}</div>
+    <div class="tl">{{ nets.nets if nets else 0 }} net{{ '' if nets and nets.nets == 1 else 's' }} with the time of the next one in your time zone, and {{ nets.gateways if nets else 0 }} Winlink gateway{{ '' if nets and nets.gateways == 1 else 's' }}, kept by the network's members.</div>
+    <p style="margin:10px 0 0;display:flex;gap:8px;flex-wrap:wrap"><a class="btn small" href="/radio/nets">Nets</a><a class="btn small neutral" href="/radio/winlink">Winlink Gateways</a><a class="btn small neutral" href="/my/nets">My Nets and Gateways</a></p></div>{% endif %}
+  {% if sw_on %}<div class="panel tile"><div class="tl" style="font-weight:700;font-size:1.05rem">Space Weather</div><div class="tv" style="font-size:1.2rem">HF conditions</div>
+    <div class="tl">NOAA's storm scales, the K index, solar flux and X-ray flares, with a rough guide to which HF bands are open.</div>
+    <p style="margin:10px 0 0"><a class="btn small" href="/radio/space-weather">Space Weather</a></p></div>{% endif %}
+  <div class="panel tile"><div class="tl" style="font-weight:700;font-size:1.05rem">Frequencies</div><div class="tv">{{ nfreq }}</div>
+    <div class="tl">APRS, calling frequencies, FRS, GMRS, MURS, weather radio, marine and mesh.</div>
+    <p style="margin:10px 0 0"><a class="btn small" href="/frequencies">Open Frequencies</a></p></div>
+  {% if lookup %}<div class="panel tile"><div class="tl" style="font-weight:700;font-size:1.05rem">Call Signs, Contacts and Talkgroups</div><div class="tv">{{ dmr.talkgroups }}</div>
+    <div class="tl">Look up a call sign (FCC records), find a DMR contact{% if dmr.contacts %} ({{ dmr.contacts }} kept){% endif %}, and see the talkgroups repeaters use.</div>
+    <p style="margin:10px 0 0;display:flex;gap:8px;flex-wrap:wrap"><a class="btn small" href="/callsign">Call Sign Lookup</a><a class="btn small neutral" href="/callsign?tab=contacts">DMR Contacts</a><a class="btn small neutral" href="/callsign?tab=talkgroups">Talkgroups</a></p></div>{% endif %}
+</div>
+{% if coming %}<p class="dim" style="margin-top:14px">Coming: {{ coming | join(", ") }}. See the <a href="/roadmap">Roadmap</a>.</p>{% endif %}
+{% endblock %}

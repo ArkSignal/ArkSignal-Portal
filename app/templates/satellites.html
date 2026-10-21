@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Satellite Passes{% endblock %}
+{% block content %}
+<h1><span>Satellite</span> Passes</h1>
+<div class="sub">When the space station, the weather satellites and the amateur radio satellites rise over a place, how high they climb and which way to look, for listening, photographing or working them. Worked out from public orbit data.</div>
+
+{% call sec('where', 'Place and Choices', True) %}
+  <form method="get" action="/radio/satellites" id="sp-form" class="tfilterbar" style="align-items:flex-end">
+    <input type="hidden" name="sel" value="1">
+    <div><label for="sp-q">Place, ZIP code or Airport</label><input type="text" id="sp-q" name="q" value="{{ request.args.get('q', '') }}" maxlength="120" style="width:260px;max-width:100%" placeholder="Conway, KLIT, 72032"></div>
+    <div><label for="sp-lat">Latitude</label><input type="text" id="sp-lat" name="lat" value="{{ request.args.get('lat', '') }}" style="width:110px"></div>
+    <div><label for="sp-lon">Longitude</label><input type="text" id="sp-lon" name="lon" value="{{ request.args.get('lon', '') }}" style="width:110px"></div>
+    <div><label for="sp-h">Look Ahead</label><select id="sp-h" name="hours">{% for h in (12, 24, 48, 72, 120, 168) if h <= max_hours %}<option value="{{ h }}" {{ 'selected' if h == hours }}>{{ h }} hours</option>{% endfor %}</select></div>
+    <div><label for="sp-m">Lowest Peak</label><select id="sp-m" name="min">{% for m in (0, 5, 10, 20, 30, 45) %}<option value="{{ m }}" {{ 'selected' if m == min_el }}>{{ m }}&deg; high</option>{% endfor %}</select></div>
+    <button class="btn" type="submit" style="margin:0">Show Passes</button><button class="btn neutral" type="button" id="sp-here" style="margin:0">Use My Location</button>
+  </form>
+  <p class="help">Passes for <b id="sp-label">{{ label }}</b> ({{ '%.3f' % lat }}, {{ '%.3f' % lon }}){% if others %}. Did you mean: {% for o in others %}<a href="?q={{ o.label | urlencode }}">{{ o.label }}</a>{{ ', ' if not loop.last }}{% endfor %}{% endif %}. Times follow the time zone chosen in the Display menu.</p>
+{% endcall %}
+
+{% if els %}
+{% call sec('sats', 'Satellites (' ~ picked | length ~ ' of ' ~ els | length ~ ' chosen)', True) %}
+  <style>
+    .sp-pill{display:inline-flex;align-items:center;gap:8px;margin:0;padding:7px 14px;border:1px solid rgba(160,160,180,.5);border-radius:999px;cursor:pointer;user-select:none}
+    .sp-pill input{margin:0;width:16px;height:16px}
+    .sp-pill:has(input:checked){border-color:var(--acc, #4aa3ff);background:color-mix(in srgb, var(--acc, #4aa3ff) 22%, transparent);font-weight:600}
+    .sp-group{margin:10px 0 0}.sp-group h3{margin:0 0 6px;font-size:.95rem;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .sp-tools{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.sp-tools .btn{margin:0}
+  </style>
+  <div class="sp-tools" id="sp-tools">
+    <input type="search" id="sp-filter" placeholder="Find a satellite" aria-label="Find a satellite" style="width:200px;max-width:100%">
+    <button type="button" class="btn small neutral" id="sp-all">All</button><button type="button" class="btn small neutral" id="sp-none">None</button>
+    <button class="btn small" type="submit" form="sp-form">Show Passes</button>
+    <span class="dim" id="sp-count"></span>
+  </div>
+  {% for g, items in groups %}<div class="sp-group" data-group="{{ g }}"><h3>{{ g }} <button type="button" class="btn small neutral sp-only" style="margin:0">Only These</button></h3>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">{% for e in items %}<label class="sp-pill" data-name="{{ e.name | lower }}"><input type="checkbox" name="sat" value="{{ e.norad }}" form="sp-form" {{ 'checked' if e.norad|string in picked }}><span>{{ e.name }}</span></label>{% endfor %}</div></div>{% endfor %}
+  <p class="help" style="margin-bottom:0">Tick the satellites you want and choose Show Passes. None clears every box; nothing ticked shows no passes.</p>
+{% endcall %}
+
+{% call sec('radio', 'How to Work the Chosen Satellites', narrowed) %}
+  <p class="dim" id="sp-find-none" style="margin:0 0 8px" data-t="Choose some satellites above, or type part of a name in the Find box, to see how to work them here.">Choose some satellites above, or type part of a name in the Find box, to see how to work them here.</p>
+<div id="sp-cards">
+  {% for e in els %}{% set r = radio.get(e.norad) %}{% if r %}<div class="panel sp-card" data-name="{{ e.name | lower }} {{ r.kind | lower }}" data-n="{{ e.norad }}" {{ '' if narrowed and e.norad|string in picked else 'hidden' }} style="margin:10px 0 0">
+    <b>{{ e.name }}</b> <span class="dim">{{ r.kind }}</span>
+    <table style="width:100%;margin-top:6px"><tr><th>Uplink (MHz)</th><th>Downlink (MHz)</th><th>Mode</th><th>Tone</th><th>To Transmit</th></tr>
+    <tr><td class="mono">{{ '%.3f' % r.up if r.up else 'none' }}</td><td class="mono">{{ '%.3f' % r.down if r.down else 'none' }}</td><td>{{ r.mode }}</td><td class="mono">{{ r.tone or '-' }}</td><td>{{ 'License needed' if r.lic else 'Receive only, no license' }}</td></tr></table>
+    <p style="margin:6px 0 0">{{ r.note }} <b>What you need:</b> {{ r.need }}</p></div>{% endif %}{% endfor %}
+  </div>
+  <p class="dim" style="margin:10px 0 0">Frequencies and which satellites are working change over time: check <a href="https://www.amsat.org/status/" target="_blank" rel="noopener">AMSAT's status page</a> before you try. The <a href="/frequencies">Frequencies</a> page lists the common ones. The Doppler shift is how far the downlink moves during a pass: it starts high as the satellite comes toward you, passes through the listed frequency at the closest point and ends low.</p>
+{% endcall %}
+{% endif %}
+
+{% if not els %}
+<div class="panel" style="border-color:var(--acc2)"><b>No orbit data has been loaded yet.</b> An administrator loads it with Satellite Orbits under Admin &gt; Data Updates; it is kept up to date from then on.</div>
+{% else %}
+{% if up_now %}
+{% call sec('now', 'Overhead Right Now', True) %}
+  <table id="sp-now"><tr><th>Satellite</th><th>Height Above the Horizon</th><th>Direction</th><th>Distance</th></tr>
+  {% for s in up_now %}<tr><td>{{ s.name }}</td><td class="mono">{{ '%.0f' % s.el }}&deg;</td><td>{{ compass(s.az) }} ({{ '%.0f' % s.az }}&deg;)</td><td class="mono">{{ s.range | u_dist(0) }}</td></tr>{% endfor %}</table>
+{% endcall %}
+{% endif %}
+
+{% call sec('passes', 'Upcoming Passes (' ~ rows | length ~ ')', True, True) %}
+  {% if rows %}
+  <table id="sp-passes" class="sortable"><thead><tr><th data-sort="text">Satellite</th><th data-sort="text">Rises</th><th>From</th><th data-sort="num">Highest</th><th>To</th><th data-sort="num">Length</th><th>Downlink</th><th>Doppler (kHz)</th><th>Sky</th></tr></thead><tbody>
+  {% for p in rows %}<tr>
+    <td><b><a href="#sp-radio" class="sp-open" data-n="{{ p.norad }}" title="How to work {{ p.name }}">{{ p.name }}</a></b></td>
+    <td data-v="{{ p.aos.isoformat() }}"><time class="ts" datetime="{{ p.aos.isoformat() }}" data-fmt="dt">{{ p.aos | localtime }}</time></td>
+    <td>{{ compass(p.az_aos) }}</td>
+    <td data-v="{{ p.max_el }}"><b class="mono">{{ '%.0f' % p.max_el }}&deg;</b> <span class="dim">to the {{ compass(p.az_max) }}</span></td>
+    <td>{{ compass(p.az_los) }}</td>
+    <td class="mono" data-v="{{ p.duration }}">{{ p.duration // 60 }}:{{ '%02d' % (p.duration % 60) }}</td>
+    <td class="mono">{% if p.down %}{{ '%.3f' % p.down }}<br><span class="dim">{{ p.mode }}</span>{% else %}-{% endif %}</td>
+    <td class="mono">{% if p.dop_aos is not none %}{{ '%+.1f' % p.dop_aos }} to {{ '%+.1f' % p.dop_los }}{% else %}-{% endif %}</td>
+    <td>{{ p.svg | safe }}</td></tr>{% endfor %}</tbody></table>
+  <div class="help">Highest is the most the satellite climbs above the horizon (90&deg; is straight up); a low pass is hard to use with hills and trees in the way. Length is minutes:seconds above the horizon. In the sky chart north is up, the middle is straight overhead and the rim is the horizon; the green dot is where it rises.</div>
+  {% else %}<p class="dim" style="margin:0">No pass climbs that high in the next {{ hours }} hours. Try a lower peak or a longer look ahead.</p>{% endif %}
+{% endcall %}
+
+
+<p class="dim" style="font-size:.82rem">Orbit data: CelesTrak (derived from US Space Force tracking), loaded {{ (els | map(attribute='fetched') | max).strftime('%Y-%m-%d') }}; the newest element set is {{ ((now - (els | map(attribute='epoch') | max)).days) }} day{{ '' if ((now - (els | map(attribute='epoch') | max)).days) == 1 else 's' }} old. Positions are most exact within a few days of an element set and drift a little afterwards, so check a few minutes before a pass that matters.</p>
+{% endif %}
+<script>
+(function () {
+  var pills = [].slice.call(document.querySelectorAll(".sp-pill")), cnt = document.getElementById("sp-count");
+  function count() { var n = pills.filter(function (p) { return p.querySelector("input").checked; }).length; if (cnt) cnt.textContent = n + " of " + pills.length + " chosen"; }
+  function setAll(v, within) { pills.forEach(function (p) { if (!within || within.contains(p)) { if (p.style.display !== "none") p.querySelector("input").checked = v; } }); count(); }
+  var all = document.getElementById("sp-all"), none = document.getElementById("sp-none"), flt = document.getElementById("sp-filter");
+  if (all) all.addEventListener("click", function () { setAll(true); });
+  if (none) none.addEventListener("click", function () { pills.forEach(function (p) { p.querySelector("input").checked = false; }); count(); });
+  document.querySelectorAll(".sp-only").forEach(function (b) { b.addEventListener("click", function () {
+    var g = b.closest(".sp-group"); pills.forEach(function (p) { p.querySelector("input").checked = g.contains(p); }); count(); }); });
+  pills.forEach(function (p) { p.querySelector("input").addEventListener("change", count); });
+  if (flt) flt.addEventListener("input", function () {
+    var q = flt.value.trim().toLowerCase();
+    pills.forEach(function (p) { p.style.display = !q || p.dataset.name.indexOf(q) >= 0 ? "" : "none"; });
+    document.querySelectorAll(".sp-group").forEach(function (g) { g.style.display = [].some.call(g.querySelectorAll(".sp-pill"), function (p) { return p.style.display !== "none"; }) ? "" : "none"; });
+  });
+  count();
+  // how to work a satellite: the satellites ticked above that match the Find box (nothing while every satellite is ticked and the box is empty)
+  var cards = [].slice.call(document.querySelectorAll(".sp-card")), none2 = document.getElementById("sp-find-none"), focus = "";
+  function look() {
+    var q = flt ? flt.value.trim().toLowerCase() : "", ticked = {}, nt = 0;
+    pills.forEach(function (p) { var i = p.querySelector("input"); if (i.checked) { ticked[i.value] = 1; nt++; } });
+    var all = nt === pills.length, shown = 0;
+    cards.forEach(function (c) {
+      var on = focus ? c.dataset.n === focus : (ticked[c.dataset.n] && (!all || q) && (!q || c.dataset.name.indexOf(q) >= 0));
+      c.hidden = !on; if (on) shown++;
+    });
+    var sec = document.getElementById("sec-radio"), h = sec ? sec.querySelector("summary .role-name") : null;
+    if (h) h.textContent = "How to Work the Chosen Satellites" + (shown ? " (" + shown + ")" : "");
+    if (none2) { none2.style.display = shown ? "none" : ""; none2.textContent = !nt ? "No satellite is ticked above." : none2.dataset.t; }
+  }
+  pills.forEach(function (p) { p.querySelector("input").addEventListener("change", function () { focus = ""; look(); }); });
+  if (all) all.addEventListener("click", function () { focus = ""; look(); });
+  if (none) none.addEventListener("click", function () { focus = ""; look(); });
+  document.querySelectorAll(".sp-only").forEach(function (b) { b.addEventListener("click", function () { focus = ""; look(); }); });
+  if (flt) flt.addEventListener("input", function () { focus = ""; look(); });
+  document.querySelectorAll(".sp-open").forEach(function (a) { a.addEventListener("click", function (e) {
+    e.preventDefault(); focus = a.dataset.n; look();
+    var sec = document.getElementById("sec-radio"); if (sec) { sec.open = true; sec.scrollIntoView({ behavior: "smooth", block: "start" }); }
+  }); });
+  look();
+  var b = document.getElementById("sp-here"); if (!b) return;
+  b.addEventListener("click", function () {
+    if (!navigator.geolocation) { b.textContent = "Not available here"; return; }
+    navigator.geolocation.getCurrentPosition(function (p) {
+      document.getElementById("sp-lat").value = p.coords.latitude.toFixed(4); document.getElementById("sp-lon").value = p.coords.longitude.toFixed(4); document.getElementById("sp-q").value = "";
+      b.closest("form").submit();   // the position stays in the address you are shown, and goes nowhere else
+    }, function () { b.textContent = "Could not get your location"; });
+  });
+})();
+</script>
+{% endblock %}

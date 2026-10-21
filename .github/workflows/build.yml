@@ -1,0 +1,141 @@
+name: Build and publish
+
+# Same release flow as the photo pipeline. Three ways this fires:
+#  - push to main (code or CI changed)
+#  - a daily schedule, which re-pulls a fresh base image so Python and Debian patches ride along even in a week
+#    nothing in this repository changed
+#  - manual ("Run workflow"), optionally with a version
+#
+# Always publishes the `latest` tag plus a date-stamped tag (for real rollback and reference) to both Docker Hub and
+# GHCR. Never touches `stable` or any vX.Y.Z tag; promote.yml does that, as a separate manual no-rebuild step you run once
+# you have actually checked a build works.
+#
+# `version` (manual runs only): the running app learns its own version only from BUILD_INFO, and promote.yml re-tags an
+# already-built image without rebuilding it, so the intended version has to be baked in HERE, when you know "this candidate
+# will become vX.Y.Z". promote.yml cross-checks its own input against this line and refuses a mismatch. Leave it blank for a
+# routine, daily or dependency build: BUILD_INFO then says `version: unreleased`, and the app's update check treats that as
+# "not a numbered release".
+#
+# Required repository secrets: DOCKERHUB_USERNAME (mallison01) and DOCKERHUB_TOKEN (a Docker Hub access token, Read & Write).
+on:
+  push:
+    branches: [main]
+    # the live Release Notes and Roadmap are published separately (publish-content.yml); text-only changes do not need a new image
+    paths-ignore:
+      - app/release_notes.json
+      - app/roadmap.json
+      - "**.md"
+      - tests/**
+      - .gitignore
+  schedule:
+    - cron: "41 9 * * 0"   # weekly (Sundays), off the hour on purpose: it keeps the base images fresh; a daily build used most of the free Actions minutes
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version this build is a candidate for (for example 1.0.1); leave blank for a routine build"
+        required: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  # Grafana and Prometheus with this network's dashboards and configuration baked in (deploy/grafana). Same tags as the portal;
+  # promote.yml re-tags them to `stable` together with the portal, and Watchtower on the hub follows `stable`.
+  config-images:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - {image: adsb-grafana, dockerfile: Dockerfile.grafana, context: deploy/grafana, file: deploy/grafana/Dockerfile.grafana}
+          - {image: adsb-prometheus, dockerfile: Dockerfile.prometheus, context: deploy/grafana, file: deploy/grafana/Dockerfile.prometheus}
+          - {image: adsb-backup, dockerfile: Dockerfile.backup, context: deploy/backup, file: deploy/backup/Dockerfile.backup}
+          - {image: adsb-planefence, dockerfile: Dockerfile.planefence, context: deploy/planefence, file: deploy/planefence/Dockerfile.planefence}
+          - {image: adsb-photon, dockerfile: Dockerfile.photon, context: deploy/photon, file: deploy/photon/Dockerfile.photon}
+          - {image: adsb-predict, dockerfile: Dockerfile.predict, context: ., file: deploy/predict/Dockerfile.predict}
+          - {image: adsb-aprs, dockerfile: Dockerfile.aprs, context: ., file: deploy/aprs/Dockerfile.aprs}
+          - {image: adsb-acars, dockerfile: Dockerfile.acars, context: ., file: deploy/acars/Dockerfile.acars}
+          - {image: adsb-mesh, dockerfile: Dockerfile.mesh, context: ., file: deploy/mesh/Dockerfile.mesh}
+          - {image: adsb-mesh-mqtt, dockerfile: Dockerfile.mesh-mqtt, context: ., file: deploy/mesh/Dockerfile.mesh-mqtt}
+          - {image: adsb-mlat, dockerfile: Dockerfile.mlat, context: deploy/mlat, file: deploy/mlat/Dockerfile.mlat}
+          - {image: adsb-stack, dockerfile: Dockerfile.stack, context: ., file: deploy/stack/Dockerfile.stack}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set image date tag
+        id: vars
+        run: echo "date_tag=$(date -u +%Y.%m.%d)" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          pull: true
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ghcr.io/arksignal/${{ matrix.image }}:latest
+            ghcr.io/arksignal/${{ matrix.image }}:${{ steps.vars.outputs.date_tag }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.image }}:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.image }}:${{ steps.vars.outputs.date_tag }}
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Record build information
+        env:
+          VERSION_INPUT: ${{ github.event.inputs.version }}
+        run: |
+          {
+            echo "built: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "version: ${VERSION_INPUT:-unreleased}"
+            echo "commit: ${GITHUB_SHA}"
+            echo "branch: ${GITHUB_REF_NAME}"
+          } > BUILD_INFO
+
+      - name: Set image date tag
+        id: vars
+        run: echo "date_tag=$(date -u +%Y.%m.%d)" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          pull: true
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ghcr.io/arksignal/arksignal-portal:latest
+            ghcr.io/arksignal/arksignal-portal:${{ steps.vars.outputs.date_tag }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/adsb-portal:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/adsb-portal:${{ steps.vars.outputs.date_tag }}

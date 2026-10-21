@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}{{ r.station_id }} | ACARS{% endblock %}
+{% block content %}
+<h1><span>ACARS</span> Station {{ r.station_id }}</h1>
+<div class="sub">{{ r.name }}{% if r.owner_display or r.owner_name %} &middot; run by {{ r.owner_display or r.owner_name }}{% endif %} &middot; {% if online %}reporting{% else %}quiet right now{% endif %}{% if not r.public %} &middot; <b>private (only you and administrators see this page)</b>{% endif %}</div>
+<div class="tiles" style="margin-bottom:14px">
+  <div class="panel tile"><div class="tv">{{ r.messages }}</div><div class="tl">Messages sent</div></div>
+  <div class="panel tile"><div class="tv" style="font-size:1rem">{{ r.last_report | localtime("%b %-d %H:%M") if r.last_report else 'never' }}</div><div class="tl">Last message</div></div>
+  <div class="panel tile"><div class="tv" style="font-size:1rem">{{ r.bands or 'not stated' }}</div><div class="tl">Bands</div></div>
+  <div class="panel tile"><div class="tv" style="font-size:1rem">{% if pos %}{{ pos[0] }}, {{ pos[1] }}{% else %}not shown{% endif %}</div><div class="tl">Location</div></div>
+</div>
+{% if r.hardware or r.description %}<div class="panel" style="margin-bottom:14px">{% if r.hardware %}<b>Hardware:</b> {{ r.hardware }}<br>{% endif %}{{ r.description }}</div>{% endif %}
+<h2>Latest Messages</h2>
+<div class="panel" style="overflow-x:auto">
+  {% if rows %}<table><thead><tr><th>Time</th><th>Aircraft</th><th>Label</th><th>Message</th></tr></thead><tbody>
+  {% for m in rows %}<tr><td><time class="ts" datetime="{{ m.ts }}" data-fmt="dts">{{ m.ts[:19].replace('T', ' ') }}</time></td><td class="mono">{{ m.tail or m.hex.upper() }}{% if m.flight %}<br><span class="dim">{{ m.flight }}</span>{% endif %}</td>
+    <td title="{{ m.label_text }}" class="mono">{{ m.label }}</td><td class="mono" style="white-space:pre-wrap">{% if m.text_hidden %}<span class="dim">text not shown</span>{% else %}{{ m.text }}{% endif %}</td></tr>{% endfor %}</tbody></table>
+  {% else %}<p class="dim" style="margin:0">{{ note or 'No message from this station is kept right now.' }}</p>{% endif %}
+</div>
+<p><a href="/acars/stations/">&larr; All stations</a> &middot; <a href="/acars/?station={{ r.station_id }}">Search its messages</a></p>
+{% endblock %}

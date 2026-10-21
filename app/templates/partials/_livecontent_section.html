@@ -1,0 +1,26 @@
+<details class="panel setsec" id="sec-live-content" style="margin-top:14px"><summary><span class="role-name">Live Content</span>
+  {% if lc.enabled %}<span class="tag live" style="margin-left:10px">on</span>{% else %}<span class="tag off" style="margin-left:10px">off</span>{% endif %}</summary><div class="secbody">
+  <p style="margin:0 0 10px">The public <a href="/release-notes">Release Notes</a> and <a href="/roadmap">Roadmap</a> pages read their lists live from the project's public content repository on GitHub (<span class="mono">mallison01/adsb-portal-content</span>), which is updated automatically whenever the lists change in the project, so the pages are not frozen at the last release. If GitHub cannot be reached, the pages show the copy built into the running version. No token is needed for this.</p>
+  <form method="post" action="/admin/updates/content" data-async>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label class="check"><input type="checkbox" name="enabled" value="1" {{ 'checked' if lc.enabled }}><span><b>Read the lists live from GitHub</b></span></label>
+    <label for="lc-repo">Repository</label>
+    <input type="text" id="lc-repo" name="repo" value="{{ lc.repo }}" style="max-width:320px">
+    <label for="lc-branch">Branch</label>
+    <input type="text" id="lc-branch" name="branch" value="{{ lc.branch }}" style="max-width:160px">
+    <label for="lc-min">Check for changes every (minutes)</label>
+    <input type="text" id="lc-min" name="minutes" value="{{ lc.minutes }}" style="max-width:100px">
+    <label for="lc-token">Read-only GitHub token (only for reading a private repository)</label>
+    <input type="password" id="lc-token" name="token" autocomplete="new-password" placeholder="{{ 'saved: leave blank to keep it' if lc.has_token else 'not needed for the public content repository' }}" style="max-width:380px">
+    {% if lc.has_token %}<label class="check"><input type="checkbox" name="clear_token" value="1"><span>Remove the saved token</span></label>{% endif %}
+    <div class="help">Leave this empty. It is only for the case where you point the repository above at a private repository (for example <span class="mono">mallison01/adsb-portal</span>, whose files are read from its <span class="mono">app</span> folder). Create one at GitHub &gt; Settings &gt; Developer settings &gt; Fine-grained personal access tokens: choose <b>only this repository</b>, permission <b>Contents: Read-only</b>, and the longest expiry offered. Tokens expire, so put a reminder in your calendar; when it does the pages quietly fall back to the built-in copy and this page shows the error. The token is stored sealed and is only ever sent to GitHub.</div>
+    <label for="lc-base">Custom address (optional)</label>
+    <input type="text" id="lc-base" name="base" value="{{ lc.base }}" placeholder="leave empty to use GitHub" style="max-width:380px">
+    <div class="help">For a mirror or a test server that serves <span class="mono">release_notes.json</span> and <span class="mono">roadmap.json</span> directly. When set, GitHub and the token are not used.</div>
+    <button class="btn" type="submit">Save Live Content Settings</button>
+  </form>
+  <div class="setsec-actions"><form method="post" action="/admin/updates/content/test" data-async style="margin:0"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small neutral" type="submit">Test Now</button></form></div>
+  {% for name, st in lc.status.items() %}
+  <p class="dim" style="margin:8px 0 0;font-size:.82rem"><span class="mono">{{ name }}</span>: {% if st.at %}last read {{ st.iso | localtime }}{% else %}not read yet{% endif %}{% if st.error %} &middot; <span style="color:#ff7a59">{{ st.error }}</span>{% endif %}</p>
+  {% endfor %}
+</div></details>

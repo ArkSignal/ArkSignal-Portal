@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}ACARS{% endblock %}
+{% block content %}
+<h1><span>Admin</span> ACARS</h1>
+<div class="sub">Every member ACARS station, and the aircraft hidden on request. The service, how long messages are kept and who can read the text are in <a href="/admin/settings/aircraft#sec-acars">Settings &gt; ACARS</a>.{% if not enabled %} <b>ACARS is switched off.</b>{% endif %}</div>
+{% include "partials/_admin_subnav.html" %}
+{% if note %}<div class="panel" style="border-color:var(--acc2);margin-bottom:14px"><b>{{ note }}</b> Check that the acars container is running (its stack is applied by the stack updater).</div>{% endif %}
+<details class="panel setsec" id="sec-add-for-member" style="margin-bottom:14px"><summary><span class="role-name">Add an ACARS Station for a Member</span></summary>
+<form method="post" action="/admin/acars/add">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <label for="aa-user">Member (User Name, Display Name, Call Sign or Email)</label>
+  <input type="text" id="aa-user" name="username" data-memberpicker maxlength="120" required style="width:320px" placeholder="Start typing to search members">
+  {% with fp = "aa" %}{% include "partials/_acars_form_fields.html" %}{% endwith %}
+  <div class="help">The station is created under the member's account (the limit per member does not apply) and opened with their own page, where the upload address is ready to copy.</div>
+  <button class="btn" type="submit">Add ACARS Station</button>
+</form>
+<script src="/static/memberpicker.js"></script></details>
+
+<div class="tiles" style="margin-bottom:14px">
+  <div class="panel tile"><div class="tv">{{ rows | length }}</div><div class="tl">Stations</div></div>
+  <div class="panel tile"><div class="tv">{{ rows | selectattr('last_report') | list | length }}</div><div class="tl">Have reported</div></div>
+  <div class="panel tile"><div class="tv">{{ st.day if st else '-' }}</div><div class="tl">Messages, last 24 hours</div></div>
+  <div class="panel tile"><div class="tv">{{ st.messages if st else '-' }}</div><div class="tl">Messages kept</div></div>
+</div>
+{% call sec('stations', 'ACARS Stations', True, True) %}
+  <table class="sortable" id="acadmin">
+    <tr><th data-sort="text">Station</th><th data-sort="text">Owner</th><th data-sort="text">Status</th><th data-sort="text">Last Message</th><th data-sort="num">Messages</th><th>Shown</th><th></th></tr>
+    {% for r in rows %}
+    <tr>
+      <td><a href="/acars/stations/{{ r.station_id }}" class="mono">{{ r.station_id }}</a>{% if r.name %}<br><span class="dim">{{ r.name }}</span>{% endif %}</td>
+      <td>{{ r.owner_display or r.owner_name }}</td>
+      <td>{% if r.disabled %}<span class="tag off">switched off</span>{% elif online(r) %}<span class="tag live">reporting</span>{% else %}<span class="tag off">silent</span>{% endif %}</td>
+      <td class="dim">{{ r.last_report | localtime("%b %-d %H:%M") if r.last_report else 'never' }}</td>
+      <td data-v="{{ r.messages }}">{{ r.messages }}</td>
+      <td>{{ 'public' if r.public else 'private' }}</td>
+      <td style="white-space:nowrap">
+        <a class="btn small" href="/my/acars/{{ r.id }}" title="Open this station with the owner's own pages">Manage</a>
+        <form method="post" action="/admin/acars/{{ r.id }}/{{ 'enable' if r.disabled else 'disable' }}" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small neutral" type="submit">{{ 'Switch On' if r.disabled else 'Switch Off' }}</button></form>
+        <form method="post" action="/admin/acars/{{ r.id }}/delete" data-confirm="Delete this station?" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small danger" type="submit">Delete</button></form>
+      </td>
+    </tr>
+    {% else %}<tr><td colspan="7" class="dim">No station yet.</td></tr>{% endfor %}
+  </table>
+{% endcall %}
+<details class="panel setsec" id="sec-hidden-aircraft" style="margin-top:14px"><summary><span class="role-name">Hidden Aircraft ({{ hidden | length }})</span></summary><div class="secbody">
+  <p style="margin-top:0">An aircraft whose owner asked to be left out: its stored messages are deleted and new ones are not kept or shown.</p>
+  <form method="post" action="/admin/acars/hide" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div><label for="h-tail">Tail number</label><input type="text" id="h-tail" name="tail" maxlength="10" required style="width:130px"></div>
+    <div><label for="h-reason">Reason (for the record)</label><input type="text" id="h-reason" name="reason" maxlength="200" style="width:300px"></div>
+    <button class="btn small" type="submit" style="margin:0 0 2px">Hide Aircraft</button></form>
+  {% if hidden %}<table style="margin-top:12px"><tr><th>Tail</th><th>Reason</th><th>By</th><th></th></tr>{% for h in hidden %}<tr><td class="mono">{{ h.tail }}</td><td>{{ h.reason }}</td><td>{{ h.username or '' }}</td>
+    <td><form method="post" action="/admin/acars/unhide" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="tail" value="{{ h.tail }}"><button class="btn small neutral" type="submit">Show Again</button></form></td></tr>{% endfor %}</table>{% endif %}
+</div></details>
+{% endblock %}

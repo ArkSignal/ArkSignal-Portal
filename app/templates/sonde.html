@@ -1,0 +1,271 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}{{ f.serial }} {{ f.type }}{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ leaflet_base }}/leaflet.css" crossorigin="anonymous">
+{% include "partials/_wxicons.html" %}
+<style>@media(max-width:760px){.wxcharts{grid-template-columns:minmax(0,1fr)!important}}.wxcharts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 24px}.wxchart{min-width:0;max-width:980px}.wxchart h3{margin:8px 0 2px;font-size:.95rem;display:flex;gap:6px;align-items:center}.wxchart svg.chart{display:block;width:100%;height:auto}</style>
+<h1>{{ f.serial }} <span>{{ f.type or ('Amateur Balloon' if f.kind == 'amateur' else 'Radiosonde') }}</span></h1>
+<div class="sub">
+  {% if f.agency %}{{ f.agency }} &middot; {% elif f.kind == 'amateur' %}Amateur balloon &middot; {% endif %}
+  <span id="phase-tag">{% if phase == 'climbing' %}<span class="tag live">{{ phase_label }}</span>{% elif phase == 'falling' %}<span class="tag" style="border-color:#ff9f43;color:#ff9f43">{{ phase_label }}</span>{% elif phase == 'landed' %}<span class="tag off">Landed</span>{% else %}<span class="tag off">Signal lost</span>{% endif %}</span>
+  <span id="rec-tag">{% if recs %}{% set r0 = recs[0] %}{% if r0.recovered %}<span class="tag live" title="{{ r0.note }}">Recovered</span>{% elif r0.planned %}<span class="tag" style="border-color:#3b82f6;color:#3b82f6" title="{{ r0.note }}">Recovery planned</span>{% else %}<span class="tag" style="border-color:#ff9f43;color:#ff9f43" title="{{ r0.note }}">Looked for, not found</span>{% endif %}{% endif %}</span>
+  {% if f.site_name %}&middot; launched from <a href="/sondes/sites/{{ f.site_id }}">{{ f.site_name }}</a>{% endif %}
+  &middot; last heard <span id="lastheard">{{ f.last_seen | localtime("%b %-d %H:%M:%S") }}</span>
+</div>
+<p style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><a href="/sondes/flights">&larr; Flights</a>
+  <a class="btn small show-on-map" href="/sondes/map?only={{ f.serial }}">Show on Radiosonde Map</a>
+  {% if f.last_lat is not none %}<a class="btn small show-on-map" href="/live?lat={{ '%.4f' % f.last_lat }}&amp;lon={{ '%.4f' % f.last_lon }}&amp;zoom=9&amp;layers=sondes">Show on Aircraft Map</a>{% endif %}
+  <a class="btn small" href="/sondes/{{ f.serial }}/track.csv">Download CSV</a> <a class="btn small" href="/sondes/{{ f.serial }}/track.geojson">Download GeoJSON</a></p>
+
+<div class="tiles" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr));margin-bottom:14px">
+  <div class="panel tile"><div class="tv" style="font-size:1.4rem" id="t-alt">{{ (latest.alt | u_alt) if latest and latest.alt is not none else '-' }}</div><div class="tl">Altitude now</div></div>
+  <div class="panel tile"><div class="tv" style="font-size:1.4rem">{{ (f.max_alt | u_alt) if f.max_alt is not none else '-' }}</div><div class="tl">Highest</div></div>
+  <div class="panel tile"><div class="tv" style="font-size:1.4rem">{{ summ.duration_min ~ ' min' if summ.duration_min is not none else '-' }}</div><div class="tl">Time tracked</div></div>
+  <div class="panel tile"><div class="tv" style="font-size:1.4rem">{{ summ.ascent_ms | u_vspd }}</div><div class="tl">Average climb</div></div>
+  <div class="panel tile"><div class="tv" style="font-size:1.4rem">{{ summ.descent_ms | u_vspd }}</div><div class="tl">Average descent</div></div>
+  <div class="panel tile"><div class="tv" style="font-size:1.4rem">{{ summ.drift_km | u_dist }}</div><div class="tl">Drift, launch to landing</div></div>
+</div>
+
+<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:6px"><label style="margin:0">Icon size <select id="f-isize" style="width:auto"><option value="75">Small</option><option value="100">Medium</option><option value="125">Large</option><option value="160">Extra large</option><option value="200">Huge</option></select></label>
+  <label style="margin:0">Labels <select id="f-labels" style="width:auto"><option value="1">Shown</option><option value="0">Hidden (hover for the details)</option></select></label></div>
+<div class="panel" style="padding:0;overflow:hidden;margin-bottom:14px"><div id="fmap" style="height:460px"></div></div>
+
+{% call sec('now', 'Telemetry Now', True) %}
+  <div class="dim" style="font-size:.8rem;margin:0 0 8px"><span id="live-note">{% if f.status == 'aloft' %}Updates by itself every {{ sonde_live }} seconds while the balloon is in the air.{% else %}The last telemetry received.{% endif %}</span></div>
+  <div id="live-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:6px 18px;font-size:.88rem"></div>
+{% endcall %}
+
+{% call sec('recovery', 'Recovery', True) %}
+  <div id="rec-body">
+  {% if recs %}{% for r in recs %}<div style="margin-bottom:8px"><b>{% if r.recovered %}Recovered{% elif r.planned %}Recovery planned{% else %}Looked for, not found{% endif %}</b> by {{ r.by or 'someone' }} <span class="dim">&middot; {{ r.time[:16].replace('T', ' ') }} UTC{% if r.software %} &middot; reported with {{ r.software }}{% endif %}</span>{% if r.note %}<br><span class="dim">{{ r.note }}</span>{% endif %}{% if r.lat is not none %}<br><span class="mono dim">{{ '%.5f' % r.lat }}, {{ '%.5f' % r.lon }}</span>{% endif %}</div>{% endfor %}
+  {% else %}<p class="dim" style="margin:0">{% if phase == 'landed' or phase == 'lost' %}Nobody has reported finding this sonde yet.{% else %}It has not landed yet.{% endif %} Recovery reports come from <a href="https://sondehub.org" target="_blank" rel="noopener">SondeHub</a> (chasers file them there, or with the tracker's Found button).</p>{% endif %}
+  </div>
+  {% if rep.mode != '0' %}
+  {% if current_user.is_authenticated %}
+  <form id="rec-form" method="post" action="/sondes/{{ f.serial }}/recovery" data-async style="margin-top:14px;max-width:560px">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="grp" style="margin-top:0">Report Recovery</div>
+    <div class="help" style="margin-top:0">Please report recovered radiosondes, so nobody wastes time on a failed recovery. The report is sent to <a href="https://sondehub.org" target="_blank" rel="noopener">SondeHub</a> in the same format its own tracker uses and becomes public there (SondeHub data is CC BY-SA 2.0). {% if rep.mode == 'test' %}<b>Test mode: nothing is sent to SondeHub.</b>{% endif %}</div>
+    <label for="rec-serial">Serial</label><input type="text" id="rec-serial" value="{{ f.serial }}" readonly class="mono" style="max-width:260px">
+    <label for="rec-by">Recovered By</label><input type="text" id="rec-by" name="by" value="{{ rep.by }}" maxlength="60" style="max-width:260px">
+    <label class="check"><input type="checkbox" name="recovered" value="1" id="rec-ok" checked><span><b>Recovery Success</b><br><span class="dim">Yes if you found it. Untick it to report that you looked and could not find it.</span></span></label>
+    <label class="check"><input type="checkbox" name="planned" value="1" id="rec-plan"><span><b>Recovery Planned</b><br><span class="dim">Tick it, and untick Recovery Success, to tell other chasers you are going to recover this sonde later.</span></span></label>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end">
+      <div><label for="rec-lat">Latitude</label><input type="text" id="rec-lat" name="lat" value="{{ rep.lat if rep.lat is not none else '' }}" style="max-width:150px"></div>
+      <div><label for="rec-lon">Longitude</label><input type="text" id="rec-lon" name="lon" value="{{ rep.lon if rep.lon is not none else '' }}" style="max-width:150px"></div>
+      <div><label for="rec-alt">Altitude (<span id="rec-altu">{{ unit_name('alt') }}</span>)</label><input type="text" id="rec-altd" style="max-width:130px" value="{{ (rep.alt | u_alt(0)).split(' ')[0].replace(',', '') if rep.alt is not none else '' }}"><input type="hidden" id="rec-alt" name="alt" value="{{ rep.alt if rep.alt is not none else '' }}"></div>
+      <button class="btn small neutral" type="button" id="rec-here" style="margin:0 0 2px">Use Browser Position</button>
+    </div>
+    <div class="help">The position starts at where the sonde landed (or was last heard). Use Browser Position puts yours there instead.</div>
+    <label for="rec-note">Notes</label><textarea id="rec-note" name="note" maxlength="600" rows="3"></textarea>
+    <button class="btn" type="submit">Submit Report</button>
+  </form>
+  <script>
+  (function () {
+    var ok = document.getElementById("rec-ok"), plan = document.getElementById("rec-plan");
+    ok.addEventListener("change", function () { if (ok.checked) plan.checked = false; });
+    plan.addEventListener("change", function () { if (plan.checked) ok.checked = false; });
+    var altd = document.getElementById("rec-altd"), altm = document.getElementById("rec-alt"), AUF = ArkUnits.alt(1).v;
+    function syncAlt() { var v = parseFloat(altd.value); altm.value = isFinite(v) ? Math.round(v / AUF * 10) / 10 : ""; }   // typed in the viewer's unit, sent to SondeHub in meters
+    altd.addEventListener("input", syncAlt);
+    document.getElementById("rec-here").addEventListener("click", function () {
+      if (!navigator.geolocation) return;
+      navigator.geolocation.getCurrentPosition(function (p) { document.getElementById("rec-lat").value = p.coords.latitude.toFixed(6); document.getElementById("rec-lon").value = p.coords.longitude.toFixed(6); if (p.coords.altitude != null) { altd.value = Math.round(p.coords.altitude * AUF); syncAlt(); } }, function () {});
+    });
+  })();
+  </script>
+  {% else %}<p class="dim" style="margin:14px 0 0"><a href="/my/login?next=/sondes/{{ f.serial }}">Sign in</a> to report a recovery, or to say you are going to recover this sonde.</p>{% endif %}
+  {% endif %}
+{% endcall %}
+
+{% call sec('details', 'Flight Details', True) %}
+  <table style="max-width:760px">
+    <tr><th style="width:210px">Serial</th><td class="mono copyable">{{ f.serial }}</td></tr>
+    <tr><th>Type</th><td>{{ f.manufacturer }} {{ f.type }}{% if f.subtype and f.subtype != f.type %} ({{ f.subtype }}){% endif %}{% if f.kind == 'amateur' %} amateur balloon payload{% endif %}</td></tr>
+    {% if f.frequency %}<tr><th>Frequency</th><td class="mono">{{ '%.3f' % f.frequency }} MHz</td></tr>{% endif %}
+    <tr><th>Source</th><td>{% if f.agency %}{{ f.agency }}{% elif f.kind == 'amateur' %}Amateur{% else %}Other radiosonde (not from a National Weather Service site){% endif %}</td></tr>
+    <tr><th>Launch site</th><td>{% if f.site_name %}<a href="/sondes/sites/{{ f.site_id }}">{{ f.site_name }}</a> ({{ f.site_id }}){% else %}<span class="dim">{{ 'not known' if f.launch_checked else 'being worked out' }}</span>{% endif %}</td></tr>
+    <tr><th>Launched</th><td>{% if f.launch_time %}{{ f.launch_time | localtime("%b %-d, %Y %H:%M") }}{% else %}<span class="dim">first heard {{ f.first_seen | localtime("%b %-d, %Y %H:%M") }}</span>{% endif %}{% if f.launch_lat is not none %} <span class="dim mono">at {{ '%.3f' % f.launch_lat }}, {{ '%.3f' % f.launch_lon }}{% if f.launch_alt is not none %}, {{ f.launch_alt | u_alt }}{% endif %}</span>{% endif %}</td></tr>
+    <tr><th>Burst</th><td>{% if f.max_alt is not none %}{{ f.max_alt | u_alt }}{% if f.max_alt_ts %} at {{ f.max_alt_ts | localtime("%H:%M") }}{% if summ.to_burst_min is not none %}, {{ summ.to_burst_min }} min after launch{% endif %}{% endif %}{% if phase == 'climbing' %} <span class="dim">(highest so far; it has not burst yet)</span>{% endif %}{% endif %}</td></tr>
+    <tr><th>{{ 'Landed' if f.status == 'landed' else 'Last position' }}</th><td class="mono">{% if f.status == 'landed' and f.landing_lat is not none %}{{ '%.4f' % f.landing_lat }}, {{ '%.4f' % f.landing_lon }}{% if f.landing_alt is not none %}, {{ f.landing_alt | u_alt }}{% endif %}{% elif f.last_lat is not none %}{{ '%.4f' % f.last_lat }}, {{ '%.4f' % f.last_lon }}{% if f.last_alt is not none %}, {{ f.last_alt | u_alt }}{% endif %}{% endif %}</td></tr>
+    {% if f.pred_lat is not none and f.status == 'aloft' %}<tr><th>Predicted landing</th><td class="mono">{{ '%.4f' % f.pred_lat }}, {{ '%.4f' % f.pred_lon }}{% if f.pred_time %} <span class="dim">around {{ f.pred_time | localtime("%H:%M") }}</span>{% endif %}</td></tr>{% endif %}
+    <tr><th>Messages heard</th><td>{{ f.frames }}</td></tr>
+    <tr><th>Last heard by</th><td id="fd-lasthe" class="dim">looking...</td></tr>
+    <tr><th>Heard by</th><td id="fd-count" class="dim"></td></tr>
+    <tr><th>Best signal</th><td id="fd-best" class="dim"></td></tr>
+    <tr><th>Farthest listener</th><td id="fd-far" class="dim"></td></tr>
+  </table>
+{% endcall %}
+
+{% call sec('heard', 'Heard By', True, True) %}
+  <div class="tfilterbar" style="margin:0 0 8px"><input type="search" id="hf-q" placeholder="Search the receiving stations" aria-label="Search the receiving stations" style="max-width:260px">
+    <label style="margin:0"><input type="checkbox" id="hf-claimed"> Claimed only</label><label style="margin:0"><input type="checkbox" id="hf-pos"> With a known position only</label>
+    <label style="margin:0">Heard in the last <select id="hf-age"><option value="">any time</option><option value="300">5 minutes</option><option value="900">15 minutes</option><option value="3600">hour</option><option value="21600">6 hours</option></select></label><label style="margin:0">Sort by <select id="hf-sort"><option value="snr">Signal now</option><option value="best_snr">Best signal</option><option value="callsign">Receiving station</option><option value="freq">Frequency</option><option value="packets">Messages</option><option value="az">Direction</option><option value="el">Elevation</option><option value="range_km">Distance</option><option value="age">Last heard</option></select></label><button type="button" class="btn small neutral" id="hf-dir" style="margin:0" aria-label="Reverse the sort order">High to Low</button><span class="dim tcount" id="hf-count"></span></div>
+  <div class="dim" style="font-size:.8rem;margin:0 0 6px">Choose Sort by, or click a heading. The signal is each station's latest reading and changes while the balloon is in the air. Direction, elevation and distance from a station are shown only where its owner shares its position.</div>
+  <table id="heard-tbl"><thead><tr><th data-k="callsign">Receiving Station</th><th data-k="snr">Signal Now</th><th data-k="best_snr">Best Signal</th><th data-k="freq">Frequency</th><th data-k="packets">Messages</th><th data-k="az">Direction</th><th data-k="el">Elevation</th><th data-k="range_km">Distance</th><th data-k="age">Last Heard</th></tr></thead>
+  <tbody>{% for h in heard %}<tr><td><a class="mono" href="/sondes/stations/{{ h.callsign | callurl }}">{{ h.callsign }}</a>{% if h.claimed %} <span class="tag live">claimed</span>{% endif %}</td><td>{{ '%.1f dB' % h.snr if h.snr is not none else '-' }}</td><td>{{ '%.1f dB' % h.best_snr if h.best_snr is not none else '-' }}</td><td>{{ '%.3f MHz' % h.freq if h.freq else '-' }}</td><td>{{ h.packets }}</td><td>{{ h.look.az ~ '°' if h.look else '-' }}</td><td>{{ h.look.el ~ '°' if h.look else '-' }}</td><td>{{ h.look.range_km ~ ' km' if h.look else '-' }}</td><td>{{ h.age }} s ago</td></tr>
+  {% else %}<tr><td colspan="9" class="dim">No receiving station is recorded for this flight.</td></tr>{% endfor %}</tbody></table>
+{% endcall %}
+
+{% call sec('charts', 'Charts', True, True) %}
+  <div class="dim" style="font-size:.8rem;margin-bottom:6px">Move the pointer over a chart to read it. Time is minutes from the first position stored.</div>
+  <div class="wxcharts">
+    <div class="wxchart"><h3><svg class="wxi tile-i"><use href="#wxi-cloud"/></svg>Altitude</h3><div id="ch-alt"></div><div class="dim" style="font-size:.8rem">Height above sea level ({{ unit_name('alt') }}) by time since launch</div></div>
+    <div class="wxchart"><h3><svg class="wxi tile-i"><use href="#wxi-rate"/></svg>Climb and Descent Rate</h3><div id="ch-vv"></div><div class="dim" style="font-size:.8rem">Vertical speed ({{ unit_name('vspd') }}): up is positive</div></div>
+    <div class="wxchart"><h3><svg class="wxi tile-i"><use href="#wxi-temp"/></svg>Temperature and Dew Point by Height</h3><div id="ch-temp"></div><div class="dim" style="font-size:.8rem">Air temperature and dew point ({{ unit_name('temp') }}) on the way up &nbsp; <span style="color:#ff6b6b">&#9632;</span> Temperature &nbsp; <span style="color:#4fb3ff">&#9632;</span> Dew point</div></div>
+    <div class="wxchart"><h3><svg class="wxi tile-i"><use href="#wxi-drop"/></svg>Humidity by Height</h3><div id="ch-hum"></div><div class="dim" style="font-size:.8rem">Relative humidity (%) on the way up</div></div>
+    <div class="wxchart"><h3><svg class="wxi tile-i"><use href="#wxi-wind"/></svg>Wind by Height</h3><div id="ch-wind"></div><div class="dim" style="font-size:.8rem">Horizontal speed of the balloon ({{ unit_name('spd') }}), which is the wind that carries it</div></div>
+    <div class="wxchart"><h3><svg class="wxi tile-i"><use href="#wxi-press"/></svg>Pressure</h3><div id="ch-press"></div><div class="dim" style="font-size:.8rem">Air pressure (hPa) by time since launch</div></div>
+    <div class="wxchart"><h3><svg class="wxi tile-i"><use href="#wxi-bolt"/></svg>Signal and Battery</h3><div id="ch-sig"></div><div class="dim" style="font-size:.8rem">Strength of the signal at the best station (dB) and the sonde's battery (V)</div></div>
+  </div>
+{% endcall %}
+
+{% call sec('skewt', 'Skew-T Diagram', False) %}
+  <h3 style="margin:0 0 4px;font-size:.95rem;display:flex;gap:6px;align-items:center"><svg class="wxi tile-i"><use href="#wxi-dew"/></svg>Temperature and Dew Point Against Pressure</h3>
+  <p class="dim" style="margin-top:0;font-size:.85rem">The atmosphere the balloon measured on the way up: temperature (red) and dew point (blue) against pressure. Radiosonde humidity and temperature sensors are not calibrated by the receivers, so treat the values as indicative.</p>
+  <div id="skewt"></div>
+{% endcall %}
+
+<p class="dim" style="font-size:.8rem">{{ credit }}. Telemetry is uploaded by volunteers' receiving stations to <a href="https://sondehub.org" target="_blank" rel="noopener">SondeHub</a> and shared under the <a href="https://creativecommons.org/licenses/by-sa/2.0/" target="_blank" rel="noopener">Creative Commons BY-SA 2.0</a> license; what you download from this page carries the same license.</p>
+
+<script src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script>
+<script src="/static/touchhit.js"></script>
+<script src="/static/sondechart.js"></script>
+<script src="/static/sondeicons.js"></script>
+<script>
+(function () {
+  var SERIAL = {{ f.serial | tojson }}, LIVE = {{ (sonde_live * 1000) | tojson }}, ALOFT = {{ (f.status == 'aloft') | tojson }}, SITE = {{ (f.site_name or 'the launch site') | tojson }};
+  var $ = function (id) { return document.getElementById(id); };
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]; }); }
+  var map = L.map("fmap", {center: [34.8, -92.3], zoom: 7}); window.fmap = map;
+  L.tileLayer({{ tile_url | tojson }}, {maxZoom: 19, attribution: {{ tile_attr | tojson }}}).addTo(map);
+  var STOPS = [[0, "#3ee6a8"], [5000, "#6be28f"], [10000, "#c8f06a"], [15000, "#ffd24f"], [20000, "#ff9f43"], [25000, "#ff6b6b"], [30000, "#c58bff"]];
+  function altColor(m) { var c = STOPS[0][1]; STOPS.forEach(function (s) { if (m != null && m >= s[0]) c = s[1]; }); return c; }
+  var layer = L.layerGroup().addTo(map), fitted = false, lastD = null;
+  function pref(k, v) { try { if (v === undefined) return localStorage.getItem("lv." + k); localStorage.setItem("lv." + k, v); } catch (e) { return null; } }
+  var iscale = parseInt(pref("sm.isize"), 10) || 125, showLabels = pref("sm.flabels") !== "0";
+  $("f-isize").value = String(iscale); $("f-labels").value = showLabels ? "1" : "0";
+  $("f-isize").addEventListener("change", function () { iscale = parseInt(this.value, 10); pref("sm.isize", this.value); if (lastD) draw(lastD); });
+  $("f-labels").addEventListener("change", function () { showLabels = this.value === "1"; pref("sm.flabels", this.value); if (lastD) draw(lastD); });
+  // a big, labeled marker with the same icons as the balloon map; the label stays on screen so a dot is never the only clue
+  function mark(kind, color, ll, label, size, side) {
+    size = Math.round(size * iscale / 100);
+    var m = L.marker(ll, {icon: L.divIcon({className: "", html: SondeIcons.marker(kind, color, "", {size: size}), iconSize: [0, 0]}), zIndexOffset: kind === "climbing" || kind === "falling" ? 900 : 400}).addTo(layer);
+    m.bindTooltip(label, {permanent: showLabels, direction: side || "right", offset: [showLabels ? (side === "left" ? -size / 2 : size / 2) : 0, showLabels ? 0 : -size / 2 - 4], className: "lv-tip"});
+    return m;
+  }
+  function fmtAlt(m) { return ArkUnits.text.alt(m); }
+  function draw(d) {
+    lastD = d;
+    var t = d.track, n = t.t.length; layer.clearLayers();
+    if (!n) return;
+    var run = [[t.lat[0], t.lon[0]]], rc = altColor(t.alt[0]);
+    for (var i = 1; i < n; i++) {
+      var c = altColor(t.alt[i]); run.push([t.lat[i], t.lon[i]]);
+      if (c !== rc || i === n - 1) { L.polyline(run, {color: "#0b1422", weight: 6, opacity: .55, interactive: false}).addTo(layer); L.polyline(run, {color: rc, weight: 3.5, opacity: 1}).addTo(layer); run = [[t.lat[i], t.lon[i]]]; rc = c; }
+    }
+    var la = [t.lat[n - 1], t.lon[n - 1]];
+    mark("launch", "#4fb3ff", d.launch || [t.lat[0], t.lon[0]], "Launch: " + SITE, 30);
+    if (d.burst) mark("burst", "#ffb454", [d.burst[0], d.burst[1]], "Burst: " + fmtAlt(d.burst[2]), 30, "left");
+    if (d.pred && d.status === "aloft") { L.polyline(d.pred_path && d.pred_path.length > 1 ? [la].concat(d.pred_path.map(function (p) { return [p[1], p[2]]; })) : [la, d.pred], {color: "#fff", weight: 2, dashArray: "5 7", opacity: .8, interactive: false}).addTo(layer); mark("landed", "#3ee6a8", d.pred, "Predicted landing", 28); }
+    var rec = (d.recoveries || [])[0];
+    if (d.status === "landed" || d.phase === "landed") mark(rec ? rec.state : "landed", "#ff8cd9", d.landing || la, rec ? (rec.state === "recovered" ? "Landed, recovered by " + rec.by : rec.state === "planned" ? "Landed, recovery planned by " + rec.by : "Landed, looked for by " + rec.by + ", not found") : "Landed", 34);
+    else if (d.phase === "lost") mark("lost", "#ff6b6b", la, "Last position: signal lost at " + fmtAlt(t.alt[n - 1]), 34);
+    else mark(d.phase === "falling" ? "falling" : "climbing", altColor(t.alt[n - 1]), la, (d.phase === "falling" ? "Falling: " : "Climbing: ") + fmtAlt(t.alt[n - 1]), 38);
+    if (!fitted) { map.invalidateSize(); map.fitBounds(L.latLngBounds(t.lat.map(function (a, i) { return [a, t.lon[i]]; })), {padding: [50, 50], maxZoom: 12}); fitted = true; }
+    var t0 = t.t[0], x = t.t.map(function (v) { return (v - t0) / 60; });
+    var C = SondeCharts, dewv = t.temp.map(function (v, i) { return C.dew(v, t.hum[i]); });
+    var hi = 0; t.alt.forEach(function (a, i) { if (a != null && (t.alt[hi] == null || a > t.alt[hi])) hi = i; });
+    var marks = hi > 0 && hi < n - 1 ? [{x: (t.t[hi] - t0) / 60, label: "burst", color: "#ffb454"}] : [];
+    var upTo = function (arr) { return arr.map(function (v, i) { return i <= hi ? v : null; }); };
+    var AU = ArkUnits.alt(1), VU = ArkUnits.vspd(1), SU = ArkUnits.spd(1), TF = function (c) { return c == null ? null : ArkUnits.temp(c).v; }, TU = ArkUnits.temp(0).u;
+    var altU = t.alt.map(function (a) { return a == null ? null : a * AU.v; });
+    C.line($("ch-alt"), {x: x, xlabel: "Time (min)", xfmt: function (v) { return Math.round(v); }, ylabel: "Altitude (" + AU.u + ")", yfmt: function (v) { return Math.round(v); }, marks: marks, series: [{y: altU, color: "#3ee6a8", label: "Altitude", unit: AU.u}]});
+    C.line($("ch-vv"), {x: x, xlabel: "Time (min)", xfmt: function (v) { return Math.round(v); }, ylabel: "Vertical speed (" + VU.u + ")", series: [{y: t.vv.map(function (v) { return v == null ? null : v * VU.v; }), color: "#4fb3ff", label: "Vertical speed", unit: VU.u}]});
+    C.line($("ch-temp"), {x: upTo(altU), xlabel: "Altitude (" + AU.u + ")", xfmt: function (v) { return Math.round(v); }, ylabel: TU, series: [{y: upTo(t.temp.map(TF)), color: "#ff6b6b", label: "Temperature", unit: TU}, {y: upTo(dewv.map(TF)), color: "#4fb3ff", label: "Dew point", unit: TU}]});
+    C.line($("ch-hum"), {x: upTo(altU), xlabel: "Altitude (" + AU.u + ")", xfmt: function (v) { return Math.round(v); }, ylabel: "Relative humidity (%)", series: [{y: upTo(t.hum), color: "#3ee6a8", label: "Humidity", unit: "%"}]});
+    C.line($("ch-wind"), {x: altU, xlabel: "Altitude (" + AU.u + ")", xfmt: function (v) { return Math.round(v); }, ylabel: "Horizontal speed (" + SU.u + ")", series: [{y: t.vh.map(function (v) { return v == null ? null : v * SU.v; }), color: "#ffb454", label: "Wind / drift speed", unit: SU.u}]});
+    var pr = t.press.map(function (p, i) { return p != null ? p : (t.alt[i] != null ? C.stdPress(t.alt[i]) : null); });
+    C.line($("ch-press"), {x: x, xlabel: "Time (min)", xfmt: function (v) { return Math.round(v); }, ylabel: "hPa", series: [{y: pr, color: "#c58bff", label: t.press.some(function (p) { return p != null; }) ? "Pressure" : "Pressure (standard atmosphere)", unit: "hPa"}]});
+    C.line($("ch-sig"), {x: x, xlabel: "Time (min)", xfmt: function (v) { return Math.round(v); }, ylabel: "dB / volts", series: [{y: t.snr, color: "#4fb3ff", label: "Signal", unit: "dB"}, {y: t.batt, color: "#ffd24f", label: "Battery", unit: "V"}]});
+    C.skewT($("skewt"), {alt: t.alt, temp: t.temp, hum: t.hum, press: t.press});
+  }
+
+  // ---- the numbers now (the same fields auto_rx shows for a sonde)
+  function row(l, v) { return '<div style="display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding:3px 0"><span class="dim">' + l + '</span><b class="mono">' + v + "</b></div>"; }
+  function drawNow(d) {
+    var p = d.latest; if (!p) { $("live-grid").innerHTML = '<span class="dim">No telemetry stored yet.</span>'; return; }
+    var feet = function (m) { return ArkUnits.text.alt(m); };
+    var mph = function (v) { return ArkUnits.text.spd(v, 1); };
+    var tf = function (c) { return ArkUnits.text.temp(c, 1); };
+    var dt = new Date(p.time);
+    $("live-grid").innerHTML = row("Phase", esc(d.label)) + row("Age", p.age < 90 ? p.age + " s" : Math.round(p.age / 60) + " min") + row("Type", esc(d.type || "")) + row("Frequency", p.freq ? p.freq.toFixed(3) + " MHz" : (d.frequency ? d.frequency.toFixed(3) + " MHz" : "-")) +
+      row("Serial", esc(d.serial)) + row("Time (UTC)", dt.toISOString().replace("T", " ").slice(0, 19)) + row("Frame", p.frame == null ? "-" : p.frame) +
+      row("Latitude", p.lat.toFixed(5)) + row("Longitude", p.lon.toFixed(5)) + row("Altitude", feet(p.alt)) + row("Horizontal speed", mph(p.vel_h)) +
+      row("Ascent rate", ArkUnits.text.vspd(p.vel_v)) + row("Heading", p.heading == null ? "-" : Math.round(p.heading) + "°") +
+      row("Temperature", tf(p.temp)) + row("Humidity", p.hum == null ? "-" : Math.round(p.hum) + " %") + row("Pressure", p.press == null ? "-" : p.press.toFixed(1) + " hPa") +
+      row("Battery", p.batt == null ? "-" : p.batt.toFixed(1) + " V") + row("Satellites", p.sats == null ? "-" : p.sats) + row("Signal (best station)", p.snr == null ? "-" : p.snr.toFixed(1) + " dB");
+  }
+
+  // ---- who hears it, sortable, with the signal of now
+  var hsort = {k: "snr", dir: -1}, heard = [];
+  function drawHeard() {
+    var q = ($("hf-q").value || "").trim().toLowerCase(), maxAge = parseInt($("hf-age").value, 10) || 0;
+    function details() {   // the flight's own table: who heard it last, how many, the best signal, the farthest listener
+      var last = heard.slice().sort(function (a, b) { return (a.age == null ? 1e12 : a.age) - (b.age == null ? 1e12 : b.age); })[0];
+      var best = heard.filter(function (h) { return h.best_snr != null; }).sort(function (a, b) { return b.best_snr - a.best_snr; })[0];
+      var far = heard.filter(function (h) { return h.look; }).sort(function (a, b) { return b.look.range_km - a.look.range_km; })[0];
+      function link(h) { return '<a class="mono" href="/sondes/stations/' + encodeURIComponent(h.callsign) + '">' + esc(h.callsign) + "</a>"; }
+      function ago2(s) { return s == null ? "" : s < 90 ? s + " s ago" : s < 5400 ? Math.round(s / 60) + " min ago" : Math.round(s / 3600) + " h ago"; }
+      $("fd-lasthe").innerHTML = last ? link(last) + ' <span class="dim">' + ago2(last.age) + (last.snr != null ? ", " + last.snr.toFixed(1) + " dB" : "") + "</span>" : "no station recorded";
+      $("fd-count").textContent = heard.length ? heard.length + " receiving station" + (heard.length === 1 ? "" : "s") : "";
+      $("fd-best").innerHTML = best ? link(best) + ' <span class="dim">' + best.best_snr.toFixed(1) + " dB</span>" : "";
+      $("fd-far").innerHTML = far ? link(far) + ' <span class="dim">' + ArkUnits.text.dist(far.look.range_km) + " away</span>" : '<span class="dim">no listener shares its position</span>';
+    }
+    details();
+    var rows = heard.filter(function (h) {
+      if (q && h.callsign.toLowerCase().indexOf(q) < 0) return false;
+      if ($("hf-claimed").checked && !h.claimed) return false;
+      if ($("hf-pos").checked && !h.look) return false;
+      if (maxAge && (h.age == null || h.age > maxAge)) return false;
+      return true;
+    });
+    $("hf-sort").value = hsort.k; $("hf-dir").textContent = hsort.k === "callsign" ? (hsort.dir > 0 ? "A to Z" : "Z to A") : hsort.k === "age" ? (hsort.dir > 0 ? "Newest First" : "Oldest First") : (hsort.dir < 0 ? "High to Low" : "Low to High");
+    $("hf-count").textContent = rows.length === heard.length ? "" : rows.length + " of " + heard.length;
+    rows = rows.slice().sort(function (a, b) {
+      function v(h) { return hsort.k === "az" || hsort.k === "el" || hsort.k === "range_km" ? (h.look ? h.look[hsort.k] : null) : h[hsort.k]; }
+      var x = v(a), y = v(b); if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1; return (x < y ? -1 : x > y ? 1 : 0) * hsort.dir;
+    });
+    $("heard-tbl").querySelector("tbody").innerHTML = rows.map(function (h) {
+      var L2 = h.look;
+      return '<tr><td><a class="mono" href="/sondes/stations/' + encodeURIComponent(h.callsign) + '">' + esc(h.callsign) + "</a>" + (h.claimed ? ' <span class="tag live">claimed</span>' : "") + "</td><td>" + (h.snr == null ? "-" : h.snr.toFixed(1) + " dB") + "</td><td>" + (h.best_snr == null ? "-" : h.best_snr.toFixed(1) + " dB") +
+        "</td><td>" + (h.freq ? h.freq.toFixed(3) + " MHz" : "-") + "</td><td>" + h.packets + "</td><td>" + (L2 ? L2.az + "°" : "-") + "</td><td>" + (L2 ? L2.el + "°" : "-") + "</td><td>" + (L2 ? ArkUnits.text.dist(L2.range_km) : "-") + "</td><td>" + (h.age == null ? "-" : h.age < 90 ? h.age + " s ago" : Math.round(h.age / 60) + " min ago") + "</td></tr>";
+    }).join("") || '<tr><td colspan="9" class="dim">No receiving station is recorded for this flight.</td></tr>';
+  }
+  ["hf-q", "hf-claimed", "hf-pos", "hf-age"].forEach(function (id) { $(id).addEventListener(id === "hf-q" ? "input" : "change", drawHeard); });
+  $("heard-tbl").querySelector("thead").addEventListener("click", function (e) { var k = e.target.getAttribute("data-k"); if (!k) return; if (hsort.k === k) hsort.dir = -hsort.dir; else { hsort.k = k; hsort.dir = k === "callsign" ? 1 : -1; } drawHeard(); });
+  $("hf-sort").addEventListener("change", function () { hsort.k = this.value; hsort.dir = hsort.k === "callsign" || hsort.k === "age" ? 1 : -1; drawHeard(); });
+  $("hf-dir").addEventListener("click", function () { hsort.dir = -hsort.dir; drawHeard(); });
+  function drawRec(d) {
+    var r = (d.recoveries || []);
+    if (!r.length) return;
+    $("rec-body").innerHTML = r.map(function (x) { return '<div style="margin-bottom:8px"><b>' + (x.state === "recovered" ? "Recovered" : x.state === "planned" ? "Recovery planned" : "Looked for, not found") + "</b> by " + esc(x.by || "someone") + ' <span class="dim">&middot; ' + esc(x.time.slice(0, 16).replace("T", " ")) + " UTC" + (x.software ? " &middot; reported with " + esc(x.software) : "") + "</span>" + (x.note ? '<br><span class="dim">' + esc(x.note) + "</span>" : "") + "</div>"; }).join("");
+    $("rec-tag").innerHTML = r[0].state === "recovered" ? '<span class="tag live">Recovered</span>' : r[0].state === "planned" ? '<span class="tag" style="border-color:#3b82f6;color:#3b82f6">Recovery planned</span>' : '<span class="tag" style="border-color:#ff9f43;color:#ff9f43">Looked for, not found</span>';
+  }
+  document.addEventListener("asyncdone", function (e) { if (e.target && e.target.id === "rec-form" && e.detail && e.detail.ok) load(); });   // a report just sent shows in the list and on the map
+  async function load() {
+    try {
+      var d = await (await fetch("/api/sondes/" + encodeURIComponent(SERIAL) + "/track.json", {credentials: "same-origin"})).json();
+      draw(d); drawNow(d); heard = d.heard || []; drawHeard(); drawRec(d); ALOFT = d.status === "aloft";
+      $("phase-tag").innerHTML = d.phase === "climbing" ? '<span class="tag live">' + esc(d.label) + "</span>" : d.phase === "falling" ? '<span class="tag" style="border-color:#ff9f43;color:#ff9f43">' + esc(d.label) + "</span>" : '<span class="tag off">' + esc(d.label) + "</span>";
+      if (d.latest) $("t-alt").textContent = fmtAlt(d.latest.alt);
+      $("lastheard").textContent = new Date(d.last).toLocaleTimeString();
+      $("live-note").textContent = ALOFT ? "Updates by itself every " + Math.round(LIVE / 1000) + " seconds while the balloon is in the air." : "The last telemetry received.";
+    } catch (e) { $("ch-alt").innerHTML = '<div class="dim">Could not load the track.</div>'; }
+  }
+  load();
+  setInterval(function () { if (ALOFT && !document.hidden) load(); }, Math.max(5000, LIVE));
+})();
+</script>
+{% endblock %}

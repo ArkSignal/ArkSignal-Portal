@@ -1,0 +1,43 @@
+{# One look for every How to Feed page: the same sections in the same order, built from these. #}
+{% macro sec(id, title, open=True, wide=False) -%}
+<details class="panel setsec" id="sec-{{ id }}" {{ 'open' if open }} style="margin-bottom:14px{{ ';overflow-x:auto' if wide }}"><summary><span class="role-name">{{ title }}</span></summary><div class="secbody">{{ caller() }}</div></details>
+{%- endmacro %}
+
+{% macro other_feeds() -%}
+The other feeding pages: {% for g in nav_groups if g.key == 'feed' %}{% for it in g['items'] %}{{ ', ' if not loop.first }}{{ 'and ' if loop.last }}<a href="{{ it[1] }}">{{ 'ADS-B' if it[1] == '/feed/' else it[0] }}</a>{% endfor %}{% endfor %}
+{%- endmacro %}
+
+{% macro data_and_help(kind) -%}
+{% call sec('data', 'Your Data and Privacy', False) %}
+  <ul class="plain" style="margin-top:0">
+    <li>The aircraft messages you send are public flight data. They are merged into the network's map and statistics.</li>
+    <li>Your location is shown publicly only as you choose: approximate, exact or hidden. {% if mlat_enabled %}The MLAT server needs your exact position to work and keeps it private; the portal never shows it.{% endif %}</li>
+    <li>You can change your choice, rename the station, or delete your account at any time from your account pages.</li>
+    <li>Station statistics (uptime, messages, range) are public for named stations, without anything that reveals a hidden location.</li>
+  </ul>
+{% endcall %}
+{% call sec('more-help', 'More Help', False) %}
+  <ul class="plain" style="margin:0">
+    <li>{{ other_feeds() }}</li>
+    <li><a href="/status">Service status</a>: is the network itself working right now?</li>
+    {% if mlat_enabled %}<li><a href="/mlat/">MLAT network</a>: who is connected and synchronised with whom.</li>{% endif %}
+    <li><a href="/feeders/">Feeders</a> and the <a href="/view/network-feeders">network statistics</a>: how stations are doing.</li>
+    <li><a href="/contact">Contact</a> someone from the network if you are stuck.</li>
+  </ul>
+{% endcall %}
+{%- endmacro %}
+
+{% macro after(kind) -%}
+{% call sec('after-you-are-feeding', 'After You Are Feeding', True) %}
+  <ol class="plain">
+    <li>Use <a href="/feed/check">Am I Feeding?</a> to confirm the hub sees your station.</li>
+    <li><a href="/my/register">Create an account</a> and sign in, then <a href="/my/claim">claim your feeder</a>. If you are on the same network as the receiver it is found automatically; otherwise paste its UUID.</li>
+    <li>Choose a station ID, set the location with the map, and describe your setup. You decide whether the public sees an approximate location, the exact one, or none. This does not change what the receiver sends.</li>
+    {% if kind == 'adsb' %}<li>Your station's range, activity and uptime appear on its page and in the <a href="/view/network-feeders">network statistics</a>.</li>
+    {% if mlat_enabled %}<li>Most stations send MLAT as well: see the <a href="/feed/mlat">MLAT page</a>.</li>{% endif %}
+    {% elif kind == 'mlat' %}<li>Open <b>My Feeders</b> and your station to see its MLAT status in plain words, with what to fix if it is not working. The <a href="/mlat/">MLAT network</a> page shows which stations yours is synchronised with and how well.</li>
+    <li>Aircraft found by MLAT appear on the <a href="/live">live map</a> labelled MLAT; the Data Source filter can show or hide them.</li>
+    {% else %}<li>UAT and ADS-R aircraft appear on the <a href="/live">live map</a> under the Data Source filter (UAT / ADS-R), and the <a href="/coverage">Coverage Map</a> can show them as they arrive.</li>{% endif %}
+  </ol>
+{% endcall %}
+{%- endmacro %}

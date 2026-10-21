@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Map Layers{% endblock %}
+{% from "partials/_layers_list.html" import fields with context %}
+{% block content %}
+<h1><span>Admin</span> Map Layers</h1>
+<div class="sub">The extra base maps and overlays visitors can switch on in the live map: weather radar, aeronautical charts, airspace and more.</div>
+{% include "partials/_admin_subnav.html" %}
+<details class="panel setsec" id="sec-add-a-layer" style="margin-bottom:14px"><summary><span class="role-name">Add a Layer</span></summary>
+<form method="post" action="/admin/layers/save" data-async data-async-target="#layers-list">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  {{ fields(none, 'n-') }}
+  <div class="setsec-actions"><button class="btn" type="submit">Add Layer</button></div>
+</form></details>
+<div class="tfilterbar"><input type="search" class="tfilter" data-table="#layers-list" placeholder="Search layers by name, group, type or address" aria-label="Search layers"><span class="dim tcount"></span></div>
+{% include "partials/_layers_list.html" %}
+{% endblock %}

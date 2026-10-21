@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}{{ place.label if place else 'Weather for a Place' }} Weather{% endblock %}
+{% block content %}
+{% include "partials/_wxicons.html" %}
+<style>@media(max-width:760px){.wxcharts{grid-template-columns:minmax(0,1fr)!important}}.wxcharts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 24px}.wxchart h3{margin:8px 0 2px;font-size:.95rem;display:flex;gap:6px;align-items:center}.wxchart svg.pc{display:block;width:100%;height:150px}
+.fcs{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px}.fc{flex:0 0 170px;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--panel2,transparent)}.fc b{display:block}.fc .ft{font:700 1.6rem/1.1 'JetBrains Mono',monospace;margin:4px 0}.fc.night{opacity:.85}.fc .fd{font-size:.78rem;color:var(--dim)}
+.pq{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}.pq input[type=text]{width:min(100%,360px)}</style>
+<h1>{% if place %}{{ place.label }} <span>Weather</span>{% else %}Weather for <span>a Place</span>{% endif %}</h1>
+<div class="sub">{% if place %}Made from the readings of the weather stations near {{ place.label }}: members' stations, APRS stations and airports.{% else %}Type a ZIP code, a city, an airport code or an address to get its weather, made from the stations near it.{% endif %}</div>
+<form method="get" action="/weather/place" class="panel pq" style="margin-top:10px">
+  <div><label for="pl-q">ZIP code, city, airport or address</label><input type="text" id="pl-q" name="q" value="{{ q }}" placeholder="72201, Conway AR, KLIT, 1 Main St Little Rock" maxlength="120" required autocomplete="off"></div>
+  <button class="btn" type="submit" style="margin:0 0 2px">Show Weather</button>
+  <button class="btn small neutral" type="button" id="pl-here" style="margin:0 0 2px" title="Uses your browser's position (asked first; it is not sent anywhere except as the place to show)">Use My Location</button><span id="pl-hnote" class="dim" style="font-size:.8rem"></span>
+  {% if place %}<a class="btn small neutral" style="margin:0 0 2px" href="/weather/map?lat={{ '%.4f' % place.lat }}&amp;lon={{ '%.4f' % place.lon }}&amp;zoom=10">Weather Map Here</a>
+  <span class="subnav" style="margin:0 0 0 auto"><a class="{{ 'active' if units == 'imperial' }}" href="?q={{ q | urlencode }}{% if not q %}&amp;lat={{ place.lat }}&amp;lon={{ place.lon }}{% endif %}&amp;units=imperial">&deg;F, mph, in</a><a class="{{ 'active' if units == 'metric' }}" href="?q={{ q | urlencode }}{% if not q %}&amp;lat={{ place.lat }}&amp;lon={{ place.lon }}{% endif %}&amp;units=metric">&deg;C, km/h, mm</a></span>{% endif %}
+</form>
+{% if q and not place %}<div class="panel" style="margin-top:14px"><p style="margin:0">Nothing was found for <b>{{ q }}</b>. Try a ZIP code, a city with its state (Conway, AR) or an airport code (KLIT).</p></div>{% endif %}
+{% if choices %}<p class="dim" style="margin:10px 0 0">Did you mean: {% for c in choices %}<a href="/weather/place?lat={{ '%.4f' % c.lat }}&amp;lon={{ '%.4f' % c.lon }}&amp;q={{ c.label | urlencode }}&amp;units={{ units }}">{{ c.label }}</a>{{ ', ' if not loop.last }}{% endfor %}</p>{% endif %}
+
+<script>
+(function () {
+  var b = document.getElementById("pl-here"), n = document.getElementById("pl-hnote");
+  function go(auto) {
+    if (!navigator.geolocation) { if (!auto) n.textContent = "This browser cannot give its position."; return; }
+    navigator.geolocation.getCurrentPosition(function (p) { location.href = "/weather/place?lat=" + p.coords.latitude.toFixed(4) + "&lon=" + p.coords.longitude.toFixed(4) + "&q=" + encodeURIComponent("My location") + "&units={{ units }}"; },
+      function (e) { if (!auto) n.textContent = window.isSecureContext ? "Could not get your position: " + e.message : "Your browser only shares its position on a secure (https) address."; }, {timeout: 10000, maximumAge: 600000});
+  }
+  b.addEventListener("click", function () { go(false); });
+  {% if not place and not q %}try { if (!sessionStorage.getItem("plAuto")) { sessionStorage.setItem("plAuto", "1"); go(true); } } catch (e) {}   // opens on where you are, once per visit{% endif %}
+})();
+</script>
+{% if place %}
+<details class="panel setsec" id="sec-now" open style="margin-top:14px"><summary><span class="role-name">Current Conditions</span></summary><div class="secbody">
+  {% if n_live %}<div id="wx-now-body">{% include "partials/_wx_now.html" %}</div>
+  <div class="help">Worked out from {{ n_live }} reporting station{{ '' if n_live == 1 else 's' }} within {{ radius }} miles, the nearer ones counting more.{% if widened %} Fewer than two stations were reporting close by, so the search widened to {{ radius }} miles.{% endif %}</div>
+  {% else %}<p class="dim" style="margin:0">No station within {{ radius }} miles is reporting right now. The forecast below still applies, or try a bigger town nearby.</p>{% endif %}
+</div></details>
+
+{% if forecast and forecast.periods %}
+<details class="panel setsec" id="sec-forecast" open style="margin-top:14px"><summary><span class="role-name">Forecast</span></summary><div class="secbody">
+  <div class="fcs">
+    {% for p in forecast.periods %}<div class="fc {{ '' if p.daytime else 'night' }}" title="{{ p.detail }}"><b>{{ p.name }}</b>{% if p.icon %}<svg class="wxi big cond-{{ p.icon }}" style="width:44px;height:44px;margin:6px 0 0"><use href="#wxi-{{ p.icon }}"/></svg>{% endif %}<div class="ft">{{ p.temp }}&deg;{{ p.unit }}</div><div>{{ p.short }}</div><div class="fd">{{ p.wind }}{% if p.rain %} &middot; {{ p.rain }}% rain{% endif %}</div></div>{% endfor %}
+  </div>
+  <div class="help">National Weather Service forecast for this spot{% if forecast.office %} (office {{ forecast.office }}){% endif %}. It is the NWS's own, not made from our stations.</div>
+</div></details>
+{% endif %}
+
+{% if gfs and gfs.ok and gfs.rows %}
+<details class="panel setsec" id="sec-model" style="margin-top:14px"><summary><span class="role-name">Hour-by-Hour Model Forecast</span></summary><div class="secbody" style="overflow-x:auto">
+  <table id="model-fc"><thead><tr><th>Time</th><th>Temperature</th><th>Humidity</th><th>Wind</th><th>Gusts</th><th>Rain (3 Hours)</th><th>Cloud</th><th>Pressure</th></tr></thead><tbody>
+  {% for r in gfs.rows %}<tr>
+    <td data-v="{{ r.time }}"><time class="ts" datetime="{{ r.time }}" data-fmt="dt">{{ r.time }}</time></td>
+    <td class="mono">{{ conv('temp_f', r.temp_f, units)[0] }}{{ conv('temp_f', r.temp_f, units)[1] }}</td>
+    <td class="mono">{{ conv('hum', r.rh, units)[0] }}{{ conv('hum', r.rh, units)[1] }}</td>
+    <td class="mono">{% if r.wind_mph is not none %}{{ conv('wind_mph', r.wind_mph, units)[0] }} {{ conv('wind_mph', r.wind_mph, units)[1] }} <span class="dim">from {{ compass_of(r.wind_dir) }}</span>{% else %}-{% endif %}</td>
+    <td class="mono">{{ conv('gust_mph', r.gust_mph, units)[0] }} {{ conv('gust_mph', r.gust_mph, units)[1] }}</td>
+    <td class="mono">{% if r.rain_in is not none %}{{ conv('rain_day_in', r.rain_in, units)[0] }} {{ conv('rain_day_in', r.rain_in, units)[1] }}{% else %}-{% endif %}</td>
+    <td class="mono">{{ r.cloud ~ '%' if r.cloud is not none else '-' }}</td>
+    <td class="mono">{% if r.pressure_hpa is not none %}{{ conv('press_in', r.pressure_hpa * 0.02953, units)[0] }} {{ conv('press_in', r.pressure_hpa * 0.02953, units)[1] }}{% else %}-{% endif %}</td></tr>{% endfor %}</tbody></table>
+  <div class="help">Our own reading of the NOAA GFS weather model (a computer forecast for the whole earth, published every six hours), for the point nearest this place; the run is from <time class="ts" datetime="{{ gfs.cycle }}" data-fmt="dt">{{ gfs.cycle }}</time>. Models are good at the shape of the weather and less sure of the detail: the National Weather Service forecast above is made by people who also use local knowledge. Rain is the amount in the three hours up to that time.</div>
+</div></details>
+{% endif %}
+
+<details class="panel setsec" id="sec-history" open style="margin-top:14px"><summary><span class="role-name">Last 24 Hours Near Here</span></summary><div class="secbody">
+  <div class="subnav" id="pl-periods" style="margin-bottom:10px"><a data-p="24h" class="active" href="#">24 hours</a><a data-p="3d" href="#">3 days</a><a data-p="7d" href="#">7 days</a></div>
+  <div class="wxcharts" id="pl-charts"></div>
+  <p style="margin:0 0 8px"><a href="/weather/statistics?near={{ place.lat }},{{ place.lon }},{{ radius }}&amp;place={{ place.label | urlencode }}">Compare these stations over time and by reading in Weather Statistics</a></p>
+  <div class="help">Move the pointer over a chart to read it. For each time: the highest, the average and the lowest of the stations near the place. History is kept from the moment the site began collecting it.</div>
+</div></details>
+
+<details class="panel setsec" id="sec-stations" open style="margin-top:14px;overflow-x:auto"><summary><span class="role-name">Stations Used</span></summary><div class="secbody">
+  <table>
+    <tr><th>Station</th><th>Source</th><th>Distance</th><th>Temp</th><th>Wind</th><th>Humidity</th><th>Status</th></tr>
+    {% for s in near %}<tr><td><a href="{{ s.href }}">{{ s.id }}</a>{% if s.name and s.name != s.id %} <span class="dim">{{ s.name }}</span>{% endif %}</td><td>{{ {'members': 'Member', 'aprs': 'APRS', 'airport': 'Airport'}.get(s.src, s.src) }}</td>
+      <td class="mono">{{ conv('dist_mi', s.dist_mi, units)[0] }} {{ conv('dist_mi', s.dist_mi, units)[1] }}</td>
+      <td class="mono">{{ conv('temp_f', s.r.get('temp_f'), units)[0] }}{{ conv('temp_f', s.r.get('temp_f'), units)[1] }}</td>
+      <td class="mono">{% if s.r.get('wind_mph') is not none %}{{ conv('wind_mph', s.r.get('wind_mph'), units)[0] }} {{ conv('wind_mph', s.r.get('wind_mph'), units)[1] }}{% else %}-{% endif %}</td>
+      <td class="mono">{{ conv('hum', s.r.get('hum'), units)[0] }}{{ conv('hum', s.r.get('hum'), units)[1] }}</td>
+      <td>{{ 'Reporting' if s.online else 'Not reporting' }}</td></tr>
+    {% else %}<tr><td colspan="7" class="dim">No station within {{ radius }} miles.</td></tr>{% endfor %}
+  </table>
+</div></details>
+
+<script src="/static/labelfit.js"></script>
+<script src="/static/wxmap.js"></script>
+<script src="/static/sondechart.js"></script>
+<script>
+(function () {
+  var P = {{ {"lat": place.lat, "lon": place.lon, "radius": radius, "units": units} | tojson }};
+  var METRICS = [["temp_f", "Temperature", "temp", "temp"], ["hum", "Humidity", "pct", "drop"], ["press_in", "Pressure", "press", "press"], ["wind_mph", "Wind", "speed", "wind"], ["rain_day_in", "Rain So Far That Day", "rain", "rain"]];
+  var box = document.getElementById("pl-charts"), period = "24h";
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]; }); }
+  function chart(host, series, kind) {   // the same chart as the radiosonde flight page (static/sondechart.js): hover to read, grid, labelled axes
+    var C = ArkWx.conv, u = P.units, pts = series.filter(function (s) { return s.avg != null; });
+    if (pts.length < 2) { host.innerHTML = '<div class="dim" style="padding:14px">Not enough history near here yet.</div>'; return; }
+    var cv = function (v) { return v == null ? null : parseFloat(C(kind, v, u)[0]); }, now = new Date(pts[pts.length - 1].ts).getTime();
+    var unit = C(kind, 1, u)[1], days = period !== "24h", div = days ? 86400000 : 3600000, word = days ? "days" : "hours";
+    SondeCharts.line(host, {x: pts.map(function (s) { return (new Date(s.ts).getTime() - now) / div; }), xlabel: "Time (" + word + " ago, now at the right)", ylabel: unit, height: 215,
+      xfmt: function (v) { return v >= -0.005 ? "now" : Math.abs(v).toFixed(days ? 1 : 1) + " " + (days ? "d" : "h") + " ago"; }, yfmt: function (v) { return kind === "press" ? v.toFixed(u === "metric" ? 0 : 2) : String(Math.round(v * 10) / 10); },
+      series: [{y: pts.map(function (s) { return cv(s.max); }), color: "#ff9f43", label: "Highest", unit: unit}, {y: pts.map(function (s) { return cv(s.avg); }), color: "#3ee6a8", label: "Average", unit: unit}, {y: pts.map(function (s) { return cv(s.min); }), color: "#4fb3ff", label: "Lowest", unit: unit}]});
+  }
+  function load() {
+    box.innerHTML = METRICS.map(function (m) { return '<div class="wxchart" data-m="' + m[0] + '"><h3><svg class="wxi tile-i"><use href="#wxi-' + m[3] + '"/></svg>' + m[1] + '</h3><div class="body dim">Loading...</div></div>'; }).join("");
+    METRICS.forEach(function (m) {
+      fetch("/api/weather/stats.json?metric=" + m[0] + "&period=" + period + "&near=" + encodeURIComponent(P.lat + "," + P.lon + "," + P.radius)).then(function (r) { return r.json(); }).then(function (d) {
+        var el = box.querySelector('[data-m="' + m[0] + '"] .body'); if (!el) return;
+        if (m[0] === "rain_day_in" && !(d.series || []).some(function (s) { return s.max > 0; })) { el.parentNode.style.display = "none"; return; }
+        el.className = "body"; chart(el, d.series || [], m[2]);
+      }).catch(function () {});
+    });
+  }
+  document.getElementById("pl-periods").addEventListener("click", function (e) { var a = e.target.closest("a[data-p]"); if (!a) return; e.preventDefault(); period = a.getAttribute("data-p"); this.querySelectorAll("a").forEach(function (x) { x.classList.toggle("active", x === a); }); load(); });
+  load();
+})();
+</script>
+{% endif %}
+{% endblock %}

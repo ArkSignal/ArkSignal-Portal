@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Friends{% endblock %}
+{% block content %}
+<style>
+.fr-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid color-mix(in srgb, var(--line) 50%, transparent)}
+.fr-row:last-child{border-bottom:0}
+.fr-name{font-weight:700;min-width:0;overflow-wrap:anywhere}
+.fr-acts{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+.fr-acts .btn{margin:0}
+.dotl{display:inline-block;width:10px;height:10px;border-radius:50%;background:#7a7f8a;flex:none}
+.dotl.on{background:#38c172}
+</style>
+<h1>My <span>Friends</span></h1>
+<div class="sub">Friends are the members you chose. You can see which of them are online and start a <a href="/chat/">chat</a> or write a <a href="/my/messages">message</a> in one click. Nobody is told when you decline a request, remove a friend or block a member.</div>
+{% include "partials/_my_subnav.html" %}
+
+{% if incoming %}{% call sec('requests', 'Requests for You (' ~ incoming | length ~ ')', True) %}
+  {% for r in incoming %}<div class="fr-row"><span class="fr-name">{{ name_of(r) }}</span><span class="dim" style="font-size:.8rem">@{{ r.username }}</span>
+    <span class="fr-acts"><button class="btn small" type="button" data-act="/my/friends/{{ r.username }}/accept">Accept</button><button class="btn small neutral" type="button" data-act="/my/friends/{{ r.username }}/decline">Decline</button>
+    <button class="btn small neutral" type="button" data-act="/my/friends/{{ r.username }}/block" data-confirm="Block {{ r.username }}?">Block</button></span></div>{% endfor %}
+{% endcall %}{% endif %}
+
+{% call sec('friends', 'Friends (' ~ friends | length ~ ' of up to ' ~ fmax ~ ')', True) %}
+  {% for f in friends %}<div class="fr-row"><span class="dotl{{ ' on' if f.online }}" title="{{ 'Online' if f.online else 'Offline' }}"></span><span class="fr-name">{{ name_of(f) }}</span><span class="dim" style="font-size:.8rem">@{{ f.username }}{% if f.online %} &middot; online{% endif %}</span>
+    <span class="fr-acts">{% if chat_on %}<a class="btn small" href="#" data-chat="{{ f.username }}">Chat</a>{% endif %}{% if mail_on %}<a class="btn small neutral" href="/my/messages/compose?to={{ f.username }}">Message</a>{% endif %}
+    <button class="btn small neutral" type="button" data-act="/my/friends/{{ f.username }}/remove" data-confirm="Remove {{ f.username }} from your friends?">Remove</button>
+    <button class="btn small neutral" type="button" data-act="/my/friends/{{ f.username }}/block" data-confirm="Block {{ f.username }}?">Block</button></span></div>
+  {% else %}<p class="dim" style="margin:0">No friends yet. Find a member below and send a request.</p>{% endfor %}
+{% endcall %}
+
+{% call sec('find', 'Find a Member', not friends and not incoming) %}
+  <form id="fr-find">
+    <label for="fr-to">User Name</label>
+    <input type="text" id="fr-to" name="to" data-memberpicker="people" maxlength="120" required style="max-width:320px" placeholder="User name, call sign or email address">
+    <button class="btn" type="submit">Send Friend Request</button> <span id="fr-note" class="dim" role="status"></span>
+  </form>
+  {% if sent %}<p style="margin:14px 0 4px"><b>Requests you sent</b></p>
+  {% for r in sent %}<div class="fr-row"><span class="fr-name">{{ name_of(r) }}</span><span class="dim" style="font-size:.8rem">waiting for an answer</span><span class="fr-acts"><button class="btn small neutral" type="button" data-act="/my/friends/{{ r.username }}/cancel">Take Back</button></span></div>{% endfor %}{% endif %}
+{% endcall %}
+
+{% call sec('privacy', 'Who Can Contact Me', False) %}
+  <form id="fr-prefs">
+    <label for="fr-pol">Chats, messages and friend requests</label>
+    <select id="fr-pol" name="contact_policy" style="max-width:320px">{% for k, t in policies %}<option value="{{ k }}" {{ 'selected' if k == policy }}>{{ t }}</option>{% endfor %}</select>
+    <p class="help">Friends only: a member who is not your friend can only send you a friend request. Nobody new: not even requests (friends can still write). Moderators can always reach you about a report.</p>
+    <label class="check"><input type="checkbox" name="show_online" value="1" {{ 'checked' if show_online }}><span>Show my friends and chat partners when I am online</span></label>
+    <p class="help" style="margin:10px 0 4px"><b>Being found:</b> members find you by your user name and display name. You can also let them find you by:</p>
+    <label class="check"><input type="checkbox" name="find_by_callsign" value="1" {{ 'checked' if find_by_callsign }}><span>My call sign</span></label>
+    <label class="check"><input type="checkbox" name="find_by_email" value="1" {{ 'checked' if find_by_email }}><span>My email address (only when someone types all of it; it is never shown to anyone)</span></label>
+    <button class="btn" type="submit">Save</button> <span id="fr-pnote" class="dim" role="status"></span>
+  </form>
+{% endcall %}
+
+{% call sec('blocked', 'Blocked Members (' ~ blocks | length ~ ')', False) %}
+  {% for b in blocks %}<div class="fr-row"><span class="fr-name">{{ name_of(b) }}</span><span class="dim" style="font-size:.8rem">@{{ b.username }}</span><span class="fr-acts"><button class="btn small neutral" type="button" data-act="/my/friends/{{ b.username }}/unblock">Unblock</button></span></div>
+  {% else %}<p class="dim" style="margin:0">You have not blocked anyone. A blocked member cannot chat with you, message you or send requests, and is not told.</p>{% endfor %}
+{% endcall %}
+<script>
+(function () {
+  var csrf = "{{ csrf_token() }}";
+  function post(url, data) { var f = new FormData(); f.append("csrf_token", csrf); Object.keys(data || {}).forEach(function (k) { f.append(k, data[k]); }); return fetch(url, { method: "POST", body: f, credentials: "same-origin" }).then(function (r) { return r.json(); }); }
+  Array.prototype.forEach.call(document.querySelectorAll("[data-act]"), function (b) {
+    b.addEventListener("click", function () {
+      var c = b.getAttribute("data-confirm"); if (c && !confirm(c)) return;
+      post(b.getAttribute("data-act")).then(function () { location.reload(); });
+    });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll("[data-chat]"), function (a) {
+    a.addEventListener("click", function (e) { e.preventDefault(); post("/chat/new", { to: a.getAttribute("data-chat") }).then(function (d) { if (d.ok) location.href = d.url; else alert(d.message); }); });
+  });
+  document.getElementById("fr-find").addEventListener("submit", function (e) {
+    e.preventDefault(); post("/my/friends/request", { to: this.to.value }).then(function (d) { document.getElementById("fr-note").textContent = d.message || ""; if (d.ok) setTimeout(function () { location.reload(); }, 1200); });
+  });
+  document.getElementById("fr-prefs").addEventListener("submit", function (e) {
+    e.preventDefault(); var f = this, data = { contact_policy: f.contact_policy.value }; if (f.show_online.checked) data.show_online = "1"; if (f.find_by_callsign.checked) data.find_by_callsign = "1"; if (f.find_by_email.checked) data.find_by_email = "1";
+    post("/my/friends/prefs", data).then(function (d) { document.getElementById("fr-pnote").textContent = d.message || ""; });
+  });
+  function dots() {
+    if (document.hidden) return;
+    fetch("/my/friends/online.json", { credentials: "same-origin" }).then(function (r) { return r.json(); }).then(function (d) {
+      Array.prototype.forEach.call(document.querySelectorAll("#sec-friends .fr-row"), function (row) {
+        var u = row.querySelector("[data-chat]"); if (!u) return; var on = d.online.indexOf(u.getAttribute("data-chat")) >= 0, dot = row.querySelector(".dotl");
+        if (dot) { dot.className = "dotl" + (on ? " on" : ""); dot.title = on ? "Online" : "Offline"; }
+      });
+    }).catch(function () {});
+  }
+  setInterval(dots, 30000);
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Mesh Nodes{% endblock %}
+{% block content %}
+<h1><span>Admin</span> Mesh Nodes</h1>
+<div class="sub">The mesh service reads the community MQTT broker and keeps the nodes that publish themselves. Its address, the broker it reads, the area and how long nodes are kept are in <a href="/admin/settings/radio#sec-mesh-nodes">Settings &gt; Mesh Nodes</a>.{% if not enabled %} <b>Mesh nodes are switched off.</b>{% endif %}</div>
+{% include "partials/_admin_subnav.html" %}
+{% if not st.ok %}<div class="panel" style="border-color:var(--acc2);margin-bottom:14px"><b>{{ st.note }}</b> Check that the mesh container is running (its stack is applied by the stack updater).</div>{% endif %}
+{% if st.ok %}
+<div class="tiles" style="margin-bottom:14px">
+  <div class="panel tile"><div class="tv">{{ st.data.nodes }}</div><div class="tl">Nodes known ({{ st.data.meshtastic }} Meshtastic, {{ st.data.meshcore }} MeshCore)</div></div>
+  <div class="panel tile"><div class="tv">{{ st.data.heard_hour }}</div><div class="tl">Heard in the last hour</div></div>
+  <div class="panel tile"><div class="tv">{{ st.data.feed.packets }}</div><div class="tl">Packets since the service started ({{ st.data.feed.decoded }} Meshtastic readable, {{ st.data.feed.encrypted }} not read; MeshCore: {{ st.data.feed.mc_adverts }} adverts, {{ st.data.feed.mc_dropped }} chat packets dropped{% if st.data.feed.mc_badsig %}, {{ st.data.feed.mc_badsig }} with a bad signature{% endif %}{% if not st.data.feed.signatures_checked %}; signatures NOT checked{% endif %})</div></div>
+  <div class="panel tile"><div class="tv" style="font-size:1.1rem">{{ 'Connected' if st.data.feed.connected else 'Not connected' }}</div><div class="tl">The broker{% if st.data.feed.error %}: {{ st.data.feed.error }}{% endif %}</div></div>
+  <div class="panel tile"><div class="tv" style="font-size:1.1rem">{{ 'TLS ready' if st.data.feed.tls else 'No certificate yet' }}</div><div class="tl">The node-facing listener (port 8883){% if not st.data.feed.tls %}: waiting for a certificate for {{ conn.host }}{% endif %}</div></div>
+  {% if st.data.config.up_enabled == '1' %}<div class="panel tile"><div class="tv" style="font-size:1.1rem">{{ 'Connected' if st.data.feed.up_connected else 'Not connected' }}</div><div class="tl">The public Meshtastic server{% if st.data.feed.up_error %}: {{ st.data.feed.up_error }}{% endif %}</div></div>{% endif %}
+</div>
+{% call sec('gateways', 'Gateways', True, True) %}
+  {% if st.data.gateways %}<table><thead><tr><th>Gateway or observer</th><th>Network</th><th>Nodes it heard</th><th>Last</th></tr></thead><tbody>{% for g in st.data.gateways %}<tr><td class="mono">{{ g.name or g.gateway[:22] }}</td><td>{{ 'MeshCore' if g.network == 'meshcore' else 'Meshtastic' }}</td><td>{{ g.nodes }}</td><td>{{ g.last[:16].replace('T', ' ') }}</td></tr>{% endfor %}</tbody></table>
+  {% else %}<p class="dim" style="margin:0">No gateway has uplinked yet.</p>{% endif %}
+{% endcall %}
+{% endif %}
+{% call sec('apply', 'Apply Settings', True, False) %}
+  <form method="post" action="/admin/mesh/apply" data-async style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small" type="submit" style="margin:0">Apply Settings to the Service</button><span class="dim" style="font-size:.84rem">Sends the settings and the takedown list to {{ url }}.</span></form>
+{% endcall %}
+<details class="panel setsec" id="sec-add-for-member" style="margin-bottom:14px"><summary><span class="role-name">Make a Login for a Member</span></summary>
+<form method="post" action="/admin/mesh/accounts/add">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <label for="ma-user">Member (User Name, Display Name, Call Sign or Email)</label>
+  <input type="text" id="ma-user" name="username" data-memberpicker maxlength="120" required style="width:320px" placeholder="Start typing to search members">
+  {% with fp = "ma", r = none %}{% include "partials/_mesh_form_fields.html" %}{% endwith %}
+  <div class="help">The login is made under the member's account (the limit per member does not apply) and opens on their own page, where the password is ready to copy.</div>
+  <button class="btn" type="submit">Make Login</button>
+</form>
+<script src="/static/memberpicker.js"></script></details>
+{% call sec('logins', 'Member Logins (' ~ (accounts | length) ~ ')', True, True) %}
+  {% if accounts %}<table class="sortable"><thead><tr><th data-sort="text">Login</th><th data-sort="text">Owner</th><th data-sort="text">Nodes</th><th data-sort="text">Status</th><th></th></tr></thead><tbody>
+  {% for a in accounts %}<tr><td><a href="/my/mesh/{{ a.id }}" class="mono">{{ a.username }}</a>{% if a.label %}<br><span class="dim">{{ a.label }}</span>{% endif %}</td><td>{{ a.owner_display or a.owner_name }}</td><td class="mono">{{ a.nodes }}</td><td>{{ 'Switched off' if a.disabled else 'Active' }}</td>
+    <td style="white-space:nowrap">
+      <form method="post" action="/admin/mesh/accounts/{{ a.id }}/{{ 'enable' if a.disabled else 'disable' }}" style="display:inline" data-async><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small neutral" type="submit">{{ 'Switch On' if a.disabled else 'Switch Off' }}</button></form>
+      <form method="post" action="/admin/mesh/accounts/{{ a.id }}/delete" style="display:inline" data-confirm="Delete this login? Its node is refused at once."><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small danger" type="submit">Delete</button></form>
+    </td></tr>{% endfor %}</tbody></table>
+  {% else %}<p class="dim" style="margin:0">No member has made a login yet.</p>{% endif %}
+  <form method="post" action="/admin/mesh/accounts/sync" data-async style="margin-top:10px"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small neutral" type="submit">Sync Logins to the Broker</button> <span class="dim" style="font-size:.84rem">Makes the broker's logins exactly this list (done by itself on Apply Settings, and after a restore).</span></form>
+{% endcall %}
+<details class="panel setsec" id="sec-node-claims" style="margin-bottom:14px"><summary><span class="role-name">Node Claims ({{ claims | length }})</span></summary><div class="secbody">
+  {% if claims %}<table class="sortable"><thead><tr><th data-sort="text">Node</th><th data-sort="text">Member</th><th data-sort="text">Status</th><th></th></tr></thead><tbody>
+  {% for c in claims %}<tr><td class="mono"><a href="/mesh/{{ slug(c.node_key) | replace('!', '') }}">{{ c.node_key[:22] }}{{ '...' if c.node_key | length > 22 }}</a></td><td>{{ c.owner_display or c.owner_name }}</td><td>{{ 'Claimed' if c.status == 'claimed' else 'Waiting for ' ~ c.code }}{{ ', hidden by its owner' if c.owner_hidden }}</td>
+    <td style="white-space:nowrap">{% if c.status != 'claimed' %}<form method="post" action="/admin/mesh/claims/{{ c.id }}/approve" style="display:inline" data-async><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small" type="submit">Approve</button></form> {% endif %}
+      <form method="post" action="/my/mesh/claims/{{ c.id }}/delete" style="display:inline" data-confirm="Remove this claim?"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small danger" type="submit">Remove</button></form></td></tr>{% endfor %}</tbody></table>
+  {% else %}<p class="dim" style="margin-top:0">No node has been claimed yet.</p>{% endif %}
+  <form method="post" action="/admin/mesh/claims/add" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:10px"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div><label for="ac-user">Member</label><input type="text" id="ac-user" name="username" data-memberpicker maxlength="120" required style="width:260px" placeholder="Start typing to search members"></div>
+    <div><label for="ac-node">Node ID or MeshCore public key</label><input type="text" id="ac-node" name="node" maxlength="80" required style="width:300px"></div>
+    <button class="btn small" type="submit" style="margin:0 0 2px">Claim for Member</button></form>
+</div></details>
+<details class="panel setsec" id="sec-open-the-broker"><summary><span class="role-name">Opening the Broker to Nodes (a step for the site's administrator)</span></summary><div class="secbody">
+  <p style="margin-top:0">Members make their own logins (My Mesh Nodes), and the mesh service puts each one in the broker: no commands. Two things are yours, once, because they are your certificate and your router:</p>
+  <ol class="plain"><li>In Nginx Proxy Manager, make sure a certificate exists for the feed name (<span class="mono">{{ conn.host }}</span>; the one used by the proxy host for that name is fine). The broker finds it in the proxy's certificate store, copies it, opens its TLS listener and follows every renewal by itself: nothing to copy or restart. It shows <b>TLS ready</b> above when it has found it.</li>
+  <li>On the router, forward <b>TCP 8883</b> to the hub VM. The name is the feed name, which already points at your public address.</li></ol>
+  <p class="dim" style="margin-bottom:0">Nodes themselves need no open ports. The service can also read another broker instead (set in Settings).</p>
+</div></details>
+<details class="panel setsec" id="sec-hidden-nodes" style="margin-top:14px"><summary><span class="role-name">Hidden Nodes ({{ hidden | length }})</span></summary><div class="secbody">
+  <p style="margin-top:0">A node whose owner asked to be left out: it is removed and not shown again.</p>
+  <form method="post" action="/admin/mesh/hide" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div><label for="hn-id">Node ID (!a1b2c3d4, or mc: and the public key)</label><input type="text" id="hn-id" name="node" maxlength="70" required placeholder="!a1b2c3d4" style="width:340px"></div>
+    <div><label for="hn-reason">Reason (for the record)</label><input type="text" id="hn-reason" name="reason" maxlength="200" style="width:300px"></div>
+    <button class="btn small" type="submit" style="margin:0 0 2px">Hide Node</button></form>
+  {% if hidden %}<table style="margin-top:12px"><tr><th>Node</th><th>Reason</th><th>By</th><th></th></tr>{% for h in hidden %}<tr><td class="mono">{{ h.node_key[:20] }}{{ '...' if h.node_key | length > 20 }}</td><td>{{ h.reason }}</td><td>{{ h.username or '' }}</td>
+    <td><form method="post" action="/admin/mesh/unhide" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="node" value="{{ h.node_key }}"><button class="btn small neutral" type="submit">Show Again</button></form></td></tr>{% endfor %}</table>{% endif %}
+</div></details>
+{% endblock %}

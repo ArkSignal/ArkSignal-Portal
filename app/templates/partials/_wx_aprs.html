@@ -1,0 +1,40 @@
+<div id="wx-aprs">
+  {% set p = p or {} %}
+  <form method="post" action="/my/weather/{{ r.id }}/aprs/save" data-async data-async-target="#wx-aprs">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p class="dim" style="margin-top:0">Share this station with the wider weather community: its newest reading goes out about every {{ interval }} minutes as an APRS weather report. It then shows on aprs.fi and similar sites, and through CWOP it reaches the National Weather Service's MADIS data, which forecasters and researchers use.</p>
+    <label class="check"><input type="checkbox" name="enabled" value="1" {{ 'checked' if p.enabled }}><span><b>Send this station's readings to the APRS network</b></span></label>
+    <label for="ap-mode">Send To</label>
+    <select id="ap-mode" name="mode">{% for k, l in modes.items() %}<option value="{{ k }}" {{ 'selected' if (p.mode or 'cwop') == k }}>{{ l }}</option>{% endfor %}</select>
+    <label for="ap-call">CWOP ID or Call Sign</label>
+    <input type="text" id="ap-call" name="callsign" maxlength="12" value="{{ p.callsign or '' }}" style="max-width:200px" class="mono" placeholder="CW1234 or KD5VCF-13">
+    <div class="help"><b>CWOP:</b> register the station at <a href="https://www.wxqa.com/" target="_blank" rel="noopener">wxqa.com</a> to get an ID like CW1234 (a call sign also works). <b>APRS-IS:</b> amateur radio operators only; use your own call sign{% if owner_call %} ({{ owner_call }}){% endif %}, optionally with an SSID such as -13.{% if match and not owner_call %} Add your call sign under My Account &gt; Profile first.{% endif %}</div>
+    <label for="ap-code">Passcode (APRS-IS only, optional)</label>
+    <input type="text" id="ap-code" name="passcode" maxlength="7" style="max-width:140px" class="mono" placeholder="{{ 'kept' if p.passcode_sealed else 'worked out for you' }}" autocomplete="off">
+    <div class="help">Leave it blank and the usual passcode for your call sign is worked out for you. CWOP needs none.</div>
+    <label for="ap-pos">Position Sent</label>
+    <select id="ap-pos" name="position"><option value="public" {{ 'selected' if (p.position or 'public') == 'public' }}>The position this site shows publicly for the station ({{ level }})</option><option value="exact" {{ 'selected' if p.position == 'exact' }}>The exact position</option></select>
+    {% if not has_position %}<div class="help" style="color:var(--danger,#ff6b6b)">This station has no position yet. Set one above, or APRS cannot place it.</div>{% endif %}
+    <label class="check"><input type="checkbox" name="exact_ok" value="1" {{ 'checked' if p.position == 'exact' }}><span>I accept that the exact position becomes public (only needed for the exact position).</span></label>
+    <label class="check"><input type="checkbox" name="consent" value="1" {{ 'checked' if p.enabled }}><span><b>I understand that the readings and the position I chose are public once they are sent</b>, and that I am allowed to share this station's data.</span></label>
+    <button class="btn" type="submit">Save</button>
+  </form>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px">
+    <form class="inline" method="post" action="/my/weather/{{ r.id }}/aprs/send" data-async data-async-target="#wx-aprs" data-confirm="Send the newest reading now?"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small neutral" type="submit" style="margin:0" {{ 'disabled' if not p.callsign }}>Send Now</button></form>
+    <button class="btn small neutral" type="button" id="ap-prev" style="margin:0" {{ 'disabled' if not p.callsign }}>Preview the Report</button>
+  </div>
+  <pre class="code mono" id="ap-packet" style="display:none;margin-top:8px;white-space:pre-wrap"></pre>
+  {% if p.callsign %}<p class="dim" style="margin:12px 0 0;font-size:.85rem">
+    {% if p.last_push %}Last tried <time class="ts" datetime="{{ p.last_push.isoformat() }}">{{ p.last_push }}</time>: {% if p.last_ok %}<span class="tag live">sent</span>{% else %}<span class="tag off">not sent</span>{% endif %} {{ p.last_result }}.{% else %}Nothing has been sent yet.{% endif %}
+    {{ '{:,}'.format(p.sent or 0) }} report{{ '' if p.sent == 1 else 's' }} sent so far.{% if p.fail_count and p.fail_count >= 8 %} It paused after repeated failures and tries again every few hours; fix the problem and press Send Now.{% endif %}</p>{% endif %}
+  <script>
+  (function () {
+    var b = document.getElementById("ap-prev"); if (!b) return;
+    b.addEventListener("click", function () {
+      fetch("/my/weather/{{ r.id }}/aprs/preview", {method: "POST", credentials: "same-origin", headers: {"X-CSRFToken": window.CSRF_TOKEN || "", "X-Requested-With": "XMLHttpRequest"}}).then(function (r) { return r.json(); }).then(function (j) {
+        var e = document.getElementById("ap-packet"); e.style.display = "block"; e.textContent = j.ok ? j.packet : j.message;
+      });
+    });
+  })();
+  </script>
+</div>

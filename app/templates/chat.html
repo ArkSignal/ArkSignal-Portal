@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}{{ conv.title ~ ' | Chat' if conv else 'Chat' }}{% endblock %}
+{% block content %}
+<style>
+.ch-wrap{display:grid;grid-template-columns:minmax(240px,320px) 1fr;gap:14px;align-items:start}
+.ch-side,.ch-main{border:1px solid var(--line);border-radius:14px;background:var(--input-bg);min-width:0}
+.ch-side{padding:6px;max-height:min(70vh,640px);overflow-y:auto}
+.ch-item{display:block;padding:9px 10px;border-radius:10px;text-decoration:none;color:inherit;border:1px solid transparent}
+.ch-item:hover{background:color-mix(in srgb, var(--acc) 8%, transparent)}
+.ch-item.on{border-color:var(--acc);background:color-mix(in srgb, var(--acc) 12%, transparent)}
+.ch-item.unread .ch-last{color:var(--text);font-weight:600}
+.ch-top{display:flex;gap:6px;align-items:center}
+.ch-top b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.ch-top time{margin-left:auto;font-size:.72rem;white-space:nowrap}
+.ch-last{font-size:.84rem;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dotl{display:inline-block;width:9px;height:9px;border-radius:50%;background:#7a7f8a;flex:none}
+.dotl.on{background:#38c172}
+.grp{font-size:.8rem;flex:none}
+.ch-head{display:flex;gap:10px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.ch-head h2{margin:0;font-size:1.05rem}
+.ch-back{display:none}
+#ch-msgs{height:min(56vh,520px);overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+.bub{max-width:82%;padding:7px 11px;border-radius:14px;border:1px solid var(--line)}
+.bub.mine{align-self:flex-end;background:color-mix(in srgb, var(--acc) 20%, var(--input-bg))}
+.bub.theirs{align-self:flex-start}
+.bub .who{font-size:.74rem;color:var(--dim);font-weight:700}
+.bub .cbody{white-space:pre-wrap;word-break:break-word}
+.bub .meta{display:flex;gap:10px;align-items:baseline;font-size:.72rem;margin-top:2px}
+.bub .meta time{font-size:.72rem}
+.linkbtn{background:none;border:0;color:var(--dim);font-size:.72rem;cursor:pointer;padding:0;text-decoration:underline}
+#ch-typing,#ch-seen{min-height:1.2em;font-size:.78rem;color:var(--dim);padding:0 12px}
+#ch-seen{text-align:right}
+#ch-form{display:flex;gap:8px;padding:10px 12px;align-items:flex-end;border-top:1px solid var(--line)}
+#ch-input{flex:1;min-height:44px;max-height:140px;resize:vertical;font:inherit;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:var(--input-bg);color:var(--text)}
+.ch-pick{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 8px}
+.ch-pick label{display:inline-flex;gap:5px;align-items:center;border:1px solid var(--line);border-radius:999px;padding:3px 10px;margin:0;cursor:pointer}
+.ch-people{display:flex;gap:6px;flex-wrap:wrap}
+@media (max-width:760px){
+  .ch-wrap{grid-template-columns:1fr}
+  .ch-wrap.has-conv .ch-side{display:none}
+  .ch-wrap:not(.has-conv) .ch-main{display:none}
+  .ch-back{display:inline-block}
+  .bub{max-width:90%}
+  body:has(#chatapp.has-conv) .sub,body:has(#chatapp.has-conv) #sec-new{display:none}
+  #ch-msgs{height:calc(100dvh - 450px);min-height:200px}
+}
+</style>
+<h1><span>Chat</span></h1>
+<div class="sub">Live conversations with other members: one to one, or in a small group. New messages appear at once. For something longer, write a <a href="/my/messages">message</a>{% if friends_on %}; to see who you can chat with, open <a href="/my/friends">Friends</a>{% endif %}. Be kind: you can report a message, block a member, and moderators never read a chat unless it was reported.</div>
+{% if mute %}<div class="panel" style="border-color:var(--acc2);margin-bottom:14px">You are muted in chat{% if mute.until %} until <time class="ts" datetime="{{ mute.until.isoformat() }}" data-fmt="dt">{{ mute.until }}</time>{% endif %}{% if mute.reason %}: {{ mute.reason }}{% endif %}. You can still read.</div>{% endif %}
+
+{% call sec('new', 'Start a Chat', False) %}
+  <form id="ch-new">
+    {% if friends %}<p style="margin:0 0 4px"><b>Friends</b> (choose one for a chat, two or more for a group of up to {{ group_max }} people):</p>
+    <div class="ch-pick">{% for f in friends %}<label><input type="checkbox" name="friend" value="{{ f.username }}"> {{ f.display_name or f.username }}</label>{% endfor %}</div>{% endif %}
+    <label for="ch-to">{{ 'Or Another Member (User Name)' if friends else 'Member (User Name)' }}</label>
+    <input type="text" id="ch-to" name="to" data-memberpicker="people" data-multi="1" maxlength="120" style="max-width:320px" placeholder="User name, call sign or email address (several with commas)" {{ 'disabled' if mute }}>
+    <label for="ch-name">Group Name (for a group only, optional)</label>
+    <input type="text" id="ch-name" name="name" maxlength="60" style="max-width:320px" {{ 'disabled' if mute }}>
+    <label for="ch-first">First Message (optional)</label>
+    <input type="text" id="ch-first" name="body" maxlength="{{ max_len }}" style="width:100%;max-width:560px" {{ 'disabled' if mute }}>
+    <button class="btn" type="submit" {{ 'disabled' if mute }}>Start Chat</button> <span id="ch-newnote" class="dim" role="status"></span>
+  </form>
+{% endcall %}
+
+<div id="chatapp" class="ch-wrap {{ 'has-conv' if conv }}" data-csrf="{{ csrf_token() }}" data-open="{{ conv.id if conv else '' }}" data-seconds="{{ seconds }}" data-max="{{ max_len }}">
+  <aside class="ch-side" aria-label="Your chats">
+    <div id="ch-items"></div>
+    <p id="ch-none" class="dim" style="margin:10px;display:none">No chats yet. Start one above.</p>
+  </aside>
+  <section class="ch-main">
+  {% if conv %}
+    <div class="ch-head">
+      <a class="btn small neutral ch-back" href="/chat/" style="margin:0">&larr; Chats</a>
+      {% if conv.kind == 'direct' %}<span id="ch-dot" class="dotl"></span>{% endif %}
+      <h2>{{ conv.title }}</h2>
+      {% if conv.kind == 'group' %}<span class="dim" style="font-size:.82rem">{{ conv.people | length }} people <span id="ch-online"></span></span>{% endif %}
+      <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
+        {% if conv.kind == 'direct' %}<button class="btn small neutral" type="button" id="ch-close" style="margin:0">Close Chat</button>
+        {% else %}<button class="btn small neutral" type="button" id="ch-leave" style="margin:0">Leave Group</button>{% endif %}
+      </span>
+    </div>
+    <div id="ch-msgs" aria-live="polite"></div>
+    <p id="ch-empty" class="dim" style="margin:0 12px 8px;display:none">No messages yet. Say hello.</p>
+    <div id="ch-typing" aria-live="polite"></div>
+    <div id="ch-seen"></div>
+    {% if not mute %}<form id="ch-form"><textarea id="ch-input" maxlength="{{ max_len }}" placeholder="Write a message (Enter sends, Shift+Enter starts a new line)" aria-label="Message"></textarea><button class="btn" type="submit" style="margin:0">Send</button></form>
+    {% else %}<p class="dim" style="margin:10px 12px">You are muted in chat for now.</p>{% endif %}
+    <p id="ch-note" class="dim" style="margin:0 12px 10px;min-height:1.2em" role="status"></p>
+  {% else %}
+    <div style="padding:30px 16px;text-align:center" class="dim">Pick a chat from the list, or start one above.</div>
+  {% endif %}
+  </section>
+</div>
+
+{% if conv %}
+{% call sec('people', conv.title ~ ': People and Settings', False) %}
+  <div class="ch-people">{% for p in conv.people %}<span class="tag member">{{ p.name }}{% if conv.kind == 'group' and conv.mine and p.username != current_user.username %} <button type="button" class="x" data-remove="{{ p.username }}" title="Remove from the group">&times;</button>{% endif %}</span>{% endfor %}</div>
+  {% if conv.kind == 'group' and conv.mine %}
+    <form id="ch-rename" style="margin-top:10px"><label for="ch-rn">Group Name</label><input type="text" id="ch-rn" name="name" value="{{ conv.title }}" maxlength="60" style="max-width:320px"> <button class="btn small" type="submit">Save</button></form>
+    <form id="ch-add"><label for="ch-ad">Add a Member (User Name)</label><input type="text" id="ch-ad" name="to" data-memberpicker="people" maxlength="120" style="max-width:320px"> <button class="btn small" type="submit">Add</button></form>
+  {% elif conv.kind == 'group' %}<p class="dim" style="margin:10px 0 0">The member who made the group can rename it and add or remove people.</p>{% endif %}
+  {% if conv.kind == 'direct' %}{% for p in conv.people %}{% if p.username != current_user.username %}<p style="margin:10px 0 0"><button class="btn small neutral" type="button" id="ch-block" data-user="{{ p.username }}" style="margin:0">Block {{ p.name }}</button>
+    <a class="btn small neutral" href="/my/messages/compose?to={{ p.username }}" style="margin:0">Write a Message</a></p>{% endif %}{% endfor %}{% endif %}
+  {% if links %}<p style="margin:10px 0 0"><b>Radio links:</b> {% for l in links %}<span class="tag member">{{ 'APRS' if l.kind == 'aprs' else 'Mesh' }} {{ l.remote }}{{ '' if l.enabled else ' (off)' }}</span> {% endfor %}
+    <span class="dim" style="font-size:.8rem">What the member who linked it writes here goes to the radio, and what comes back shows here with its source.</span></p>{% endif %}
+  <p class="dim" style="font-size:.8rem;margin:10px 0 0">Messages are kept {{ keep_days }} days. Only the people in this chat can read it.</p>
+{% endcall %}
+{% endif %}
+<script src="/static/chatlive.js?v={{ app_version }}"></script>
+{% endblock %}

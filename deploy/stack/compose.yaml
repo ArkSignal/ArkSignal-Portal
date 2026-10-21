@@ -1,0 +1,23 @@
+# The stack updater: /opt/adsb/stack/compose.yaml on the hub VM (installed by switch-to-auto-updates.sh, then kept current by itself).
+# On every start it runs `docker compose up -d` for each stack baked into the image (portal, Grafana, and each service added later), reading
+# each stack's own /opt/adsb/<stack>/.env. Watchtower updates this image like the others, so a new release = new services appear by themselves.
+# It is deliberately NOT part of the portal stack it manages, so it can never recreate itself.
+services:
+  adsb-stack:
+    image: mallison01/adsb-stack:stable
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
+    container_name: adsb-stack
+    restart: unless-stopped
+    init: true
+    environment:
+      STACK_TOKEN: "${STACK_TOKEN}"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /opt/adsb:/opt/adsb
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true

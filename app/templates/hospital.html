@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}{{ h.name }}{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ leaflet_base }}/leaflet.css" crossorigin="anonymous">
+<h1>{{ h.name }}</h1>
+<div class="sub">{{ h.htype }} &middot; {{ h.city }}, {{ h.state }}</div>
+<p><a href="/hospitals/">&larr; All Hospitals</a> &nbsp; {% with sm_lat=h.lat, sm_lon=h.lon, sm_layer="hospitals", sm_zoom=13, sm_id=h.facility_id %}{% include "partials/_showmap.html" %}{% endwith %} {% if in_trauma_map %}<a class="btn small show-on-map" href="/trauma/?hospital={{ h.facility_id }}">Show on Trauma Map</a>{% endif %}</p>
+<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">
+  <div class="panel" style="flex:1 1 360px">
+    <table>
+      <tr><th style="width:170px">Address</th><td>{{ h.address }}, {{ h.city }}, {{ h.state }} {{ h.zip }}</td></tr>
+      <tr><th>County</th><td>{% if county_slug %}<a href="/counties/{{ county_slug }}">{{ h.county | title }}</a>{% else %}{{ h.county }}{% endif %}</td></tr>
+      {% if ct %}<tr><th>Trauma Region</th><td>{{ ct.region }} Region <span class="dim">&middot; ADH Trauma Zone {{ ct.zone }}</span></td></tr>{% endif %}
+      {% if media.website %}<tr><th>Website</th><td><a href="{{ media.website }}" target="_blank" rel="noopener">{{ media.website | replace('https://', '') | replace('http://', '') | trim('/') }}</a></td></tr>{% endif %}
+      {% if h.phone %}<tr><th>Telephone</th><td class="mono">{{ h.phone }}</td></tr>{% endif %}
+      <tr><th>Emergency Department</th><td>{{ 'Yes' if h.emergency else 'No' }}</td></tr>
+      <tr><th>Trauma Level</th><td>{% if h.trauma %}<span class="tag admin">Level {{ h.trauma }}</span>{% if h.trauma_date %} <span class="dim">designated {{ h.trauma_date }}</span>{% endif %}{% if h.trauma_source %}<br><span class="dim" style="font-size:.8rem">{{ h.trauma_source }}</span>{% endif %}{% else %}<span class="dim">Not designated, or not known to this site</span>{% endif %}</td></tr>
+      {% if h.services %}<tr><th>Services</th><td>{% for s in h.services.split(',') %}<span class="tag">{{ services.get(s, s) }}</span> {% endfor %}</td></tr>{% endif %}
+      <tr><th>Ownership</th><td>{{ h.ownership }}</td></tr>
+      {% if h.rating %}<tr><th>CMS Overall Rating</th><td>{{ h.rating }} of 5 stars</td></tr>{% endif %}
+      <tr><th>Heliport</th><td>{% if heli %}<a class="mono" href="/airports/{{ heli.ident }}">{{ heli.ident }}</a> {{ heli.name }}{% else %}<span class="dim">None linked</span>{% endif %}</td></tr>
+      {% if in_trauma_map and h.state != 'AR' %}<tr><th>Trauma System</th><td>{% if h.trauma %}A designated trauma center of the Arkansas trauma system.{% elif border_min %}About {{ border_min | round | int }} minutes by road from the Arkansas state line.{% else %}Near the Arkansas state line.{% endif %}</td></tr>{% endif %}
+      {% if h.notes %}<tr><th>Notes</th><td>{{ h.notes }}</td></tr>{% endif %}
+    </table>
+    <p class="dim" style="margin:12px 0 0;font-size:.82rem">Hospital details: Centers for Medicare &amp; Medicaid Services. {% if h.pos_source == 'zip' %}The position is only the middle of the ZIP code area or town.{% elif h.pos_source == 'census' %}Position found with the US Census Bureau geocoder.{% elif h.pos_source == 'manual' %}Position set by an administrator.{% elif h.pos_source == 'list' %}Position from the trauma centre list.{% elif h.pos_source == 'osm' %}Position from OpenStreetMap (contributors, ODbL).{% elif h.pos_source == 'heliport' %}Position of the hospital's helipad.{% endif %} Always call the hospital or 911 in an emergency; this page is not medical advice.</p>
+  </div>
+  {% if media.photo_url %}<div class="panel" style="flex:1 1 360px;padding:0;overflow:hidden"><img src="{{ media.photo_url }}" alt="{{ h.name }}" loading="lazy" style="display:block;width:100%;max-height:420px;object-fit:cover">
+    <div class="dim" style="padding:8px 12px;font-size:.78rem">Photo: {% if media.photo_page %}<a href="{{ media.photo_page }}" target="_blank" rel="noopener">{{ media.photo_credit or 'Wikimedia Commons' }}</a>{% else %}{{ media.photo_credit or 'Provided by an administrator' }}{% endif %}</div></div>{% endif %}
+</div>
+{% if h.lat is not none %}<div class="panel" style="padding:0;overflow:hidden;margin-top:14px"><div id="hmap" style="height:{{ 560 }}px"></div>
+    {% if osrm_on %}<div style="padding:8px 12px;font-size:.82rem;display:flex;gap:12px;flex-wrap:wrap;align-items:center;border-top:1px solid var(--line)"><label style="margin:0"><input type="checkbox" id="h-rings" checked> Drive-time rings</label><span id="h-ringnote" class="dim"></span></div>{% endif %}</div>{% endif %}
+{% if h.lat is not none %}
+<script src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script>
+<script src="/static/touchhit.js"></script>
+<script>
+(function () {
+  var map = L.map("hmap").setView([{{ h.lat }}, {{ h.lon }}], {{ 11 if h.pos_source == 'zip' else 15 }});
+  L.tileLayer({{ tile_url | tojson }}, {maxZoom: 19, attribution: {{ tile_attr | tojson }}}).addTo(map);
+  L.circleMarker([{{ h.lat }}, {{ h.lon }}], {radius: 9, color: "#ff6b6b", weight: 2, fillOpacity: .7}).addTo(map).bindTooltip({{ h.name | tojson }});
+  {% if heli %}L.circleMarker([{{ heli.lat }}, {{ heli.lon }}], {radius: 7, color: "#4fb3ff", weight: 2, fillOpacity: .7}).addTo(map).bindTooltip("Heliport {{ heli.ident }}");{% endif %}
+  {% if osrm_on %}
+  // how far a vehicle gets by road: our own estimate from the routing server (typical road speeds, no traffic); worked out once and kept
+  var ringG = L.layerGroup().addTo(map), COL = ["#3ee6a8", "#ffd24f", "#ff9f43", "#ff6b6b", "#c58bff"], note = document.getElementById("h-ringnote"), box = document.getElementById("h-rings"), tries = 0;
+  function loadRings() {
+    fetch("/api/hospitals/{{ h.facility_id }}/rings.json").then(function (r) { return r.json(); }).then(function (d) {
+      ringG.clearLayers(); var ms = Object.keys(d.rings || {}).map(Number).sort(function (a, b) { return b - a; });
+      if (d.busy && tries++ < 6) { note.textContent = "Working out the rings..."; setTimeout(loadRings, 4000); return; }
+      ms.forEach(function (m, i) {
+        var c = COL[ms.length - 1 - i] || "#8a9bb3";
+        L.polygon(d.rings[m], {color: c, weight: 2, fillColor: c, fillOpacity: .06, dashArray: "6 4"}).addTo(ringG).bindTooltip(m + " minutes by road (an estimate)", {sticky: true});
+      });
+      note.textContent = ms.length ? ms.slice().reverse().join(", ") + " minutes by road: our own estimate from typical road speeds, not an ambulance's route." : (d.note || "");
+      if (ms.length && box.checked) map.fitBounds(L.latLngBounds(d.rings[ms[0]]).pad(.05), {maxZoom: 11});
+    }).catch(function () { note.textContent = "The rings could not be loaded."; });
+  }
+  box.addEventListener("change", function () { if (box.checked) { ringG.addTo(map); } else { map.removeLayer(ringG); } });
+  loadRings();
+  {% endif %}
+})();
+</script>
+{% endif %}
+{% endblock %}

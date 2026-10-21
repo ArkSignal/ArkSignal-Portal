@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}{{ r.sid or 'My Weather Station' }}{% endblock %}
+{% block content %}
+<h1>My <span>Weather Station</span> {{ r.sid or '' }}</h1>
+<div class="sub">{{ kinds[r.kind] }} &middot; {% if r.disabled %}switched off by an administrator{% elif online %}reporting{% else %}no recent report{% endif %}{% if r.last_report %}, last report {{ r.last_report | localtime("%b %-d %H:%M") }}{% endif %}</div>
+{% with admin_back = '/admin/weather' %}{% if managing %}<div class="panel" style="border-color:var(--acc2);margin-bottom:14px"><b>You are managing {{ managing }}'s station as an administrator.</b> Everything here works as it does for the owner and is recorded in the audit log under your name. <a href="{{ admin_back }}">Back to the admin list</a></div>{% endif %}
+{% endwith %}{% with active = 'weather' %}{% include "partials/_my_subnav.html" %}{% endwith %}
+<p style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><a href="/my/weather">&larr; My Weather Stations</a>{% if r.public and r.sid %}<a class="btn small" href="/weather/{{ r.sid }}">Public Page</a>{% endif %}</p>
+
+{% if r.last_error %}<div class="panel" style="border-color:var(--acc2)"><b>The last attempt to read your account failed:</b> <span class="mono">{{ r.last_error }}</span></div>{% endif %}
+
+<details class="panel setsec" id="sec-latest-reading" open><summary><span class="role-name">Latest Reading</span></summary><div class="secbody">
+  {% if la.temp_f is none and la.hum is none and la.wind_mph is none %}<p class="dim" style="margin:0">Nothing has arrived yet. {% if addr %}Set up your station with the address below; a reading shows here within a minute or two.{% else %}Use Read Now below to test your keys.{% endif %}</p>
+  {% else %}<table style="max-width:420px">
+    <tr><th>Temperature</th><td class="mono">{{ show('temp_f')[0] }} {{ show('temp_f')[1] }}</td></tr>
+    <tr><th>Humidity</th><td class="mono">{{ show('hum')[0] }}{{ show('hum')[1] }}</td></tr>
+    <tr><th>Pressure</th><td class="mono">{{ show('press_in')[0] }} {{ show('press_in')[1] }}</td></tr>
+    <tr><th>Wind</th><td class="mono">{{ show('wind_mph')[0] }} {{ show('wind_mph')[1] }}</td></tr>
+    <tr><th>Rain Today</th><td class="mono">{{ show('rain_day_in')[0] }} {{ show('rain_day_in')[1] }}</td></tr>
+  </table>{% endif %}
+</div></details>
+
+{% if addr %}
+<details class="panel setsec" id="sec-upload-address" open style="margin-top:14px"><summary><span class="role-name">Upload Address</span></summary><div class="secbody">
+  <p style="margin-top:0">This address belongs to your station alone. Anyone who has it can send readings as your station, so keep it private; if it leaks, make a new one below.</p>
+  {% if r.kind == 'ecowitt_push' %}
+  <p>In the Ecowitt app (WS View Plus) or the gateway's web page: <b>Weather Services &rarr; Customized</b>, choose <b>Ecowitt</b> as the protocol, then enter:</p>
+  <table style="max-width:680px">
+    <tr><th style="width:150px">Server / IP</th><td><span class="mono copyable">{{ addr.host }}</span></td></tr>
+    <tr><th>Path</th><td><span class="mono copyable">{{ addr.ecowitt_path }}</span></td></tr>
+    <tr><th>Port</th><td><span class="mono copyable">{{ addr.port }}</span></td></tr>
+    <tr><th>Upload Interval</th><td class="mono">60 seconds</td></tr>
+  </table>
+  {% elif r.kind == 'wu_push' %}
+  <p>In the station's or gateway's custom upload settings, choose the <b>Wunderground</b> style and enter:</p>
+  <table style="max-width:680px">
+    <tr><th style="width:150px">Server / IP</th><td><span class="mono copyable">{{ addr.host }}</span></td></tr>
+    <tr><th>Path</th><td><span class="mono copyable">{{ addr.wu_path }}</span></td></tr>
+    <tr><th>Port</th><td><span class="mono copyable">{{ addr.port }}</span></td></tr>
+    <tr><th>Station ID and Key</th><td>anything: they are ignored (the secret is in the path)</td></tr>
+  </table>
+  {% else %}
+  <p>This is your <b>upload address</b>:</p>
+  <pre class="code">{{ addr.relay_url }}</pre>
+  <p>Three ways to use it:</p>
+  <ol class="plain">
+    <li><b>Home Assistant (HACS):</b> in HACS open <b>Custom repositories</b>, add {% if ha_repo %}<span class="mono copyable">{{ ha_repo }}</span>{% else %}the integration's repository address{% endif %} as an <b>Integration</b>, download <b>ArkSignal Weather</b>, restart Home Assistant, then add the integration under <b>Settings, Devices &amp; services</b>. Paste the upload address above and choose your device. It works with Tempest, Ecowitt, Ambient, Davis and anything else Home Assistant can read.</li>
+    <li><b>Tempest without Home Assistant:</b> run the ArkSignal Tempest bridge container on any always-on computer on the same network as your Tempest hub. Save this as <span class="mono">compose.yaml</span> and run <span class="mono copyable">docker compose up -d</span>:
+<pre class="code">services:
+  arksignal-tempest:
+    image: ghcr.io/mallison01/arksignal-tempest-bridge:latest
+    network_mode: host          # needed to hear the hub's local broadcast
+    restart: unless-stopped
+    environment:
+      ARKSIGNAL_URL: "{{ addr.relay_url }}"
+      ARKSIGNAL_ELEVATION_FT: "300"   # your height above sea level, for sea-level pressure</pre></li>
+    <li><b>A script:</b> post JSON to the address:</li>
+  </ol>
+  <pre class="code">{"temperature": {"value": 71.4, "unit": "°F"}, "humidity": {"value": 52, "unit": "%"}, "pressure": {"value": 29.92, "unit": "inHg"}, "wind_speed": {"value": 6.1, "unit": "mph"}, "wind_gust": {"value": 11, "unit": "mph"}, "wind_direction": {"value": 230, "unit": "°"}, "rain_today": {"value": 0.12, "unit": "in"}}</pre>
+  <div class="help">Each value carries its unit, so send what you have in the units you have. Names: temperature, dew_point, humidity, pressure, wind_speed, wind_gust, wind_direction, rain_today, rain_rate, rain_week, rain_month, rain_year, solar_radiation, uv_index, lightning_count, lightning_distance. The older names with the unit in the name (temp_c, wind_kph, pressure_hpa...) also work.</div>
+  {% endif %}
+  <p class="dim" style="margin-bottom:0">Plain http is what these devices speak, so the address above is a plain-http one. {% if addr.host and addr.port == '80' %}{% endif %}</p>
+  <form method="post" action="/my/weather/{{ r.id }}/new-address" data-confirm="Make a new upload address? The old one stops working at once and your station must be updated."><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small" type="submit">Make a New Address</button></form>
+</div></details>
+{% else %}
+<details class="panel setsec" id="sec-your-account" open style="margin-top:14px"><summary><span class="role-name">Your Account</span></summary><form method="post" action="/my/weather/{{ r.id }}/save" data-async>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="name" value="{{ r.name }}"><input type="hidden" name="description" value="{{ r.description }}"><input type="hidden" name="hardware" value="{{ r.hardware }}">{% if r.public %}<input type="hidden" name="public" value="1">{% endif %}
+  {% if not r.fuuid %}<input type="hidden" name="lat" value="{{ r.lat }}"><input type="hidden" name="lon" value="{{ r.lon }}"><input type="hidden" name="privacy" value="{{ r.privacy }}">{% endif %}
+  {% if r.kind == 'ecowitt_cloud' %}
+  <p style="margin-top:0">The portal reads your station from your own Ecowitt.net account about every {{ poll }} minutes. Your keys are stored sealed. To change them, enter all three again.</p>
+  <label for="a1">Application Key</label><input type="text" id="a1" name="application_key" maxlength="80" autocomplete="off" placeholder="{{ 'saved' if sec.application_key else '' }}">
+  <label for="a2">API Key</label><input type="text" id="a2" name="api_key" maxlength="80" autocomplete="off" placeholder="{{ 'saved' if sec.api_key else '' }}">
+  <label for="a3">Device MAC Address</label><input type="text" id="a3" name="mac" maxlength="40" value="{{ sec.mac or '' }}" style="max-width:260px">
+  {% else %}
+  <p style="margin-top:0">The portal reads your station from your own Tempest account about every {{ poll }} minutes.</p>
+  <label for="a4">Tempest Station Number</label><input type="text" id="a4" name="tempest_station" maxlength="20" value="{{ sec.station_id or '' }}" style="max-width:200px">
+  <label for="a5">Personal Access Token</label><input type="text" id="a5" name="token" maxlength="80" autocomplete="off" placeholder="{{ 'saved' if sec.token else '' }}">
+  {% endif %}
+  {% if not pull_on %}<div class="help">Reading this kind of account is switched off on this site right now.</div>{% endif %}
+  <button class="btn" type="submit">Save Keys</button>
+</form>
+<form method="post" action="/my/weather/{{ r.id }}/pull" style="padding:0 16px 16px"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small" type="submit">Read Now</button> <span class="dim">Reads the station once and shows any problem above.</span></form>
+{% if credit %}<p class="dim" style="padding:0 16px 14px;margin:0"><a href="{{ credit[1] }}" target="_blank" rel="noopener">{{ credit[0] }}</a> is credited on the public page.</p>{% endif %}
+</details>
+{% endif %}
+
+<details class="panel setsec" id="sec-station" open style="margin-top:14px"><summary><span class="role-name">Station</span></summary><form method="post" action="/my/weather/{{ r.id }}/save" data-async>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <label for="n1">Station Name</label><input type="text" id="n1" name="name" maxlength="60" value="{{ r.name }}">
+  <label for="n2">Hardware</label><input type="text" id="n2" name="hardware" maxlength="200" value="{{ r.hardware }}">
+  <label for="n3">About the Station</label><input type="text" id="n3" name="description" maxlength="500" value="{{ r.description }}">
+  {% if r.fuuid %}
+  <p class="dim">This station belongs to your ADS-B feeder <a href="/my/feeders/{{ r.fuuid }}" class="mono">{{ r.sid or r.fuuid[:8] }}</a>: its ID, location and location privacy are the feeder's.</p>
+  {% else %}
+  <label>Station ID</label><div class="mono">{{ r.sid }}</div>
+  <div style="display:flex;gap:14px;flex-wrap:wrap">
+    <div><label for="n4">Latitude</label><input type="text" id="n4" name="lat" value="{{ r.lat if r.lat is not none else '' }}" style="max-width:170px"></div>
+    <div><label for="n5">Longitude</label><input type="text" id="n5" name="lon" value="{{ r.lon if r.lon is not none else '' }}" style="max-width:170px"></div>
+  </div>
+  <label for="n6">Location Privacy</label><select id="n6" name="privacy">{% for k, v in privacy.items() %}<option value="{{ k }}" {{ 'selected' if r.privacy == k }}>{{ v }}</option>{% endfor %}</select>
+  {% endif %}
+  <label class="check"><input type="checkbox" name="public" value="1" {{ 'checked' if r.public }}><span><b>Show this station publicly</b><br><span class="dim">On the Weather pages and the maps, at the position the privacy choice allows. A station without a shown position is listed but not drawn.</span></span></label>
+  <button class="btn" type="submit">Save</button>
+</form></details>
+
+{% if aprs.on %}<details class="panel setsec" id="sec-aprs" style="margin-top:14px"><summary><span class="role-name">Send to the APRS Network</span>{% if aprs.p and aprs.p.enabled %}<span class="tag live" style="margin-left:8px">on</span>{% endif %}</summary><div class="secbody">
+{% with p = aprs.p, modes = aprs.modes, owner_call = aprs.owner_call, match = aprs.match, interval = aprs.interval, has_position = aprs.has_position, level = aprs.level %}{% include "partials/_wx_aprs.html" %}{% endwith %}
+</div></details>
+{% endif %}
+<details class="panel setsec" id="sec-delete" style="margin-top:14px"><summary><span class="role-name">Delete This Weather Station</span></summary><form method="post" action="/my/weather/{{ r.id }}/delete" data-confirm="Delete this weather station and all its readings? This cannot be undone.">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <p style="margin-top:0" class="dim">Removes the station and its history from the site. Your ADS-B feeder, if it has one, is not touched.</p>
+  <button class="btn danger" type="submit">Delete Weather Station</button>
+</form></details>
+{% endblock %}

@@ -1,0 +1,102 @@
+{% extends "feed_base.html" %}
+{% from "partials/_feedsec.html" import sec, data_and_help, after with context %}
+{% block title %}UAT | How to Feed{% endblock %}
+{% block feed_body %}
+<h1>Feed <span>UAT</span> (978 MHz)</h1>
+<div class="sub">The second ADS-B datalink, used only in the United States. It needs its own radio and antenna, but nothing extra is sent to the network: the 978 MHz aircraft travel through the same feed as your <a href="/feed/">ADS-B</a>.</div>
+
+{% call sec('the-short-version', 'The Short Version', True) %}
+  <p style="margin:0 0 10px">With a second radio (serial number <span class="mono">00000978</span>) and a 978 MHz antenna, run the dump978 container next to your ultrafeeder and add this line to the <span class="mono">ULTRAFEEDER_CONFIG</span> (the line before it needs a semicolon):</p>
+  <pre class="code">adsb,dump978,30978,uat_in</pre>
+  <p class="dim" style="margin:10px 0 0">There is no separate feed line for us: your 978 MHz aircraft go out through the line from the <a href="/feed/">ADS-B page</a>. Without a 978 MHz radio you lose nothing, because the network still shows UAT aircraft heard by the stations that have one.</p>
+{% endcall %}
+
+{% call sec('how-it-works', 'How It Works', True) %}
+  <p style="margin-top:0"><b>UAT</b> (Universal Access Transceiver) is the second ADS-B datalink, used only in the United States. Light general-aviation aircraft flying below 18,000 ft (18,000 ft is where airliners and most jets, which use 1090 MHz, take over) can choose either; many choose UAT because it also lets them receive weather and traffic information in the cockpit. In Arkansas that means many of the small planes you would otherwise never see.</p>
+  <p>It is a different frequency, so <b>your 1090 MHz receiver cannot hear it</b>. A second radio tuned to 978 MHz feeds the <a href="https://github.com/sdr-enthusiasts/docker-dump978" target="_blank" rel="noopener">dump978</a> container, which decodes it and hands the result to your ultrafeeder. From there the aircraft are merged into your normal feed and appear on the map as UAT/ADS-R.</p>
+  <p style="margin-bottom:0">ADS-R is the same data rebroadcast by ground stations onto 1090 MHz; the map groups both as UAT / ADS-R. See the source table on the <a href="/feed/">ADS-B page</a>.</p>
+{% endcall %}
+
+{% call sec('what-you-need', 'What You Need', True) %}
+  <ul class="plain">
+    <li>A <b>working <a href="/feed/">ADS-B feed</a></b> with an ultrafeeder (or a decoder that can take a 978 MHz input).</li>
+    <li>A <b>second USB radio</b> (RTL-SDR dongles work), with its serial number set to <span class="mono">00000978</span> so the two radios can tell each other apart.</li>
+    <li>A <b>978 MHz antenna</b>. A 1090 MHz antenna is the wrong length.</li>
+    <li>The <b>dump978</b> container (a second service in your <span class="mono">compose.yaml</span>), on the same computer.</li>
+    <li>Your latitude and longitude for the dump978 container (the same as the ADS-B ones).</li>
+  </ul>
+{% endcall %}
+
+{% call sec('hardware', 'Hardware', False, True) %}
+  <table>
+    <tr><th>Item</th><th>Options and Notes</th></tr>
+    <tr><td>Radio</td><td>An RTL-SDR dongle, such as the <a href="https://www.rtl-sdr.com/buy-rtl-sdr-dvb-t-dongles/" target="_blank" rel="noopener">RTL-SDR Blog V4</a>, dedicated to 978 MHz. Two radios on one computer: use two separate USB ports, preferably a powered hub or short extensions.</td></tr>
+    <tr><td>Antenna</td><td>A 978 MHz antenna: a simple quarter-wave ground plane has elements about 7.7 cm (3 inches) long, or buy one made for UAT. Mount it outdoors and high, on the same mast as the 1090 antenna but about a metre away from it.</td></tr>
+    <tr><td>Filter or LNA</td><td>A band-pass filtered preamp for <b>978 MHz</b> helps where there is strong cellular noise. It is a different part from the 1090 MHz one.</td></tr>
+    <tr><td>Computer</td><td>The same Raspberry Pi 3, 4 or 5 or small Linux machine as for ADS-B; UAT adds little load.</td></tr>
+  </table>
+{% endcall %}
+
+{% call sec('hardware-setup', 'Hardware Setup', True) %}
+  <ol class="plain">
+    <li>Set the serial number of the 978 MHz radio <b>before</b> plugging in both radios, so they cannot be mixed up: with only that radio connected, run <span class="mono">rtl_eeprom -d 0 -s 00000978</span>, unplug it and plug it back in. <span class="mono">rtl_test</span> lists the serial numbers.</li>
+    <li>If your 1090 radio has its own serial number set, tell the ultrafeeder with <span class="mono">READSB_RTLSDR_DEVICE=SERIAL</span>.</li>
+    <li>Mount the 978 MHz antenna outdoors, high, with a clear view, about a metre or more from the 1090 antenna.</li>
+    <li>Connect it to the 978 radio with a short run of good coax, with the filter or LNA (if any) close to the antenna.</li>
+    <li>Plug both radios into separate USB ports and give the computer a reliable network connection.</li>
+  </ol>
+{% endcall %}
+
+{% call sec('software-setup', 'Software Setup', True) %}
+  <p style="margin-top:0">Add the dump978 service to the <span class="mono">compose.yaml</span> from the <a href="/feed/#sec-software-setup">ADS-B software setup</a>, and the line that reads it to the ultrafeeder:</p>
+  <pre class="code">services:
+  ultrafeeder:
+    environment:
+      # ...everything from the ADS-B page, then in ULTRAFEEDER_CONFIG add the 978 line:
+      - ULTRAFEEDER_CONFIG=
+        adsb,{{ feed_host }},{{ feed_port }},beast_reduce_plus_out;
+{% if mlat_enabled %}        mlat,{{ feed_host }},{{ mlat_port }};
+{% endif %}        adsb,dump978,30978,uat_in
+
+  dump978:
+    image: ghcr.io/sdr-enthusiasts/docker-dump978
+    container_name: dump978
+    restart: unless-stopped
+    device_cgroup_rules:
+      - "c 189:* rwm"
+    environment:
+      - TZ=America/Chicago
+      - DUMP978_RTLSDR_DEVICE=00000978
+      - DUMP978_SDR_GAIN=autogain
+      - LAT=YOUR_LATITUDE
+      - LON=YOUR_LONGITUDE
+    volumes:
+      - /opt/adsb/dump978/globe_history:/var/globe_history
+      - /dev/bus/usb:/dev/bus/usb</pre>
+  <p class="dim">Each line in <span class="mono">ULTRAFEEDER_CONFIG</span> except the last needs a semicolon. Recreate with <span class="mono copyable">docker compose up -d</span>; <span class="mono">docker logs dump978</span> should show messages after a few minutes.</p>
+  <h3 style="margin:14px 0 6px;font-size:1rem">Not using ultrafeeder?</h3>
+  <p style="margin:0">With readsb, add the decoder as an input: <span class="mono">--net-connector dump978,30978,uat_in</span>. PiAware users run <span class="mono">dump978-fa</span> and its <span class="mono">skyaware978</span> output and need a way to merge it into the feed; ultrafeeder is the easier route.</p>
+{% endcall %}
+
+{{ after('uat') }}
+
+{% call sec('ports', 'Ports and Firewall', False, True) %}
+  <p style="margin-top:0">UAT needs nothing extra. dump978 hands its data to the ultrafeeder on the same computer (port <span class="mono">30978</span>, local only), and your 978 MHz aircraft go out with the normal feed:</p>
+  <table>
+    <tr><th>What</th><th>Direction</th><th>Destination</th><th>Port</th></tr>
+    <tr><td>Feed (carries UAT too; see the <a href="/feed/">ADS-B page</a>)</td><td>outbound TCP</td><td class="mono">{{ feed_host }}</td><td class="mono">{{ feed_port }}</td></tr>
+  </table>
+{% endcall %}
+
+{% call sec('troubleshooting', 'Troubleshooting', False, True) %}
+  <table>
+    <tr><th style="width:230px">Symptom</th><th>What to check</th></tr>
+    <tr><td>Nothing arrives</td><td>Both radios must have different serial numbers (<span class="mono">rtl_test</span> lists them), the 978 antenna must be a 978 antenna, and <span class="mono">docker logs dump978</span> should show messages. Check that your ultrafeeder has the line <span class="mono">adsb,dump978,30978,uat_in</span>. UAT aircraft are sparse; try during daytime.</td></tr>
+    <tr><td>The 1090 side stopped after adding the second radio</td><td>The two radios were mixed up: set the serial number of the UAT radio as above and, if needed, <span class="mono">READSB_RTLSDR_DEVICE</span> for the 1090 one.</td></tr>
+    <tr><td>Very few UAT aircraft</td><td>UAT is used by fewer aircraft, only at lower altitudes and with shorter range than 1090. A higher antenna and a 978 MHz filter help.</td></tr>
+    <tr><td>Aircraft show but not as UAT</td><td>ADS-R rebroadcasts are shown under the same UAT / ADS-R group; the aircraft card says how its position is known.</td></tr>
+  </table>
+{% endcall %}
+
+{{ data_and_help('uat') }}
+{% endblock %}

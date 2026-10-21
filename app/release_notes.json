@@ -1,0 +1,956 @@
+[
+  {
+    "version": "next",
+    "released": null,
+    "title": "Coming in the next release",
+    "added": [],
+    "improved": [
+      "Friends, chats and messages: type a user name, a call sign or a whole email address to find a member (a list of matches appears as you type, several names with commas for groups and messages); the email address is never listed or shown, and each member can switch off being found by call sign or email on My Account > Friends",
+      "Mesh: every node's page has a Claim This Node button for signed-in members (you get a code to put in the node's name), and says when a claim is waiting or the node is yours",
+      "Mesh broker protection: the site's mesh broker follows the public Meshtastic server's rules on the public channels (only the allowed kinds of packet are kept, and a position more exact than 16 bits is made coarser before it is stored), members' logins can publish only under the site's own topic root, and the broker refuses oversized messages and limits connections; four settings control it",
+      "Settings > General: a new Main Address or Feed Address is checked before it is saved (it must resolve in DNS, and the Main Address must answer over https as this very site), so a wrong name can never lock everybody out of the site; the site publishes its own identifier at /.well-known/arksignal.json for this check",
+      "The site's own address moves to arksignal.net: the feed pages show feed.arksignal.net, the \"already feeding\" note is gone, and the old site names only redirect to the new one"
+    ],
+    "fixed": [
+      "The MQTT server name on How to Feed the Mesh Map no longer shows the text <wbr> between its parts",
+      "Mesh nodes standing at the same spot no longer cover each other on the Mesh Map and the overview map: they fan out in a ring with thin lines to the true place"
+    ],
+    "security": []
+  },
+  {
+    "version": "1.7.0",
+    "released": "2026-10-19T08:30:43",
+    "title": "Live chat, email-style messages and friends, radio bridges, GOES viewer with loops, mesh overview and Neighbor Info, API keys and passkeys, new data layers",
+    "added": [
+      "County Map: a Limit To box in Show on the Map limits every kind of point (and the drive-time rings) to one state, one county, or the area around a ZIP code or place; it is kept in the link to the view",
+      "My Account > Display and Maps: every Display menu choice (theme, decorations, page width, clock, time zone, units for each service, aircraft map choices) and your saved map views (open, rename, delete) in one place, with a reset; the Trauma Map's views can be saved too",
+      "Call Sign Lookup: type the start of a call sign (KD5) and every call sign on the site that begins with it is listed, with what each is (repeater, APRS station, station owner, sonde receiver, DMR contact)",
+      "Weather Alerts layer: the National Weather Service's active warnings, watches and advisories drawn as colored areas on the maps (tornado red, severe storm orange, flood green, winter pink, heat, fire weather, wind); click one for the details. Admin > Settings chooses the states and how often it refreshes",
+      "Earthquakes layer: recent earthquakes in and around Arkansas (the New Madrid zone) from the USGS, as circles sized and colored by magnitude; click one for the time, depth and the USGS page. Admin > Settings chooses the area, smallest magnitude and days back",
+      "River Gauges layer: river and lake gauges in and around Arkansas from NOAA's National Water Prediction Service, as dots colored by flood category (green no flooding up to purple major flooding); click one for the stage, flow and the NOAA page. Admin > Settings chooses the area",
+      "Radio > Space Weather: NOAA's storm scales, planetary K index with a three-day chart, solar flux, X-ray flare class and a rough HF band guide",
+      "Weather panel: NOAA Visible Satellite and Water Vapor imagery under Satellite, and a Lightning layer (strike density) under Alerts and Hazards",
+      "Feeder achievements: friendly badges (Long Reach, Furthest Reach, Always On, Busy Antenna, Veteran, Established, New Arrival, Network Pillar) on the Feeders page and each feeder's page, worked out from the real numbers, with an Achievements section that says what each takes and who holds it; every limit is a setting",
+      "Kiosk Display (Display menu): a wall-screen mode that shows pages full screen with no menus, with an Exit Kiosk button (and Esc), a Setup panel to choose the pages, how long each stays up, a preset or a single page only, a bar that hides itself when nobody is touching the screen, and a link that keeps the setup; presets and the default pages are settings. Any page also works without menus when its address ends in ?kiosk=1; the date and time can be drawn on the screen at a chosen corner and size (settings), and the menus, panels and map controls of a kiosk page (and the kiosk's own bar) hide after a set time with no input and come back with any input",
+      "Trauma Map: one switch, Air ambulance aircraft, shows every helicopter and airplane on the air ambulance lists that the network hears right now, with a details card and a Legend entry",
+      "API keys and a documented public API: members make a key per project on My Account > API Keys (shown once, only a fingerprint kept), and a key opens /api/v1 (aircraft, feeders, weather stations, radiosonde flights, repeaters) with fair per-minute and per-day limits that every answer reports; the API page (Network menu) explains getting started, the endpoints, the limits, the errors and the rules of use; administrators see, limit, revoke, restore and make keys for members on Admin > API Keys (a new Manage API Keys permission), everything is in the audit log, and the limits are settings; administrators can switch single API endpoints off on Admin > API Keys > Endpoints (or in Settings > API): an endpoint that is off answers 403, is not counted against any key, and is marked on the API page",
+      "Passkeys: sign in with your fingerprint, face, screen lock or a security key instead of a password. Add passkeys on My Account > Passkeys (name them, rename, remove; synced and device-only ones are marked), and choose Sign In with a Passkey on the sign-in page: no user name or password, and because the device checks it is you, it stands in for the password and the two-factor code together. Only the public half is kept; the challenge, origin, site address, signature (ES256, RS256, EdDSA), user verification and use counter are all checked, and a counter that goes backwards (a copied passkey) is refused and logged. Administrators can see a member's passkey count and remove them for a lost device; the limits and the verification rule are settings",
+      "Send your weather station to the APRS network: on a weather station's page the owner can switch on sending its newest reading, about every ten minutes, as an APRS weather report to CWOP (the Citizen Weather Observer Program, which feeds NOAA) or APRS-IS (amateur radio, with the owner's own call sign). It needs the owner's consent that the readings and the position are public, sends the position the site shows (or the exact one if accepted), has a Preview the Report and a Send Now button, shows the last result and a count, and is logged; administrators see which stations send and can manage them like the rest of the station page. The interval, servers and the call-sign check are settings",
+      "Radio > Satellite Passes: when the space station, the weather satellites and the amateur radio satellites (SO-50, AO-91, AO-92, RS-44, FO-29, AO-7 and more, chosen in Settings) rise over a place you type, a ZIP code, an airport or your own location: the time, which way to look, how high they climb, how long they are up, a small sky chart of each pass, what is overhead right now and notes on what to listen for. The orbit data is read from CelesTrak once a day by a new Satellite Orbits job in Data Updates",
+      "Radio > Nets and Radio > Winlink Gateways: two directories kept by the network's own members. Nets shows each net's schedule in plain words (every Tuesday, the 2nd Thursday, the last Sunday, every day, irregular), when it next happens in your own time zone (daylight saving handled), a coming-up-this-week list, what to tune to and who runs it, with filters by day, mode and text. Winlink Gateways lists the call sign, mode, frequency, place and notes, and sorts them by distance from a place you type. Members add and keep their own on My Account > My Nets and Gateways; editors check new entries before they show (a setting), and administrators and editors manage every entry, can add one for a member, and everything is in the audit log",
+      "Our own NOAA GFS data: the prediction service now reads the Global Forecast System weather model itself, a new cycle every six hours cut to a box around Arkansas (winds at 26 heights and the surface forecast), instead of depending on a middleman. The balloon wind predictor flies the balloon through these winds (Automatic: ours while fresh, else Open-Meteo; or ours only, or Open-Meteo only), and Weather for a Place has a new Hour-by-Hour Model Forecast: temperature, humidity, wind, gusts, three-hour rain, cloud and pressure every three hours for three days, in your units. Admin > Radiosondes shows the cycle and has a Read the Newest GFS Cycle Now button; the area, hours and schedule are settings",
+      "Satellite Passes now answers how to work each satellite: an open section above the passes lists the uplink and downlink frequencies, the mode and access tone, whether a license is needed to transmit, what equipment it takes and a note, and every pass shows the downlink and how far the Doppler shift moves it from rise to set",
+      "A Satellites layer on every map: where the space station, weather and amateur radio satellites are right now, with the path each takes in the next 45 minutes and the part of the earth it can see; click one for its height, speed, the next pass over the map center, its frequencies and what it takes to work it",
+      "API: an endpoint an administrator switches off disappears from the API page and the endpoint list, and a new setting lets an administrator make API keys only (members then ask for one)",
+      "Satellite Images: members with a weather satellite receiver (Meteor-M, GOES or NOAA) add it on My Account > My Satellite Receivers, get a private upload address and send their decoded pictures to it; the pictures show on Radio > Satellite Images with the satellite, the receiver and the time, linked to Satellite Passes. Administrators manage receivers and pictures on Admin > Satellite Images",
+      "GOES Imagery: the newest pictures from NOAA's GOES-East and GOES-West weather satellites on Weather > GOES Imagery, for Arkansas and the Mississippi Valley, the Southern Plains and the whole country, in GeoColor, infrared, water vapor, air mass and red visible views; kept fresh by the site itself and credited to NOAA",
+      "Sign in with Google: members can link a Google account on My Account > Google Sign-In and sign in with one click; it stays hidden until an administrator enters the Google client ID and secret on Admin > Google Sign-In",
+      "How to Feed Satellite Pictures: a new feeding page with an uploader script for members who decode weather satellite pictures, a section on sending a weather station's readings to the APRS network on the weather feeding page, and every feeding page now lists all the others automatically; Am I Feeding? shows satellite receivers too",
+      "River Traffic: towboats, barges and boats on the rivers and lakes, heard by members' own AIS receivers, on a list, a map, a page for each vessel and a Marine Traffic layer for every map; members add a receiver on My Account > My AIS Stations and follow How to Feed AIS (a small bridge program sends what the receiver decodes), and administrators can add stations and hide a vessel on request",
+      "Drones: aircraft that broadcast Remote ID, heard by members' own receivers, on a list, a map, a page for each drone and a Drones layer for every map; members add a receiver on My Account > My Remote ID Stations and follow How to Feed Remote ID. The operator's location is never stored unless an administrator turns that on",
+      "Satellite-relayed aircraft: the ACARS service now reads the positions that Inmarsat (JAERO ADS-C) and HFDL messages carry in their own fields, so aircraft far outside ADS-B range show on the live map's ACARS positions layer even when their messages have no text",
+      "Menus reorganized: long flyouts have labelled parts and scroll on short screens, drones sit with aircraft, satellites, nets and space weather are grouped in Radio, My Account has a row for stations and a row for the account, and the Display menu is wider",
+      "Kiosk: the site's top bar and footer are never shown, and the date and time start in the top right corner",
+      "Feature Access: an administrator can hide any feature (weather stations, radiosondes, repeaters, APRS, mesh, ACARS, River Traffic, Drones, satellites, GOES, space weather, nets, map layers, API, kiosk, achievements) from visitors, limit it to signed-in members, or limit it to members whose role has its See permission; its pages, menus, feeding page and map layer all follow",
+      "Sign in with Google: an optional setting links a verified Google email to the account with the same address instead of asking the member to link it from My Account (off by default)",
+      "Mesh: a node that sends no role now shows as a Client, every Meshtastic hardware model has its name (a Heltec V4 is no longer 'hardware #110'), and a node page without battery or telemetry says how to get it",
+      "GOES Imagery is one Satellite Viewer: a Controls panel over the picture (like the maps' Layers) chooses the area (now including the full disk of GOES-East and of GOES-West), the view, the newest picture or an animation loop, and how long the loop is; the picture zooms with the mouse wheel, + and - buttons, a double click or a pinch and drags to move around, and it fills the window so the whole picture is in view. Pictures that members send from the same receiver, satellite and product close together in time are put together into loops on Satellite Images the same way. The longest loop, default length, full disk size and speeds are settings",
+      "Chat is now live conversations: a chat between two members or a small named group, a list of your chats with unread counts and online dots, bubbles that update without reloading, typing and seen notices, group controls (rename, add, remove, leave), reports and blocking. The public rooms are gone; your old private conversations became direct chats",
+      "Messages are now email-style: Inbox, Sent, Drafts, Archive and Trash folders, a subject, several recipients, Reply and Reply to All with the replies kept together as a thread, read and unread, search, and a Trash that empties itself after a number of days. Only the people a message went to can read it; a moderator sees only a message that was reported",
+      "Friends lists (My Account > Friends): send, accept or decline requests, see which friends are online, start a chat or a message from a friend, block a member, and choose who may contact you (everyone, friends only, nobody new); numbers beside Chat, Messages and Friends in the menu show what is waiting. Moderators and administrators can switch each of these off or limit it to some members under Feature Access, and every limit is a setting",
+      "Radio Bridges (off until an administrator switches it on): a member who has a call sign on their profile can link a chat to another operator's APRS call sign; what they write goes out as an APRS message from their own call sign and APRS messages back appear in the chat marked via APRS. A chat can also be linked to a Meshtastic node; that side is ready on the portal and waits for the mesh gateway. Opt in per member, plain ASCII text only, rate limited, and every step is in the audit log",
+      "Radio Bridges: APRS sending and receiving now need a verified, licensed amateur. The member's profile call sign is looked up in the FCC's amateur license data and must be active and in the name on their profile (a name that does not match, or a club license, waits for an administrator on Admin > Radio Bridges, who can approve or revoke with a reason); the status, when it was checked and the license expiry show on My Account > Radio Bridges with a Check Again button, licenses are re-checked weekly so a lapsed one stops the sending, and changing the call sign means checking again",
+      "Mesh overview: the Mesh page is now a real overview like the Weather one (nodes, online now, heard lately, gateways and observers, routers, new nodes, what needs attention, roles, firmware and hardware, busiest gateways and a map); the list of nodes is on its own page, Mesh Nodes",
+      "Mesh Neighbor Info: nodes that report which nodes they hear directly now show as Direct Links on the Mesh Map (colored by signal, only where both ends have a position) and as a Neighbors list on each node's page, with counts on the overview; only reports a gateway passes on in the clear are read, hidden nodes are never shown, and the links are kept for a number of days that is a setting"
+    ],
+    "improved": [
+      "Admin > Repeaters, Feeders and Weather Stations are split into tabs (Review, Import, Linked Systems and Add; Feeders and Add a Feeder; Stations and Add a Station)",
+      "Phones: Layers and Filters opens full screen with a Close bar at the top and a Show the Map button (and Escape); the footer is two short lines at the end of the page, clear of the home bar; map labels, weather labels and aircraft icons start smaller; panels are solid so the map does not show through; maps follow the visible screen height as the browser bars come and go",
+      "Map pages give the room back: on a phone the footer is not drawn (its links are at the bottom of the menu) and the Show List button sits at the bottom center clear of the locate and full screen buttons; on a larger screen the footer is one thin line",
+      "Phones: the menu bar and the section bar are slimmer, leaving more of the screen to the page and the map",
+      "The site-wide search (the home page box) lists every hit, grouped by kind with a count (airports, places, counties, hospitals, repeaters, APRS stations, feeders, weather stations, mesh nodes, call signs, balloons), and offers the flight search and the aircraft map; one hit still goes straight to its page",
+      "Phones: once you move or zoom a map, its top panel (map type and search box) folds to one row of buttons, with a Search button to bring it back",
+      "Phones: a map popup now opens clear of the top panel and the details card instead of sliding under them",
+      "Radiosonde flight page: the Heard By table has a Sort by choice and an order button (the column headings still sort too)",
+      "Admin > Usage: date and time pickers (From, To, All Time) for the table of outside requests, filters for that table (text, outside or internal, failures only, used in the range), counts kept by the hour and for all time by default (the live feeds and the service containers' own requests are added up every minute, so a restart loses nothing), and the Settings link works again",
+      "Phones: while a details card is open, the Normal look, locate and full screen buttons are put away so they no longer sit on top of the card's text",
+      "Phones: the Replay bar starts folded (time, Play, Back to Live and the slider) with a More button for the step buttons, speed, date and time",
+      "My Account > Display and Maps, Two-Factor and My Repeaters use the same folding sections as the rest of the site",
+      "Every admin page uses the same folding sections; the Feeders and Weather Stations page titles no longer show a stray tag",
+      "Phones: the round buttons along the bottom of the map are put away while the Replay bar is up",
+      "Weather Alerts, Earthquakes and River Gauges sit in the Weather panel under Alerts and Hazards; clicking one opens the details card (the full warning text and what to do, the magnitude and depth, the stage and flow), river gauges are drawn as water drops, the legend lists them, and their hover labels stay on the page",
+      "The Weather overview is now a true overview of the weather setup: stations, active alerts, radar and satellite, earthquakes, rivers and lakes, space weather and the weather balloons, each with its current numbers and a link, above the station map and list",
+      "Opening a details card (or choosing another item) folds the Weather, Layers and Filters and Legend panels away on every map",
+      "Radio > Space Weather: each K index bar shows its value and, under it, the time range and date in UTC and in your own time",
+      "Satellite and Hybrid maps no longer lose the picture when you zoom in close: the USGS imagery hands over to the worldwide imagery past its last zoom, and any imagery stays on screen up to the map's limit",
+      "The Kiosk Display's bottom bar comes back whenever the mouse moves anywhere (even over the page), when you leave full screen with Esc, or when the pointer touches the bottom edge; Esc outside full screen leaves the kiosk",
+      "Satellite Passes: a Satellites section of toggle buttons grouped as Space Station, Weather and Amateur Radio, with All, None, Only These for a group, a filter box and a count (nothing chosen shows no passes); How to Work the Chosen Satellites lists only the satellites ticked above (narrowed by the Find box), or the one you choose by its name in the passes; the page is much shorter",
+      "The top bar is less crowded: your name is now a profile menu with My Account, Chat, Messages, Friends and Sign Out, with a flag on it (and a count on each item) when something is new",
+      "How to Feed the Mesh Map: new sections on setting a node up with the Meshtastic app, every MQTT, channel, LoRa and Neighbor Info setting and what to choose, the Neighbor Info module, and what it takes to work as a gateway that listens for and reports other nodes; the map report interval is corrected to once an hour"
+    ],
+    "fixed": [
+      "The mesh page's server name breaks at its dots instead of in the middle of a word",
+      "The Radio overview no longer says mesh is coming",
+      "The County Map's list of ways to show counties lost a redundant choice, and the hospital heliport badge only shows zoomed in",
+      "The Aircraft Map's Stations list names each station once",
+      "The drive-times list no longer lists the hospital you asked from at 0 minutes",
+      "Opening Units for each service in the Display menu on a phone no longer closes the Display menu",
+      "The Weather Map's labels no longer jump and re-merge while the airport weather loads or when you leave it sitting: they are drawn at most twice while loading and then stay put",
+      "On a phone the County Map starts with smaller icons and shows only trauma centers zoomed out to the state",
+      "Replay on a phone is usable: a short bar with the time, the transport buttons, speed, date and time and the slider, with the other map buttons moved up out of its way",
+      "Maps follow the screen height as a phone browser's bars slide away or come back, so the blank strip under the map goes away",
+      "Maps take exactly the rest of the screen: the page is a column as tall as the screen and the map is the stretching part, so there is no blank strip or scroll bar under it on a phone whose browser bars slide away, and the replay buttons no longer crowd each other",
+      "Radiosonde Map: a claimed receiving station's card no longer says \"not claimed yet\", and claimed stations are drawn in the claimed color",
+      "Map details cards on phones: the title and the Collapse and Close buttons now stay at the top while a long card scrolls, a card opens at its top, and the open card is no longer hidden under the map credit line",
+      "Mesh: the Meshtastic app no longer shows a red 'broker refused every topic' error after you connect a node (the broker now accepts the app's subscriptions but still sends members' logins nothing)",
+      "Show on County Map (hospitals) and Show on Aircraft Map (airports) now open on the place itself; before, the link lost its longitude and the map opened on all of Arkansas",
+      "GOES loops go back as far as the length asked for: the keep-hours setting no longer deletes pictures a long loop still needs"
+    ],
+    "security": []
+  },
+  {
+    "version": "1.6.0",
+    "released": "2026-10-15T16:46:43",
+    "title": "Trauma Map and trauma regions, county and hospital pictures and websites, Admin allow-list, tar1090 leftovers",
+    "added": [
+      "The Trauma Map (Places menu): Arkansas' trauma regions and zones, every trauma center by level, hospitals of neighboring states near the state line, county and hospital popups with a picture, address and website, and drive times from a place or from your location",
+      "The County Map can shade by Trauma Region or ADH Trauma Zone, and every county page names its region and zone",
+      "County and hospital pages link to the website and show a picture (found in Wikidata and Wikimedia Commons, credited; administrators can type their own); the map moved to the bottom of the page and is larger",
+      "Admin > Counties for each county's website and picture",
+      "Settings > Security > Admin Area: Allowed Addresses limits the whole Admin area to chosen addresses and networks (it cannot be saved from an address that is not on the list)",
+      "The live map: Last Flight Only / All Flights for a selected aircraft's trail, geometric altitude above sea level (EGM96), a slim wind label, and a Show More / Show All row at the end of the aircraft list",
+      "Every map shows a Clear Drive Times and Rings button while drive times or rings are on the map"
+    ],
+    "improved": [
+      "The embedded tar1090 Classic Map is retired: the live map has all of its features (old links open the live map)",
+      "The trauma jobs and the hospital lookups never hold the database while waiting on outside services, so backups and restores are not blocked"
+    ],
+    "fixed": [
+      "Themes: when the site puts a seasonal theme on, ordinary pages show a clear banner under the menu with a Normal look button, and on maps the button is a solid, easy-to-see pill at the top middle",
+      "The heat map no longer stays switched on when you go to another map and come back; the Trauma Map has its drive times, satellite map and per-hospital rings (15 to 90 minutes)",
+      "On phones the Normal look button on maps sits at the bottom left instead of covering the map selector",
+      "An update no longer leaves the portal created but not started: when the stack updater and Watchtower recreate the portal at the same moment (the 1.5.1 update), the updater waits and asks again until it starts"
+    ],
+    "security": []
+  },
+  {
+    "version": "1.5.1",
+    "released": "2026-10-15T13:30:34",
+    "title": "Units for each service, easier-to-find Normal look, maps that fit the window",
+    "added": [],
+    "improved": [
+      "Units are now separate for each service, each starting in its industry's own units: Aircraft, ACARS, Coverage, Feeders and MLAT in feet, knots and nautical miles; Weather, APRS, Repeaters and Places in US units; Radiosondes and Mesh in metric (as on SondeHub); the Home page in the site's standard unit. Settings > Units sets each default, the Display menu has your own choice for each service (it beats your overall choice, which beats the default), and every map's Layers and Filters has a Units box",
+      "Every map now sizes itself to the window so the footer is always in view and the page never scrolls",
+      "Aircraft and ACARS pages start in aviation units (feet, knots, nautical miles), weather and places in US units, radiosondes and mesh in metric"
+    ],
+    "fixed": [
+      "Themes: when the site puts a seasonal theme on, ordinary pages show a clear banner at the top (short on phones) with a Normal look button, and on maps the button is a solid, easy-to-see pill at the top middle",
+      "Units: the Balloon Flights list, home page cards, county weather, flight search and feeder antenna heights now follow the right service's units, and the duplicate Units box on the Radiosonde Map is gone"
+    ],
+    "security": []
+  },
+  {
+    "version": "1.5.0",
+    "released": "2026-10-14T22:39:20",
+    "title": "Site themes, mesh nodes, ACARS, native replay and heat map, Usage page, linked repeaters and more",
+    "added": [
+      "Replay of past traffic on the live map, built into the portal: play any past time from the hub's own history at 1x to 100x, step by minutes, pick a date and time (in the site's time zone), and share a link to a moment; key Y",
+      "Heat map of past traffic on the live map: any period up to the longest range in Settings, ending now or in the past, drawn from the hub's history on a grid that follows the zoom, with the altitude limits, strength and spread, and its own legend",
+      "Settings > Public Pages: Replay and Heatmap (the portal's own or the classic tar1090 pages), the speed and start time of the Replay, how much history each worker keeps ready, the most heat squares per request",
+      "Live map: select several aircraft at once (key M, click each; key T selects all shown, Esc deselects), each with its own track and in the link you copy; persistence (key P) keeps aircraft that stop being heard on the map, dimmed, for the time set in Settings",
+      "ACARS: members' ACARS, VDL Mode 2 and HF datalink receivers send their messages (through a small bridge program) to a private address on the site; the ACARS page lists them with filters, a chart and a station page for each receiver, an aircraft's card on the live map shows its latest messages, and members add their stations on My ACARS Stations (administrators add one for a member, switch stations off and hide an aircraft on request). It is a new service container (acars) with its own database, switched on in Settings > ACARS",
+      "Repeater Code Plug Export: pick repeaters by band, mode, place, distance and status and download them as the Anytone DM32's channel and talkgroup lists (a DMR repeater becomes one channel per talkgroup), a CHIRP file, or an RT Systems style file; the page lists what goes in each DM32 field",
+      "Admin > Repeaters: a queue of repeaters waiting for a position (those brought in from a radio), with the place their city names offered in one click",
+      "Mesh nodes: Meshtastic nodes that publish themselves (the map report a node sends on purpose) and MeshCore nodes that advertise (heard by an observer, signature checked) are listed, mapped and given a page, with the gateways and observers that heard each and the signal (who hears whom), a network filter, and links to the Arkansas and nearby meshes. It is a new service (mesh, with our own Mosquitto broker and its own database) switched on in Settings > Mesh Nodes",
+      "My Mesh Nodes: every member makes their own broker login (its own username and a long random password) for a node or an observer computer, with the Meshtastic and MeshCore settings filled in; it can publish and read nothing, and can be changed, switched off or deleted without touching anyone else's. Administrators make one for a member, switch off, delete and sync. Only the certificate and a router forward of TCP 8883 are left to the administrator",
+      "Full screen on every map: a button on the map's top right corner (Esc leaves it)",
+      "Radiosonde stations can send frames directly: a claimed station makes a private upload address on My Radiosonde Stations and a small bridge program passes on auto_rx's payload summary (a station already uploading to SondeHub needs nothing more)",
+      "Mesh nodes: the broker finds its TLS certificate in the proxy's certificate store and follows renewals by itself; the public Meshtastic server's Arkansas topic can also be read (Settings > Mesh Nodes)",
+      "Admin > Usage: every request the site makes to outside services counted by host (today, 7 and 30 days, failures, data read), the stored data of every service and the portal's own database, and the live feeds",
+      "Radiosonde predictions: three predictors to pick from on a launch site's Forecast block (past flights, our own forecast-wind flight model, and Tawhiri once an address is set), each scored against real landings; forecast winds are asked for sparingly (kept 6 hours, limited per day)",
+      "Live map: Without position only filter (key G) for aircraft that are heard but send no position; Display menu: show all times in UTC",
+      "Live map: an ACARS positions layer shows aircraft out of ADS-B range that reported a position by ACARS, ADS-C or HFDL, dimmed with the age of the report (Settings > ACARS sets how long)",
+      "Mesh Map: measured coverage of gateways and observers (the farthest node each was heard to hear in each direction, labelled as measured, not predicted); Mesh Health page: routers gone quiet, low batteries, busy channels, old firmware and places a router is missing",
+      "Mesh nodes can be claimed: put a code in the node's name and it becomes yours (or an administrator approves); you choose whether your name shows as its operator and can hide the node from the mesh pages",
+      "Live map: altitude can be corrected for air pressure (the QNH the aircraft sends, or one you type) and the map can select an aircraft by itself for a wall display (key A)",
+      "All My Stations: one page with a card for everything you run (ADS-B feeders, weather, radiosonde, ACARS, repeaters, mesh) and a count for each",
+      "Repeaters: linked systems. Groups of repeaters linked together show as a badge on the list (which can be filtered by system), as a Linked Repeaters section on each repeater's page, and as lines between them on the Repeater Map; administrators and repeater owners make and change them",
+      "Site themes: color schemes (Midnight, Ocean, Forest, Sunset, Slate, High Contrast, Paper, Daylight) and seasonal and holiday themes (spring, summer, fall, winter, Halloween, Thanksgiving, Christmas, New Year, Independence Day, Easter, St. Patrick's Day, Valentine's Day) that switch on by date, with still decorations (a ribbon of the theme's colors, a cobweb at Halloween, lights at Christmas) and their own symbols on the maps (Santa on some aircraft at Christmas, pumpkins and skeletons on the balloons at Halloween). Pick any in the Display menu; a Normal Look button goes back at once when the site puts a seasonal theme on; administrators set the dates in Admin > Themes"
+    ],
+    "improved": [
+      "Weather map: wind streams follow a smooth wind field and curve instead of running in straight lines when zoomed out",
+      "Weather map: a new region opens at once with what is kept and fills in as airport weather arrives",
+      "Radiosonde Statistics: the bar charts are the shared hover charts with grid and labelled axes",
+      "Weather map: the heat map has its own color bar and legend section when it shows a different reading than the labels",
+      "Radiosonde Station Coverage runs by itself at the first pass after an update when it has never run",
+      "Call sign details (name, class, place) on hover in the Radiosonde Map receiving station card and on APRS stations in the Weather Map card and popups",
+      "Repeater Map: call sign and frequency labels (a setting), and Radiosonde Map: balloon, receiving station and launch site labels now come from one label engine, so no two labels ever overlap",
+      "The menu's Heatmap and Replay now open the portal's own on the live map; the classic tar1090 pages remain under Classic Map (or ?classic=1)",
+      "Maps: the Map selector switches between Aircraft, Weather Stations, Radiosondes, Counties, Coverage, Repeaters and APRS Stations in place, without reloading the page; the view stays, and the address, title, menu and Back button follow",
+      "Labels never overlap on any map: the live map's aircraft labels and the County Map's labels join the APRS, Repeater and Radiosonde maps on one shared label engine (the most important label wins a crowded spot; the weather map's labels still combine into averages, now with the same engine), and it measures each label as drawn",
+      "The How to Feed pages all list the other feeding pages, now including Radiosondes, ACARS and Mesh Nodes; the new ACARS and Mesh pages follow the same form as the others",
+      "Radiosonde Flights: a Heard by list filters the flights by receiving station",
+      "Radiosonde Flights: Heard by is a box you type in, with the receiving stations to pick from",
+      "Upload addresses and servers on the weather, ACARS, radiosonde and mesh pages use the Feed Hostname, so feeds can move to more hosts later",
+      "Mesh nodes: Arkansas nodes already uplinking to Meshtastic's public server appear without doing anything (the public server's Arkansas topic is read by default; switch it off in Settings > Mesh Nodes)",
+      "Radiosonde Map: Show These Flights becomes Hide These Flights once the history is shown",
+      "Radiosonde Map: forecast flights are numbered in the order they launch",
+      "SondeHub is credited on every radiosonde page and in the map credits of every map that shows its data (balloons, receiving stations, forecasts)",
+      "Themes: seasonal and holiday themes are offered in the Display menu only during their dates (a setting can list them all)",
+      "Themes: no falling emoji; a saved look from before themes existed follows the site once, so the seasonal theme shows for returning visitors too"
+    ],
+    "fixed": [
+      "Receiving stations with a slash in the call sign (KFS/SE) have a one-segment address (KFS~SE); the old address redirects",
+      "A restore could fail with a deadlock while the flight log was being written; the flight log recorder and restores now take turns",
+      "Radiosonde Map: a launch forecast can be cleared (Clear Forecast on the launch site, Clear Forecasts on the map)"
+    ],
+    "security": []
+  },
+  {
+    "version": "1.4.1",
+    "released": "2026-10-14T10:36:02",
+    "title": "Radio overview, repeater positions, background service status, Grafana filters, one-segment station links",
+    "added": [
+      "Radio overview page and a separate Repeater List with a Location column",
+      "Set or correct a repeater's position on its page: click or drag on a map, or search an address",
+      "Bullseye button on every map to show where you are, and Drive Times From My Location",
+      "Show on Map goes to the map of its own kind (a weather station to the Weather Map, a hospital to the County Map)"
+    ],
+    "improved": [
+      "Show my location no longer zooms the map when it opens",
+      "Service Status opens at once and shows the result of background checks that run on a schedule; only an administrator can force a run",
+      "Coverage Map opens on Arkansas with only the ADS-B coverage on; radiosonde stations show as antennas with their coverage outline",
+      "Weather Statistics shows the main readings as two columns of charts",
+      "Grafana: the Weather Dashboard and Radiosonde Dashboard carry the filters (renamed from Balloon Statistics)",
+      "The home page note about services still to come is built from the roadmap",
+      "Station addresses with a slash in the call sign (APRS repeaters) use a tilde and always work"
+    ],
+    "fixed": [
+      "Weather Statistics said the statistics could not be loaded",
+      "APRS repeater links such as 147.090/R gave a 404",
+      "Frequencies page wording: FRS needs no license, GMRS needs one",
+      "A backup restore could fail with a deadlock if it ran at the same moment as a background update; a restore now waits for the weather statistics and data updates to finish and keeps them out until it is done"
+    ],
+    "security": []
+  },
+  {
+    "version": "1.4.0",
+    "released": "2026-10-13T22:01:12",
+    "title": "Weather for any place, DMR and call sign tools, one-engine maps, Grafana statistics, frequencies",
+    "added": [
+      "Satellite and Hybrid (satellite with roads and place names) map styles on every map, from Display and View",
+      "Show my location on every map (your browser's position stays in your browser)",
+      "County Map: a plain outline that needs no data or shading",
+      "Radiosonde flight page: search and filters on the Heard By table, and the details say who heard it last, how many stations heard it, the best signal and the farthest listener",
+      "Settings > Map Tiles and Weather > Map Sections By Map Type: choose which map types show which Layers and Filters sections (Drive Times now only on the County and Aircraft maps)",
+      "Weather Map: bring in the APRS weather stations and airport weather in the same format as the members' stations (an airport APRS also carries is drawn once, as airport weather), with a Hide airport weather filter on the APRS pages and map",
+      "Weather Map: a heat map of the reading shown and wind streams across the whole map, worked out from every station switched on; cloud cover from airport weather is a new reading",
+      "Repeaters: DMR ID, talkgroups by time slot, and the settings of D-STAR, Fusion, P25 and NXDN on a repeater's page and in its edit form; an editor can import a radio's code plug (the DM32's channel list) to add color codes, talkgroups and tones; call sign lookup of the licensee (name, class, status, expiry, city)",
+      "Weather Statistics: chart and tabulate every weather source (members, APRS, airports) and filter by source, county, city, ZIP code, station and period",
+      "Radiosonde Statistics: search by flight, receiving station or launch site; filter by kind, status and dates; flights per day, how high they burst, typical flight time and which stations heard the most",
+      "Radiosonde Map: click a launch site for its past flights between two dates, the forecast flights of its next launches, and a forecast for a launch at a date and time you pick",
+      "Coverage Map: limit any layer to one or more counties, cities or ZIP codes",
+      "Profile: each My page (My Feeders, My Weather Stations, My Sonde Stations) lists your stations and has its Claim or Add form on the same page, no separate menu entries",
+      "Weather for a Place: type a ZIP code, city, airport or address and get a full weather page made from the stations near it (current conditions, National Weather Service forecast, history charts, the stations used)",
+      "Call Sign Lookup page: a US call sign's FCC license record (through Callook.info) with FCC and QRZ links and what the site knows about it",
+      "County outlines: a box on every map (except the County Map) draws a thin line around every county",
+      "Weather maps: heat map and wind streams are two boxes that can be on together, and the heat map can show a different reading than the labels",
+      "DMR talkgroup and contact lists: import a radio's exported lists (or RadioID-style and BrandMeister-style lists); a scheduled update can read them from addresses you set once you have permission",
+      "Grafana: Weather Statistics and Radiosonde Statistics dashboards with filters (sources, reading, period, counties, cities, ZIP codes, stations; kinds, launch sites, receiving stations, flights) read the portal's public statistics, delivered by the normal update (no database login on the hub)",
+      "Weather for a Place, call sign info wherever a call sign appears, DMR time slots and talkgroups on repeaters with standard talkgroups, a combined Call Signs, Contacts and Talkgroups page",
+      "County Map: Outline only, like the other maps (a thin line around every county and nothing else)",
+      "Frequencies page (Radio menu): APRS, calling frequencies, FRS, GMRS, MURS, weather radio, marine and Meshtastic in one searchable list that editors can add to"
+    ],
+    "improved": [
+      "Balloon Map: a balloon launched from a known launch site no longer gets a launch flag on top of the site's icon",
+      "Admin: Radiosondes and Hospitals are split into tabs; the Coverage Map uses the same map layout as every other map",
+      "Clicking a label on a map does the same as clicking the aircraft, station or county it belongs to",
+      "Balloon Map: a Show Balloons choice (All, Live only, Landed only) replaces In the air now only; forecast flights start exactly at their launch site",
+      "Balloon Map: live windows stop at 48 hours; for older flights pick From and To dates to load history",
+      "Show on Map buttons (balloon flight, launch site, receiving station, aircraft, APRS station, county, airport, hospital, weather station) now show only that item; clear the chip to see everything again",
+      "The details card on every map can be collapsed to its title bar; on a phone, opening it folds Layers and Filters away so the two never cover the map",
+      "Radiosonde Map: every marker (balloon, launch, burst, landing, launch site, receiving station) opens the same flyout; tracks are brighter and thicker; forecast flights start switched off",
+      "Renamed: Radiosonde Map, Sonde Receiving Stations, My Sonde Stations; the Aircraft and ADS-B feeder statistics are in the Aircraft menu",
+      "Airline logos are served from memory with a validator, so a busy map asks the database far less",
+      "Radiosonde Map: Show Balloons choices and every marker opens the flyout (see above); Weather Map sources and Show Airport duplicates are handled once",
+      "ADS-B Feeders is in the Aircraft menu with the other aircraft pages (Network keeps the coverage and status pages)",
+      "A balloon on the Aircraft Map opens its details in a popup instead of leaving the page",
+      "Show my location explains why it cannot work on an address that is not https, instead of silently unticking",
+      "Weather maps combine labels that would overlap when zoomed out into one label with the average of their readings and a count; click it to zoom in (Settings > Weather Stations sets how close and how far in)",
+      "Radiosonde station coverage on the Coverage Map is drawn like the ADS-B coverage: each station its own color and an outline of how far it heard a balloon in every direction",
+      "Layers and Filters fold away whenever a balloon, launch site, station or any other item is picked, on every screen size",
+      "Weather map: stations load for the view only and for any region; labels never overlap; the heat map and wind streams sit under the markers; charts match the radiosonde flight page; radiosonde station coverage is built from the flights each station really heard",
+      "APRS Map: station labels never overlap (weather stations first); a label that would overlap another is left off until you zoom in",
+      "Weather for a Place: forecast cards have weather icons and rain chance; stations used are limited to 12 miles unless fewer than two are reporting",
+      "Call Sign Lookup lists everything the site knows: repeaters with DMR IDs and color codes, contact-list DMR IDs (members), APRS stations, feeders, weather and sonde stations",
+      "Weather for a Place opens on your location and has Use My Location; its charts (and the station and flight page charts) are two columns on a wide screen",
+      "Drive times fold Layers and Filters away on every map, the same as picking an item",
+      "Feeders are airplane badges on the Feeders page and the Coverage Map, easy to see at state level",
+      "Admin: every section starts collapsed, and a form that reloads a page keeps where you were scrolled to and which sections were open",
+      "Repeaters imported from a radio's code plug are approved at once (listed, but not on the map until given a position)",
+      "Popups on every map (the Coverage Map's stations too) fold Layers and Filters, like picking an item",
+      "Call Sign page and the DMR contacts search link to RadioID.net for a person's DMR ID",
+      "DMR contacts list the call sign, sort and filter, and Call Sign Lookup finds DMR IDs by call sign (re-import the contact file once)",
+      "Weather map: the heat map draws in passes from coarse to fine and wind streams cover the whole map whatever the heat map shows"
+    ],
+    "fixed": [
+      "An amateur balloon that went up near a weather-service launch site was shown as launched from that site and marked NWS; amateur balloons have no launch site and are never NWS",
+      "Show on Radiosonde Map for a flight far from Arkansas opened on Arkansas instead of the flight (the opening zoom animation finished over the move)",
+      "The Submissions Waiting link in Admin > Repeaters gave an internal server error for a repeater without a position",
+      "Wind streams only covered the area of the stations that had the heat map's reading",
+      "DMR contact lists whose first column is a row number (ID) with the real DMR ID in a DMR ID column and a Call Sign column are read correctly; several lists can be imported at once and replace the old ones"
+    ],
+    "security": [
+      "Updated Werkzeug to 3.1.9 (a published vulnerability in 3.1.8)"
+    ]
+  },
+  {
+    "version": "1.3.0",
+    "released": "2026-10-10T19:27:37",
+    "title": "One map layout, admin by service with setting search, APRS lists and map labels",
+    "added": [
+      "County Map: show counties shaded, outlined, or both, and switch back and forth",
+      "Every map has a Map selector at the top that switches between the kinds of map (aircraft, weather stations, balloons, counties, repeaters, APRS) and keeps your view",
+      "Admin: the menu is organized by service (Aircraft and Feeders, Weather and Balloons, Radio, Map and Data, Updates, Site), each with its own Settings page; a search box on every admin page finds any setting and opens it"
+    ],
+    "improved": [
+      "Radio overview: click a column heading to sort, like the other lists",
+      "APRS Stations and APRS Weather: search box and click-to-sort headings",
+      "APRS Map: station labels with the weather reading of your choice (in your own units), like the other maps",
+      "Maps: opening the Legend now folds away Layers and Filters instead of stacking under it; the button is called Layers & Filters",
+      "The aircraft map and the Weather Map are built on the same map layout as the other maps, so panels, the Legend, the fold arrow and Drive Times behave the same everywhere"
+    ],
+    "fixed": [
+      "APRS Weather and other server-built pages follow the units you choose in the Display menu even when you are signed out (the browser's choice is now remembered in a cookie)"
+    ],
+    "security": []
+  },
+  {
+    "version": "1.2.0",
+    "released": "2026-10-10T15:09:22",
+    "title": "Drive times from anywhere, one location precision list",
+    "added": [
+      "Service Status has a row for the routing server (OSRM) behind the hospital drive-time rings",
+      "Drive times from anywhere: switch on Click the map to pick a place and press Show Drive Times From Here (or search a city or an address and choose Drive times from ...) and the nearest hospitals are listed by road drive time and road distance, ties and near-ties by trauma level and services, with rings of 15, 30, 60 and 90 minutes (an estimate, not an ambulance's route)",
+      "County Map: drive-time rings only when you ask (a hospital's popup, or the Hospital Drive-Time Rings choice for the Level I and II or all trauma centers), thick colored lines with minute labels, now including a 90 minute ring",
+      "Location precision: one list of twelve steps (Exact down to 40 feet, then 400 feet, a quarter mile, 0.7 mile, 1.5 miles, 3 miles, the site's General, 15, 30 and 60 miles, Hidden) for feeders, weather stations, radiosonde stations and the administrator defaults, written in your own units",
+      "Admin > Full Roadmap shows everything; the public Roadmap shows only what is meant for the public"
+    ],
+    "improved": [
+      "Long pages have a round arrow at the bottom right that takes you back to the top",
+      "Data Updates: the page shows what is running; different sources can run at the same time, but a source cannot start while it, or one whose data it uses (or that uses its data), is running",
+      "Airline logos: the map no longer waits for logos to be fetched (they are fetched in the background and kept, and logos for the airlines in the air are fetched ahead of time), so the aircraft map loads quickly with logos on",
+      "Balloon Map and Flights page: shorter windows of 1, 2 and 3 hours",
+      "MLAT Network page: the station dots are bigger, with a halo and a white edge",
+      "Radiosondes: receiving stations are shown to about 0.7 mile until their owner chooses (it was General, about 6 miles)",
+      "Picking a place, airport or hospital in a map's search clears the search box so nothing stays filtered, flies there and marks it with a label for a few seconds"
+    ],
+    "fixed": [
+      "The routing server address default is the one the hub and production reach (osrm.example.net); 1.1.0 shipped the WireGuard tunnel address",
+      "APRS Weather: pressure shows two decimals in inches of mercury"
+    ],
+    "security": []
+  },
+  {
+    "version": "1.1.0",
+    "released": "2026-10-10T12:00:00",
+    "title": "Balloon forecasts and history, repeaters, APRS, highways, drive-time rings, one search and saved views, and a phone-friendly site",
+    "added": [
+      "Balloon forecast flights: for each upcoming launch the Balloon Map draws where it will launch from, its path (colored by height), where it will burst and where it will land, shaped like past flights from the same site, season and hour and pulled toward the latest flights; a separate switch shows the area half of such flights landed in",
+      "Historical balloon flights: every flight SondeHub's archive holds for the Little Rock launch site and the sites around Arkansas can be brought in as full flights, slowly in the background (switch it on under Admin > Radiosondes > Historical Flights)",
+      "Repeaters: also adds the repeaters APRS stations announce, and administrators can import a list a club or council gave permission to use (a CSV file)",
+      "The Radiosondes overview lists Arkansas only by default (flights launched in Arkansas, the receiving stations and launch sites there); Settings > Radiosondes > Radiosondes Overview Shows adds Missouri, Tennessee, Mississippi, Louisiana, Texas, Oklahoma or anywhere else. The Balloon Map and All Flights still show every state",
+      "Display menu: Distances in settings (site default, feet and miles, or metres and kilometres), saved with your account"
+    ],
+    "improved": [
+      "In progress: predictions for future balloon flights, the SondeHub archive and a prediction service",
+      "Radiosonde settings that were in kilometers and meters (launch site match distance, landed-below altitude, recovery radius) are now distance settings shown in feet and miles, or in your own choice of units",
+      "Phones: the menu opens full screen with one group open at a time and whole-row taps; the section bar opens over the page instead of pushing it down; tables turn into cards; the home map's layer list starts folded; the Coverage Map fits a phone; the footer stays at the bottom on short pages; scrolling is smoother (the page background no longer repaints while you scroll, and blur effects are off on touch screens)",
+      "County Map: a Highlight and Name on Hover switch, off by default (Settings > Counties sets the site default)",
+      "Maps: one search box on every map finds airports, places, hospitals, repeaters, APRS stations, balloons and counties and flies there; Saved Views remember where a map is looking, its filters and its layers (kept with your account when signed in)",
+      "Highways: a map layer of the Interstates, US highways and state highways (from the Census, kept on this site) on every map with the Layers list",
+      "Hospital pages: drive-time rings show how far a vehicle gets in 15, 30 and 60 minutes by road (our own estimate from the network's routing server, not an ambulance's route); worked out once and kept",
+      "APRS: stations, digipeaters, gateways and weather stations (including Citizen Weather Observer Program stations) read from the amateur radio APRS-IS network around Arkansas, with a list, a map, a page for each station, an APRS Weather page in your own units, a takedown list for call signs, and an APRS service of its own (own container and database)",
+      "Repeater directory: amateur radio repeaters, linked nodes and gateways in every mode (FM, DMR, D-STAR, Fusion, P25) from Hearham's open listing and Arkansas hams, with a list and filters, a page for each repeater, a Repeater Map, reports of problems, sysop claims, member submissions that wait for an editor and a Radio menu; the search box finds a frequency or call sign",
+      "Balloon landing forecasts: a new prediction service (its own container and database) imports SondeHub's open archive back to 2022 for Arkansas and the surrounding launch sites and forecasts where the balloons of upcoming launches will land, from past flights of the same site, season and hour and the latest winds; every forecast is scored against the real flight. See Next Launch Forecast on the Radiosondes page and Forecast landing areas on the Balloon Map",
+      "Load a Flight by Serial: signed-in members can pull any flight from SondeHub's public archive by serial (Balloon Flights page); it is kept here like any other flight",
+      "Radiosonde predictions: the whole predicted path to the landing is kept and drawn on the flight page and the map, not just a line to the landing point",
+      "The faint range labels on the page background and the radar, the privacy-precision wording, the live map altitude legend and filters now follow your units too",
+      "One units choice for the whole site: imperial (feet, mph, miles, degrees F) by default, set per person in the Display menu (imperial, aeronautical or metric) and saved with the account; the aircraft and balloon maps, the balloon flight page and charts, range statistics, airports, flight history, weather and every distance in Admin settings follow it. The site default is Settings > Units (Site Default)",
+      "Every map now has the small arrow at the bottom of its open panels that folds them away (the Balloon Map, Weather Map, County Map, Repeater Map and APRS Map were missing it)"
+    ],
+    "fixed": [
+      "The balloon map and the aircraft map's balloon layer draw a flight's whole track, from launch to landing, thinned evenly; before, a long flight showed only its last hour or so",
+      "Weather stations that are not reporting no longer appear on the aircraft map (Settings > Weather Stations > Hide Offline Stations on the Aircraft Map; a visitor can switch it with Reporting Now Only in the Weather panel)"
+    ],
+    "security": []
+  },
+  {
+    "version": "1.0.33",
+    "released": "2026-10-09T20:29:40",
+    "title": "Balloon recovery reports and chase mode, folding home card, and a setting for where each map opens",
+    "added": [
+      "Balloon recovery reports: signed-in members report a recovered, planned or not-found balloon from its flight page, in SondeHub's own format (serial, recovered by, recovery success, recovery planned, position, notes); it is sent to SondeHub and shown here",
+      "Chase mode on the Balloon Map for signed-in members: your position, the distance, bearing and directions to the balloon you pick, other chasers' cars, and an optional Share My Position that puts your car (CALLSIGN_chase) on SondeHub's map",
+      "New balloon icons for a planned recovery, a chase car and your own position; recovered, planned and not-found landings show on the map, with a Recovery filter and Hide recovered sondes",
+      "Settings > Map Areas: every map (home page, aircraft live map, Coverage Map, Balloon Map, Weather Map, County Map, Feeders map) has its own \"opens on\" area, all set to the whole of Arkansas by default",
+      "Read-only production access for troubleshooting (a locked-down key that can read logs and container state on the hub and nothing else; installed by you with one script)"
+    ],
+    "improved": [
+      "Backups: the restore screens have a Map Data area (hospitals, places, counties, air ambulances, interesting aircraft) and the balloon recovery reports; a test now fails if a table is in no area",
+      "The card beside the home map folds each block (Worth a Look, Records, The Network, Weather, Radiosondes) into a one-line headline you can open; it only scrolls once enough blocks are open, and it remembers which you opened"
+    ],
+    "fixed": [
+      "Browser location was blocked on every page by the site's security header; it is now allowed for this site only, so chase mode and Use Browser Position can ask for it",
+      "The Balloon Map, Weather Map and County Map open on Arkansas whole instead of fitting themselves to whatever balloons, stations or counties were loaded"
+    ],
+    "security": []
+  },
+  {
+    "version": "1.0.32",
+    "released": "2026-10-09T19:02:48",
+    "title": "Granular roles, one registry for every service, and a more consistent set of maps",
+    "added": [
+      "Admin Feeders and MLAT lists have Actions (Manage, Details, Release, Assign, Ban) like the weather and radiosonde lists",
+      "Radiosonde receiving stations and balloon flights on the coverage map; every kind of point (hospitals, airports, stations, launch sites) can be switched on over the county map",
+      "Choose how precisely your station's location is shown: exact, within about 400 feet, 0.7 mile, 6 miles, 60 miles, or hidden",
+      "Granular administrator roles: separate permissions for weather stations, radiosondes and map data (and a repeater moderator, ready for the repeater directory); the broader Manage Feeders and Manage Settings still include them",
+      "Settings: Panels When a Map Opens. Every map now starts with its list, filters and legend closed (set it to Open to bring them back)",
+      "Home page: the map shows the balloon receiving stations and launch sites, and the card beside it has Weather Right Now and Radiosondes Right Now; the admin Overview has weather and radiosonde tiles, claims waiting and the launch-site and county data"
+    ],
+    "improved": [
+      "Menu: Places opens the County Map, and Weather lists Overview first and the Weather Map second, like Aircraft and Radiosondes",
+      "Clicking a marker on the county map or a county page opens the same popup as on the aircraft map (hospital, airport, station, balloon site) instead of jumping to another page",
+      "Stations that stand at the same place (an ADS-B feeder, a weather station, a balloon receiving station) no longer hide each other on the maps: their markers fan out around the shared spot, each still clickable",
+      "Administrators' Add forms for a member (weather station, feeder, radiosonde station) now offer every option the member has, find the member as you type (user name, display name, call sign or email) and can tie a weather station to one of the member's feeders",
+      "The county maps use the same airport, hospital and balloon icons as the other maps",
+      "County map hospitals show the heliport badge and link, and look faint when their position is only approximate, like the aircraft map",
+      "Menu entries and map behavior follow one rule on every map: the overview comes first and the map second, the same icons and popups, panels closed when a map opens"
+    ],
+    "fixed": [
+      "Update Now no longer leaves Grafana stuck when the update service and the stack updater replace the same container at once: the stack updater clears the container that holds the name and retries",
+      "Radiosonde receiving stations whose position was missing (\"not known yet\") get it back at once, from one request to SondeHub, instead of waiting for their next upload",
+      "Weather labels on the maps no longer cover a feeder at the same place: the label sits beside a small dot marking the station's position",
+      "The map on the home page can be zoomed: zoom buttons, double click and pinch always work, and the mouse wheel zooms once the map has been clicked"
+    ],
+    "security": []
+  },
+  {
+    "version": "1.0.31",
+    "released": "2026-10-09T15:24:42",
+    "title": "Weather balloons, the county map, and help for administrators",
+    "added": [
+      "Copy buttons on code blocks and setup values (upload address, server, path, port, commands)",
+      "Radiosondes and balloons: National Weather Service balloons and amateur balloons over Arkansas and its neighbors, recorded live with their tracks, data and history",
+      "A Balloon Map in the same style as the aircraft map, flight pages with charts and a Skew-T diagram, launch sites and receiving stations, search, and CSV and GeoJSON downloads",
+      "Claim your radiosonde receiving station (by call sign, by a code in the station's antenna description, or approved by an administrator) and choose how its location is shown",
+      "County Map: every Arkansas county shaded by what is in it (feeders, weather stations, hospitals, airports, balloon launch sites), with a page for each county; counties are also layers on the aircraft map and the home map",
+      "Weather balloons card on the home page and a Weather balloons layer on the aircraft map",
+      "Weather balloon status: climbing (balloon intact) or burst and falling, recovery reports from SondeHub, balloon icons for launch, burst, falling and landing",
+      "Flight pages show the telemetry of the moment (updating by itself), and who is hearing the balloon with the signal now",
+      "Weather Statistics and Balloon Statistics dashboards in Grafana, and a hover read-out on the weather station charts",
+      "Radiosonde receiving stations are claimed for you automatically when their call sign (with or without a suffix such as -LR) matches your profile",
+      "Administrators can open and edit a member's weather station or radiosonde station with the member's own pages",
+      "Administrators can assign a radiosonde station to a member or start a claim for them",
+      "Administrators can add a weather station or an ADS-B feeder for a member, as well as assign a radiosonde station"
+    ],
+    "improved": [
+      "Weather setup pages now cover the Home Assistant (HACS) integration and a ready-made compose file for the Tempest bridge container",
+      "Am I Feeding? also checks your weather stations when you are signed in",
+      "Admin > Data Updates loads county outlines and balloon launch sites; Admin > Radiosondes shows the live feed and the claims",
+      "The Statistics Dashboard and Feeder Statistics pages are now called Aircraft Statistics and Aircraft Feeder Statistics",
+      "Bigger tap targets for airports, launch sites and stations on phones; Overview comes before the Balloon Map; the About page and the Roadmap's finished cards are up to date",
+      "Receiving Stations can be searched and sorted",
+      "Balloon icons can be resized and their labels turned off (hover shows the details); the balloon charts match the weather station charts, with icons"
+    ],
+    "fixed": [
+      "A duplicate navigation bar under the menu on the How to Feed pages is gone",
+      "Home Assistant setup no longer fails with 'Could not reach ArkSignal' for an http:// address (the site redirects to https; integration 1.0.2 follows it correctly), and the address shown for Home Assistant and scripts is the https one",
+      "Hospital position picker: Use the Picked Position now updates the Latitude and Longitude shown on the hospital",
+      "Receiving stations whose position was uploaded as text appeared at the wrong place (and so were missing from Arkansas)"
+    ],
+    "security": []
+  },
+  {
+    "version": "1.0.30",
+    "released": "2026-10-09T02:39:29",
+    "title": "Weather stations, a shared map look, Planefence speed-up",
+    "added": [
+      "A Show on Map button on airport and hospital pages that opens the live map on that place",
+      "Weather stations: members' own stations (Ecowitt, Weather Underground format, Home Assistant, and Ecowitt.net accounts) with live conditions, charts, daily summaries, records, a map layer on the home and live maps, and a Weather card on the home page",
+      "Add a weather station to one of your ADS-B feeders, or run a weather-only station; choose public, approximate or hidden just like a feeder",
+      "Home Assistant users can install the ArkSignal Weather integration, pick their weather device and be done; a small Tempest bridge sends a Tempest station's own local readings without any cloud service (both are published separately)",
+      "A full Weather Map with radar and satellite layers, filters, wind arrows and a station list; weather stations on the aircraft map can show wind, temperature, rain and more",
+      "Condition icons (sunny, cloudy, rain, storm, wind, fog, night) and an icon for every reading on the weather station page",
+      "Plane-Alert can use your own Interesting Aircraft list as its alert list, so the list is kept in one place",
+      "Planefence now keeps low-flying aircraft only (up to 5,000 ft) after the first start of this release, so its list is much shorter; change it any time on Admin > Planefence"
+    ],
+    "improved": [
+      "In progress: the repeater directory",
+      "Buttons that ask for confirmation (such as Delete) now ask before they act on every page",
+      "Weather uploads accept values that carry their own unit, so any unit system works",
+      "Weather station charts are smaller and sit side by side",
+      "The weather map now has the same layout, layers, Weather panel and label choices as the aircraft map, with weather stations as labels that show a wind rose and any values you choose",
+      "Hospitals: setting or editing a position by hand takes the hospital off the review list, and the Address Lookup always has a map you can click to place the hospital when a lookup fails",
+      "The home page's right-now numbers, cards and map count only what is in Arkansas (a margin of 15 miles), so a station or aircraft far away or across the border does not skew them; it can be switched off in Settings",
+      "Planefence and Plane-Alert load faster: the aircraft list now streams to the page as it is read instead of being collected first, pages are compressed (about a fifth of the size) and cached briefly"
+    ],
+    "fixed": [
+      "Flight paths: a flight that lands out of range and flies again hours later is now drawn as a separate leg instead of joined to the earlier one by a straight line",
+      "The phone menu shows each group name and its arrow on one line",
+      "After saving something on a page (such as Use This Position on a hospital) the page no longer jumps to the top: the confirmation stays in view where you are",
+      "Weather stations now show on the coverage map, with their own layer"
+    ],
+    "security": []
+  },
+  {
+    "version": "1.0.29",
+    "released": "2026-10-08T20:49:23",
+    "title": "Hospital checks, our own address search, a real admin overview and a calmer layout",
+    "added": [
+      "Admin > Hospitals: Import Hospital Data (renamed from Import Trauma Levels) now also understands the capability tags surgeon, trauma ICU, CT, vascular, interventional radiology, facial and eye injuries; a file adds to the services on record and never removes one",
+      "Admin > Hospitals: an Address Lookup on every hospital (pre-filled with its address) asks the US Census, our own Photon address search and OpenStreetMap, lists the answers with a small map, and Use This Position keeps the one you choose",
+      "Admin > Interesting Aircraft: our own editable list that feeds the Interesting flag on the live map, with a CSV import, the Plane-Alert database (by category) and a Data Updates job",
+      "Our own address search (Photon, US data from OpenStreetMap) joins the stack and installs itself with Update Now",
+      "Admin > Hospitals: Check All Positions looks up every hospital's address with the Census and our own Photon, confirms the position where they agree and lists the rest for review; Check This Position does one hospital at once",
+      "Admin > Hospitals: Data Issues flags hospitals with a missing or incomplete address, an approximate position, no phone number, a trauma centre with no heliport, or a heliport that is far from its hospital or not in the airport data, with a filter for each",
+      "Live map: the Filters and Weather panels fold up from a small arrow on their bottom edge, and the choice is remembered",
+      "Live map: the altitude colour scale now stays under the map at all times, in your chosen units",
+      "Menu: Airports and Hospitals now sit in their own Places group instead of under Aircraft",
+      "Service Status now lists the address search (Photon), Planefence, and every outside data source we use (OurAirports, the Census, the hospital list, the aircraft databases, weather, photos, routes, map tiles and layers) with whether it is answering and when our copy was last refreshed",
+      "Admin Overview is now a real overview: what needs attention with a link to fix each thing, the network at a glance, the data we keep, the services behind the site and recent activity",
+      "A Map button in the top bar, next to Display, opens the live map from any page (on a phone it stays beside the menu button)",
+      "Page width: on very wide monitors page content is limited to a comfortable width and centred (maps still use the whole window). Choose Full width in the Display menu or on your profile page; the site default and the limit are settings"
+    ],
+    "improved": [
+      "Settings: the long Maps and Data Sources section is split into Map Tiles and Weather, Hospitals, Air Ambulance, Interesting Aircraft, Places and Search and Address Finders, under a new Facilities and Lookups tab",
+      "Admin menu: the pages are grouped (People, Network, Map and Data, Site, System) and always in the same order",
+      "Distance settings are now shown and typed in feet and miles by default, with metres and kilometres one setting away; a unit typed with a number (250 m, 0.5 mi) is understood either way",
+      "Dropdown menus stand out more: a lighter surface, an accent edge and a shadow, with the page behind them stepping back",
+      "Home page: a taller map that always shows the whole of Arkansas, with every kind of station on it (switchable in a legend), and a live Right Now panel (emergencies, air ambulances, military and listed aircraft, records, network activity) instead of the release notes",
+      "Flight page: the map now fills its section",
+      "Live map: the Legend is now a button in the top row next to Weather and Filters and opens as a panel under them, instead of a box floating at the bottom",
+      "Every section on a page is the same width, on wide screens and on phones"
+    ],
+    "fixed": [
+      "Admin > Hospitals: the Import button always did a preview; it now imports",
+      "Hospital positions you confirm or set by hand are no longer overwritten by hospital list updates",
+      "Hospitals list: the Trauma column no longer wraps (Level IV broke onto two lines), and sorting by it puts the levels in order I to V with hospitals that have none last",
+      "Aircraft Tracking: the radar is no longer huge; it scales with the window (never more than about 680 pixels), the number cards are compact, and a list of the highest aircraft in the air fills the space beside the radar",
+      "Settings: saving the whole Settings form no longer changes the distance settings that were not part of it"
+    ],
+    "security": []
+  },
+  {
+    "version": "1.0.28",
+    "released": "2026-10-07T17:12:47",
+    "title": "Fixed-wing air ambulances, a site icon and fixes",
+    "added": [
+      "A site icon: a signal-arc badge in the browser tab, on bookmarks, as a phone home-screen icon and in the web app manifest",
+      "Fixed-wing air ambulances and medical transports (Pilatus PC-12, King Air, small jets) beside the helicopters: found from the aircraft database by owner names set in Settings, plus tail numbers you add as fixed wing; a second Aircraft Flags entry, Air ambulance (fixed wing), and the aircraft card says which kind it is"
+    ],
+    "improved": [],
+    "fixed": [
+      "The Admin > Updates page title no longer shows page code in the browser tab, and its Live Content settings section (the source of the live Release Notes and Roadmap) is back on the page; it had slipped into the title"
+    ],
+    "security": []
+  },
+  {
+    "version": "1.0.27",
+    "released": "2026-10-07T14:56:46",
+    "title": "Complete feed pages, hospital filters and positions, Data Updates and consistent names",
+    "added": [
+      "Admin > Hospitals can ask OpenStreetMap where a hospital with only an approximate position is, one at a time or twelve at a time, and keeps the answer",
+      "Admin > Data Updates: one page with a schedule for every outside data set (places, airports, hospitals, trauma levels and services, air ambulances), a Run Now button, the last result and the next run, one time of day for all, and failures shown on Status. A source that fails keeps its last good data and tries again later. Trauma levels and services can be read automatically from the address of a CSV file kept by the trauma system"
+    ],
+    "improved": [
+      "The How to Feed pages are complete and consistent: ADS-B, MLAT and UAT each have How It Works, What You Need, Hardware, Hardware Setup, Software Setup, After You Are Feeding, Ports, Troubleshooting, Your Data and More Help, and point to each other (ADS-B and MLAT usually run together)",
+      "Air ambulance moved to Aircraft Flags (it is a property of an aircraft, not a type), and Military is offered once, under Aircraft Flags, instead of twice",
+      "Hospital positions are better: a second try with the street written other ways, then the hospital's own helipad from the airport data, then the trauma list's coordinates; hospitals guessed at the same place are spread out so none hides another; hospital names keep CHI, VA and LLC in capitals",
+      "In progress: fixed-wing air ambulances"
+    ],
+    "fixed": [],
+    "security": []
+  },
+  {
+    "version": "1.0.26",
+    "released": "2026-10-07T05:19:58",
+    "title": "ArkSignal: new name, home page, menus, hospitals, air ambulances and more",
+    "added": [
+      "Coverage Map (/coverage): one map with a layer for each kind of service: ADS-B coverage around every station, MLAT stations, and UAT / ADS-R traffic right now. More layers join it as the network grows",
+      "Choose the page you land on after signing in (Profile > After I sign in, take me to), with a site default set by an administrator in Settings > Accounts. A page you were heading to still wins",
+      "The How to Feed section is split into pages with a sub-menu: ADS-B, MLAT, UAT (978 MHz) and Am I Feeding?. Old links keep working",
+      "Settings are grouped into tabs (General, Accounts and Security, Map and Data, Feeders and Alerts, Updates and Backups) with a search box that finds a setting by name",
+      "The network is now called ArkSignal. The header wordmark, page titles (Page | ArkSignal), About, emails and the Feed and Support wording follow it; the name, accent part and tagline are settings (Admin > Settings > General)",
+      "A rewritten About page: what the network is, who runs it (a hobby project run by two volunteers), what you can do here today, where it is going, and credits for the MLAT server, Planefence and rclone",
+      "A new home page: ArkSignal at a glance, with a live strip (aircraft overhead, stations online, MLAT, service status), a map preview, one search box for a callsign, tail number, airport, city or station, a card for each service and the latest release. The previous home page is now Aircraft Tracking (/aircraft, also in the menu)",
+      "Moving to a new web address: an administrator can set a Main Address and a list of Old Addresses (Settings > General) so page requests on the old address are sent to the new one with a permanent redirect; it stays off until it is filled in",
+      "Search the live map by place: type a city, ZIP code or county in the map search box and pick it from the list (or press Enter) to jump there. The places come from the US Census Bureau and are loaded by an administrator under Admin > Places",
+      "Hospitals: a public Hospitals list and a page for each hospital (address, emergency care, trauma level and services where known, and the heliport it uses), a Hospitals layer on the live map coloured by trauma level, and an Admin > Hospitals page that loads the list from the Centers for Medicare & Medicaid Services and finds each hospital with the Census Bureau geocoder. Trauma levels, services and heliport links are entered by an administrator and kept by every update",
+      "Air ambulance helicopters: an Air ambulance entry in the live map's Aircraft Type filter (count, chip, and a line on the aircraft card naming the operator). They are found from the aircraft database tar1090 uses (helicopters owned by Air Evac, Air Methods, Med-Trans, Life Flight Network, REACH, hospitals and similar) plus a tail number list an administrator keeps in Admin > Air Ambulance",
+      "Import trauma levels: Admin > Hospitals takes a CSV list of trauma-designated hospitals (with a preview), matches it to the hospitals by position and name, adds the ones the public list lacks, and shows the level, designation date and source on each hospital page",
+      "A map legend on the live map: a collapsible panel that explains the colours of whatever layers are switched on",
+      "Administrators can open any account (Admin > Users, click a name) and change what the person can change themselves: email address, display name, callsign, display choices and landing page, alert webhook and alert rules, and sign-ins, with two-factor reset, a temporary password and unlock. The current password is never shown to anyone, only replaced; every change is written to the audit log, and only a Super Admin can change a Super Admin",
+      "Hospital filters: choose which kinds of facility are loaded (acute care, critical access, children's, rural emergency, Veterans Administration, Department of Defense, psychiatric, long-term), leave out names containing words such as BEHAVIORAL or SURGICAL, and optionally keep only hospitals with an emergency department. Behavioral health centres are out by default, and an update removes loaded facilities that no longer match (anything edited by hand is kept)",
+      "Hospital services: stroke, neurosurgery, cardiac, obstetrics, NICU, children's, burn, orthopedics, cancer and psychiatric tags on hospitals, a Service filter on the Hospitals list, and a CSV import that can carry them (with the CMS number for exact matching). The hospital import now keeps only hospitals with an emergency department by default"
+    ],
+    "improved": [
+      "The top menu and a slim bottom bar (About, Status, Release Notes, Roadmap, Contact) stay in view while you scroll long pages, on phones too",
+      "Search boxes on the admin Users, Feeders, MLAT and Map Layers lists, and on the public Feeders page; click a column heading to sort",
+      "Flights, Flight History and Airports can be sorted by any column",
+      "New stations are shown the feed address on the How to Feed page",
+      "The top menu is grouped by service: Aircraft (map, flights, history, airports, MLAT, tools), Network (coverage, stations, statistics, status) and Feed, with the part of the site you are in highlighted; new services get their own group as they arrive",
+      "Inside Aircraft, Network or Feed a second bar under the top menu lists that service's pages with the current one marked; clicking a group name goes to that section, and resting the mouse on it opens its menu",
+      "Live map: every filter that is on shows as a small chip you can click to switch it off, with a Clear All button",
+      "The top menu and the section bar now run the full width of the window and fold into a menu button on narrow screens instead of being cut off",
+      "Hospitals on the live map are square badges instead of dots: the trauma level number on a colour for trauma centres, a red plus for an emergency department, grey for none, and a blue H where a heliport is linked, so they stand apart from airports",
+      "Airport weather on the live map now refreshes by itself every few minutes (the weather refresh setting) instead of only when the map is moved",
+      "Old site addresses now send visitors to the main address (page requests only; the feed and MLAT addresses are untouched). The Main Address and the list of old addresses are in Settings > General"
+    ],
+    "fixed": [
+      "Hospital markers on the live map can be clicked, like the airports",
+      "The admin user page uses one consistent width and shows the user name as plain text"
+    ],
+    "security": []
+  },
+  {
+    "version": "1.0.25",
+    "released": "2026-10-06T17:30:32",
+    "title": "Planefence, off-site backups, live release notes and roadmap",
+    "added": [
+      "Planefence and Plane-Alert: which aircraft flew over Arkansas, with photos, airlines and routes, and a list of interesting aircraft (military, government, rare); in the Tools menu, with notifications (Discord, Mastodon and others) set up on an administrator-only configuration page. It arrives with Update Now, with no files to edit by hand",
+      "Off-site backups: Admin > Backups > Off-Site Copy sends encrypted copies of everything (the portal database with all flights and history, the hub's secret keys and settings, Grafana, statistics history and the hub's traffic history) to an SFTP server, S3 bucket, NAS share or WebDAV, with a small daily copy and a big weekly copy as separate files, connection test, copy-now buttons and a history of runs",
+      "Restore Part: restore only some areas of a backup (accounts, stations, flight history, alerts, settings...), or bring back one person, station, role or alert rule with what belongs to it, in merge or replace mode, with a safety backup first. The off-site restore helper can also unpack only chosen parts",
+      "Aircraft Type filter on the live map: helicopters, jets, turboprops, piston props, large and heavy, light aircraft, gliders and balloons, drones, ground vehicles and unknown type, with counts",
+      "A public Roadmap page (/roadmap): what is coming next, in progress, planned and just released, filterable by area",
+      "Live Release Notes and Roadmap: both pages read their lists from the project's repository, so they update as soon as work is pushed instead of staying frozen at the last release (Admin > Updates > Live Content)",
+      "A Support page (hidden until an administrator sets it up in Admin > Support): why donations help, what the network costs to run with a monthly progress bar, links to Ko-fi and PayPal, and an Equipment Fund wish list for antennas, receivers and mesh nodes the project installs at host sites. The portal only links out and never handles payment details"
+    ],
+    "improved": [
+      "The keyboard shortcuts help opens as a popup in the middle of the screen, on top of everything",
+      "Registration, change password, reset and forgot-password forms list their requirements and tick them as you type, including user name rules, email format and whether the two passwords match",
+      "Every section of the live map's filters (Stations, Show, Data Source, Aircraft Flags, Aircraft Type, Altitude, Display and View, Layers) folds up like the sections of the aircraft details card, remembers whether you left it open, and shows a small count of the filters active in it"
+    ],
+    "fixed": [
+      "Am I Feeding said MLAT was not connected for a claimed station even when it was working"
+    ],
+    "security": []
+  },
+  {
+    "version": "1.0.24",
+    "released": "2026-10-06T14:00:05",
+    "title": "Live map upgrades, MLAT user names, release notes",
+    "added": [
+      "MLAT User Name on the station page: stations that already use a different MLAT_USER are recognised by it (the Station ID is used when it is empty)",
+      "Units on the live map: aeronautical (ft, kt, nm), metric or imperial, chosen per visitor with a site default in Settings",
+      "Keyboard shortcuts on the live map with the same keys as tar1090 (F, I, U, V, L, O, K, B, R, H, Q, E, arrows, / and ?), plus a help panel",
+      "Search on the live map takes several terms with commas, * wildcards and ! to leave terms out, and also matches squawk and model",
+      "Aircraft Flags filter (military, interesting, PIA, LADD) in the live map's filter card",
+      "Jump to a place: type coordinates, an aircraft hex or an airport code in the search box and press Enter",
+      "Links to a view: the live map reads position, zoom, filters, units and the selected aircraft from the address, and Copy Link to This View builds one",
+      "Altitude chart and Export KML on the aircraft details card",
+      "Wide / Narrow button for the details card, a hover block on aircraft, a geometric-altitude label field and Reset My Map Settings",
+      "This Release Notes page"
+    ],
+    "improved": [
+      "Admin > Status says why a service failed, and its overall banner counts every row",
+      "The How to Feed page now says plainly that ultrafeeder users need nothing extra for MLAT, and explains UAT correctly: a station's 978 MHz aircraft travel through its normal feed, so no extra line, port or setting is needed",
+      "Data Source filter and the aircraft card treat UAT and ADS-R as one source, as the hub reports them"
+    ],
+    "fixed": [
+      "The stack updater clears a leftover parked container and retries, which fixes the 'portal FAILED' row on Admin > Status",
+      "A test that used a fixed date stopped working when the date arrived"
+    ],
+    "security": []
+  },
+  {
+    "version": "1.0.23",
+    "released": "2026-10-06T02:03:39",
+    "title": "MLAT everywhere, service status, new feed page",
+    "added": [
+      "MLAT Network page: stations on a map, click one to see the stations it is synchronised with, coloured by how well their clocks agree",
+      "How an aircraft is tracked: the details card says whether the position came from ADS-B, MLAT, UAT/ADS-R, TIS-B or Mode S only, explains it, and for MLAT shows how many stations hear it",
+      "MLAT status in plain words on My Station (with what to fix), the public Feeders list and station pages, the public API, the feed check and the admin pages",
+      "Service Status pages: a plain-words page for everyone (/status) and an in-depth one for administrators with the reason behind each state",
+      "Data Source filter on the live map (ADS-B, MLAT, UAT/ADS-R, TIS-B, Mode S, other) with live counts",
+      "The hub itself is now managed by the stack updater, with the MLAT results input connected"
+    ],
+    "improved": [
+      "The How to Feed page was rewritten: how ADS-B, MLAT and UAT work, setup for new and existing stations, ports, troubleshooting and privacy",
+      "Nginx Proxy Manager is told to reload after any service is replaced, so a replaced container is never answered with a stale address"
+    ],
+    "fixed": [],
+    "security": []
+  },
+  {
+    "version": "1.0.22",
+    "released": "2026-10-06T00:34:47",
+    "title": "Stack updater and MLAT server",
+    "added": [
+      "Stack updater (adsb-stack): one service that keeps every hub service in step with the compose files carried in its image, so new services appear on the hub with Update Now and no commands",
+      "MLAT server (adsb-mlat) running the upstream mlat-server, with Admin > MLAT showing connected stations and their health (never their locations)"
+    ],
+    "improved": [
+      "Update Now asks the stack updater to apply new services before Watchtower replaces images",
+      "Flight Progress draws the right aircraft shape for each type instead of one generic icon"
+    ],
+    "fixed": [],
+    "security": []
+  },
+  {
+    "version": "1.0.21",
+    "released": "2026-10-05T22:48:19",
+    "title": "Secrets and privacy hardening",
+    "added": [],
+    "improved": [],
+    "fixed": [],
+    "security": [
+      "Two-factor secrets and webhook addresses are stored sealed, recovery codes are keyed, backups are encrypted",
+      "Unknown user names at sign-in are masked, an emergency command-line tool exists for administrators, and a privacy crawl test checks that exact locations are never published"
+    ]
+  },
+  {
+    "version": "1.0.20",
+    "released": "2026-10-05T22:03:32",
+    "title": "Two-factor sign-in",
+    "added": [
+      "Two-factor sign-in with an authenticator app, ten one-time recovery codes, administrator reset and a setting to require it for administrators"
+    ],
+    "improved": [],
+    "fixed": [
+      "Sky View no longer steps backward between position reports"
+    ],
+    "security": []
+  },
+  {
+    "version": "1.0.19",
+    "released": "2026-10-05T21:47:02",
+    "title": "Alert webhooks and sign-in security",
+    "added": [
+      "Alert webhooks for Discord, Slack, ntfy or any JSON receiver, with limits and protection against unsafe addresses, so alerts work without email"
+    ],
+    "improved": [],
+    "fixed": [],
+    "security": [
+      "A list of your sign-ins with Sign Out per device, a per-address sign-in throttle, browser security headers, and an audit entry when an administrator signs in from a new address"
+    ]
+  },
+  {
+    "version": "1.0.18",
+    "released": "2026-10-05T21:18:36",
+    "title": "Flight History",
+    "added": [
+      "Flight History: the portal keeps its own log of every flight it hears, with a History page, period pickers and earlier-flight tracks; the live map's search suggests earlier flights",
+      "Station statistics links with a Station selector, and the Network Feeders dashboard in the Tools menu"
+    ],
+    "improved": [
+      "Highlight for aircraft matching your alert rules, a Watch This Aircraft button, a station coverage layer and airport weather (METAR) on airport markers",
+      "More reliable release script"
+    ],
+    "fixed": [],
+    "security": []
+  },
+  {
+    "version": "1.0.16",
+    "released": "2026-10-05T20:16:33",
+    "title": "Sky View and weather updates",
+    "added": [
+      "Sky View: a live 3D view from an aircraft with terrain, drag to look around, click another aircraft to jump to it, aircraft drawn at their true altitude, and a heading tape",
+      "Weather layers update automatically, with an Update Now button and an updated time per layer"
+    ],
+    "improved": [],
+    "fixed": [
+      "Sky View no longer rewinds between reports"
+    ],
+    "security": []
+  },
+  {
+    "version": "1.0.14",
+    "released": "2026-10-05T18:56:10",
+    "title": "Weather panel",
+    "added": [
+      "Weather panel with a tile for each layer, live preview, opacity slider, a 50-minute NEXRAD radar loop and winds aloft worked out from aircraft readings"
+    ],
+    "improved": [],
+    "fixed": [],
+    "security": []
+  },
+  {
+    "version": "1.0.13",
+    "released": "2026-10-05T18:19:36",
+    "title": "Airline logos and military emblems",
+    "added": [
+      "Real airline logos and real military service emblems on the live map, in the list (Airline column), on Flight Search and on Flight Progress"
+    ],
+    "improved": [
+      "Grafana dashboards"
+    ],
+    "fixed": [],
+    "security": []
+  },
+  {
+    "version": "1.0.12",
+    "released": "2026-10-05T17:49:52",
+    "title": "Grafana sign-in message",
+    "added": [],
+    "improved": [],
+    "fixed": [
+      "A refused Grafana login now gets a clear hint about the password"
+    ],
+    "security": []
+  },
+  {
+    "version": "1.0.11",
+    "released": "2026-10-05T17:42:21",
+    "title": "Map labels",
+    "added": [
+      "Labels on aircraft icons with airline logos, choose-your-own fields, size and background, the route, a selected-aircraft beacon, and the planned route on the map with progress"
+    ],
+    "improved": [
+      "Details card with folded sections; the All trails option honours the filters"
+    ],
+    "fixed": [
+      "Grafana setup now logs every step and says why it was refused"
+    ],
+    "security": []
+  },
+  {
+    "version": "1.0.10",
+    "released": "2026-10-05T16:57:04",
+    "title": "About page and updates page",
+    "added": [
+      "Public About page"
+    ],
+    "improved": [
+      "The version, update check and Update Now moved to Admin > Updates"
+    ],
+    "fixed": [
+      "The switch command could use a cached older image"
+    ],
+    "security": []
+  },
+  {
+    "version": "1.0.9",
+    "released": "2026-10-05T16:29:29",
+    "title": "One-command hub switch",
+    "added": [
+      "One command on the hub switches it to automatic updates; the hub's compose files now travel inside the portal image"
+    ],
+    "improved": [],
+    "fixed": [],
+    "security": []
+  },
+  {
+    "version": "1.0.8",
+    "released": "2026-10-05T16:06:26",
+    "title": "Automatic updates",
+    "added": [
+      "Automatic updates (Watchtower) every night at 4 a.m. and an Update Now button for administrators",
+      "Grafana and Prometheus images that carry their own configuration and dashboards"
+    ],
+    "improved": [],
+    "fixed": [],
+    "security": []
+  },
+  {
+    "version": "1.0.7",
+    "released": "2026-10-05T15:51:12",
+    "title": "Phone-friendly pages",
+    "added": [
+      "Mobile pass 1: a drawer menu, phone layouts for every page, and a live map with bottom sheets and a slide-up list"
+    ],
+    "improved": [],
+    "fixed": [
+      "Forms with a field named 'action' posted to the wrong address, which made Assign role fail with a 404"
+    ],
+    "security": []
+  },
+  {
+    "version": "1.0.6",
+    "released": "2026-10-05T15:14:10",
+    "title": "Security settings",
+    "added": [],
+    "improved": [],
+    "fixed": [],
+    "security": [
+      "Session length limits, inactivity sign-out with a warning, administrator limits, password rules and age, and Sign Everyone Out"
+    ]
+  },
+  {
+    "version": "1.0.5",
+    "released": "2026-10-05T14:51:51",
+    "title": "Expired form tokens",
+    "added": [],
+    "improved": [],
+    "fixed": [
+      "Admin pages left open for an hour failed on the next action with 'The request could not be completed'; form tokens now last as long as the session, and refused actions explain why"
+    ],
+    "security": []
+  },
+  {
+    "version": "1.0.4",
+    "released": "2026-10-05T14:15:36",
+    "title": "Quieter map",
+    "added": [],
+    "improved": [
+      "Aircraft labels are off by default"
+    ],
+    "fixed": [],
+    "security": []
+  },
+  {
+    "version": "1.0.3",
+    "released": "2026-10-05T13:38:44",
+    "title": "Range, recovery and search",
+    "added": [
+      "Per-station range, account recovery by email or by a claimed station's UUID, delete your own account, a Contacts page, an alert notice, Hide Others on the live map, flight search, and sign-in by user name or email"
+    ],
+    "improved": [],
+    "fixed": [],
+    "security": []
+  },
+  {
+    "version": "1.0.2",
+    "released": "2026-10-05T04:08:35",
+    "title": "Email change and trail gaps",
+    "added": [
+      "Change your email address in your profile (password required)"
+    ],
+    "improved": [
+      "Trails break at gaps and draw short gaps dashed, like the classic map"
+    ],
+    "fixed": [],
+    "security": []
+  },
+  {
+    "version": "1.0.1",
+    "released": "2026-10-05T03:38:00",
+    "title": "Trails and Grafana fixes",
+    "added": [],
+    "improved": [
+      "Trail labels are off by default"
+    ],
+    "fixed": [
+      "The Grafana heatmap opened mid-ocean instead of over the network's area, and its maps row opened collapsed",
+      "The trail now reaches the aircraft (recent and full traces merged with a live tail)"
+    ],
+    "security": []
+  },
+  {
+    "version": "1.0.0",
+    "released": "2026-10-05T02:40:16",
+    "title": "First release",
+    "added": [
+      "Accounts, sign-in, roles and permissions, an audit log, sign-in history and an administrator area",
+      "Feeder tracking, claiming a station, station IDs, station pages, and a public Feeders list with map, rankings and JSON API that applies each owner's privacy choice",
+      "How to Feed guide with an Am I Feeding check",
+      "The live map built in: classic aircraft icons, columns, filters, a full details card with photo, make and model and route, trails, layers from tar1090's sources, radar, an Arkansas chart background and per-station views",
+      "Heatmap and Replay tools, embedded tools in the menu, Flight Progress page, Statistics Dashboard and Grafana with the Ultrafeeder dashboard",
+      "Aircraft alert rules, airport data and pages, backups with restore, SMTP settings, and display preferences",
+      "The release process: a build on every change, a Promote to stable step and an update check"
+    ],
+    "improved": [],
+    "fixed": [],
+    "security": []
+  }
+]

@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}MLAT Network{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ leaflet_base }}/leaflet.css" crossorigin="anonymous">
+<h1>MLAT <span>Network</span></h1>
+<div class="sub">Some aircraft do not broadcast their position. When three or more stations hear the same aircraft, the tiny differences in when each one received the signal give its location. This is the set of stations that take part.</div>
+
+{% if not enabled %}
+<div class="panel" style="margin-top:14px"><p style="margin:0">MLAT is not switched on for this network yet.</p></div>
+{% elif net is none %}
+<div class="panel" style="margin-top:14px"><p style="margin:0">The MLAT service is not reporting right now. Check the <a href="/status">service status</a> page.</p></div>
+{% else %}
+<div class="tiles">
+  <div class="panel tile"><div class="tv">{{ net.stations | length }}</div><div class="tl">Stations Connected</div></div>
+  <div class="panel tile"><div class="tv">{{ net.working }}</div><div class="tl">Working Together</div></div>
+</div>
+
+<div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:14px;align-items:stretch">
+  <div class="panel" style="flex:0 0 300px;max-width:100%;display:flex;flex-direction:column;gap:10px">
+    <input type="search" id="q" placeholder="Search for a station" aria-label="Search for a station">
+    <div id="list" style="max-height:260px;overflow:auto"></div>
+    <div id="detail" class="dim" style="font-size:.9rem">Click a station on the map or in the list to see the stations it is synchronised with. Line colour shows how well the two clocks agree.</div>
+    <div class="dim" style="font-size:.78rem">
+      <span style="color:#3ee6a8">&#9632;</span> good &nbsp; <span style="color:#f5c542">&#9632;</span> fair &nbsp; <span style="color:#ff7a59">&#9632;</span> poor<br>
+      Station places are approximate, as each owner chooses.
+    </div>
+  </div>
+  <div class="panel" style="flex:1 1 420px;padding:0;overflow:hidden;min-height:480px"><div id="mlatmap" style="height:100%;min-height:480px"></div></div>
+</div>
+
+<script src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script>
+<script src="/static/touchhit.js"></script>
+<script>
+(function () {
+  var NET = {{ net | tojson }}, S = NET.stations, byId = {};
+  var COL = {working: "#3ee6a8", syncing: "#f5c542", problem: "#ff7a59", off: "#8a9bb3"}, QCOL = {good: "#3ee6a8", fair: "#f5c542", poor: "#ff7a59"};
+  var map = L.map("mlatmap").setView([{{ map_lat }}, {{ map_lon }}], {{ map_zoom }});
+  L.tileLayer({{ tile_url | tojson }}, {maxZoom: 19, attribution: {{ tile_attr | tojson }}}).addTo(map);
+  var lines = L.layerGroup().addTo(map), markers = {};
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]; }); }
+  S.forEach(function (s) {
+    byId[s.id] = s;
+    if (s.lat == null) return;
+    var col = COL[s.state] || COL.off;
+    if (s.approximate) L.circle([s.lat, s.lon], {radius: s.radius_m || {{ approx_radius_m }}, color: col, weight: 2, fillOpacity: .18, interactive: false}).addTo(map);   // the area its owner chose to show
+    // a big dot you cannot miss: a soft halo, a white edge and the state's color inside (also for stations shown only approximately, whose area circle is tiny at state zoom)
+    L.circleMarker([s.lat, s.lon], {radius: 17, color: col, weight: 0, fillColor: col, fillOpacity: .28, interactive: false}).addTo(map);
+    var m = L.circleMarker([s.lat, s.lon], {radius: 10, color: "#ffffff", weight: 3, fillColor: col, fillOpacity: 1}).addTo(map);
+    m.on("click", function () { pick(s.id); });
+    m.bindTooltip(esc(s.id));
+    markers[s.id] = m;
+  });
+  function km(v) { return v == null ? "-" : ArkUnits.text.dist(v, 1); }
+  function pick(id) {
+    var s = byId[id]; if (!s) return;
+    lines.clearLayers();
+    s.peers.forEach(function (p) {
+      var o = byId[p.id];
+      if (s.lat != null && o && o.lat != null) L.polyline([[s.lat, s.lon], [o.lat, o.lon]], {color: QCOL[p.quality], weight: 2, opacity: .8}).addTo(lines);
+    });
+    var STATE = {working: "Working", syncing: "Connected, waiting for peers", problem: "Sync problem", off: "Not connected"};
+    document.getElementById("detail").innerHTML = '<b style="font-size:1.05rem">' + esc(s.id) + "</b>" + (s.name ? '<br><span>' + esc(s.name) + "</span>" : "") +
+      "<br><b># synchronised peers:</b> " + s.peer_count + "<br><b>Status:</b> " + STATE[s.state] +
+      "<br><b>Closest peer:</b> " + km(s.closest_km) + "<br><b>Farthest peer:</b> " + km(s.farthest_km) +
+      '<br><a href="/feeders/' + encodeURIComponent(s.id) + '">View station</a>';
+    var pts = [[s.lat, s.lon]].concat(s.peers.map(function (p) { return byId[p.id]; }).filter(function (o) { return o && o.lat != null; }).map(function (o) { return [o.lat, o.lon]; })).filter(function (q) { return q[0] != null; });
+    if (pts.length > 1) map.fitBounds(pts, {padding: [40, 40], maxZoom: 10}); else if (pts.length) map.panTo(pts[0]);
+  }
+  function list() {
+    var q = document.getElementById("q").value.toLowerCase();
+    document.getElementById("list").innerHTML = S.filter(function (s) { return !q || (s.id + " " + s.name).toLowerCase().indexOf(q) >= 0; }).map(function (s) {
+      return '<div><a href="#" data-id="' + esc(s.id) + '"><span style="color:' + (COL[s.state] || COL.off) + '">&#9679;</span> <b class="mono">' + esc(s.id) + "</b></a> <span class=\"dim\">" + esc(s.name) + "</span></div>";
+    }).join("") || '<div class="dim">No station found.</div>';
+  }
+  document.getElementById("list").addEventListener("click", function (e) { var a = e.target.closest("a[data-id]"); if (a) { e.preventDefault(); pick(a.dataset.id); } });
+  document.getElementById("q").addEventListener("input", list);
+  list();
+  var all = S.filter(function (s) { return s.lat != null; }).map(function (s) { return [s.lat, s.lon]; });
+  if (all.length > 1) map.fitBounds(all, {padding: [40, 40], maxZoom: 9});
+})();
+</script>
+{% endif %}
+{% endblock %}

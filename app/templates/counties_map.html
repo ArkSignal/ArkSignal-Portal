@@ -1,0 +1,395 @@
+{% extends "base.html" %}
+{% from "partials/_mapshell.html" import shell, boot with context %}
+{% block title %}County Map{% endblock %}
+{% block main_class %}wide{% endblock %}
+{% block content %}
+{# The same map page as the live (aircraft) map and the Weather Map: partials/_mapshell.html carries the shared layout; the counties are drawn and shaded below. #}
+{% call shell("Search a county", "Search counties", "Counties", "County Page", map_type="counties") %}
+    <details class="fsec" data-k="show" open><summary><span class="ic">▥</span>Shade By<span class="fbadge" data-fb="show"></span></summary><div class="fbody">
+      <select id="cm-metric" aria-label="What the counties are shaded by">{% for k, l in metrics %}<option value="{{ k }}">{{ l }}</option>{% endfor %}<option value="trauma_region">Trauma Region (Arkansas)</option><option value="trauma_zone">ADH Trauma Zone (Arkansas)</option></select>
+      <div class="lv-row"><label>Show Counties As <select id="cm-look"><option value="shade">Shaded</option><option value="outline">Outlined</option><option value="both">Shaded and outlined</option><option value="plain">Plain outline (no data)</option></select></label></div>
+      <div class="lv-row"><label><input type="checkbox" id="cm-none"> Only counties with none</label></div>
+      <div class="lv-row"><label title="Highlight a county and show its name and figure when the pointer is over it"><input type="checkbox" id="cm-hover"> Highlight and Name on Hover</label></div>
+      <div class="help dim" style="font-size:.78rem;margin-top:6px">Each county is colored by how many there are inside it. Click a county for its page.</div>
+    </div></details>
+    <details class="fsec" data-k="over" open><summary><span class="ic">◉</span>Show on the Map<span class="fbadge" data-fb="over"></span></summary><div class="fbody">
+      <div class="lv-sub">Limit To</div>
+      <select id="cm-lim" aria-label="Limit every point on the map to a state, a county or the area around a place"><option value="all">Everywhere</option><option value="state">One state</option><option value="county">One county</option><option value="near">Near a ZIP code or place</option></select>
+      <select id="cm-lim-state" aria-label="State" style="display:none;margin-top:6px"></select>
+      <select id="cm-lim-county" aria-label="County" style="display:none;margin-top:6px"></select>
+      <div id="cm-lim-near" style="display:none;margin-top:6px"><div class="lv-row"><input type="text" id="cm-lim-q" placeholder="ZIP code, city or address" style="flex:1"><button class="btn small neutral" type="button" id="cm-lim-go" style="margin:0">Find</button></div>
+        <div class="lv-row"><label>Within <select id="cm-lim-r"><option value="5">5 miles</option><option value="10">10 miles</option><option value="25" selected>25 miles</option><option value="50">50 miles</option><option value="100">100 miles</option></select></label></div></div>
+      <div id="cm-lim-note" class="dim" style="font-size:.78rem;margin:4px 0 8px"></div>
+      <div id="cm-over" class="dim" style="font-size:.82rem">Loading...</div>
+      <div class="lv-row"><label>Icon Size <select id="cm-dot"><option value="75">Small</option><option value="100">Medium</option><option value="130">Large</option><option value="170">Extra large</option></select></label></div>
+      <div class="lv-sub">Hospital Drive-Time Rings</div>
+      <select id="cm-rings" aria-label="Which hospitals get drive-time rings"><option value="none">None</option><option value="t12">Level I and II trauma centers</option><option value="t">All trauma centers</option></select>
+      <div id="cm-ringnote" class="dim" style="font-size:.78rem;margin-top:4px">Rings of 15, 30, 60 and 90 minutes by road, our own estimate. Click a hospital to add its rings or to see drive times from it.</div>
+    </div></details>
+{% endcall %}
+{{ boot("/counties/", "cm") }}
+<script src="/static/touchhit.js"></script>
+<script src="/static/colocate.js"></script>
+<script src="/static/labelfit.js"></script>
+<script src="/static/sondeicons.js"></script>
+
+<script>
+(function () {
+  var S = ArkShell, $ = S.$, esc = S.esc;
+  var CFG = {{ {"metric": default_metric, "hover": county_hover, "labelScale": label_scale | int, "labelBg": label_bg, "lat": map_lat | float, "lon": map_lon | float, "zoom": map_zoom | int, "wxRefresh": wx_refresh | int} | tojson }};
+  var METRICS = {{ metrics | tojson }}, LABEL = {}; METRICS.forEach(function (m) { LABEL[m[0]] = m[1]; });
+  var CATS = [["trauma_region", "Trauma Region"], ["trauma_zone", "ADH Trauma Zone"]], TR = null; CATS.forEach(function (m) { LABEL[m[0]] = m[1]; });   // the trauma system's own groups: a color per region or zone, not a count
+  function cat() { return state.metric.indexOf("trauma_") === 0; }
+  function trOf(s) { return TR && TR.counties[s.geoid]; }
+  function catColor(s) { var t = trOf(s); if (!t) return null; var g = cat() && state.metric === "trauma_zone" ? TR.zones.filter(function (z) { return z.key === t.zone; })[0] : TR.regions.filter(function (r) { return r.key === t.region; })[0]; return g ? g.color : null; }
+  function catText(s) { var t = trOf(s); return !t ? "" : state.metric === "trauma_zone" ? "Zone " + t.zone : t.region; }
+  var q = new URLSearchParams(location.search);
+  var map = L.map("lvmap", {zoomControl: false, zoomSnap: 0.25}).setView([parseFloat(q.get("lat")) || 34.9, parseFloat(q.get("lon")) || -92.4], parseFloat(q.get("zoom")) || 7);
+  L.control.zoom({position: "bottomright"}).addTo(map);
+  var shell = S.start({map: map, layers: {{ layers | tojson }}, key: "cm", url: "/counties/", cfg: {tile: {{ tile_url | tojson }}, attr: {{ tile_attr | tojson }}, labelScale: CFG.labelScale, labelBg: CFG.labelBg, wxRefresh: CFG.wxRefresh},
+    share: function () { return {show: state.metric, county: cardKey || "", q: state.q, limit: LIM.mode === "state" ? "state:" + LIM.state : LIM.mode === "county" ? "county:" + LIM.county : LIM.mode === "near" && LIM.lat != null ? "near:" + LIM.lat.toFixed(4) + ":" + LIM.lon.toFixed(4) + ":" + LIM.miles : ""}; }, legend: function () { return legend(); }});
+
+  var state = {metric: METRICS.concat([["trauma_region"], ["trauma_zone"]]).some(function (m) { return m[0] === q.get("show"); }) ? q.get("show") : CFG.metric, none: false, q: q.get("q") || "", labels: S.pref("cm.labels") || "both", look: (S.pref("cm.look") === "lines" ? "plain" : S.pref("cm.look")) || "shade"};
+  var shapes = [], counts = {}, layers = {}, cardKey = null, sortKey = "name", sortDir = 1;
+  $("cm-metric").value = state.metric; $("q").value = state.q; $("cm-look").value = state.look;
+  $("m-display").innerHTML = '<div class="lv-sub">County Labels</div><select id="cm-labels"><option value="both">Name and count</option><option value="count">Count only</option><option value="name">Name only</option><option value="none">No labels</option></select>';
+  $("cm-labels").value = state.labels;
+
+  // ---- colors: one step for "none", then four steps up to the largest count
+  var COLORS = ["#2d6a9f", "#2fa3c7", "#33cfc0", "#6be28f", "#c8f06a"], ZERO = "#2a3447", ZERO_BAD = "#8a3347";
+  function steps() {
+    var max = 0; Object.keys(counts).forEach(function (k) { max = Math.max(max, val(k)); });
+    if (max <= 1) return {max: max, cuts: [1]};
+    var c = [1, Math.ceil(max * .25), Math.ceil(max * .5), Math.ceil(max * .75)].filter(function (v, i, a) { return v > 0 && a.indexOf(v) === i; });
+    return {max: max, cuts: c};
+  }
+  function val(k) { var c = counts[k]; return c ? (c[state.metric] || 0) : 0; }
+  function colorOf(v, st) {
+    if (v <= 0) return state.metric === "hospitals" || state.metric === "trauma" ? ZERO_BAD : ZERO;
+    var i = 0; st.cuts.forEach(function (c, k) { if (v >= c) i = k; });
+    return COLORS[Math.min(COLORS.length - 1, i + (st.cuts.length < COLORS.length ? COLORS.length - st.cuts.length : 0))];
+  }
+  var onlyCounty = q.get("only") === "1" && q.get("county") ? q.get("county") : "";   // "Show on County Map" from a county's page: that county alone, until the chip is cleared
+  function matches(s) { return (!onlyCounty || s.geoid === onlyCounty) && (!state.q || s.name.toLowerCase().indexOf(state.q.toLowerCase()) >= 0); }
+  function visible(s) { return !(state.none && val(s.geoid) > 0); }
+
+  function style(s, st) {
+    if (onlyCounty && s.geoid !== onlyCounty) return {opacity: 0, fillOpacity: 0, weight: 0};
+    var v = val(s.geoid), dim = !matches(s) || !visible(s), c = colorOf(v, st), sel = s.geoid === cardKey;
+    if (cat()) { c = catColor(s) || ZERO; v = catColor(s) ? 1 : 0; }
+    if (state.look === "lines") return {color: "#d8e6ff", weight: 1.1, opacity: .7, fill: false, fillOpacity: 0};   // exactly the County outlines box of every other map: a thin line, nothing else
+    if (state.look === "plain") return {color: sel ? "#fff" : "#9fb6d3", weight: sel ? 3.5 : 1.8, fillColor: "#9fb6d3", fillOpacity: sel ? .08 : 0, opacity: dim ? .3 : .95};   // the county lines alone: no color, no figures
+    if (state.look === "outline") return {color: sel ? "#fff" : (v <= 0 ? "#7d8ca3" : c), weight: sel ? 4 : 2.5, fillColor: c, fillOpacity: sel ? .08 : 0, opacity: dim ? .25 : 1};   // the color is on the line and the county itself stays clear
+    if (state.look === "both") return {color: sel ? "#fff" : (v <= 0 ? "#7d8ca3" : c), weight: sel ? 4 : 2.5, fillColor: c, fillOpacity: dim ? .1 : .45, opacity: dim ? .3 : 1};
+    return {color: sel ? "#fff" : "#0b1422", weight: sel ? 3 : 1, fillColor: c, fillOpacity: dim ? .12 : .72, opacity: dim ? .4 : 1};
+  }
+  function restyle() {
+    var st = steps();
+    shapes.forEach(function (s) { var l = layers[s.geoid]; if (l) { l.setStyle(style(s, st)); if (s.geoid === cardKey) l.bringToFront(); } });
+    renderLabels(); renderList(); renderBar(st); renderChips(); shell.renderLegend();
+    $("lv-altbar").style.display = (state.look === "plain" || state.look === "lines" || cat()) ? "none" : "";   // no color scale when the counties carry no color
+    $("lv-count").textContent = shapes.filter(function (s) { return matches(s) && visible(s); }).length + " of " + shapes.length + " counties";
+  }
+  var LE = ArkLabels.create(map);   // the shared label engine: counties with the biggest figures keep their label, no two labels overlap
+  function renderLabels() {
+    LE.begin(); if (state.labels === "none" || state.look === "lines") { LE.flush(); return; }
+    shapes.forEach(function (s) {
+      if (!matches(s) || !visible(s) || s.lat == null) return;
+      var v = val(s.geoid), t = cat() ? (state.labels === "name" || state.look === "plain" ? esc(s.base) : state.labels === "count" ? esc(catText(s)) : esc(s.base) + " <small>" + esc(catText(s)) + "</small>") : (state.labels === "name" || state.look === "plain") ? esc(s.base) : state.labels === "count" ? String(v) : esc(s.base) + " <small>" + v + "</small>";
+      LE.add({key: s.geoid, lat: s.lat, lon: s.lon, html: t, color: colorOf(v, steps()), side: "center", priority: -(+v || 0), onClick: function () { select(s.geoid, false); }});
+    });
+    LE.flush();
+  }
+  var hospWas = null;
+  function hospFar() { return window.innerWidth < 700 && map.getZoom() < 9; }
+  map.on("zoomend", function () { var f = hospFar(); if (f !== hospWas) { hospWas = f; if (typeof drawOver === "function" && overG.hospitals) drawOver("hospitals"); } });
+  function farOrNear() { $("lv").classList.toggle("z-far", map.getZoom() < 10); }   // the small H badge of a hospital with a heliport only shows zoomed in: zoomed out it doubled every icon
+  map.on("zoomend", farOrNear); farOrNear();
+  map.on("zoomend moveend", renderLabels);
+  function renderBar(st) {
+    var cols = COLORS.slice(-(st.cuts.length)), n = st.cuts.length, stops = ["none " + 0 + "% 0%"];
+    var parts = [], ticks = "";
+    parts.push(ZERO_BAD === colorOf(0, st) ? ZERO_BAD + " 0% " + (100 / (n + 1)) + "%" : ZERO + " 0% " + (100 / (n + 1)) + "%");
+    st.cuts.forEach(function (c, i) { parts.push(colorOf(c, st) + " " + ((i + 1) / (n + 1) * 100).toFixed(1) + "% " + ((i + 2) / (n + 1) * 100).toFixed(1) + "%"); ticks += '<span style="left:' + ((i + 1) / (n + 1) * 100).toFixed(1) + '%">' + c + (i === n - 1 ? "+" : "") + "</span>"; });
+    $("lv-altname").textContent = LABEL[state.metric] + " per county";
+    $("lv-altgrad").style.background = "linear-gradient(90deg," + parts.join(",") + ")"; $("lv-alticks").innerHTML = ticks;
+  }
+  function legend() {
+    if (cat() && TR) { var gs = state.metric === "trauma_zone" ? TR.zones : TR.regions; return "<h6>" + esc(LABEL[state.metric]) + "</h6>" + gs.map(function (g) { return '<div style="display:flex;gap:8px;align-items:center;margin:3px 0"><span style="width:18px;height:12px;border-radius:3px;background:' + g.color + ';display:inline-block"></span>' + esc(g.name) + "</div>"; }).join("") + '<div class="dim" style="font-size:.76rem;margin-top:6px">Regions and zones: Arkansas Department of Health. Outlines: US Census Bureau.</div>'; }
+    var st = steps(), h = "<h6>" + esc(LABEL[state.metric]) + "</h6>";
+    function row(c, t) { return '<div style="display:flex;gap:8px;align-items:center;margin:3px 0"><span style="width:18px;height:12px;border-radius:3px;background:' + c + ';display:inline-block"></span>' + esc(t) + "</div>"; }
+    h += row(colorOf(0, st), "None" + (state.metric === "hospitals" || state.metric === "trauma" ? " (no hospital here)" : ""));
+    st.cuts.forEach(function (c, i) { var nx = st.cuts[i + 1]; h += row(colorOf(c, st), nx ? c + (nx - 1 > c ? " to " + (nx - 1) : "") : c + " or more"); });
+    return h + '<div class="dim" style="font-size:.76rem;margin-top:6px">Outlines: US Census Bureau.</div>';
+  }
+  function renderChips() {
+    var c = [];
+    if (onlyCounty) c.push(["only", "Only: " + ((shapes.filter(function (x) { return x.geoid === onlyCounty; })[0] || {}).name || "one county")]);
+    if (state.q) c.push(["q", "Search: " + state.q]);
+    if (state.none) c.push(["none", "Only counties with none"]);
+    $("lv-chips").innerHTML = c.map(function (x) { return '<span class="chip" data-c="' + x[0] + '">' + esc(x[1]) + "<b>×</b></span>"; }).join("") + (c.length > 1 ? '<span class="chip chipall" data-c="all">Clear all</span>' : "");
+  }
+  $("lv-chips").addEventListener("click", function (e) {
+    var el = e.target.closest(".chip"); if (!el) return; var k = el.getAttribute("data-c");
+    if (k === "only" || k === "all") onlyCounty = "";
+    if (k === "q" || k === "all") { state.q = ""; $("q").value = ""; }
+    if (k === "none" || k === "all") { state.none = false; $("cm-none").checked = false; }
+    restyle();
+  });
+
+  // ---- list
+  var COLS = [["name", "County"], ["val", "Shown"]].concat(METRICS.map(function (m) { return [m[0], m[1]]; }), [["trauma_region", "Trauma Region"], ["trauma_zone", "Zone"]]);
+  $("lv-tbl").querySelector("thead").innerHTML = "<tr>" + COLS.map(function (c) { return '<th data-k="' + c[0] + '">' + esc(c[1]) + "</th>"; }).join("") + "</tr>";
+  $("lv-tbl").querySelector("thead").addEventListener("click", function (e) { var k = e.target.getAttribute("data-k"); if (!k) return; if (sortKey === k) sortDir = -sortDir; else { sortKey = k; sortDir = k === "name" ? 1 : -1; } renderList(); });
+  function cell(s, k) { if (k === "trauma_region") return trOf(s) ? trOf(s).region : ""; if (k === "trauma_zone") return trOf(s) ? trOf(s).zone : ""; return k === "name" ? s.base : k === "val" ? (cat() ? catText(s) : val(s.geoid)) : ((counts[s.geoid] || {})[k] || 0); }
+  function renderList() {
+    var rows = shapes.filter(function (s) { return matches(s) && visible(s); }).slice();
+    rows.sort(function (a, b) { var x = cell(a, sortKey), y = cell(b, sortKey); return (x < y ? -1 : x > y ? 1 : a.base < b.base ? -1 : 1) * sortDir; });
+    $("lv-tbl").querySelector("tbody").innerHTML = rows.map(function (s) {
+      return '<tr class="it' + (s.geoid === cardKey ? " sel" : "") + '" data-g="' + s.geoid + '"><td>' + esc(s.base) + "</td><td>" + esc(String(cell(s, "val"))) + "</td>" + METRICS.map(function (m) { return "<td>" + ((counts[s.geoid] || {})[m[0]] || 0) + "</td>"; }).join("") + "<td>" + esc(String(cell(s, "trauma_region"))) + "</td><td>" + esc(String(cell(s, "trauma_zone"))) + "</td></tr>";
+    }).join("") || '<tr><td colspan="' + COLS.length + '" class="dim" style="text-align:left;padding:12px">No counties match.</td></tr>';
+  }
+  $("lv-tbl").querySelector("tbody").addEventListener("click", function (e) { var tr = e.target.closest("tr.it"); if (tr) select(tr.getAttribute("data-g"), true); });
+
+  // ---- the card of the chosen county
+  function select(geoid, zoom) {
+    cardKey = geoid; var s = shapes.filter(function (x) { return x.geoid === geoid; })[0], card = $("lv-card");
+    if (!s) { card.style.display = "none"; $("lv").classList.remove("has-card"); restyle(); return; }
+    var c = counts[geoid] || {};
+    $("c-name").textContent = s.name; $("c-sub").textContent = s.state + " · " + Math.round(s.area).toLocaleString() + " square miles";
+    $("c-page").href = "/counties/" + s.slug;
+    $("c-body").innerHTML = '<div class="k">' + (trOf(s) ? "<div>Trauma Region</div><div>" + esc(trOf(s).region) + "</div><div>Trauma Zone</div><div>ADH Trauma Zone " + trOf(s).zone + "</div>" : "") + METRICS.map(function (m) { return "<div>" + esc(m[1]) + "</div><div>" + (c[m[0]] || 0) + "</div>"; }).join("") + "</div>";
+    card.style.display = "block"; $("lv").classList.add("has-card");
+    $("c-follow").onclick = function () { zoomTo(s); };
+    $("c-close").onclick = function () { cardKey = null; card.style.display = "none"; $("lv").classList.remove("has-card"); restyle(); };
+    if (zoom) zoomTo(s);
+    restyle();
+  }
+  // ---- Limit To: every point kind (and the rings, lists and counts that follow them) can be limited to one state, one county or the area around a ZIP code or place
+  var LIM = {mode: "all", state: "", county: "", lat: null, lon: null, miles: 25, label: ""};
+  function ringHas(poly, lat, lon) { var c = false, i, j; for (i = 0, j = poly.length - 1; i < poly.length; j = i++) { var xi = poly[i][0], yi = poly[i][1], xj = poly[j][0], yj = poly[j][1]; if ((yi > lat) !== (yj > lat) && lon < (xj - xi) * (lat - yi) / (yj - yi) + xi) c = !c; } return c; }
+  function countyAt(lat, lon) {
+    for (var k = 0; k < shapes.length; k++) {
+      var g = shapes[k].geometry, polys = g.type === "Polygon" ? [g.coordinates] : g.coordinates;
+      for (var m = 0; m < polys.length; m++) if (ringHas(polys[m][0], lat, lon)) return shapes[k];
+    }
+    return null;
+  }
+  function milesBetween(a, b, c, d) { var p = Math.PI / 180, h = Math.pow(Math.sin((c - a) * p / 2), 2) + Math.cos(a * p) * Math.cos(c * p) * Math.pow(Math.sin((d - b) * p / 2), 2); return 3958.76 * 2 * Math.asin(Math.sqrt(h)); }
+  function inLimit(it) {
+    if (LIM.mode === "all") return true;
+    if (LIM.mode === "near") return LIM.lat != null && milesBetween(LIM.lat, LIM.lon, it.lat, it.lon) <= LIM.miles;
+    if (it._cg === undefined) { var c = countyAt(it.lat, it.lon); it._cg = c ? c.geoid : ""; it._cs = c ? c.state : ""; }
+    return LIM.mode === "state" ? it._cs === LIM.state : it._cg === LIM.county;
+  }
+  function limitNote() {
+    var n = 0, t = 0; overLayers.forEach(function (l) { if (overOn[l.key]) { t += l.items.length; n += l.items.filter(inLimit).length; } });
+    $("cm-lim-note").textContent = LIM.mode === "all" ? "" : (LIM.mode === "near" && LIM.lat == null ? "Type a ZIP code, city or address and press Find." : "Showing " + n.toLocaleString() + " of " + t.toLocaleString() + " points of the kinds that are on.");
+  }
+  function limitChanged(zoom) {
+    var m = $("cm-lim").value; LIM.mode = m;
+    $("cm-lim-state").style.display = m === "state" ? "" : "none"; $("cm-lim-county").style.display = m === "county" ? "" : "none"; $("cm-lim-near").style.display = m === "near" ? "" : "none";
+    if (m === "state") LIM.state = $("cm-lim-state").value;
+    if (m === "county") LIM.county = $("cm-lim-county").value;
+    LIM.miles = parseInt($("cm-lim-r").value, 10) || 25;
+    S.pref("cm.lim", JSON.stringify({mode: LIM.mode, state: LIM.state, county: LIM.county, lat: LIM.lat, lon: LIM.lon, miles: LIM.miles, label: LIM.label}));
+    Object.keys(overG).forEach(drawOver); syncRings(); limitNote(); restyle();
+    if (zoom) {
+      if (m === "state") { var b = L.featureGroup(shapes.filter(function (x) { return x.state === LIM.state; }).map(function (x) { return layers[x.geoid]; }).filter(Boolean)); if (b.getLayers().length) map.fitBounds(b.getBounds(), {padding: [30, 30]}); }
+      else if (m === "county") { var c = shapes.filter(function (x) { return x.geoid === LIM.county; })[0]; if (c) zoomTo(c); }
+      else if (m === "near" && LIM.lat != null) map.fitBounds(L.circle([LIM.lat, LIM.lon], {radius: LIM.miles * 1609.34}).getBounds(), {padding: [30, 30]});
+    }
+  }
+  function fillLimitLists() {
+    var states = [], seen = {}; shapes.forEach(function (x) { if (!seen[x.state]) { seen[x.state] = 1; states.push(x.state); } });
+    $("cm-lim-state").innerHTML = states.map(function (st) { return '<option value="' + esc(st) + '">' + esc(st) + "</option>"; }).join("");
+    $("cm-lim-county").innerHTML = shapes.slice().sort(function (a, b) { return a.state === b.state ? (a.base < b.base ? -1 : 1) : (a.state < b.state ? -1 : 1); }).map(function (x) { return '<option value="' + x.geoid + '">' + esc(x.base) + ", " + esc(x.state) + "</option>"; }).join("");
+    try {
+      var sv = JSON.parse(S.pref("cm.lim") || "null"), qs = q.get("limit");
+      if (qs) { var p = qs.split(":"); sv = {mode: p[0], state: p[0] === "state" ? p[1] : "", county: p[0] === "county" ? p[1] : "", lat: p[0] === "near" ? parseFloat(p[1]) : null, lon: p[0] === "near" ? parseFloat(p[2]) : null, miles: parseInt(p[3], 10) || 25, label: ""}; }
+      if (sv && ["state", "county", "near"].indexOf(sv.mode) >= 0) { LIM = Object.assign(LIM, sv); $("cm-lim").value = LIM.mode; if (LIM.state) $("cm-lim-state").value = LIM.state; if (LIM.county) $("cm-lim-county").value = LIM.county; $("cm-lim-r").value = String(LIM.miles); if (LIM.label) $("cm-lim-q").value = LIM.label; limitChanged(false); }
+    } catch (e) {}
+  }
+  $("cm-lim").addEventListener("change", function () { limitChanged(true); });
+  $("cm-lim-state").addEventListener("change", function () { limitChanged(true); });
+  $("cm-lim-county").addEventListener("change", function () { limitChanged(true); });
+  $("cm-lim-r").addEventListener("change", function () { limitChanged(true); });
+  function findNear() {
+    var t = $("cm-lim-q").value.trim(); if (!t) return;
+    $("cm-lim-note").textContent = "Looking for it...";
+    fetch("/api/geocode.json?q=" + encodeURIComponent(t)).then(function (r) { return r.json(); }).then(function (d) {
+      var x = (d.results || d.places || [])[0]; if (!x) { $("cm-lim-note").textContent = "That place was not found."; return; }
+      LIM.lat = x.lat; LIM.lon = x.lon; LIM.label = t; limitChanged(true);
+    }).catch(function () { $("cm-lim-note").textContent = "The search could not be reached."; });
+  }
+  $("cm-lim-go").addEventListener("click", findNear);
+  $("cm-lim-q").addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); findNear(); } });
+  // ---- points on top of the counties: every kind the portal knows (hospitals, airports, stations, launch sites; repeaters and mesh nodes when they exist), each with its own switch
+  var overG = {}, overLayers = [], overOn = {}, dotScale = parseInt(S.pref("cm.dot"), 10) || (window.innerWidth < 700 ? 75 : 100);   // a phone starts with smaller icons
+  try { overOn = JSON.parse(S.pref("cm.over") || "{}"); } catch (e) {}
+  $("cm-dot").value = String(dotScale);
+  map.createPane("cmpts"); map.getPane("cmpts").style.zIndex = 450;
+  // the same symbols the other maps use: hospitals are the numbered trauma squares, airports the blue and gray dots, balloon sites, stations and landings the balloon icons
+  var COLO = {feeders: "adsb", weather: "weather", sonde_stations: "sonde"};   // the kinds that are fanned out when they stand at one place
+  var SONDE_KIND = {sonde_sites: "site", sonde_stations: "station", balloons: "landed"};
+  function markerOf(key, it, ly, r) {
+    if (key === "hospitals") {
+      var lvl = {I: 1, II: 2, III: 3, IV: 4, V: 5}[it.trauma], cls = "hico " + (lvl ? "t" + lvl : it.emergency ? "ed" : "noed") + (it.approx ? " approx" : "") + (it.heliport ? " heli" : "");
+      return L.marker([it.lat, it.lon], {pane: "cmpts", icon: L.divIcon({className: "", html: '<div class="' + cls + '" style="transform:scale(' + (dotScale / 100).toFixed(2) + ')">' + (it.trauma || "+") + "</div>", iconSize: [22, 22], iconAnchor: [11, 11]})});
+    }
+    if (key === "airports") {
+      var big = it.type === "large_airport" || it.type === "medium_airport";
+      return L.circleMarker([it.lat, it.lon], {pane: "cmpts", radius: (big ? 5 : 3.5) * dotScale / 100, color: "#e8eef7", weight: 1, fillColor: big ? "#4fb3ff" : "#8a9bb3", fillOpacity: .9});
+    }
+    if (SONDE_KIND[key] && window.SondeIcons)
+      return L.marker([it.lat, it.lon], {pane: "cmpts", icon: L.divIcon({className: "", iconSize: [0, 0], html: SondeIcons.marker(SONDE_KIND[key], ly.color, "", {size: Math.round((SondeIcons.touch() ? 34 : 26) * dotScale / 100), dim: !!it.approx})})});
+    return L.circleMarker([it.lat, it.lon], {pane: "cmpts", radius: r + 1, color: "#0b1422", weight: 1.5, fillColor: ly.color, fillOpacity: it.approx ? .55 : .9, dashArray: it.approx ? "2" : null});
+  }
+  // clicking a marker opens the popup the other maps show for that kind of point
+  function openPopup(key, it, m) {
+    var at = [it.lat, it.lon], name = esc(it.name || it.id), link = function (href, text) { return href ? '<br><a href="' + esc(href) + '">' + text + "</a>" : ""; };
+    var pop = L.popup().setLatLng(m.getLatLng ? m.getLatLng() : at);
+    if (key === "hospitals") {
+      pop.setContent("<b>" + name + "</b><br>" + esc((it.city || "") + (it.state ? ", " + it.state : "")) + (it.trauma ? " · Trauma level " + esc(it.trauma) : "") + (it.emergency ? " · Emergency" : "") + (it.approx ? " · approximate position" : "") + link(it.href, "Hospital page") + '<br><a href="#" data-dr="ring" data-f="' + esc(it.id) + '">' + (ringPick[it.id] ? "Hide" : "Show") + ' drive-time rings</a> · <a href="#" data-dr="from" data-f="' + esc(it.id) + '">Drive times from here</a>' + (it.heliport ? (it.href ? " · " : "<br>") + '<a href="/airports/' + encodeURIComponent(it.heliport) + '">Heliport ' + esc(it.heliport) + "</a>" : "")).openOn(map);
+    } else if (key === "airports") {
+      pop.setContent("<b>" + esc(it.id) + "</b> " + name + "<br>Loading...").openOn(map);
+      fetch("/api/airports/" + encodeURIComponent(it.id) + ".json").then(function (r) { return r.json(); }).then(function (x) {
+        var f = (x.frequencies || []).map(function (q) { return esc(q.type) + " " + q.mhz.toFixed(3); }).join("<br>");
+        var rw = (x.runways || []).map(function (q) { return esc(q.name) + (q.length_ft ? " " + q.length_ft.toLocaleString() + " ft" : ""); }).join(", ");
+        pop.setContent("<b>" + esc(x.ident) + "</b> " + esc(x.name) + "<br>" + esc(x.municipality || "") + (x.elevation_ft != null ? " · " + x.elevation_ft + " ft" : "") + (rw ? "<br>Runways: " + rw : "") + (f ? "<br>" + f : "") + link("/airports/" + encodeURIComponent(x.ident), "Airport page"));
+      }).catch(function () { pop.setContent("<b>" + esc(it.id) + "</b> " + name + link(it.href, "Airport page")); });
+    } else if (key === "feeders") {
+      pop.setContent("<b>" + esc(it.id) + "</b><br>" + name + link(it.href, "View station")).openOn(map);
+    } else if (key === "weather") {
+      var bits = [it.temp_f != null ? Math.round(it.temp_f) + " °F" : "", it.wind_mph != null ? "wind " + Math.round(it.wind_mph) + " mph" : ""].filter(Boolean).join(" · ");
+      pop.setContent("<b>" + name + "</b>" + (bits ? "<br>" + esc(bits) : "") + (it.online ? "" : "<br>Not reporting right now") + link(it.href, "Weather page")).openOn(map);
+    } else if (key === "sonde_stations") {
+      pop.setContent("<b>" + esc(it.id) + "</b>" + (it.reach_km ? "<br>Farthest balloon heard: " + ArkUnits.text.dist(it.reach_km) : "<br>No balloon heard yet") + (it.approx ? "<br>Approximate position" : "") + link(it.href, "Receiving station")).openOn(map);
+    } else if (key === "sonde_sites") {
+      pop.setContent("<b>" + name + "</b><br>Balloon launch site" + (it.nws ? " (National Weather Service)" : "") + link(it.href, "Launch site page")).openOn(map);
+    } else if (key === "balloons") {
+      pop.setContent("<b>" + esc(it.id) + "</b><br>Balloon landed here" + (it.type ? " · " + esc(it.type) : "") + link(it.href, "Flight page")).openOn(map);
+    } else if (it.href) location.href = it.href;
+  }
+  // ---- drive-time rings around hospitals: a set chosen here, plus any single hospital picked from its popup (rings are worked out once by the routing server and kept)
+  var ringG = {}, ringPick = {}, ringMode = S.pref("cm.rings") || "none", ringSeq = 0;
+  $("cm-rings").value = ringMode;
+  function hospItems() { var l = overLayers.filter(function (x) { return x.key === "hospitals"; })[0]; return l ? l.items.filter(inLimit) : []; }
+  function ringWanted() {
+    var ids = {};
+    hospItems().forEach(function (h) { if ((ringMode === "t" && h.trauma) || (ringMode === "t12" && (h.trauma === "I" || h.trauma === "II")) || ringPick[h.id]) ids[h.id] = h; });
+    return ids;
+  }
+  async function syncRings() {
+    var me = ++ringSeq, want = ringWanted(), ids = Object.keys(want), note = $("cm-ringnote"), few = ids.length <= 3;
+    Object.keys(ringG).forEach(function (k) { if (!want[k] || ringG[k].few !== few) { map.removeLayer(ringG[k].g); delete ringG[k]; } });
+    var todo = ids.filter(function (k) { return !ringG[k]; }), done = 0, failed = 0;
+    for (var i = 0; i < todo.length; i++) {
+      if (me !== ringSeq) return;
+      note.textContent = "Drawing rings " + (i + 1) + " of " + todo.length + "...";
+      var rings = null;
+      for (var t = 0; t < 8 && !rings; t++) {
+        try {
+          var d = await (await fetch("/api/hospitals/" + encodeURIComponent(todo[i]) + "/rings.json")).json();
+          if (d.enabled === false) { note.textContent = "Drive-time rings are switched off in Settings."; return; }
+          if (d.busy) { await new Promise(function (r) { setTimeout(r, 3000); }); continue; }
+          if (d.rings && Object.keys(d.rings).length) rings = d.rings; else break;
+        } catch (e) { break; }
+      }
+      if (me !== ringSeq) return;
+      if (!rings) { failed++; continue; }
+      ringG[todo[i]] = {g: ArkDrive.ringLayer(rings, {labels: few, fill: few ? .13 : .03, weight: few ? 4 : 3}).addTo(map), few: few}; done++;
+    }
+    note.textContent = failed ? failed + " hospital" + (failed === 1 ? "" : "s") + " could not be drawn (no position or the routing server did not answer)." : "Rings of 15, 30, 60 and 90 minutes by road, our own estimate. Click a hospital to add its rings or to see drive times from it.";
+  }
+  document.addEventListener("ark-drive-cleared", function () { ringMode = "none"; ringPick = {}; $("cm-rings").value = "none"; S.pref("cm.rings", "none"); syncRings(); });   // the Clear button on the map
+  $("cm-rings").addEventListener("change", function () { ringMode = this.value; S.pref("cm.rings", ringMode); syncRings(); });
+  map.getContainer().addEventListener("click", function (e) {
+    var a = e.target.closest && e.target.closest("a[data-dr]"); if (!a) return; e.preventDefault();
+    var id = a.getAttribute("data-f");
+    if (a.getAttribute("data-dr") === "ring") { ringPick[id] = !ringPick[id]; map.closePopup(); syncRings(); }
+    else { var h = hospItems().filter(function (x) { return x.id === id; })[0]; if (h) { map.closePopup(); ArkDrive.at(h.lat, h.lon, h.name); } }
+  });
+  function drawOver(key) {
+    var ly = overLayers.filter(function (x) { return x.key === key; })[0]; if (!ly) return;
+    if (overG[key]) { map.removeLayer(overG[key]); overG[key] = null; }
+    if (!overOn[key]) return;
+    var g = L.layerGroup([], /^(sonde_|balloons)/.test(key) ? {attribution: 'Radiosonde data: <a href="https://sondehub.org" target="_blank" rel="noopener">SondeHub</a> (CC BY-SA 2.0)'} : {}), r = Math.round(5 * dotScale / 100);   // balloons and receiving stations credit SondeHub in the map's credits while shown
+    var onlyItem = (/^([a-z_]+):(.+)$/.exec(q.get("only") || "") || [])[1] === key ? (/^([a-z_]+):(.+)$/.exec(q.get("only")))[2] : "";   // "Show on County Map" from a hospital's page: that one hospital alone
+    ly.items.forEach(function (it) {
+      if (onlyItem && String(it.id) !== onlyItem) return;
+      if (!inLimit(it)) return;
+      if (key === "hospitals" && hospFar() && !it.trauma) return;   // a phone zoomed out to the state shows the trauma centers; the rest appear as you zoom in
+      var m = markerOf(key, it, ly, r);
+      if (COLO[key] && window.Colocate) Colocate.track(map, COLO[key], m, it.lat, it.lon);
+      m.bindTooltip("<b>" + esc(it.name || it.id) + "</b>" + (it.city ? " · " + esc(it.city) : "") + (it.trauma ? " · Trauma level " + esc(it.trauma) : "") + (it.reach_km ? " · hears balloons up to " + ArkUnits.text.dist(it.reach_km) : "") + (it.approx ? " (approximate position)" : ""), {className: "lv-tip", direction: "top", offset: [0, key === "hospitals" ? -12 : SONDE_KIND[key] ? -16 : -r]});
+      m.on("click", function () { openPopup(key, it, m); });   // the same popup as the other maps (a page is one link inside it)
+      m.addTo(g);
+    });
+    g.addTo(map); overG[key] = g;
+  }
+  function swatch(l) {
+    if (l.key === "hospitals") return '<span class="hico t1" style="width:16px;height:16px;font-size:9px;border-radius:4px">I</span>';
+    if (l.key === "airports") return '<span style="width:11px;height:11px;border-radius:50%;background:#4fb3ff;border:1px solid #e8eef7;display:inline-block"></span>';
+    if (SONDE_KIND[l.key] && window.SondeIcons) return SondeIcons.svg(SONDE_KIND[l.key], l.color, 18);
+    return '<span style="width:12px;height:12px;border-radius:50%;background:' + l.color + ';display:inline-block;border:1.5px solid #0b1422"></span>';
+  }
+  function renderOver() {
+    var box = $("cm-over");
+    box.innerHTML = overLayers.map(function (l) { return '<label style="display:flex;gap:8px;align-items:center;margin:5px 0;cursor:pointer;color:var(--text)"><input type="checkbox" data-o="' + l.key + '" ' + (overOn[l.key] ? "checked" : "") + '><span style="width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;flex:none">' + swatch(l) + '</span><span><b>' + esc(l.label) + '</b> <span class="dim">' + l.items.length + '</span><br><span class="dim" style="font-size:.76rem">' + esc(l.note) + "</span></span></label>"; }).join("") || "Nothing to show yet.";
+    var n = overLayers.filter(function (l) { return overOn[l.key]; }).length; document.querySelector('[data-fb="over"]').textContent = n ? String(n) : "";
+  }
+  $("cm-over").addEventListener("change", function (e) { var k = e.target.getAttribute("data-o"); if (!k) return; overOn[k] = e.target.checked; S.pref("cm.over", JSON.stringify(overOn)); drawOver(k); renderOver(); });
+  $("cm-dot").addEventListener("change", function () { dotScale = parseInt(this.value, 10); S.pref("cm.dot", this.value); Object.keys(overG).forEach(drawOver); });
+  async function loadOver() {
+    try { overLayers = (await (await fetch("/api/counties/points.json")).json()).layers || []; renderOver(); overLayers.forEach(function (l) { drawOver(l.key); }); syncRings(); }
+    catch (e) { $("cm-over").textContent = "Could not load the points."; }
+  }
+  if (q.get("show")) q.get("show").split(",").forEach(function (k) { overOn[k] = true; });
+  window.cmOver = function () { return {layers: overLayers.map(function (l) { return [l.key, l.items.length]; }), on: Object.keys(overG).filter(function (k) { return overG[k]; })}; };
+  function zoomTo(s) { var l = layers[s.geoid]; if (l) map.fitBounds(l.getBounds(), {padding: [40, 40], maxZoom: 10}); }
+
+  // ---- wiring
+  $("cm-metric").addEventListener("change", function () { state.metric = this.value; restyle(); });
+  $("cm-look").addEventListener("change", function () { state.look = this.value; S.pref("cm.look", this.value); restyle(); });
+  $("cm-none").addEventListener("change", function () { state.none = this.checked; restyle(); });
+  $("cm-labels").addEventListener("change", function () { state.labels = this.value; S.pref("cm.labels", this.value); restyle(); });
+  $("q").addEventListener("input", function () { state.q = this.value.trim(); restyle(); });
+  $("q").addEventListener("keydown", function (e) { if (e.key === "Enter") { var m = shapes.filter(matches); if (m.length) select(m[0].geoid, true); } });
+  window.cmMap = map;
+  window.cmDebug = function () { return {counties: shapes.length, metric: state.metric, selected: cardKey, layers: Object.keys(layers).length, max: steps().max}; };
+
+  // pointing at a county highlights it and names it only when this is on: the site default (Settings > Counties, off), or the visitor's own choice
+  var hoverOn = S.pref("cm.hover") != null ? S.pref("cm.hover") === "1" : CFG.hover === "1";
+  $("cm-hover").checked = hoverOn;
+  function applyHover() {
+    Object.keys(layers).forEach(function (k) { var l = layers[k]; if (hoverOn) l.bindTooltip(l._tip, {className: "lv-tip", sticky: true}); else { l.unbindTooltip(); } });
+  }
+  $("cm-hover").addEventListener("change", function () { hoverOn = this.checked; S.pref("cm.hover", hoverOn ? "1" : "0"); applyHover(); restyle(); });
+  async function load() {
+    try {
+      var sh = await (await fetch("/api/counties/shapes.json")).json(); shapes = sh.counties || [];
+      if (!shapes.length) { $("lv-count").textContent = "No county outlines loaded yet. An administrator loads them under Data Updates."; return; }
+      counts = (await (await fetch("/api/counties/counts.json")).json()).counts || {};
+      try { TR = await (await fetch("/api/trauma/data.json")).json(); } catch (e) { TR = null; }   // the trauma regions and zones of the counties of Arkansas
+      var st = steps();
+      shapes.forEach(function (s) {
+        var l = L.geoJSON({type: "Feature", geometry: s.geometry}, {style: function () { return style(s, st); }}).addTo(map); layers[s.geoid] = l;
+        l.on("click", function () { if (state.look !== "lines") select(s.geoid, false); });
+        l.on("mouseover", function () { if (!hoverOn || state.look === "lines" || (onlyCounty && s.geoid !== onlyCounty)) return; l.setStyle({weight: 2.5, color: "#fff"}); l.bringToFront(); });
+        l.on("mouseout", function () { if (hoverOn) l.setStyle(style(s, steps())); });
+        l._tip = function () { return "<b>" + esc(s.name) + "</b> " + val(s.geoid) + " " + esc(LABEL[state.metric].toLowerCase()); };
+      });
+      applyHover(); fillLimitLists();
+      var group = L.featureGroup(Object.keys(layers).map(function (k) { return layers[k]; }));
+      if (!(q.get("lat") && q.get("lon")) && !q.get("zoom")) { var AR = {{ map_area("county_map_area") | tojson }}; if (AR) map.fitBounds([[AR[0], AR[1]], [AR[2], AR[3]]], {padding: [10, 10]}); }   // opens on Arkansas whole, like every map
+      restyle();
+      if (q.get("county")) select(q.get("county"), true);
+      else { var m = q.get("county"); }
+    } catch (e) { $("lv-count").textContent = "Could not load the counties."; }
+  }
+  load(); loadOver();
+  setInterval(function () { if (document.hidden || !shapes.length) return; fetch("/api/counties/counts.json").then(function (r) { return r.json(); }).then(function (d) { counts = d.counts || counts; restyle(); }); }, 60000);
+})();
+</script>
+{% endblock %}

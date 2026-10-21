@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}{{ a.ident }} {{ a.name }}{% endblock %}
+{% block content %}
+<h1><span class="mono">{{ a.ident }}</span> {{ a.name }}</h1>
+<div class="sub">{{ kinds.get(a.type, a.type) }} &middot; {{ a.municipality or '' }}{{ ', ' if a.municipality }}{{ a.region }}</div>
+<p><a href="/airports/">&larr; All Airports</a> &nbsp; {% with sm_lat=a.lat, sm_lon=a.lon, sm_layer="airports", sm_zoom=12, sm_id=a.ident %}{% include "partials/_showmap.html" %}{% endwith %}</p>
+<div class="panel">
+  <table>
+    <tr><th style="width:200px">Identifier</th><td class="mono">{{ a.ident }}{% if a.icao_code and a.icao_code != a.ident %} (ICAO {{ a.icao_code }}){% endif %}</td></tr>
+    {% if a.iata_code %}<tr><th>IATA Code</th><td class="mono">{{ a.iata_code }}</td></tr>{% endif %}
+    {% if a.local_code %}<tr><th>Local Code</th><td class="mono">{{ a.local_code }}</td></tr>{% endif %}
+    <tr><th>Location</th><td class="mono">{{ '%.5f' % a.lat }}, {{ '%.5f' % a.lon }}</td></tr>
+    <tr><th>Elevation</th><td>{{ (a.elevation_ft | u_ft) if a.elevation_ft is not none else 'Unknown' }}</td></tr>
+    <tr><th>Scheduled Service</th><td>{{ 'Yes' if a.scheduled_service else 'No' }}</td></tr>
+    {% if a.home_link %}<tr><th>Website</th><td><a href="{{ a.home_link }}" rel="noopener nofollow" target="_blank">{{ a.home_link }}</a></td></tr>{% endif %}
+    {% if a.wikipedia_link %}<tr><th>Wikipedia</th><td><a href="{{ a.wikipedia_link }}" rel="noopener nofollow" target="_blank">{{ a.wikipedia_link }}</a></td></tr>{% endif %}
+  </table>
+</div>
+<div class="panel" style="margin-top:14px;overflow-x:auto">
+  <div class="grp" style="margin-top:0">Radio Frequencies</div>
+  {% if freqs %}
+  <table><tr><th>Type</th><th>Description</th><th>Frequency (MHz)</th></tr>
+    {% for f in freqs %}<tr><td><span class="tag">{{ f.type }}</span></td><td>{{ f.description }}</td><td class="mono">{{ '%.3f' % f.mhz }}</td></tr>{% endfor %}
+  </table>
+  {% else %}<p class="dim" style="margin:0">No frequencies are listed for this airport.</p>{% endif %}
+</div>
+<div class="panel" style="margin-top:14px;overflow-x:auto">
+  <div class="grp" style="margin-top:0">Runways</div>
+  {% if runs %}
+  <table><tr><th>Runway</th><th>Length</th><th>Width</th><th>Surface</th><th>Lighted</th><th>Status</th></tr>
+    {% for r in runs %}<tr><td class="mono">{{ r.le_ident or '' }}{{ '/' if r.le_ident and r.he_ident }}{{ r.he_ident or '' }}</td>
+      <td class="mono">{{ (r.length_ft | u_ft) if r.length_ft else '' }}</td><td class="mono">{{ r.width_ft or '' }}{{ ' ft' if r.width_ft }}</td>
+      <td class="dim">{{ r.surface or '' }}</td><td class="dim">{{ 'Yes' if r.lighted else 'No' }}</td><td class="dim">{{ 'Closed' if r.closed else 'Open' }}</td></tr>{% endfor %}
+  </table>
+  {% else %}<p class="dim" style="margin:0">No runways are listed for this airport.</p>{% endif %}
+</div>
+{% endblock %}

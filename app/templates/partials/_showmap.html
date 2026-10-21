@@ -1,0 +1,6 @@
+{# A link that opens the map OF ITS OWN KIND centred on one place: a weather station opens the Weather Map, a hospital the County Map (Places), an airport or a launch site the Aircraft Map where
+   that layer lives. Set before including: sm_lat, sm_lon, sm_layer (airports, hospitals, weather, sondes), optional sm_zoom and sm_id. #}
+{% if sm_lat is not none and sm_lon is not none %}{% set z = sm_zoom or 12 %}{% set at = '%.5f' % sm_lat ~ '&lon=' ~ ('%.5f' % sm_lon) ~ '&zoom=' ~ z %}
+{% if sm_layer == 'weather' %}<a class="btn small show-on-map" href="/weather/map?lat={{ at }}&amp;sources=members{% if sm_id %}&amp;station={{ sm_id | urlencode }}&amp;q={{ sm_id | urlencode }}{% endif %}">Show on Weather Map</a>
+{% elif sm_layer == 'hospitals' %}<a class="btn small show-on-map" href="/counties/?lat={{ at }}&amp;show=hospitals{% if sm_id %}&amp;only=hospitals:{{ sm_id | urlencode }}{% endif %}">Show on County Map</a>
+{% else %}<a class="btn small show-on-map" href="/live?lat={{ at }}&amp;layers={{ sm_layer }}&amp;pin=1{% if sm_id %}&amp;only={{ sm_layer }}:{{ sm_id | urlencode }}{% endif %}">Show on Aircraft Map</a>{% endif %}{% endif %}

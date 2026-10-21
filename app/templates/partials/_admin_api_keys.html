@@ -1,0 +1,34 @@
+<div id="apikeys-admin">
+  {% if new_key %}
+  <div class="panel" id="apikey-new" style="border-color:var(--acc);margin-bottom:14px">
+    <b>The new key{% if new_note %} ({{ new_note }}){% endif %}{% if new_member %} for {{ new_member }}{% endif %}</b>
+    <p class="dim" style="margin:6px 0 10px">Copy it now and pass it to the member in a private way. It is shown only this one time and is not kept anywhere else.</p>
+    <pre class="code mono copyable" id="apikey-new-value" style="user-select:all">{{ new_key }}</pre>
+    <button class="btn small" type="button" id="apikey-copy" onclick="navigator.clipboard && navigator.clipboard.writeText(document.getElementById('apikey-new-value').textContent.trim()).then(function(){ document.getElementById('apikey-copy').textContent = 'Copied'; })">Copy the Key</button>
+  </div>
+  {% endif %}
+  <div class="tfilterbar"><input type="search" class="tfilter" data-table="#apikeys-tbl" placeholder="Search by member, key name or the start of a key" aria-label="Search keys"><span class="dim tcount"></span></div>
+  <table class="sortable" id="apikeys-tbl">
+    <tr><th data-sort="text">Member</th><th data-sort="text">Name</th><th data-sort="text">Key Starts With</th><th data-sort="text">Made</th><th data-sort="text">Last Used</th><th data-sort="num">Today</th><th data-sort="num">All Time</th><th>Limits</th><th data-sort="text">Status</th><th></th></tr>
+    {% for k in rows %}
+    <tr{% if k.revoked %} style="opacity:.6"{% endif %} data-search="{{ k.username }} {{ k.display_name or '' }} {{ k.callsign or '' }} {{ k.name }} {{ k.prefix }}">
+      <td><a href="/admin/users/{{ k.user_id }}">{{ k.display_name or k.username }}</a>{% if k.callsign %}<br><span class="dim mono">{{ k.callsign }}</span>{% endif %}{% if k.user_disabled %} <span class="tag off">account off</span>{% endif %}</td>
+      <td>{{ k.name }}{% if k.note %}<br><span class="dim" style="font-size:.8rem">{{ k.note }}</span>{% endif %}{% if k.created_by and k.created_by != k.username %}<br><span class="dim" style="font-size:.78rem">made by {{ k.created_by }}</span>{% endif %}</td>
+      <td class="mono">{{ k.prefix }}...</td>
+      <td data-v="{{ k.created_at.isoformat() }}"><time class="ts" datetime="{{ k.created_at.isoformat() }}">{{ k.created_at }}</time></td>
+      <td data-v="{{ k.last_used.isoformat() if k.last_used else '' }}">{% if k.last_used %}<time class="ts" datetime="{{ k.last_used.isoformat() }}">{{ k.last_used }}</time>{% else %}<span class="dim">never</span>{% endif %}</td>
+      <td class="mono" data-v="{{ k.today }}">{{ '{:,}'.format(k.today) }}</td>
+      <td class="mono" data-v="{{ k.total }}">{{ '{:,}'.format(k.total) }}</td>
+      <td>
+        <form class="inline" method="post" action="/admin/api-keys/{{ k.id }}/limits" data-async data-async-target="#apikeys-admin" style="display:flex;gap:4px;align-items:center">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="text" name="rate_minute" value="{{ k.rate_minute or '' }}" placeholder="{{ per_min }}" aria-label="Requests per minute" style="width:64px"><span class="dim" style="font-size:.78rem">/min</span>
+          <input type="text" name="rate_day" value="{{ k.rate_day or '' }}" placeholder="{{ per_day }}" aria-label="Requests per day" style="width:82px"><span class="dim" style="font-size:.78rem">/day</span>
+          <button class="btn small neutral" type="submit" style="margin:0">Save</button></form></td>
+      <td>{% if k.revoked %}<span class="tag off">revoked</span>{% else %}<span class="tag live">working</span>{% endif %}</td>
+      <td style="white-space:nowrap"><form class="inline" method="post" action="/admin/api-keys/{{ k.id }}/revoke" data-async data-async-target="#apikeys-admin"{% if not k.revoked %} data-confirm="Revoke this key? Anything using it stops working at once."{% endif %}>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small {{ 'neutral' if k.revoked else 'warn' }}" type="submit" style="margin:0">{{ 'Restore' if k.revoked else 'Revoke' }}</button></form></td>
+    </tr>
+    {% else %}<tr><td colspan="10" class="dim">Nobody has made a key yet.</td></tr>{% endfor %}
+  </table>
+</div>

@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Support Page{% endblock %}
+{% block content %}
+<h1><span>Admin</span> Support Page</h1>
+<div class="sub">The public Support page: why donations help, what the network costs to run, and an equipment fund. It stays hidden until you switch it on and add at least one donation link. The portal only links to the donation service; it never handles payment details.</div>
+{% include "partials/_admin_subnav.html" %}
+<form class="panel" method="post" action="/admin/support/save" data-async>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <label class="check"><input type="checkbox" name="enabled" value="1" {{ 'checked' if v.support_enabled == '1' }}><span><b>Show the Support page</b><br><span class="dim">Adds a Support link to the footer and publishes /support.</span></span></label>
+  <div class="grp">Donation Links</div>
+  <label for="s-kofi">Ko-fi page</label>
+  <input type="text" id="s-kofi" name="kofi" value="{{ v.support_kofi }}" placeholder="https://ko-fi.com/yourname" style="max-width:420px">
+  <label for="s-pp">PayPal link</label>
+  <input type="text" id="s-pp" name="paypal" value="{{ v.support_paypal }}" placeholder="https://paypal.me/yourname" style="max-width:420px">
+  <div class="help">Ko-fi can pay out to your PayPal account and needs no organisation; PayPal.Me gives a plain donate link. You can use either or both. Create them in your own account; paste the links here.</div>
+  <label for="s-ol">Another service: button label</label>
+  <input type="text" id="s-ol" name="other_label" value="{{ v.support_other_label }}" placeholder="Donate" style="max-width:200px">
+  <label for="s-o">Another service: link</label>
+  <input type="text" id="s-o" name="other" value="{{ v.support_other }}" placeholder="https://" style="max-width:420px">
+  <div class="grp">Words on the Page</div>
+  <label for="s-intro">Introduction (a blank line starts a new paragraph)</label>
+  <textarea id="s-intro" name="intro" rows="8" style="max-width:700px">{{ v.support_intro }}</textarea>
+  <div class="grp">Running Costs</div>
+  <label for="s-costs">One per line: <span class="mono">Name | dollars per month</span></label>
+  <textarea id="s-costs" name="costs" rows="5" class="mono" style="max-width:520px">{{ v.support_costs }}</textarea>
+  <label for="s-raised">Received this month so far (dollars)</label>
+  <input type="text" id="s-raised" name="raised" value="{{ v.support_raised }}" style="max-width:140px">
+  <div class="help">You update this by hand from your Ko-fi or PayPal account; the portal does not see the money. It drives the progress bar.</div>
+  <div class="grp">Equipment Fund</div>
+  <label for="s-eq">One per line: <span class="mono">Item | price | funded so far | status | note</span></label>
+  <textarea id="s-eq" name="equipment" rows="7" class="mono" style="max-width:700px">{{ v.support_equipment }}</textarea>
+  <div class="help">Status is one of {% for k, l in status %}<span class="mono">{{ k }}</span>{{ ', ' if not loop.last }}{% endfor %}; leave it out and it is worked out from the amounts. Example: <span class="mono">Airband antenna for the Conway site | 85 | 40 | needed | Replaces the indoor antenna</span></div>
+  <div class="grp">Thank You</div>
+  <label for="s-th">Thank-you note</label>
+  <input type="text" id="s-th" name="thanks" value="{{ v.support_thanks }}" style="max-width:520px">
+  <label for="s-su">Supporters to list, one per line (only people who asked to be named)</label>
+  <textarea id="s-su" name="supporters" rows="4" style="max-width:420px">{{ v.support_supporters }}</textarea>
+  <button class="btn" type="submit">Save Support Page</button>
+</form>
+{% if v.support_enabled == '1' %}<p><a href="/support">View the public page</a></p>{% endif %}
+{% endblock %}

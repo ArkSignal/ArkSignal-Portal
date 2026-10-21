@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% from "partials/_mapshell.html" import shell, boot with context %}
+{% block title %}Mesh Map{% endblock %}
+{% block main_class %}wide{% endblock %}
+{% block content %}
+{# The same map page as every other map: partials/_mapshell.html carries the layout; mesh nodes are drawn below. #}
+{% call shell("Search a node's name or ID", "Search mesh nodes", "Mesh Nodes", "Node Page", map_type="mesh") %}
+    <details class="fsec" data-k="show" open><summary><span class="ic">&#9783;</span>Nodes<span class="fbadge" data-fb="show"></span></summary><div class="fbody">
+      <div class="lv-sub">Network</div>
+      <select id="mm-net"><option value="">Meshtastic and MeshCore</option><option value="meshtastic">Meshtastic only</option><option value="meshcore">MeshCore only</option></select>
+      <div class="lv-sub">Role (Meshtastic)</div>
+      <select id="mm-role"><option value="">All roles</option>{% for k, l in roles %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select>
+      <div class="lv-sub">Heard Within</div>
+      <select id="mm-hours"><option value="1">The last hour</option><option value="24">24 hours</option><option value="72">3 days</option><option value="168" selected>7 days</option><option value="720">30 days</option></select>
+      <div class="lv-row"><label><input type="checkbox" id="mm-routers"> Only routers and repeaters</label></div>
+      <div class="lv-row"><label><input type="checkbox" id="mm-links" checked> Show who hears whom when a node is selected</label></div>
+      {% if links_on %}<div class="lv-row"><label title="Lines between nodes that report hearing each other directly (Neighbor Info), colored by signal quality. Drawn only where both ends have a position"><input type="checkbox" id="mm-direct"> Direct links (Neighbor Info)</label></div>{% endif %}
+      <div class="lv-row"><label title="For every gateway or observer whose place is known: the farthest node it was heard to hear in each direction. Measured from what was heard, not a prediction"><input type="checkbox" id="mm-cov"> Measured coverage of gateways</label></div>
+      <div class="lv-row"><label>Icon Size <select id="mm-dot"><option value="75">Small</option><option value="100">Medium</option><option value="130">Large</option><option value="170">Extra large</option></select></label></div>
+      <div class="help dim" style="font-size:.78rem;margin-top:6px">{{ credit }}. Click a node for its details.</div>
+    </div></details>
+{% endcall %}
+{{ boot("/mesh/map", "mm") }}
+<script src="/static/touchhit.js"></script>
+<script src="/static/colocate.js?v=mesh2"></script>
+<script src="/static/labelfit.js"></script>
+<script>
+(function () {
+  var S = ArkShell, $ = S.$, esc = S.esc;
+  var q = new URLSearchParams(location.search);
+  var map = L.map("lvmap", {zoomControl: false, zoomSnap: 0.25, preferCanvas: false}).setView([parseFloat(q.get("lat")) || {{ map_lat | float }}, parseFloat(q.get("lon")) || {{ map_lon | float }}], parseFloat(q.get("zoom")) || 7);
+  L.control.zoom({position: "bottomright"}).addTo(map);
+  var state = {q: q.get("q") || "", role: "", network: "", hours: 168, routers: false, links: true, sortKey: "last_seen", sortDir: -1};
+  var shell = S.start({map: map, layers: {{ layers | tojson }}, key: "mm", url: "/mesh/map", cfg: {tile: {{ tile_url | tojson }}, attr: {{ tile_attr | tojson }}, labelScale: {{ label_scale | int }}, labelBg: {{ label_bg | tojson }}, wxRefresh: {{ wx_refresh | int }}},
+    share: function () { return {q: state.q, node: cardId || ""}; }, legend: function () { return legend(); }});
+  var COL = {{ colors | tojson }}, ROUTERS = {"Router": 1, "Router and client": 1, "Router (late)": 1, "Repeater": 1};
+  var covG = L.layerGroup();
+  function covPoly(g) {   // the shape that reaches every sector's farthest heard node (a sector with none gets a small stub), around the gateway
+    var pts = [], R = 6371, d2r = Math.PI / 180;
+    g.sectors.forEach(function (km, i) {
+      var b = (i * 10 + 5) * d2r, d = Math.max(km, 0.3) / R, la = g.lat * d2r, lo = g.lon * d2r;
+      var la2 = Math.asin(Math.sin(la) * Math.cos(d) + Math.cos(la) * Math.sin(d) * Math.cos(b));
+      var lo2 = lo + Math.atan2(Math.sin(b) * Math.sin(d) * Math.cos(la), Math.cos(d) - Math.sin(la) * Math.sin(la2));
+      pts.push([la2 / d2r, lo2 / d2r]);
+    });
+    return pts;
+  }
+  async function drawCov() {
+    covG.clearLayers();
+    if (!$("mm-cov").checked) { if (map.hasLayer(covG)) map.removeLayer(covG); return; }
+    covG.addTo(map);
+    try {
+      var d = await (await fetch("/api/mesh/coverage.json")).json();
+      (d.gateways || []).filter(function (g) { return !state.network || g.network === state.network; }).forEach(function (g) {
+        L.polygon(covPoly(g), {color: "#4fb3ff", weight: 1.5, fillColor: "#4fb3ff", fillOpacity: .08, interactive: true}).addTo(covG)
+          .bindTooltip("<b>" + esc(g.name || g.id) + "</b><br>Heard to hear " + g.heard + " node" + (g.heard === 1 ? "" : "s") + ", the farthest " + ArkUnits.text.dist(g.reach_km) + " away<br><span class=\"dim\">Measured from what was heard, not a prediction</span>", {className: "lv-tip", sticky: true});
+      });
+    } catch (e) {}
+  }
+  $("mm-cov").addEventListener("change", function () { S.pref("mm.cov", this.checked ? "1" : "0"); drawCov(); });
+  if (S.pref("mm.cov") === "1") { $("mm-cov").checked = true; drawCov(); }
+  var nodes = [], marks = {}, group = L.layerGroup().addTo(map), linkG = L.layerGroup().addTo(map), directG = L.layerGroup(), cardId = null, dotScale = parseInt(S.pref("mm.dot"), 10) || 100;
+  var LE = ArkLabels.create(map), LABM = S.pref("mm.labels") || "short";
+  $("m-display").innerHTML = '<div class="lv-sub">Node Labels</div><select id="mm-labels"><option value="short">Short name</option><option value="long">Name</option><option value="none">No labels</option></select>';
+  $("mm-labels").value = LABM; $("mm-dot").value = String(dotScale); $("q").value = state.q;
+  function color(n) { return COL[n.role_name] || "#8a9bb3"; }
+  function ago(iso) { var m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000)); return m < 60 ? m + " min ago" : m < 1440 ? Math.round(m / 60) + " h ago" : Math.round(m / 1440) + " d ago"; }
+  function match(n) {
+    if (n.lat == null) return false;
+    if (state.network && n.network !== state.network) return false;
+    if (state.role !== "" && (n.network === "meshcore" || String(n.role) !== state.role)) return false;
+    if (state.routers && !ROUTERS[n.role_name]) return false;
+    if ((Date.now() - new Date(n.last_seen).getTime()) > state.hours * 3600000) return false;
+    var t = state.q.trim().toLowerCase();
+    return !t || ((n.long_name || "") + " " + (n.short_name || "") + " " + n.id).toLowerCase().indexOf(t) >= 0;
+  }
+  function renderLabels(vis) {
+    LE.begin(); if (LABM === "none" || map.getZoom() < 8) { LE.flush(); return; }
+    vis.forEach(function (n) {
+      var t = LABM === "long" ? (n.long_name || n.short_name || n.id) : (n.short_name || n.long_name || n.id);
+      LE.add({key: n.id, lat: n.lat, lon: n.lon, html: esc(t), color: color(n), priority: (ROUTERS[n.role_name] ? 0 : 1) + (n.id === cardId ? -2 : 0), onClick: function () { select(n.id, false); }});
+    });
+    LE.flush();
+  }
+  var lastVis = []; map.on("zoomend moveend", function () { renderLabels(lastVis); });
+  function render() {
+    group.clearLayers(); marks = {};
+    var vis = nodes.filter(match);
+    vis.forEach(function (n) {
+      var rad = (ROUTERS[n.role_name] ? 8 : 6) * dotScale / 100, fresh = (Date.now() - new Date(n.last_seen).getTime()) < 3600000 * 6;
+      var m = L.circleMarker([n.lat, n.lon], {radius: rad, color: n.id === cardId ? "#fff" : color(n), weight: n.id === cardId ? 3 : 2, fillColor: color(n), fillOpacity: fresh ? .75 : .2}).addTo(group);
+      m.bindTooltip("<b>" + esc(n.long_name || n.short_name || n.id) + "</b> " + esc(n.role_name || "") + " · " + ago(n.last_seen), {className: "lv-tip"});
+      m.on("click", function () { select(n.id, false); });
+      Colocate.track(map, "mesh", m, n.lat, n.lon);
+      marks[n.id] = m;
+    });
+    lastVis = vis; renderLabels(vis); renderList(vis); renderChips();
+    $("lv-count").textContent = vis.length + " of " + nodes.length + " nodes";
+    shell.renderLegend();
+  }
+  function legend() {
+    var h = "<h6>Mesh nodes</h6>", seen = {};
+    Object.keys(COL).forEach(function (k) { if (seen[COL[k]]) return; seen[COL[k]] = 1; h += '<div style="display:flex;gap:8px;align-items:center;margin:3px 0"><span style="width:12px;height:12px;border-radius:50%;background:' + COL[k] + ';display:inline-block"></span>' + esc(k) + "</div>"; });
+    if ($("mm-direct") && $("mm-direct").checked) h += '<h6 style="margin-top:8px">Direct links</h6><div style="display:flex;gap:8px;align-items:center;margin:3px 0"><span style="width:22px;height:3px;background:#3ee6a8;display:inline-block"></span>Strong (SNR above 5 dB)</div><div style="display:flex;gap:8px;align-items:center;margin:3px 0"><span style="width:22px;height:3px;background:#ffd24f;display:inline-block"></span>Fair (-5 to 5 dB)</div><div style="display:flex;gap:8px;align-items:center;margin:3px 0"><span style="width:22px;height:3px;background:#ff6b6b;display:inline-block"></span>Weak (below -5 dB)</div><div class="dim" style="font-size:.76rem">Solid: both ends reported it; dashed: one end. ' + directCount + ' shown.</div>';
+    return h + '<div class="dim" style="font-size:.76rem;margin-top:6px">A solid dot was heard in the last six hours; a faint one earlier. Positions are what each node published, at the precision its owner chose. Lines (when a node is selected) join it to the gateways that heard it, colored by signal.</div>';
+  }
+  function renderChips() {
+    var c = [];
+    if (state.q) c.push(["q", "Search: " + state.q]);
+    if (state.network) c.push(["net", state.network === "meshcore" ? "MeshCore only" : "Meshtastic only"]);
+    if (state.role !== "") c.push(["role", "Role: " + $("mm-role").selectedOptions[0].textContent]);
+    if (state.routers) c.push(["routers", "Routers and repeaters"]);
+    $("lv-chips").innerHTML = c.map(function (x) { return '<span class="chip" data-c="' + x[0] + '">' + esc(x[1]) + "<b>×</b></span>"; }).join("") + (c.length > 1 ? '<span class="chip chipall" data-c="all">Clear all</span>' : "");
+  }
+  $("lv-chips").addEventListener("click", function (e) {
+    var el = e.target.closest(".chip"); if (!el) return; var k = el.getAttribute("data-c");
+    if (k === "q" || k === "all") { state.q = ""; $("q").value = ""; }
+    if (k === "net" || k === "all") { state.network = ""; $("mm-net").value = ""; }
+    if (k === "role" || k === "all") { state.role = ""; $("mm-role").value = ""; }
+    if (k === "routers" || k === "all") { state.routers = false; $("mm-routers").checked = false; }
+    render();
+  });
+  var COLS = [["short_name", "Name"], ["role_name", "Role"], ["last_seen", "Heard"]];
+  $("lv-tbl").querySelector("thead").innerHTML = "<tr>" + COLS.map(function (c) { return '<th data-k="' + c[0] + '">' + c[1] + "</th>"; }).join("") + "</tr>";
+  $("lv-tbl").querySelector("thead").addEventListener("click", function (e) { var k = e.target.getAttribute("data-k"); if (!k) return; if (state.sortKey === k) state.sortDir = -state.sortDir; else { state.sortKey = k; state.sortDir = k === "last_seen" ? -1 : 1; } render(); });
+  function renderList(vis) {
+    var rows = vis.slice().sort(function (a, b) { var x = a[state.sortKey] || "", y = b[state.sortKey] || ""; return (x < y ? -1 : x > y ? 1 : 0) * state.sortDir; });
+    $("lv-tbl").querySelector("tbody").innerHTML = rows.slice(0, 400).map(function (n) {
+      return '<tr class="it' + (n.id === cardId ? " sel" : "") + '" data-i="' + n.id + '"><td>' + esc(n.short_name || n.long_name || n.id) + "</td><td>" + esc(n.role_name || "") + "</td><td>" + ago(n.last_seen) + "</td></tr>";
+    }).join("") || '<tr><td colspan="3" class="dim" style="text-align:left;padding:12px">No node matches.</td></tr>';
+  }
+  $("lv-tbl").querySelector("tbody").addEventListener("click", function (e) { var tr = e.target.closest("tr.it"); if (tr) select(tr.getAttribute("data-i"), true); });
+  function drawLinks(n, heard) {
+    linkG.clearLayers();
+    if (!state.links) return;
+    var by = {}; nodes.forEach(function (x) { by[x.id.toLowerCase()] = x; });
+    (heard || []).forEach(function (h) {
+      var g = by[(h.gateway || "").toLowerCase()]; if (!g || g.lat == null || n.lat == null) return;
+      var snr = h.best_snr != null ? h.best_snr : h.snr, col = snr == null ? "#8a9bb3" : snr > 5 ? "#3ee6a8" : snr > -5 ? "#ffd24f" : "#ff6b6b";
+      L.polyline([[n.lat, n.lon], [g.lat, g.lon]], {color: col, weight: 2, opacity: .85, interactive: false}).addTo(linkG).bindTooltip(esc(h.gateway) + (snr != null ? " · best SNR " + snr + " dB" : ""), {sticky: true});
+    });
+  }
+  function select(id, zoom) {
+    cardId = id; var n = nodes.filter(function (x) { return x.id === id; })[0], card = $("lv-card");
+    if (!n) { card.style.display = "none"; $("lv").classList.remove("has-card"); linkG.clearLayers(); render(); return; }
+    $("c-name").textContent = n.long_name || n.short_name || n.id; $("c-sub").textContent = (n.network === "meshcore" ? "MeshCore " : "Meshtastic ") + n.id.slice(0, 13) + (n.id.length > 13 ? "..." : "") + " · " + (n.role_name || "role not stated") + " · heard " + ago(n.last_seen);
+    $("c-page").href = "/mesh/" + n.slug;
+    $("c-body").innerHTML = '<div class="k">' + (n.network === "meshcore" ? "" : "<div>Hardware</div><div>" + esc(n.hardware || "-") + "</div><div>Firmware</div><div>" + esc(n.firmware || "-") + "</div>") + (n.battery != null ? "<div>Battery</div><div>" + (n.battery <= 100 ? n.battery + "%" : "powered") + "</div>" : "") +
+      "<div>Position</div><div>" + n.lat.toFixed(4) + ", " + n.lon.toFixed(4) + "</div></div>" + '<div id="mm-heard" class="dim" style="font-size:.8rem;margin-top:8px">Looking up who heard it...</div>';
+    card.style.display = "block"; $("lv").classList.add("has-card");
+    $("c-follow").onclick = function () { map.setView([n.lat, n.lon], Math.max(map.getZoom(), 12)); };
+    $("c-close").onclick = function () { cardId = null; card.style.display = "none"; $("lv").classList.remove("has-card"); linkG.clearLayers(); render(); };
+    if (zoom) map.setView([n.lat, n.lon], Math.max(map.getZoom(), 12));
+    fetch("/api/mesh/" + n.slug + ".json").then(function (r) { return r.json(); }).then(function (d) {
+      if (cardId !== id) return;
+      var hb = d.heard_by || [];
+      $("mm-heard").innerHTML = hb.length ? "Heard by " + hb.length + (n.network === "meshcore" ? " observer" : " gateway") + (hb.length === 1 ? "" : "s") + ": " + hb.slice(0, 5).map(function (h) { return esc(h.name || h.gateway.slice(0, 15)) + (h.best_snr != null ? " (" + h.best_snr + " dB)" : ""); }).join(", ") : "No gateway recorded hearing it yet.";
+      drawLinks(n, hb);
+    }).catch(function () { $("mm-heard").textContent = ""; });
+    render();
+  }
+  $("q").addEventListener("input", function () { state.q = this.value; render(); });
+  $("mm-net").addEventListener("change", function () { state.network = this.value; render(); });
+  $("mm-role").addEventListener("change", function () { state.role = this.value; render(); });
+  $("mm-hours").addEventListener("change", function () { state.hours = parseInt(this.value, 10); render(); });
+  $("mm-routers").addEventListener("change", function () { state.routers = this.checked; render(); });
+  var directLoaded = false, directCount = 0;
+  function snrCol(snr) { return snr == null ? "#8a9bb3" : snr > 5 ? "#3ee6a8" : snr > -5 ? "#ffd24f" : "#ff6b6b"; }
+  function loadDirect() {
+    if (directLoaded) return; directLoaded = true;
+    fetch("/api/mesh/links.json").then(function (r) { return r.json(); }).then(function (d) {
+      (d.links || []).forEach(function (x) {
+        L.polyline([[x.a_lat, x.a_lon], [x.b_lat, x.b_lon]], {color: snrCol(x.snr), weight: x.both ? 3 : 2, opacity: .8, dashArray: x.both ? null : "6 5"}).addTo(directG)
+          .bindTooltip(esc(x.a_name) + " and " + esc(x.b_name) + (x.snr != null ? " · SNR " + x.snr.toFixed(1) + " dB" : "") + (x.both ? " · both ends reported" : " · one end reported"), {sticky: true});
+      });
+      directCount = (d.links || []).length; shell.renderLegend();
+    }).catch(function () { directLoaded = false; });
+  }
+  if ($("mm-direct")) $("mm-direct").addEventListener("change", function () { if (this.checked) { loadDirect(); directG.addTo(map); } else map.removeLayer(directG); S.pref("mm.direct", this.checked ? "1" : "0"); shell.renderLegend(); });
+  if ($("mm-direct") && S.pref("mm.direct") === "1") { $("mm-direct").checked = true; loadDirect(); directG.addTo(map); }
+  $("mm-links").addEventListener("change", function () { state.links = this.checked; if (!this.checked) linkG.clearLayers(); else if (cardId) select(cardId, false); });
+  $("mm-labels").addEventListener("change", function () { LABM = this.value; S.pref("mm.labels", this.value); renderLabels(lastVis); });
+  $("mm-dot").addEventListener("change", function () { dotScale = parseInt(this.value, 10); S.pref("mm.dot", this.value); render(); });
+  fetch("/api/mesh/nodes.json").then(function (r) { return r.json(); }).then(function (d) {
+    nodes = (d.nodes || []).filter(function (n) { return n.lat != null; });
+    if (!(q.get("lat") && q.get("lon")) && !q.get("zoom")) { var AR = {{ map_area("mesh_map_area") | tojson }}; if (AR) map.fitBounds([[AR[0], AR[1]], [AR[2], AR[3]]], {padding: [10, 10]}); }
+    render();
+    if (q.get("node")) { var want = q.get("node").replace("!", ""), hit = nodes.filter(function (x) { return x.slug === want; })[0]; if (hit) select(hit.id, true); }
+  }).catch(function () { $("lv-count").textContent = "Could not load the nodes."; });
+})();
+</script>
+{% endblock %}

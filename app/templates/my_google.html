@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Google Sign-In{% endblock %}
+{% block content %}
+<h1>My <span>Google Sign-In</span></h1>
+<div class="sub">Link your Google account to sign in with one click, without typing your password. Your password still works.</div>
+{% with active = 'google' %}{% include "partials/_my_subnav.html" %}{% endwith %}
+
+{% call sec('link', 'Your Google Account', True) %}
+  {% include "partials/_my_google.html" %}
+{% endcall %}
+
+{% call sec('how', 'How It Works', False) %}
+  <ul class="plain" style="margin-top:0">
+    <li>Choosing <b>Link My Google Account</b> sends you to Google to pick the account. Google tells this site which account it is and that its email address is verified; this site never sees your Google password.</li>
+    <li>After that, <b>Sign In with Google</b> on the sign-in page signs you in as this account. If you use two-factor sign-in, the code step still follows.</li>
+    <li>The link is to the Google account itself, not to its email address. You can unlink at any time; an administrator can also remove the link if you lose access.</li>
+    <li>Only one Google account can be linked to a member, and a Google account can be linked to only one member.</li>
+  </ul>
+{% endcall %}
+{% endblock %}

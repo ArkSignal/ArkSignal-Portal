@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% from "partials/_alert_form.html" import rule_form with context %}
+{% block title %}Aircraft Alerts{% endblock %}
+{% block content %}
+<h1>Aircraft <span>Alerts</span></h1>
+<div class="sub">Build rules for the aircraft you care about. The portal checks live traffic from the hub every few seconds and records each match here{% if email_ready %}, and can email you{% else %}. Email alerts become available once an administrator sets up SMTP{% endif %}.</div>
+<div class="panel" style="margin-bottom:14px;padding:14px 18px"><b>Email limits.</b>
+  <span class="dim">To keep this free service reliable, each person can receive at most <b>{{ limits.per_hour }}</b> alert email{{ '' if limits.per_hour == 1 else 's' }} per hour and <b>{{ limits.per_day }}</b> per day. Matches that happen within <b>{{ limits.combine }}</b> minute{{ '' if limits.combine == 1 else 's' }} of each other are combined into one email. Over the limit, matches wait for the next email that is allowed, and every match is always listed below.
+  You have used {{ limits.hour }} of {{ limits.per_hour }} this hour and {{ limits.day }} of {{ limits.per_day }} today{% if limits.waiting %}; {{ limits.waiting }} match{{ '' if limits.waiting == 1 else 'es' }} waiting to be emailed{% endif %}.</span></div>
+{% with active = 'alerts' %}{% include "partials/_my_subnav.html" %}{% endwith %}
+<details class="panel setsec" id="sec-alert-webhook" style="margin-bottom:6px"><summary><span class="role-name">Alert Webhook</span>{% if webhook.webhook_url %}<span class="tag live">on</span>{% endif %}</summary><div class="secbody">
+  <div class="help" style="margin-top:0">Get alerts in a chat or notification app without email. Paste the address the service gave you (a Discord or Slack incoming webhook, an ntfy topic address, or any service that accepts a JSON post), then tick "Also send to my webhook" on the alerts you want sent there. Leave the address empty to turn it off.</div>
+  <form method="post" action="/my/alerts/webhook" data-async style="margin-top:10px">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+      <div><label for="whk">Service</label><select id="whk" name="webhook_kind">{% for k, l in webhook_kinds.items() %}<option value="{{ k }}" {{ 'selected' if webhook.webhook_kind == k }}>{{ l }}</option>{% endfor %}</select></div>
+      <div style="flex:1;min-width:280px"><label for="whu">Webhook Address</label><input type="text" id="whu" name="webhook_url" value="{{ webhook.webhook_url }}" maxlength="400" placeholder="https://..." autocomplete="off"></div>
+      <button class="btn small" type="submit" style="margin:0 0 4px">Save</button>
+    </div>
+  </form>
+  <form method="post" action="/my/alerts/webhook/test" data-async style="margin-top:8px"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small neutral" type="submit" style="margin:0">Send a Test</button></form>
+  <div class="help">The address is a secret: anyone who has it can post to your channel, so do not share it. To keep this service reliable, at most {{ cfg_limits.webhook_hour }} webhook messages per hour and {{ cfg_limits.webhook_day }} per day are sent to each person; matches over the limit wait for the next allowed message.</div>
+</div></details>
+<details class="panel setsec" id="sec-add-an-alert" open style="margin-bottom:6px"><summary><span class="role-name">Add an Alert</span></summary><div class="secbody">
+  
+  {{ rule_form(None, kinds, needs_value, 'new') }}
+  <div class="help">Examples: a specific aircraft by its ICAO hex code, every aircraft with callsign starting AAL, any military aircraft, any emergency squawk, or any aircraft below 3,000 feet within 20 nautical miles of a point.</div>
+</div></details>
+{% include "partials/_alerts_list.html" %}
+<script>
+// Arriving from the live map: Watch This Aircraft fills in the new alert; a link to #rule-N opens that rule.
+(function () {
+  var q = new URLSearchParams(location.search), k = document.getElementById("k-new");
+  if (k && q.get("kind")) {
+    k.value = q.get("kind"); k.dispatchEvent(new Event("change"));
+    if (q.get("value")) document.getElementById("v-new").value = q.get("value").toUpperCase().slice(0, 10);
+    if (q.get("name")) document.getElementById("n-new").value = q.get("name").slice(0, 60);
+    var sec = document.getElementById("sec-add-an-alert"); if (sec) { sec.setAttribute("open", ""); sec.scrollIntoView({block: "start"}); }
+  }
+  if (/^#rule-\d+$/.test(location.hash)) { var r = document.querySelector(location.hash); if (r) { r.setAttribute("open", ""); r.scrollIntoView({block: "start"}); } }
+})();
+</script>
+
+{% endblock %}

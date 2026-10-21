@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Nets{% endblock %}
+{% block content %}
+<h1>Amateur Radio <span>Nets</span></h1>
+<div class="sub">The nets of Arkansas: the on-air meetings that repeat on a schedule, when the next one is (in your own time zone), what to tune to and who runs it. Kept by the network's own members{% if current_user.is_authenticated %}: <a href="/my/nets">add or fix yours</a>{% else %}: <a href="/my/login">sign in</a> to add yours{% endif %}.</div>
+
+{% call sec('soon', 'Coming Up in the Next Seven Days', True, True) %}
+  {% if soon %}
+  <table id="net-soon"><tr><th>When</th><th>Net</th><th>Tune To</th><th>Net Control</th></tr>
+  {% for r in soon %}<tr><td data-v="{{ r.nxt[0].isoformat() }}"><b><time class="ts" datetime="{{ r.nxt[0].isoformat() }}" data-fmt="dt">{{ r.nxt[0] | localtime }}</time></b></td>
+    <td><b>{{ r.name }}</b>{% if r.area %}<br><span class="dim">{{ r.area }}</span>{% endif %}</td>
+    <td>{{ '%g MHz' % r.freq_mhz if r.freq_mhz }} <span class="dim">{{ r.mode }}</span>{% if r.freq_note %}<br><span class="dim" style="font-size:.84rem">{{ r.freq_note }}</span>{% endif %}</td>
+    <td>{{ r.contact }}</td></tr>{% endfor %}</table>
+  {% else %}<p class="dim" style="margin:0">No net on the list meets in the next seven days{% if q or day or mode %} (with the filter below){% endif %}.</p>{% endif %}
+{% endcall %}
+
+{% call sec('all', 'All Nets (' ~ rows | length ~ ')', True, True) %}
+  <form method="get" action="/radio/nets" class="tfilterbar">
+    <input type="search" name="q" value="{{ q }}" placeholder="Search by name, place, net control or frequency" aria-label="Search nets" style="max-width:360px">
+    <label style="margin:0">Day <select name="day"><option value="">Any</option>{% for d in weekdays %}<option value="{{ loop.index0 }}" {{ 'selected' if day == loop.index0|string }}>{{ d }}</option>{% endfor %}</select></label>
+    <label style="margin:0">Mode <select name="mode"><option value="">Any</option>{% for m in modes %}<option value="{{ m }}" {{ 'selected' if mode == m }}>{{ m }}</option>{% endfor %}</select></label>
+    <button class="btn small" type="submit" style="margin:0">Filter</button>
+  </form>
+  <table id="net-all" class="sortable"><thead><tr><th data-sort="text">Net</th><th data-sort="text">When</th><th data-sort="text">Next</th><th data-sort="text">Tune To</th><th data-sort="text">Net Control</th></tr></thead><tbody>
+  {% for r in rows %}<tr>
+    <td><b>{{ r.name }}</b>{% if r.area %}<br><span class="dim">{{ r.area }}</span>{% endif %}{% if r.url %}<br><a href="{{ r.url }}" target="_blank" rel="noopener nofollow">Website</a>{% endif %}</td>
+    <td>{{ r.when }}{% if r.notes %}<br><span class="dim" style="font-size:.84rem">{{ r.notes }}</span>{% endif %}</td>
+    <td data-v="{{ r.nxt[0].isoformat() if r.nxt else '9' }}">{% if r.nxt %}<time class="ts" datetime="{{ r.nxt[0].isoformat() }}" data-fmt="dt">{{ r.nxt[0] | localtime }}</time>{% else %}<span class="dim">-</span>{% endif %}</td>
+    <td>{{ '%g MHz' % r.freq_mhz if r.freq_mhz }} <span class="dim">{{ r.mode }}</span>{% if r.freq_note %}<br><span class="dim" style="font-size:.84rem">{{ r.freq_note }}</span>{% endif %}</td>
+    <td>{{ r.contact }}</td></tr>
+  {% else %}<tr><td colspan="5" class="dim">No net matches. {% if current_user.is_authenticated %}<a href="/my/nets">Add one</a>.{% endif %}</td></tr>{% endfor %}</tbody></table>
+  <div class="help">Times are shown in the time zone chosen in the Display menu. A net can change its time or frequency: check with its net control if you are not sure. Looking for Winlink email gateways? See <a href="/radio/winlink">Winlink Gateways</a>.</div>
+{% endcall %}
+{% endblock %}

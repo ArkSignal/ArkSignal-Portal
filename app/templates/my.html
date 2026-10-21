@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}My Feeders{% endblock %}
+{% block content %}
+<h1>My <span>Feeders</span></h1>
+<div class="sub">Signed in as {{ current_user.username }} ({{ current_user.email }}){% if current_user.callsign %}, callsign {{ current_user.callsign }}{% endif %}.</div>
+{% with active = 'feeders' %}{% include "partials/_my_subnav.html" %}{% endwith %}
+{% if feeders %}
+<div class="tiles" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))">
+  {% for f in feeders %}
+  <a class="panel tile" href="/my/feeders/{{ f.uuid }}" style="text-decoration:none;color:inherit">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <div class="tv" style="font-size:1.2rem">{{ f.station_id or 'No Station ID yet' }}</div>
+      {% if f.banned %}<span class="tag off">banned</span>{% elif f.online %}<span class="tag live">online</span>{% else %}<span class="tag off">offline</span>{% endif %}
+    </div>
+    <div class="tl">{{ f.name or 'Unnamed station' }}</div>
+    <div class="tl mono" style="font-size:.74rem">{{ f.uuid }}</div>
+    {% if not f.station_id %}<div class="tl" style="color:var(--acc2)">Choose a station ID to appear on the public pages</div>{% elif f.lat is none %}<div class="tl" style="color:var(--acc2)">Add this station's location</div>{% endif %}
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="panel"><p class="dim" style="margin:0">You have not claimed a feeder yet. Claim one below; if your receiver is already feeding the hub, it is offered automatically when you visit from the same network.</p></div>
+{% endif %}
+<details class="panel setsec" id="sec-claim-a-feeder" {{ 'open' if (not feeders) or claim_open }} style="margin-top:14px"><summary><span class="role-name">Claim a Feeder</span></summary><div class="secbody">
+  <p class="dim" style="margin-top:0">Link a receiver that is feeding the hub to your account so you can name it, set its location and see its history.</p>
+  <div class="lv-sub">Feeders Connected From Your Network</div>
+  <p class="dim" style="margin-top:0">These unclaimed feeders are connected right now from the same public IP address as this browser ({{ ip }}).</p>
+  {% for c in candidates %}
+  <form method="post" action="/my/claim" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:8px 0">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="uuid" value="{{ c.uuid }}">
+    <span class="mono">{{ c.uuid }}</span>
+    <button class="btn small" type="submit">Claim This Feeder</button>
+  </form>
+  {% else %}
+  <p class="dim" style="margin:0">None found. Your receiver may not be feeding yet, or it connects from a different network than this browser. You can paste its UUID below instead.</p>
+  {% endfor %}
+  <div class="lv-sub" id="sec-claim-by-uuid" style="margin-top:14px">Claim by UUID</div>
+  <form method="post" action="/my/claim">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p class="dim" style="margin-top:0">Your feeder's UUID is the <span class="mono">UUID</span> value in its ultrafeeder configuration. The feeder must have connected to the hub within the last {{ paste_days }} day{{ '' if paste_days == 1 else 's' }}.</p>
+    <label for="uuid">Feeder UUID</label>
+    <input type="text" id="uuid" name="uuid" placeholder="00000000-0000-0000-0000-000000000000" autocomplete="off" required>
+    <button class="btn" type="submit">Claim Feeder</button>
+  </form>
+</div></details>
+{% endblock %}

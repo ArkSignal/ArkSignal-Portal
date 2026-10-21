@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Mesh Nodes{% endblock %}
+{% block content %}
+<h1><span>Mesh</span> Nodes</h1>
+<div class="sub">Meshtastic and MeshCore nodes around Arkansas that publish themselves (the map report a Meshtastic node sends, or the advert a MeshCore node broadcasts, on purpose): name, kind, where it is at the precision its owner chose, and when it was last heard. Nothing private is read. <a href="/mesh/">Mesh Overview</a> &middot; <a href="/mesh/map">Mesh Map</a> &middot; <a href="/feed/mesh">Join the Arkansas Mesh</a></div>
+{% if not st.ok %}<div class="panel" style="border-color:var(--acc2);margin-bottom:14px"><b>{{ st.note }}</b> The list below is empty until the mesh service answers.</div>{% endif %}
+{% if st.ok %}<div class="tiles" style="margin-bottom:14px">
+  <div class="panel tile"><div class="tv">{{ st.data.heard_hour }}</div><div class="tl">Heard in the last hour</div></div>
+  <div class="panel tile"><div class="tv">{{ st.data.heard_day }}</div><div class="tl">Heard in the last 24 hours</div></div>
+  <div class="panel tile"><div class="tv">{{ st.data.nodes }}</div><div class="tl">Nodes known ({{ st.data.meshtastic }} Meshtastic, {{ st.data.meshcore }} MeshCore; {{ st.data.placed }} on the map)</div></div>
+  <div class="panel tile"><div class="tv">{{ st.data.routers }}</div><div class="tl">Routers and repeaters</div></div>
+</div>{% endif %}
+<form method="get" action="/mesh/nodes" class="panel" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px">
+  <div><label for="mq">Name or ID</label><input type="text" id="mq" name="q" value="{{ q }}" placeholder="AR or !a1b2" style="width:170px" maxlength="30"></div>
+  <div><label for="mnet">Network</label><select id="mnet" name="network"><option value="">Both</option><option value="meshtastic" {{ 'selected' if network == 'meshtastic' }}>Meshtastic</option><option value="meshcore" {{ 'selected' if network == 'meshcore' }}>MeshCore</option></select></div>
+  <div><label for="mrole">Role (Meshtastic)</label><select id="mrole" name="role"><option value="">All</option>{% for k, l in roles %}<option value="{{ k }}" {{ 'selected' if role == k }}>{{ l }}</option>{% endfor %}</select></div>
+  <div><label for="mhours">Heard within</label><select id="mhours" name="hours">{% for h, l in [(1, 'the last hour'), (24, '24 hours'), (72, '3 days'), (168, '7 days'), (720, '30 days'), (2160, '90 days')] %}<option value="{{ h }}" {{ 'selected' if hours == h }}>{{ l }}</option>{% endfor %}</select></div>
+  <div><label style="margin:0 0 2px"><input type="checkbox" name="placed" value="1" {{ 'checked' if args.get('placed') == '1' }}> With a position</label></div>
+  <button class="btn small" type="submit" style="margin:0 0 2px">Search</button>
+  <a class="btn small neutral" href="/mesh/map" style="margin:0 0 2px">Mesh Map</a>
+</form>
+<div class="panel" style="overflow-x:auto">
+  <div class="tfilterbar"><input type="search" class="tfilter" data-table="#mesh-tbl" placeholder="Search the listed nodes" aria-label="Search nodes"><span class="dim tcount"></span></div>
+  <p style="margin-top:0" class="dim">{{ total }} node{{ '' if total == 1 else 's' }}{% if total > 400 %} (the first 400 are listed){% endif %}</p>
+  {% if rows %}<table class="sortable" id="mesh-tbl"><thead><tr><th data-sort="text">Name</th><th data-sort="text">Network</th><th data-sort="text">ID</th><th data-sort="text">Role or kind</th><th data-sort="text">Hardware</th><th data-sort="text">Firmware</th><th data-sort="num">Battery</th><th data-sort="text">Last heard</th></tr></thead><tbody>
+  {% for r in rows %}<tr><td><a href="/mesh/{{ r.slug }}">{{ r.long_name or r.short_name or r.id[:12] }}</a>{% if r.short_name %} <span class="dim mono">{{ r.short_name }}</span>{% endif %}</td><td>{{ 'MeshCore' if r.network == 'meshcore' else 'Meshtastic' }}</td><td class="mono">{{ r.id[:15] }}{{ '...' if r.id | length > 15 }}</td>
+    <td><span class="sw" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:{{ colors.get(r.role_name, '#8a9bb3') }}"></span> {{ r.role_name or '-' }}</td><td>{{ r.hardware }}</td><td class="mono">{{ r.firmware }}</td>
+    <td data-v="{{ r.battery if r.battery is not none else -1 }}">{% if r.battery is not none %}{{ r.battery if r.battery <= 100 else 'powered' }}{% if r.battery is not none and r.battery <= 100 %}%{% endif %}{% endif %}</td>
+    <td data-v="{{ r.last_seen }}"><time class="ts" datetime="{{ r.last_seen }}" data-fmt="dt">{{ r.last_seen[:16].replace('T', ' ') }}</time></td></tr>{% endfor %}
+  </tbody></table>{% else %}<p class="dim" style="margin:0">No node matches{% if st.ok and not st.data.nodes %} (none has been heard yet: the page fills as nodes publish){% endif %}.</p>{% endif %}
+</div>
+<div class="panel" style="margin-top:14px"><h3 style="margin-top:0">Local Meshes and Maps</h3>
+  <p class="dim" style="margin-top:0">Communities and maps for Arkansas and the states around it. Their data is theirs: these are links, not copies. <a href="/feed/mesh">Add your node to ours</a>.</p>
+  <ul class="plain" style="margin:0">{% for name, url, what in resources %}<li><a href="{{ url }}" target="_blank" rel="noopener">{{ name }}</a>: {{ what }}</li>{% endfor %}</ul></div>
+<p class="dim" style="font-size:.8rem">{{ credit }}. Only what a node publishes in the clear is used; private channels and chat are never read. A node's owner can ask for it to be hidden (<a href="/contact">Contact</a>).</p>
+{% endblock %}

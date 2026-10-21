@@ -1,0 +1,581 @@
+{
+  "uid": "feeders",
+  "title": "Aircraft Feeder Statistics",
+  "tags": [
+    "adsb",
+    "portal"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 3,
+  "refresh": "1m",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Feeders Online",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ultrafeeder-prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "expr": "adsb_portal_feeders_online",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ultrafeeder-prom"
+          },
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Named Stations",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ultrafeeder-prom"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "expr": "adsb_portal_stations_named",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ultrafeeder-prom"
+          },
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Messages / Second",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ultrafeeder-prom"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "expr": "adsb_portal_feeders_messages_per_second",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ultrafeeder-prom"
+          },
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Aircraft Tracked",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ultrafeeder-prom"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "expr": "adsb_portal_aircraft_tracked",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ultrafeeder-prom"
+          },
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Feeders Online",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ultrafeeder-prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "adsb_portal_feeders_online",
+          "legendFormat": "online",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ultrafeeder-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ]
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Aircraft Tracked",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ultrafeeder-prom"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 4,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "adsb_portal_aircraft_tracked",
+          "legendFormat": "all",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ultrafeeder-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ]
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Messages per Second by Station",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ultrafeeder-prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "adsb_portal_station_messages_per_second{station=~\"$station\"}",
+          "legendFormat": "{{station}}",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ultrafeeder-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ]
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Positions per Second by Station",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ultrafeeder-prom"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 12,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "adsb_portal_station_positions_per_second{station=~\"$station\"}",
+          "legendFormat": "{{station}}",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ultrafeeder-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ]
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Station Uptime, Last 24 Hours (%)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ultrafeeder-prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 20,
+        "w": 24,
+        "h": 7
+      },
+      "targets": [
+        {
+          "expr": "adsb_portal_station_uptime_percent_24h{station=~\"$station\"}",
+          "legendFormat": "{{station}}",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ultrafeeder-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ]
+        }
+      }
+    },
+    {
+      "id": 20,
+      "type": "stat",
+      "title": "Network Maximum Range (30 Days)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ultrafeeder-prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 27,
+        "w": 6,
+        "h": 5
+      },
+      "targets": [
+        {
+          "expr": "max(adsb_portal_station_max_range_nm_30d)",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ultrafeeder-prom"
+          },
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "displayName": "nm"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      }
+    },
+    {
+      "id": 21,
+      "type": "bargauge",
+      "title": "Maximum Range by Station, Last 30 Days (nm)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ultrafeeder-prom"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 27,
+        "w": 18,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "sort_desc(adsb_portal_station_max_range_nm_30d{station=~\"$station\"})",
+          "legendFormat": "{{station}}",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ultrafeeder-prom"
+          },
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      }
+    },
+    {
+      "id": 22,
+      "type": "timeseries",
+      "title": "Farthest Range Today by Station (nm, UTC day)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ultrafeeder-prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 35,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "adsb_portal_station_max_range_nm_today{station=~\"$station\"}",
+          "legendFormat": "{{station}}",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ultrafeeder-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "max",
+            "lastNotNull"
+          ]
+        }
+      }
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "station",
+        "label": "Station",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "ultrafeeder-prom"
+        },
+        "query": {
+          "query": "label_values(adsb_portal_station_online, station)",
+          "refId": "stations"
+        },
+        "definition": "label_values(adsb_portal_station_online, station)",
+        "refresh": 2,
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        }
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "description": "Feeder statistics from the portal. Station IDs only; no locations. Pick a station at the top to look at one."
+}

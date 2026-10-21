@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block title %}Weather Statistics{% endblock %}
+{% block content %}
+<h1><span>Weather</span> Statistics</h1>
+<div class="sub">Every weather source in one place: the members' stations, the APRS weather stations and airport weather. Pick the sources, the counties, cities or ZIP codes, or particular stations, and the reading and period to chart. Readings are kept every few minutes; an airport APRS carries is counted once, as airport weather.</div>
+{% if not enabled %}<div class="panel" style="border-color:var(--acc2)"><b>Statistics are not being kept.</b> An administrator switches them on under Settings &gt; Weather Stations.</div>{% endif %}
+<div class="panel wsx">
+  <div class="wsx-filters">
+    <div><div class="lv-sub" style="margin-top:0">Sources</div>
+      <label><input type="checkbox" data-src="members" checked> Members' stations <span class="dim" data-n="members"></span></label>
+      <label><input type="checkbox" data-src="aprs" checked> APRS stations <span class="dim" data-n="aprs"></span></label>
+      <label><input type="checkbox" data-src="airport" checked> Airport weather <span class="dim" data-n="airport"></span></label></div>
+    <div><div class="lv-sub" style="margin-top:0">Reading</div>
+      <select id="ws-metric">{% for k, l in metrics.items() %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select>
+      <div class="lv-sub">Period</div>
+      <select id="ws-period">{% for k, v in periods.items() %}<option value="{{ k }}" {{ 'selected' if k == '24h' }}>{{ v[1] }}</option>{% endfor %}</select></div>
+    <div style="grid-column:span 2;min-width:260px"><div class="lv-sub" style="margin-top:0">Where</div>
+      <div id="ws-chips"></div>
+      <input type="search" id="ws-area" list="ws-arealist" placeholder="Add a county, city or ZIP code, or a station" autocomplete="off" aria-label="Add an area or a station" style="width:100%">
+      <datalist id="ws-arealist"></datalist>
+      <div class="help dim" style="font-size:.78rem">Nothing added means every station of the sources chosen. Counties, cities and ZIP codes are taken from where each station is; type two letters of a station to pick one.</div></div>
+  </div>
+</div>
+<div class="tiles" style="margin-top:14px"><div class="panel tile"><div class="tv" id="ws-sel">-</div><div class="tl">Stations selected</div></div><div class="panel tile"><div class="tv" id="ws-lat">-</div><div class="tl" id="ws-latl">Latest average</div></div>
+  <div class="panel tile"><div class="tv" id="ws-lo">-</div><div class="tl">Lowest in the period</div></div><div class="panel tile"><div class="tv" id="ws-hi">-</div><div class="tl">Highest in the period</div></div></div>
+<div class="panel" style="margin-top:14px"><div id="ws-charts" class="wxcharts"></div><div class="dim" style="font-size:.78rem;margin-top:6px">Move the pointer over a chart to read it. For each time: the highest, the average and the lowest of the chosen stations.</div><div class="dim" style="font-size:.78rem" id="ws-note"></div></div>
+<div class="panel" style="margin-top:14px;overflow-x:auto"><div class="tfilterbar"><input type="search" class="tfilter" data-table="#ws-tbl" placeholder="Search the stations listed" aria-label="Search the stations listed"><span class="dim tcount"></span></div>
+  <table class="sortable" id="ws-tbl"><thead><tr><th data-sort="text">Station</th><th data-sort="text">Source</th><th data-sort="text">City</th><th data-sort="text">County</th><th data-sort="num">Latest</th><th data-sort="num">Lowest</th><th data-sort="num">Average</th><th data-sort="num">Highest</th><th data-sort="num">Readings</th></tr></thead><tbody></tbody></table></div>
+<p class="dim" style="font-size:.8rem">{% if cover.readings %}{{ '{:,}'.format(cover.readings) }} readings from {{ cover.stations }} stations are kept.{% else %}No readings are kept yet; they start arriving a few minutes after the statistics are switched on.{% endif %} Airport weather: Aviation Weather Center; APRS: the APRS-IS network. See also the <a href="/weather/map">Weather Map</a>.</p>
+<style>
+.wsx-filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
+.wsx-filters label{display:flex;gap:6px;align-items:center;margin:4px 0;font-size:.9rem}
+#ws-chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 6px}
+#ws-chips .chip{cursor:pointer}
+#ws-charts svg{width:100%;height:auto;display:block}.wxcharts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 24px}.wxchart{min-width:0}.wxchart h3{margin:4px 0 2px;font-size:.95rem}@media(max-width:760px){.wxcharts{grid-template-columns:minmax(0,1fr)}}
+</style>
+<script src="/static/sondechart.js"></script>
+<script>
+(function () {
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]; }); }
+  var st = {sources: {members: true, aprs: true, airport: true}, counties: [], cities: [], zips: [], stations: [], metric: "temp_f", period: "24h"}, areas = {counties: [], cities: [], zips: []}, timer = null, seq = 0;
+  var p = new URLSearchParams(location.search);
+  if (p.get("metric")) st.metric = p.get("metric"); if (p.get("period")) st.period = p.get("period");
+  ["counties", "cities", "zips", "stations"].forEach(function (k) { if (p.get(k)) st[k] = p.get(k).split("|").filter(Boolean); });
+  st.near = p.get("near") || "";   // a center and a radius ("lat,lon,miles"), from a place's weather page
+  if (p.get("sources")) { st.sources = {members: false, aprs: false, airport: false}; p.get("sources").split(",").forEach(function (s) { if (s in st.sources) st.sources[s] = true; }); }
+  $("ws-metric").value = st.metric; $("ws-period").value = st.period;
+  document.querySelectorAll("[data-src]").forEach(function (cb) { cb.checked = !!st.sources[cb.getAttribute("data-src")]; });
+
+  // units: readings arrive in the stored imperial units and are shown in the person's own
+  function conv(metric, v) {
+    if (v == null) return "-";
+    var U = window.ArkUnits;
+    if (metric === "temp_f" || metric === "dew_f") return U.text.temp((v - 32) * 5 / 9, 1);
+    if (metric === "wind_mph" || metric === "gust_mph") return U.text.spd(v / 2.236936, 1);
+    if (metric === "press_in") return U.text.press(v / 0.02953, U.system() === "imperial" ? 2 : 0);
+    if (metric === "rain_day_in") return U.text.rain(v / 0.03937);
+    if (metric === "hum" || metric === "cloud_pct") return Math.round(v) + " %";
+    return v.toFixed(1);
+  }
+  function num(metric, v) {   // the number in the person's unit, for the axis
+    if (v == null) return null; var U = window.ArkUnits;
+    if (metric === "temp_f" || metric === "dew_f") return U.temp((v - 32) * 5 / 9).v;
+    if (metric === "wind_mph" || metric === "gust_mph") return U.spd(v / 2.236936).v;
+    if (metric === "press_in") return U.system() === "imperial" ? v : v / 0.02953;
+    if (metric === "rain_day_in") return U.system() === "metric" ? v / 0.03937 : v;
+    return v;
+  }
+  function query() {
+    var o = new URLSearchParams(), src = Object.keys(st.sources).filter(function (k) { return st.sources[k]; });
+    o.set("sources", src.join(",") || "members"); o.set("metric", st.metric); o.set("period", st.period);
+    ["counties", "cities", "zips", "stations"].forEach(function (k) { if (st[k].length) o.set(k, st[k].join("|")); });
+    if (st.near) o.set("near", st.near);
+    return o;
+  }
+  function chips() {
+    var h = "";
+    st.counties.forEach(function (x, i) { h += '<span class="chip" data-k="counties" data-i="' + i + '">' + esc(x) + "<b>×</b></span>"; });
+    st.cities.forEach(function (x, i) { h += '<span class="chip" data-k="cities" data-i="' + i + '">' + esc(x) + "<b>×</b></span>"; });
+    st.zips.forEach(function (x, i) { h += '<span class="chip" data-k="zips" data-i="' + i + '">ZIP ' + esc(x) + "<b>×</b></span>"; });
+    st.stations.forEach(function (x, i) { h += '<span class="chip" data-k="stations" data-i="' + i + '">' + esc(x.split(":")[1]) + "<b>×</b></span>"; });
+    if (st.near) h += '<span class="chip" data-k="near">Within ' + esc(st.near.split(",")[2]) + ' miles of ' + esc(p.get("place") || "the chosen place") + "<b>×</b></span>";
+    $("ws-chips").innerHTML = h || '<span class="dim" style="font-size:.84rem">Everywhere</span>';
+  }
+  $("ws-chips").addEventListener("click", function (e) { var c = e.target.closest(".chip"); if (!c) return; if (c.getAttribute("data-k") === "near") st.near = ""; else st[c.getAttribute("data-k")].splice(parseInt(c.getAttribute("data-i"), 10), 1); chips(); refresh(); });
+
+  var CHARTS = ["temp_f", "hum", "press_in", "wind_mph", "rain_day_in", "dew_f"], cseq = 0;
+  function drawOne(host, d) {   // the same chart as the radiosonde flight page (static/sondechart.js): hover to read, grid, labelled axes
+    var s = d.series; if (s.length < 2) { host.innerHTML = '<p class="dim" style="margin:0">' + (s.length ? "Only one reading so far; the chart needs a few more." : "No readings in this period for these filters yet.") + "</p>"; return; }
+    var now = new Date(s[s.length - 1].ts).getTime(), days = (now - new Date(s[0].ts).getTime()) > 172800000, div = days ? 86400000 : 3600000, unit = conv(d.metric, 1).replace(/^[-0-9.,]+\s*/, "");
+    SondeCharts.line(host, {x: s.map(function (r) { return (new Date(r.ts).getTime() - now) / div; }), xlabel: "Time (" + (days ? "days" : "hours") + " ago, now at the right)", ylabel: unit, height: 215,
+      xfmt: function (v) { return v >= -0.005 ? "now" : Math.abs(v).toFixed(1) + (days ? " d" : " h") + " ago"; }, yfmt: function (v) { return String(Math.round(v * 100) / 100); },
+      series: [{y: s.map(function (r) { return num(d.metric, r.max); }), color: "#ff9f43", label: "Highest", unit: unit}, {y: s.map(function (r) { return num(d.metric, r.avg); }), color: "#3ee6a8", label: "Average", unit: unit}, {y: s.map(function (r) { return num(d.metric, r.min); }), color: "#4fb3ff", label: "Lowest", unit: unit}]});
+  }
+  function chart(d) {   // the chosen reading first, then the other main readings, two charts to a row
+    var me = ++cseq, order = [d.metric].concat(CHARTS.filter(function (k) { return k !== d.metric; })), grid = $("ws-charts");
+    grid.innerHTML = order.map(function (k) { return '<div class="wxchart" data-m="' + k + '"><h3>' + esc(k === d.metric ? d.label : (($("ws-metric").querySelector('option[value="' + k + '"]') || {}).textContent || k)) + '</h3><div class="body dim">Loading...</div></div>'; }).join("");
+    drawOne(grid.querySelector('[data-m="' + d.metric + '"] .body'), d);
+    var q = query();
+    order.slice(1).forEach(function (k) {
+      q.set("metric", k);
+      fetch("/api/weather/stats.json?" + q.toString()).then(function (r) { return r.json(); }).then(function (x) {
+        if (me !== cseq) return; var el = grid.querySelector('[data-m="' + k + '"]'); if (!el) return;
+        if (!x.series || !x.series.length || (k === "rain_day_in" && !x.series.some(function (r) { return r.max > 0; }))) { el.style.display = "none"; return; }
+        drawOne(el.querySelector(".body"), x);
+      }).catch(function () {});
+    });
+  }
+  function table(d) {
+    $("ws-tbl").querySelector("tbody").innerHTML = d.stations.map(function (r) {
+      var href = r.src === "members" ? "/weather/" + encodeURIComponent(r.sid) : r.src === "aprs" ? "/aprs/" + encodeURIComponent(r.sid.replace(/\//g, "~")) : "/airports/" + encodeURIComponent(r.sid);
+      return '<tr><td><a class="mono" href="' + href + '">' + esc(r.sid) + "</a> <span class=\"dim\">" + esc(r.name === r.sid ? "" : r.name) + '</span></td><td>' + ({members: "Member", aprs: "APRS", airport: "Airport"}[r.src]) + "</td><td>" + esc(r.city) + "</td><td>" + esc(r.county) + '</td><td data-v="' + (r.latest == null ? "" : r.latest) + '">' + conv(d.metric, r.latest) + '</td><td data-v="' + r.min + '">' + conv(d.metric, r.min) + '</td><td data-v="' + r.avg + '">' + conv(d.metric, r.avg) + '</td><td data-v="' + r.max + '">' + conv(d.metric, r.max) + '</td><td data-v="' + r.n + '">' + r.n + "</td></tr>";
+    }).join("") || '<tr><td colspan="9" class="dim">No station matches these filters yet.</td></tr>';
+  }
+  function tiles(d) {
+    var a = d.stations.filter(function (r) { return r.latest != null; }), avg = a.length ? a.reduce(function (s, r) { return s + r.latest; }, 0) / a.length : null;
+    $("ws-sel").textContent = d.selected; $("ws-lat").textContent = conv(d.metric, avg); $("ws-latl").textContent = "Latest, average of " + a.length + " station" + (a.length === 1 ? "" : "s");
+    var mins = d.stations.map(function (r) { return r.min; }).filter(function (x) { return x != null; }), maxs = d.stations.map(function (r) { return r.max; }).filter(function (x) { return x != null; });
+    $("ws-lo").textContent = mins.length ? conv(d.metric, Math.min.apply(null, mins)) : "-"; $("ws-hi").textContent = maxs.length ? conv(d.metric, Math.max.apply(null, maxs)) : "-";
+  }
+  var last = null;
+  function refresh() {
+    var me = ++seq, q = query(); history.replaceState(null, "", "?" + q.toString());
+    fetch("/api/weather/stats.json?" + q.toString()).then(function (r) { return r.json(); }).then(function (d) {
+      if (me !== seq) return; if (d.error) { $("ws-note").textContent = "Too many questions just now; wait a moment."; return; }
+      last = d; tiles(d); chart(d); table(d); $("ws-note").textContent = "";
+    }).catch(function () { $("ws-note").textContent = "The statistics could not be loaded."; });
+  }
+  document.querySelectorAll("[data-src]").forEach(function (cb) { cb.addEventListener("change", function () { st.sources[cb.getAttribute("data-src")] = cb.checked; refresh(); }); });
+  $("ws-metric").addEventListener("change", function () { st.metric = this.value; refresh(); }); $("ws-period").addEventListener("change", function () { st.period = this.value; refresh(); });
+  document.addEventListener("adsb-prefs", function () { if (last) { tiles(last); chart(last); table(last); } });
+
+  // the area and station picker
+  fetch("/api/weather/stats-areas.json").then(function (r) { return r.json(); }).then(function (d) {
+    areas = d; ["members", "aprs", "airport"].forEach(function (k) { var e = document.querySelector('[data-n="' + k + '"]'); if (e && d.sources[k] != null) e.textContent = "(" + d.sources[k] + ")"; });
+    $("ws-arealist").innerHTML = areas.counties.map(function (x) { return '<option value="' + esc(x.name) + '">county, ' + x.n + " stations</option>"; }).join("") + areas.cities.map(function (x) { return '<option value="' + esc(x.name) + '">city, ' + x.n + " stations</option>"; }).join("") + areas.zips.map(function (x) { return '<option value="' + esc(x.name) + '">ZIP code, ' + x.n + " stations</option>"; }).join("");
+  }).catch(function () {});
+  $("ws-area").addEventListener("input", function () {
+    var v = this.value.trim(); if (!v) return;
+    var c = areas.counties.filter(function (x) { return x.name.toLowerCase() === v.toLowerCase(); })[0], t = areas.cities.filter(function (x) { return x.name.toLowerCase() === v.toLowerCase(); })[0], z = areas.zips.filter(function (x) { return x.name === v; })[0];
+    if (c && st.counties.indexOf(c.name) < 0) st.counties.push(c.name); else if (t && st.cities.indexOf(t.name) < 0) st.cities.push(t.name); else if (z && st.zips.indexOf(z.name) < 0) st.zips.push(z.name);
+    else if (v.length >= 2) {   // not an area: a station, by what it is called
+      clearTimeout(timer); var me = ++seq + 1000; timer = setTimeout(function () { fetch("/api/weather/stats-stations.json?q=" + encodeURIComponent(v)).then(function (r) { return r.json(); }).then(function (d) {
+        var hit = (d.stations || []).filter(function (s) { return s.sid.toLowerCase() === v.toLowerCase(); })[0];
+        if (hit) { var key = hit.src + ":" + hit.sid; if (st.stations.indexOf(key) < 0) st.stations.push(key); $("ws-area").value = ""; chips(); refresh(); }
+        else $("ws-arealist").innerHTML = (d.stations || []).map(function (s) { return '<option value="' + esc(s.sid) + '">' + esc(s.name + (s.city ? ", " + s.city : "")) + "</option>"; }).join("");
+      }); }, 250); return;
+    } else return;
+    this.value = ""; chips(); refresh();
+  });
+  chips(); refresh();
+})();
+</script>
+{% endblock %}

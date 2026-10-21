@@ -1,0 +1,28 @@
+<div class="subnav">
+  <span class="sn-label">My Stations</span>
+  <a class="{{ 'active' if active == 'stations' }}" href="/my/stations">All My Stations</a>
+  <a class="{{ 'active' if active == 'feeders' }}" href="/my/">My Feeders</a>
+  <a class="{{ 'active' if active == 'weather' }}" href="/my/weather">My Weather Stations</a>
+  <a class="{{ 'active' if active == 'sondes' }}" href="/my/sondes">My Sonde Stations</a>
+  {% if acars_on %}<a class="{{ 'active' if active == 'acars' }}" href="/my/acars">My ACARS Stations</a>{% endif %}
+  {% if ais_on %}<a class="{{ 'active' if active == 'ais' }}" href="/my/ais">My AIS Stations</a>{% endif %}
+  {% if rid_on %}<a class="{{ 'active' if active == 'drones' }}" href="/my/drones">My Remote ID Stations</a>{% endif %}
+  {% if mesh_on %}<a class="{{ 'active' if active == 'mesh' }}" href="/my/mesh">My Mesh Nodes</a>{% endif %}
+  {% if repeater_on %}<a class="{{ 'active' if active == 'repeaters' }}" href="/my/repeaters">My Repeaters</a>{% endif %}
+  {% if satimg_on %}<a class="{{ 'active' if active == 'satrx' }}" href="/my/sat-receivers">My Satellite Receivers</a>{% endif %}
+  {% if listings_on %}<a class="{{ 'active' if active == 'listings' }}" href="/my/nets">My Nets and Gateways</a>{% endif %}
+  <span class="sn-break"></span><span class="sn-label">My Account</span>
+  {% if chat_on %}<a class="{{ 'active' if active == 'chat' }}" href="/chat/">Chat{% if chat_unread %} <span class="msgbadge">{{ chat_unread }}</span>{% endif %}</a>{% endif %}
+  {% if pm_on %}<a class="{{ 'active' if active == 'messages' }}" href="/my/messages">Messages{% if pm_unread %} <span class="msgbadge">{{ pm_unread }}</span>{% endif %}</a>{% endif %}
+  {% if bridges_on %}<a class="{{ 'active' if active == 'bridges' }}" href="/my/bridges">Radio Bridges</a>{% endif %}
+  {% if friends_on %}<a class="{{ 'active' if active == 'friends' }}" href="/my/friends">Friends{% if friend_requests %} <span class="msgbadge">{{ friend_requests }}</span>{% endif %}</a>{% endif %}
+  <a class="{{ 'active' if active == 'alerts' }}" href="/my/alerts">Aircraft Alerts</a>
+  <a class="{{ 'active' if active == 'profile' }}" href="/my/profile">Profile</a>
+  <a class="{{ 'active' if active == 'display' }}" href="/my/display">Display and Maps</a>
+  {% if google_on %}<a class="{{ 'active' if active == 'google' }}" href="/my/google">Google Sign-In</a>{% endif %}
+  {% if passkeys_on %}<a class="{{ 'active' if active == 'passkeys' }}" href="/my/passkeys">Passkeys</a>{% endif %}
+  {% if api_on %}<a class="{{ 'active' if active == 'apikeys' }}" href="/my/api-keys">API Keys</a>{% endif %}
+  <a class="{{ 'active' if active == 'password' }}" href="/my/password">Password</a>
+  <a class="{{ 'active' if active == 'twofactor' }}" href="/my/two-factor">Two-Factor</a>
+  <a class="{{ 'active' if active == 'sessions' }}" href="/my/sessions">Sign-Ins</a>
+</div>

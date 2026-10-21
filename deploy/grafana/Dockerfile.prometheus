@@ -1,0 +1,3 @@
+# Prometheus with this network's scrape configuration baked in. Published as mallison01/adsb-prometheus.
+FROM prom/prometheus:latest
+COPY prometheus.yml /etc/prometheus/prometheus.yml

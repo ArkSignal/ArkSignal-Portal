@@ -1,0 +1,52 @@
+<div class="panel" id="users-table" style="overflow-x:auto">
+<table class="sortable">
+  <tr><th data-sort="text">Username</th><th data-sort="text">Email</th><th>Roles</th><th data-sort="text">Status</th><th data-sort="text">Last Sign-In</th><th>Actions</th></tr>
+  {% for u in users %}
+  <tr data-search="{{ u.username }} {{ u.email }} {% for r in u.roles_list %}{{ r.name }} {% endfor %}{{ 'disabled' if u.disabled else 'active' }}">
+    <td><a href="/admin/users/{{ u.id }}">{{ u.username }}</a></td>
+    <td class="dim">{{ u.email }}</td>
+    <td>
+      {% for r in u.roles_list %}
+      <form class="inline" method="post" action="/admin/users/{{ u.id }}/roles" data-async data-async-target="#users-table"
+            data-confirm="Remove the {{ r.name }} role from {{ u.username }}? They will lose the access it grants.">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="remove">
+        <input type="hidden" name="role_id" value="{{ r.id }}">
+        <span class="tag member {{ 'admin' if r.is_super_admin }}">{{ r.name }} <button type="submit" class="x" title="Remove">&times;</button></span>
+      </form>
+      {% endfor %}
+      {% set held = u.roles_list | map(attribute='id') | list %}
+      {% set available = all_roles | rejectattr('id', 'in', held) | list %}
+      {% if available %}
+      <form class="inline-row" method="post" action="/admin/users/{{ u.id }}/roles" data-async data-async-target="#users-table">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="assign">
+        <select name="role_id" aria-label="Role to assign">{% for r in available %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}</select>
+        <button class="btn small" type="submit">Assign</button>
+      </form>
+      {% endif %}
+    </td>
+    <td>{% if u.disabled %}<span class="tag off">disabled</span>{% else %}<span class="tag">active</span>{% endif %}</td>
+    <td class="dim" data-v="{{ u.last_login or '' }}">{{ u.last_login | localtime }}</td>
+    <td>
+      <form class="inline" method="post" action="/admin/users/{{ u.id }}" data-async data-async-target="#users-table"
+            data-confirm="Reset the password for {{ u.username }}? Their current password will stop working immediately.">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="reset_password">
+        <button class="btn small" type="submit">Reset Password</button>
+      </form>
+      {% if u.totp_enabled %}<form class="inline" method="post" action="/admin/users/{{ u.id }}" data-async data-async-target="#users-table"
+            data-confirm="Turn off two-factor sign-in for {{ u.username }}? Use this when they have lost their phone and recovery codes.">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="reset_2fa">
+        <button class="btn small" type="submit">Reset 2FA</button></form>{% endif %}
+      <form class="inline" method="post" action="/admin/users/{{ u.id }}" data-async data-async-target="#users-table"
+            {% if not u.disabled %}data-confirm="Disable {{ u.username }}? They will no longer be able to sign in."{% endif %}>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="{{ 'enable' if u.disabled else 'disable' }}">
+        <button class="btn small {{ '' if u.disabled else 'warn' }}" type="submit">{{ 'Enable' if u.disabled else 'Disable' }}</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+</div>

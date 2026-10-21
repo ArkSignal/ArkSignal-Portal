@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% from "partials/_radiolist_form.html" import fields with context %}
+{% block title %}{{ 'Nets' if kind == 'net' else 'Winlink Gateways' }}{% endblock %}
+{% block content %}
+<h1><span>Admin</span> {{ 'Nets' if kind == 'net' else 'Winlink Gateways' }}</h1>
+<div class="sub">The {{ 'nets' if kind == 'net' else 'Winlink gateways' }} members have added to <a href="{{ '/radio/nets' if kind == 'net' else '/radio/winlink' }}">the public page</a>: check what is waiting, edit, hide or delete, and add one for a member. Editors (the Moderate Repeaters permission) and administrators can do all of this; every change is in the audit log. Whether new entries wait for an editor is in <a href="/admin/settings/radio#sec-nets-and-gateways">Settings &gt; Nets and Gateways</a>.</div>
+{% include "partials/_admin_subnav.html" %}
+
+{% call sec('add-for-member', 'Add One for a Member', False) %}
+  <form method="post" action="/admin/listings/add" data-async data-async-target="#listings-admin" data-reset>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="kind" value="{{ kind }}">
+    <label for="al-user">Member (User Name, Display Name, Call Sign or Email; Leave Blank for the Network Itself)</label>
+    <input type="text" id="al-user" name="username" data-memberpicker maxlength="120" style="width:320px" placeholder="Start typing to search members">
+    {{ fields(kind, none, 'new') }}
+    <button class="btn" type="submit">Add It (Showing at Once)</button>
+  </form>
+{% endcall %}
+
+{% call sec('all', 'All Entries' ~ (' (' ~ pending ~ ' waiting)' if pending else ''), True, True) %}
+  {% include "partials/_admin_listings.html" %}
+{% endcall %}
+{% endblock %}

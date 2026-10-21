@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% from "partials/_repeater_form.html" import fields %}
+{% block title %}Repeaters{% endblock %}
+{% block content %}
+<h1><span>Admin</span> Repeaters</h1>
+<div class="sub">Reports, new submissions and sysop claims waiting for an editor, and the directory's numbers. Hearham's listing loads from <a href="/admin/data-updates/">Data Updates</a>; everything configurable is in <a href="/admin/settings#sec-repeaters">Settings &gt; Repeaters</a>.{% if not enabled %} <b>The repeater directory is switched off.</b>{% endif %}</div>
+{% include "partials/_admin_subnav.html" %}
+<div class="tiles" style="margin-bottom:14px">
+  <div class="panel tile"><div class="tv">{{ counts.total }}</div><div class="tl">Listed ({{ counts.hearham }} from Hearham)</div></div>
+  <div class="panel tile"><div class="tv">{{ counts.verified }}</div><div class="tl">Verified by a person</div></div>
+  <div class="panel tile"><div class="tv">{{ counts.reports }}</div><div class="tl">Reports open</div></div>
+  <div class="panel tile"><div class="tv">{{ counts.pending }}</div><div class="tl">Submissions waiting</div></div>
+  <div class="panel tile"><div class="tv">{{ counts.claims }}</div><div class="tl">Claims waiting</div></div>
+</div>
+{% if last %}<p class="dim">Last Hearham load: {{ last }}{% if last_at %} ({{ last_at[:16].replace('T', ' ') }} UTC){% endif %}.</p>{% endif %}
+
+<div data-tab-title="Review" data-tab-order="10" data-tab-default>
+<details class="panel setsec" open style="margin-bottom:14px"><summary><span class="role-name">Reports from Members ({{ reports | length }})</span></summary><div class="secbody">
+{% if reports %}<table><thead><tr><th>Repeater</th><th>Report</th><th>From</th><th>Suggested</th><th></th></tr></thead><tbody>
+{% for t in reports %}<tr><td><a href="/repeaters/{{ t.repeater_id }}">{{ rp_mhz(t.freq_hz) }} {{ t.callsign }}</a> <span class="dim">{{ t.city }}</span></td><td>{{ report_kinds.get(t.kind, t.kind) }}{% if t.note %}: {{ t.note }}{% endif %}</td><td>{{ t.username or '-' }}</td>
+<td class="mono">{{ t.suggested if t.suggested and t.suggested != '{}' else '' }}</td>
+<td style="white-space:nowrap">{% for act, label in [('apply', 'Apply'), ('reject', 'Close')] %}<form method="post" action="/admin/repeaters/report/{{ t.id }}/{{ act }}" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small{{ ' neutral' if act == 'reject' }}" style="margin:0" type="submit">{{ label }}</button></form> {% endfor %}</td></tr>{% endfor %}
+</tbody></table>{% else %}<p class="dim" style="margin:0">No open reports.</p>{% endif %}</div></details>
+
+<details class="panel setsec" open style="margin-bottom:14px"><summary><span class="role-name">Submissions Waiting ({{ pending | length }})</span></summary><div class="secbody">
+{% if pending %}<table><thead><tr><th>Repeater</th><th>City</th><th>Modes</th><th>From</th><th></th></tr></thead><tbody>
+{% for r in pending %}<tr><td><a href="/repeaters/{{ r.id }}">{{ rp_mhz(r.freq_hz) }} {{ r.callsign }}</a></td><td>{{ r.city }}</td><td>{{ r.modes }}</td><td>{{ r.who or '-' }}</td>
+<td style="white-space:nowrap">{% for act, label in [('approve', 'Approve'), ('reject', 'Remove')] %}<form method="post" action="/admin/repeaters/{{ r.id }}/{{ act }}" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small{{ ' neutral' if act == 'reject' }}" style="margin:0" type="submit">{{ label }}</button></form> {% endfor %}</td></tr>{% endfor %}
+</tbody></table>{% else %}<p class="dim" style="margin:0">Nothing waiting.</p>{% endif %}</div></details>
+
+<details class="panel setsec" id="sec-waiting-for-a-position" {{ 'open' if waiting_total }} style="margin-bottom:14px"><summary><span class="role-name">Waiting for a Position ({{ waiting_total }})</span></summary><div class="secbody">
+<p class="help" style="margin-top:0">Repeaters brought in without a position (most often from a radio code plug) are in the list but not on the map. The place their city names is offered from the portal's own places list: one click puts the repeater there, which is right to within the town. <b>Pick on a Map</b> opens the repeater, where you place it exactly.</p>
+{% if waiting %}<table class="sortable"><thead><tr><th data-sort="text">Repeater</th><th data-sort="text">City</th><th data-sort="text">Modes</th><th data-sort="text">From</th><th>Place</th></tr></thead><tbody>
+{% for r in waiting %}{% set g = guess.get(((r.city or '').strip(), (r.state or '').strip())) %}<tr><td><a href="/repeaters/{{ r.id }}">{{ rp_mhz(r.freq_hz) }} {{ r.callsign }}</a></td><td>{{ r.city or '-' }}</td><td>{{ r.modes }}</td><td class="dim" style="font-size:.78rem">{{ (r.source or '').replace('plug:', 'radio: ') }}</td>
+<td style="white-space:nowrap"><form method="post" action="/admin/repeaters/{{ r.id }}/position" style="display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  {% if g %}<input type="hidden" name="from" value="city"><input type="hidden" name="lat" value="{{ g.lat }}"><input type="hidden" name="lon" value="{{ g.lon }}"><button class="btn small" type="submit" title="{{ g.lat }}, {{ g.lon }}">Use {{ g.label }}</button>
+  {% else %}<input type="text" name="lat" placeholder="Latitude" style="width:90px"><input type="text" name="lon" placeholder="Longitude" style="width:90px"><button class="btn small" type="submit">Save</button>{% endif %}
+  <a class="btn small neutral" href="/repeaters/{{ r.id }}#rp-position">Pick on a Map</a></form></td></tr>{% endfor %}
+</tbody></table>{% if waiting_total > waiting | length %}<p class="dim">The newest {{ waiting | length }} of {{ waiting_total }} are listed; place these and the rest follow.</p>{% endif %}
+{% else %}<p class="dim" style="margin:0">Every repeater has a position.</p>{% endif %}</div></details>
+
+<details class="panel setsec" open style="margin-bottom:14px"><summary><span class="role-name">Sysop Claims ({{ claims | length }})</span></summary><div class="secbody">
+{% if claims %}<table><thead><tr><th>Repeater</th><th>Claimed by</th><th>Call sign on profile</th><th></th></tr></thead><tbody>
+{% for r in claims %}<tr><td><a href="/repeaters/{{ r.id }}">{{ rp_mhz(r.freq_hz) }} {{ r.callsign }}</a></td><td>{{ r.who }}</td><td class="mono">{{ r.who_call or '-' }}</td>
+<td style="white-space:nowrap">{% for act, label in [('claim-approve', 'Approve'), ('claim-deny', 'Deny')] %}<form method="post" action="/admin/repeaters/{{ r.id }}/{{ act }}" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small{{ ' neutral' if act == 'claim-deny' }}" style="margin:0" type="submit">{{ label }}</button></form> {% endfor %}</td></tr>{% endfor %}
+</tbody></table><p class="help">Approve when the member's call sign matches the repeater's trustee or club, or you know them.</p>{% else %}<p class="dim" style="margin:0">No claims waiting.</p>{% endif %}</div></details>
+
+</div>
+<div data-tab-title="Import" data-tab-order="20">
+<details class="panel setsec" style="margin-bottom:14px"><summary><span class="role-name">Import a List From a Club or Council</span></summary><div class="secbody">
+<p class="help" style="margin-top:0">For a repeater list a club, a repeater council or a coordinator has given you <b>permission</b> to use (RepeaterBook and RadioID lists cannot be loaded this way: their terms forbid it). A CSV file with one repeater per row; only <span class="mono">freq</span> is required, a city without a position is placed at the city, and repeaters already listed on the same frequency nearby are skipped. <a href="/admin/repeaters/template.csv">Download the template</a>.</p>
+<form method="post" action="/admin/repeaters/import-csv" enctype="multipart/form-data" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div><label for="ri-label">Whose list is it</label><input type="text" id="ri-label" name="label" maxlength="60" required placeholder="Arkansas Repeater Council, 2026 list" style="width:280px"></div>
+  <div><label for="ri-file">CSV file</label><input type="file" id="ri-file" name="file" accept=".csv,text/csv" required></div>
+  <button class="btn small" type="submit" style="margin:0 0 2px">Import</button>
+</form></div></details>
+
+<details class="panel setsec" style="margin-bottom:14px"><summary><span class="role-name">DMR Talkgroup and Contact Lists</span></summary><div class="secbody">
+  <p style="margin-top:0">The numbers behind the names: {{ dmr.talkgroups }} talkgroups and {{ dmr.contacts }} contacts are kept. They fill in talkgroup numbers when a code plug is imported. Bring a radio's exported Talkgroups and Digital Contacts CSV files, or a RadioID-style user list or BrandMeister-style talkgroup list; importing again updates what is there. To keep them updated automatically, put the list addresses under Settings > Repeaters and set the schedule on Data Updates (nothing is fetched from RadioID or BrandMeister until you have their permission: see DATA_SOURCES_TERMS.md).</p>
+  <form method="post" action="/admin/repeaters/import-dmr" enctype="multipart/form-data" data-async>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
+      <div><label for="dm-tg">Talkgroup list (CSV or JSON)</label><input type="file" id="dm-tg" name="talkgroups" accept=".csv,.json,text/csv,application/json"></div>
+      <div><label for="dm-ct">Contact lists (CSV, one or several)</label><input type="file" id="dm-ct" name="contacts" accept=".csv,text/csv" multiple></div>
+      <div style="align-self:end"><label class="check"><input type="checkbox" name="replace" value="1" checked> Replace the contacts already kept</label></div>
+    </div>
+    <button class="btn" type="submit">Import Lists</button>
+  </form></div></details>
+<details class="panel setsec" style="margin-bottom:14px"><summary><span class="role-name">Import a Radio Code Plug</span></summary><div class="secbody">
+  <p style="margin-top:0">A radio's channel list (the CSV a programming program exports, for example the DM32's) holds repeaters with their color codes, time slots, contacts (talkgroups) and tones. A channel on the frequency of a repeater already listed adds only what that repeater did not have (the DMR mode, the color code, the tone, the talkgroups); a repeater not listed is added <b>waiting, without a position</b>, for an editor to place. Simplex channels and channels not named after a repeater's call sign are skipped. The offset of a new repeater is the usual one for its band when the file does not give it.</p>
+  <form method="post" action="/admin/repeaters/import-plug" enctype="multipart/form-data" data-async>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
+      <div><label for="pl-label">Name of the radio or list</label><input type="text" id="pl-label" name="label" maxlength="60" placeholder="KD5VCF DM32" required></div>
+      <div><label for="pl-file">Channel list (CSV)</label><input type="file" id="pl-file" name="file" accept=".csv,text/csv" required></div>
+      <div><label for="pl-contacts">Contact list (CSV, optional)</label><input type="file" id="pl-contacts" name="contacts" accept=".csv,text/csv"></div>
+    </div>
+    <div class="help">The contact list gives the talkgroup names their numbers (columns such as Name and Call ID).</div>
+    <button class="btn" type="submit">Import</button>
+  </form></div></details>
+</div>
+<div data-tab-title="Linked Systems and Add" data-tab-order="30">
+<details class="panel setsec" id="sec-linked-systems" style="margin-bottom:14px"><summary><span class="role-name">Linked Systems ({{ link_groups | length }})</span></summary><div class="secbody">
+  <p style="margin-top:0">Groups of repeaters that are linked together (an ARES net, a wide-area system, a DMR network of local repeaters). The list shows a badge and can filter by system; the Repeater Map draws the links. Owners can also add their own repeater to a system from its page.</p>
+  {% if link_groups %}<table><thead><tr><th>System</th><th>Repeaters</th><th></th></tr></thead><tbody>
+  {% for g in link_groups %}<tr><td><a href="/repeaters/?group={{ g.id }}"><b>{{ g.name }}</b></a>{% if g.notes %}<br><span class="dim">{{ g.notes }}</span>{% endif %}</td><td>{% for m in g.members %}<a href="/repeaters/{{ m.id }}" class="mono">{{ m.callsign | cs }}</a>{{ ', ' if not loop.last }}{% else %}<span class="dim">none yet</span>{% endfor %}</td>
+    <td><form method="post" action="/admin/repeaters/groups/{{ g.id }}/delete" data-confirm="Delete the linked system {{ g.name }}? The repeaters stay."><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small danger" type="submit" style="margin:0">Delete</button></form></td></tr>{% endfor %}</tbody></table>{% endif %}
+  <form method="post" action="/admin/repeaters/groups/add" data-async style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:10px"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div><label for="lg-name">System name (an existing name adds to it)</label><input type="text" id="lg-name" name="name" maxlength="60" required style="width:240px"></div>
+    <div><label for="lg-notes">Notes</label><input type="text" id="lg-notes" name="notes" maxlength="300" style="width:260px"></div>
+    <div><label for="lg-mem">Repeater numbers (the number in each repeater's address, separated by commas)</label><input type="text" id="lg-mem" name="members" style="width:300px" placeholder="12, 40, 77"></div>
+    <button class="btn small" type="submit" style="margin:0 0 2px">Save Linked System</button></form>
+</div></details>
+<details class="panel setsec" style="margin-bottom:14px"><summary><span class="role-name">Add a Repeater</span></summary><div class="secbody">
+<form method="post" action="/admin/repeaters/add">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div style="margin-bottom:12px"><label for="ra-user">For a member (optional)</label><input type="text" id="ra-user" name="username" placeholder="User name: they will look after it" autocomplete="off" data-memberpicker></div>
+  {{ fields({}, kinds, statuses, modes) }}
+  <p style="margin-bottom:0"><button class="btn" type="submit">Add Repeater</button></p>
+</form>
+<p class="help">Named members get the repeater on their My Repeaters page and can keep it current. Recorded in the audit log.</p></div></details>
+</div>
+<script src="/static/memberpicker.js"></script>
+{% endblock %}

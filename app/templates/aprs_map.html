@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% from "partials/_mapshell.html" import shell, boot with context %}
+{% block title %}APRS Map{% endblock %}
+{% block main_class %}wide{% endblock %}
+{% block content %}
+{# The same map page as the live (aircraft) map, the Weather Map, the County Map and the Repeater Map: partials/_mapshell.html carries the layout; APRS stations are drawn below. #}
+{% call shell("Search call sign or comment", "Search APRS stations", "Stations", "Station Page", map_type="aprs") %}
+    <details class="fsec" data-k="show" open><summary><span class="ic">&#9783;</span>Kinds of Station<span class="fbadge" data-fb="show"></span></summary><div class="fbody">
+      <div class="lv-row" id="am-kinds" style="flex-direction:column;align-items:flex-start">{% for k, l in kinds.items() %}<label><input type="checkbox" data-kind="{{ k }}" {{ 'checked' if k in ('weather', 'digipeater', 'gateway', 'igate', 'repeater', 'fixed', 'mobile', 'object') }}> {{ l }}</label>{% endfor %}</div>
+      <div class="lv-row"><label title="The airports' own weather reports arrive over APRS too; hide them here (the Weather Map shows airport weather once, as airport weather)"><input type="checkbox" id="am-noairport"> Hide airport weather stations</label></div>
+      <div class="lv-row"><label>Heard within <select id="am-hours"><option value="1">1 hour</option><option value="6">6 hours</option><option value="24" selected>24 hours</option><option value="72">3 days</option></select></label></div>
+      <div class="lv-row"><label>Icon Size <select id="am-dot"><option value="75">Small</option><option value="100">Medium</option><option value="130">Large</option><option value="170">Extra large</option></select></label></div>
+      <div class="help dim" style="font-size:.78rem;margin-top:6px">{{ credit }}. A moving station shows its recent trail when you click it.</div>
+    </div></details>
+{% endcall %}
+{{ boot("/aprs/map", "am") }}
+<script src="/static/touchhit.js"></script>
+<script src="/static/colocate.js"></script>
+<script src="/static/labelfit.js"></script>
+<script>
+(function () {
+  var S = ArkShell, $ = S.$, esc = S.esc;
+  var q = new URLSearchParams(location.search);
+  var map = L.map("lvmap", {zoomControl: false, zoomSnap: 0.25}).setView([parseFloat(q.get("lat")) || {{ map_lat | float }}, parseFloat(q.get("lon")) || {{ map_lon | float }}], parseFloat(q.get("zoom")) || 7);
+  L.control.zoom({position: "bottomright"}).addTo(map);
+  var state = {q: q.get("q") || "", kinds: {}, hours: {{ hours }}, noAirport: (S.pref("am.noairport") === "1")};
+  var shell = S.start({map: map, layers: {{ layers | tojson }}, key: "am", url: "/aprs/map", cfg: {tile: {{ tile_url | tojson }}, attr: {{ tile_attr | tojson }}, labelScale: {{ label_scale | int }}, labelBg: {{ label_bg | tojson }}, wxRefresh: {{ wx_refresh | int }}},
+    share: function () { return {q: state.q, call: cardId || ""}; }, legend: function () { return legend(); }});
+  var KINDS = {{ kinds | tojson }};
+  var COL = {weather: "#ffb454", digipeater: "#3ee6a8", gateway: "#3ee6a8", igate: "#3ee6a8", repeater: "#4fb3ff", fixed: "#8a9bb3", mobile: "#ff8cd9", object: "#c58bff", ambulance: "#ff6b6b", fire: "#ff6b6b", police: "#4fb3ff", balloon: "#c8f06a", aircraft: "#c8f06a"};
+  var wxBy = {}, LAB = {mode: S.pref("am.labels") || "both", reading: S.pref("am.reading") || "temp"};
+  var READ = {temp: ["Temperature", function (w) { return w.temp_c == null ? null : ArkUnits.text.temp(w.temp_c, 0); }], wind: ["Wind", function (w) { return w.wind_ms == null ? null : ArkUnits.text.spd(w.wind_ms, 0); }],
+              gust: ["Gust", function (w) { return w.gust_ms == null ? null : ArkUnits.text.spd(w.gust_ms, 0); }], hum: ["Humidity", function (w) { return w.humidity == null ? null : w.humidity + "%"; }],
+              press: ["Pressure", function (w) { return w.pressure_hpa == null ? null : ArkUnits.text.press(w.pressure_hpa); }], rain: ["Rain, 24 h", function (w) { return w.rain_24h_mm == null ? null : ArkUnits.text.rain(w.rain_24h_mm); }]};
+  $("m-display").innerHTML = '<div class="lv-sub">Station Labels</div><select id="am-labels"><option value="both">Call sign and weather reading</option><option value="call">Call sign only</option><option value="reading">Weather reading only</option><option value="none">No labels</option></select>' +
+    '<div class="lv-sub">Weather Reading</div><select id="am-reading">' + Object.keys(READ).map(function (k) { return '<option value="' + k + '">' + READ[k][0] + "</option>"; }).join("") + "</select>";
+  $("am-labels").value = LAB.mode; $("am-reading").value = LAB.reading;
+  var LE = ArkLabels.create(map);   // the shared label engine: boxes, priority, never overlapping
+  function renderLabels(vis) {
+    LE.begin(); if (LAB.mode === "none") { LE.flush(); return; }
+    var z = map.getZoom();
+    vis.forEach(function (r) {
+      var w = wxBy[r.call], val = w ? READ[LAB.reading][1](w) : null, isWx = r.kind === "weather" || !!w;
+      if (!isWx && z < 9) return;   // call signs of every digipeater and gateway only once zoomed in; weather stations always
+      var parts = [], plain = [];
+      if (LAB.mode !== "reading") { parts.push(esc(r.call)); plain.push(r.call); }
+      if (LAB.mode !== "call" && val) { parts.push("<small>" + esc(val) + "</small>"); plain.push(val); }
+      if (!parts.length) return;
+      LE.add({lat: r.lat, lon: r.lon, text: plain.join(" "), html: parts.join(" "), color: COL[r.kind] || "#8a9bb3", priority: isWx ? 0 : 1, onClick: function () { select(r.call, false); }});   // weather stations first, they carry a reading
+    });
+    LE.flush();
+  }
+  var st = [], group = L.layerGroup().addTo(map), trailG = L.layerGroup().addTo(map), cardId = q.get("call") ? q.get("call").toUpperCase() : null, dotScale = parseInt(S.pref("am.dot"), 10) || 100, sortKey = "last_heard", sortDir = -1;
+  document.querySelectorAll("#am-kinds input").forEach(function (cb) { state.kinds[cb.getAttribute("data-kind")] = cb.checked; });
+  $("q").value = state.q; $("am-hours").value = String(state.hours); $("am-dot").value = String(dotScale);
+  function ago(iso) { var m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000)); return m < 60 ? m + " min ago" : m < 1440 ? Math.round(m / 60) + " h ago" : Math.round(m / 1440) + " d ago"; }
+  var onlyCall = q.get("only") === "1" && q.get("call") ? q.get("call").toUpperCase() : "";   // "on the APRS Map" from one station's page: that station alone, until the chip is cleared
+  function match(r) {
+    if (onlyCall) return r.call === onlyCall;
+    if (!state.kinds[r.kind]) return false;
+    if (state.noAirport && r.airport) return false;
+    if ((Date.now() - new Date(r.last_heard).getTime()) > state.hours * 3600000) return false;
+    var t = state.q.trim().toLowerCase();
+    return !t || (r.call + " " + (r.comment || "")).toLowerCase().indexOf(t) >= 0;
+  }
+  var lastVis = []; map.on("zoomend moveend", function () { renderLabels(lastVis); });
+  function render() {
+    group.clearLayers();
+    var vis = st.filter(match);
+    vis.forEach(function (r) {
+      var fresh = (Date.now() - new Date(r.last_heard).getTime()) < 3600000, rad = (r.kind === "weather" || r.kind === "digipeater" ? 7 : 5) * dotScale / 100;
+      var m = L.circleMarker([r.lat, r.lon], {radius: rad, color: r.call === cardId ? "#fff" : COL[r.kind] || "#8a9bb3", weight: r.call === cardId ? 3 : 2, fillColor: COL[r.kind] || "#8a9bb3", fillOpacity: fresh ? .75 : .2}).addTo(group);
+      m.bindTooltip("<b>" + esc(r.call) + "</b> · " + esc(KINDS[r.kind] || r.kind) + " · " + ago(r.last_heard), {className: "lv-tip"});
+      m.on("click", function () { select(r.call, false); });
+      Colocate.track(map, "aprs", m, r.lat, r.lon);
+    });
+    lastVis = vis; renderLabels(vis);
+    renderList(vis); renderChips();
+    $("lv-count").textContent = vis.length + " of " + st.length + " stations";
+    shell.renderLegend();
+  }
+  function legend() {
+    var h = "<h6>APRS stations</h6>";
+    Object.keys(KINDS).forEach(function (k) { if (state.kinds[k]) h += '<div style="display:flex;gap:8px;align-items:center;margin:3px 0"><span style="width:12px;height:12px;border-radius:50%;background:' + (COL[k] || "#8a9bb3") + ';display:inline-block"></span>' + esc(KINDS[k]) + "</div>"; });
+    return h + '<div class="dim" style="font-size:.76rem;margin-top:6px">A solid dot was heard in the last hour; a faint one earlier. Data: the APRS-IS network.</div>';
+  }
+  function renderChips() {
+    var c = []; if (state.q) c.push(["q", "Search: " + state.q]); if (onlyCall) c.push(["only", "Only: " + onlyCall]);
+    $("lv-chips").innerHTML = c.map(function (x) { return '<span class="chip" data-c="' + x[0] + '">' + esc(x[1]) + "<b>×</b></span>"; }).join("");
+  }
+  $("lv-chips").addEventListener("click", function (e) { var ch = e.target.closest(".chip"); if (ch) { if (ch.getAttribute("data-c") === "only") onlyCall = ""; else { state.q = ""; $("q").value = ""; } render(); } });
+  var COLS = [["call", "Call"], ["kind", "Kind"], ["last_heard", "Heard"]];
+  $("lv-tbl").querySelector("thead").innerHTML = "<tr>" + COLS.map(function (c) { return '<th data-k="' + c[0] + '">' + c[1] + "</th>"; }).join("") + "</tr>";
+  $("lv-tbl").querySelector("thead").addEventListener("click", function (e) { var k = e.target.getAttribute("data-k"); if (!k) return; if (sortKey === k) sortDir = -sortDir; else { sortKey = k; sortDir = k === "last_heard" ? -1 : 1; } render(); });
+  function renderList(vis) {
+    var rows = vis.slice().sort(function (a, b) { var x = a[sortKey], y = b[sortKey]; return (x < y ? -1 : x > y ? 1 : 0) * sortDir; });
+    $("lv-tbl").querySelector("tbody").innerHTML = rows.slice(0, 400).map(function (r) {
+      return '<tr class="it' + (r.call === cardId ? " sel" : "") + '" data-i="' + esc(r.call) + '"><td>' + esc(r.call) + "</td><td>" + esc(KINDS[r.kind] || r.kind) + "</td><td>" + ago(r.last_heard) + "</td></tr>";
+    }).join("") || '<tr><td colspan="3" class="dim" style="text-align:left;padding:12px">No station matches.</td></tr>';
+  }
+  $("lv-tbl").querySelector("tbody").addEventListener("click", function (e) { var tr = e.target.closest("tr.it"); if (tr) select(tr.getAttribute("data-i"), true); });
+  async function select(call, zoom) {
+    cardId = call; trailG.clearLayers(); var r = st.filter(function (x) { return x.call === call; })[0], card = $("lv-card");
+    if (!r) { card.style.display = "none"; $("lv").classList.remove("has-card"); render(); return; }
+    $("c-name").textContent = r.call; (function (e) { e.title = ""; e.__cs = 0; e.setAttribute("data-call", r.call); if (window.ArkCall) ArkCall.enhance(e.parentNode); })($("c-name")); $("c-sub").textContent = (KINDS[r.kind] || r.kind) + " · heard " + ago(r.last_heard);
+    $("c-page").href = "/aprs/" + encodeURIComponent(r.call.replace(/\//g, "~"));
+    $("c-body").innerHTML = '<div class="k"><div>Position</div><div>' + r.lat.toFixed(4) + ", " + r.lon.toFixed(4) + "</div>" + (r.speed_kmh ? "<div>Speed</div><div>" + ArkUnits.text.spd(r.speed_kmh / 3.6) + (r.course != null ? " at " + r.course + "°" : "") + "</div>" : "") + "</div>" + (r.comment ? '<p style="margin:8px 0 0">' + esc(r.comment) + "</p>" : "");
+    card.style.display = "block"; $("lv").classList.add("has-card");
+    $("c-follow").onclick = function () { map.setView([r.lat, r.lon], Math.max(map.getZoom(), 11)); };
+    $("c-close").onclick = function () { cardId = null; trailG.clearLayers(); card.style.display = "none"; $("lv").classList.remove("has-card"); render(); };
+    if (zoom) map.setView([r.lat, r.lon], Math.max(map.getZoom(), 11));
+    render();
+    try {
+      var d = await (await fetch("/api/aprs/" + encodeURIComponent(call) + ".json")).json(); if (cardId !== call) return;
+      if (d.trail && d.trail.length > 1) L.polyline(d.trail.map(function (p) { return [p[1], p[2]]; }), {color: "#ffb454", weight: 3, opacity: .8, interactive: false}).addTo(trailG);
+      if (d.weather) {
+        var w = d.weather; $("c-body").innerHTML += '<div class="k" style="margin-top:8px">' + (w.temp_c != null ? "<div>Temperature</div><div>" + ArkUnits.text.temp(w.temp_c, 1) + "</div>" : "") + (w.wind_ms != null ? "<div>Wind</div><div>" + ArkUnits.text.spd(w.wind_ms) + (w.wind_dir != null ? " from " + w.wind_dir + "°" : "") + "</div>" : "") + (w.humidity != null ? "<div>Humidity</div><div>" + w.humidity + "%</div>" : "") + (w.pressure_hpa != null ? "<div>Pressure</div><div>" + ArkUnits.text.press(w.pressure_hpa) + "</div>" : "") + "</div>";
+      }
+    } catch (e) {}
+  }
+  $("am-labels").addEventListener("change", function () { LAB.mode = this.value; S.pref("am.labels", this.value); render(); });
+  $("am-reading").addEventListener("change", function () { LAB.reading = this.value; S.pref("am.reading", this.value); render(); });
+  map.on("zoomend", function () { if (st.length) render(); });
+  document.addEventListener("adsb-prefs", function () { if (st.length) render(); });   // a change of units in the Display menu redraws the readings
+  function loadWx() { fetch("/api/aprs/weather.json").then(function (r) { return r.json(); }).then(function (d) { wxBy = {}; (d.weather || []).forEach(function (w) { wxBy[w.call] = w; }); if (st.length) render(); }).catch(function () {}); }
+  $("q").addEventListener("input", function () { state.q = this.value; render(); });
+  $("am-noairport").checked = state.noAirport;
+  $("am-noairport").addEventListener("change", function () { state.noAirport = this.checked; S.pref("am.noairport", this.checked ? "1" : "0"); render(); });
+  $("am-hours").addEventListener("change", function () { state.hours = parseInt(this.value, 10); render(); });
+  $("am-dot").addEventListener("change", function () { dotScale = parseInt(this.value, 10); S.pref("am.dot", this.value); render(); });
+  document.querySelectorAll("#am-kinds input").forEach(function (cb) { cb.addEventListener("change", function () { state.kinds[this.getAttribute("data-kind")] = this.checked; render(); }); });
+  function load() {
+    fetch("/api/aprs/stations.json").then(function (r) { return r.json(); }).then(function (d) {
+      var first = !st.length; st = d.stations || [];
+      if (first && !(q.get("lat") && q.get("lon")) && !q.get("zoom")) { var AR = {{ map_area("aprs_map_area") | tojson }}; if (AR) map.fitBounds([[AR[0], AR[1]], [AR[2], AR[3]]], {padding: [10, 10]}); }
+      render(); if (first && cardId) select(cardId, true);
+    }).catch(function () { $("lv-count").textContent = "Could not load the APRS stations."; });
+  }
+  load(); loadWx(); setInterval(function () { if (!document.hidden) { load(); loadWx(); } }, 60000);
+})();
+</script>
+{% endblock %}

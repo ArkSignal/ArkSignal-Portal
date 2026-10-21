@@ -1,0 +1,89 @@
+{% from "partials/_alert_form.html" import rule_form with context %}
+<div id="user-detail" class="udetail">
+{% if not can_edit %}<div class="flash error">This is a Super Admin account. Only a Super Admin can change it; you can see it here.</div>{% endif %}
+<style>.udetail{max-width:none}.udetail details.setsec{margin:0 0 10px}.udetail .static{padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--input-bg-soft)}.udetail details.setsec>summary{padding:16px 22px}.udetail .tiles{grid-template-columns:repeat(4,minmax(0,1fr))}.udetail .tile .tv{font-size:1rem;overflow-wrap:anywhere}@media (max-width:720px){.udetail .tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}</style>
+<div class="tiles" style="margin-bottom:14px">
+  <div class="panel tile"><div class="tv">{% if u.disabled %}<span class="tag off">disabled</span>{% else %}<span class="tag live">active</span>{% endif %}{% if u.locked_until %} <span class="tag off">locked</span>{% endif %}</div><div class="tl">Status</div></div>
+  <div class="panel tile"><div class="tv">{{ u.created_at | localtime("%Y-%m-%d") }}</div><div class="tl">Created</div></div>
+  <div class="panel tile"><div class="tv">{{ (u.last_login | localtime("%Y-%m-%d %H:%M")) if u.last_login else 'never' }}</div><div class="tl">Last Sign-In</div></div>
+  <div class="panel tile"><div class="tv">{{ roles | join(', ') or 'none' }}</div><div class="tl">Roles</div></div>
+</div>
+
+<details class="panel setsec" id="sec-profile" open><summary><span class="role-name">Profile and Email</span></summary>
+<form method="post" action="/admin/users/{{ u.id }}/profile" data-async data-async-target="#user-detail">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <label>Username</label>
+  <div class="static">{{ u.username }} <span class="dim">(cannot be changed)</span></div>
+  <label for="pf-email">Email address</label><input type="text" id="pf-email" autocomplete="off" data-lpignore="true" name="email" value="{{ u.email }}" maxlength="254" {{ 'readonly' if not can_edit }}>
+  <label class="check"><input type="checkbox" name="email_verified" value="1" {{ 'checked' if u.email_verified }} {{ 'disabled' if not can_edit }}><span>Email address counts as verified</span></label>
+  <label for="pf-dn">Display name</label><input type="text" id="pf-dn" autocomplete="off" data-lpignore="true" name="display_name" value="{{ u.display_name or '' }}" maxlength="60" {{ 'readonly' if not can_edit }}>
+  <label for="pf-cs">Amateur radio callsign</label><input type="text" id="pf-cs" autocomplete="off" data-lpignore="true" name="callsign" value="{{ u.callsign or '' }}" maxlength="8" style="max-width:160px;text-transform:uppercase" {{ 'readonly' if not can_edit }}>
+  {% if can_edit %}<div class="setsec-actions"><button class="btn" type="submit">Save Profile</button></div>{% endif %}
+</form></details>
+
+<details class="panel setsec" id="sec-display"><summary><span class="role-name">Display Choices and Landing Page</span></summary>
+<form method="post" action="/admin/users/{{ u.id }}/prefs" data-async data-async-target="#user-detail">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div style="display:flex;gap:12px;flex-wrap:wrap">
+    <div><label for="pr-theme">Theme</label><select id="pr-theme" name="theme"><option value="">Not chosen</option>{% for k, l in (('dark', 'Dark'), ('light', 'Light'), ('auto', 'Match their device')) %}<option value="{{ k }}" {{ 'selected' if prefs.get('theme') == k }}>{{ l }}</option>{% endfor %}</select></div>
+    <div><label for="pr-hour">Clock</label><select id="pr-hour" name="hour"><option value="">Not chosen</option>{% for k, l in (('auto', 'Browser default'), ('12', '12-hour'), ('24', '24-hour')) %}<option value="{{ k }}" {{ 'selected' if prefs.get('hour') == k }}>{{ l }}</option>{% endfor %}</select></div>
+    <div><label for="pr-tz">Time zone</label><select id="pr-tz" name="tz"><option value="">Not chosen</option>{% for k, l in (('browser', 'Their browser'), ('site', 'Site time zone')) %}<option value="{{ k }}" {{ 'selected' if prefs.get('tz') == k }}>{{ l }}</option>{% endfor %}</select></div>
+    <div><label for="pr-land">After sign in, go to</label><select id="pr-land" name="landing"><option value="">The site default</option>{% for p, l in landing_choices %}<option value="{{ p }}" {{ 'selected' if prefs.get('landing') == p }}>{{ l }}</option>{% endfor %}</select></div>
+  </div>
+  {% if can_edit %}<div class="setsec-actions"><button class="btn" type="submit">Save Display Choices</button></div>{% endif %}
+</form></details>
+
+<details class="panel setsec" id="sec-alerts"><summary><span class="role-name">Alerts and Notifications</span><span class="dim" style="font-size:.8rem">{{ rules | length }} rule{{ '' if rules | length == 1 else 's' }}</span></summary>
+<div class="secbody">
+  <div class="grp" style="margin-top:0">Webhook</div>
+  <form method="post" action="/admin/users/{{ u.id }}/webhook" data-async data-async-target="#user-detail">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+      <div><label for="wh-kind">Kind of service</label><select id="wh-kind" name="webhook_kind">{% for k, l in webhook_kinds.items() %}<option value="{{ k }}" {{ 'selected' if u.webhook_kind == k }}>{{ l if l is string else l[0] }}</option>{% endfor %}</select></div>
+      <div style="flex:1;min-width:260px"><label for="wh-url">Address</label><input type="text" id="wh-url" name="webhook_url" data-lpignore="true" placeholder="{{ u.webhook_shown or 'none set' }}" autocomplete="off"></div>
+    </div>
+    <div class="help">The saved address is a secret, so only the site it points to is shown. Leave the box empty to keep it, type a new one to replace it.</div>
+    {% if can_edit %}<div class="setsec-actions"><button class="btn" type="submit">Save Webhook</button>{% if u.has_webhook %} <button class="btn neutral" type="submit" name="clear" value="1">Clear Webhook</button>{% endif %}</div>{% endif %}
+  </form>
+  <div class="grp">Alert Rules ({{ rules | length }} of {{ limit }})</div>
+  {% for r in rules %}
+  <details class="panel role" id="rule-{{ r.id }}"><summary><span class="role-name">{{ r.name }}</span>{% if r.enabled %}<span class="tag live">on</span>{% else %}<span class="tag off">off</span>{% endif %}
+    <span class="dim role-sum">{{ kinds[r.kind] }}{% if r.value %}: {{ r.value }}{% endif %} &middot; {{ r.event_count }} match{{ '' if r.event_count == 1 else 'es' }}</span></summary>
+    <div style="padding:0 22px 22px">
+      {% if can_edit %}{{ rule_form(r, kinds, needs_value, 'u' ~ r.id, '/admin/users/' ~ u.id ~ '/alerts/save', '#user-detail') }}
+      <div style="display:flex;gap:10px;margin-top:14px">
+        <form class="inline" method="post" action="/admin/users/{{ u.id }}/alerts/{{ r.id }}/toggle" data-async data-async-target="#user-detail"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small" type="submit">{{ 'Turn Off' if r.enabled else 'Turn On' }}</button></form>
+        <form class="inline" method="post" action="/admin/users/{{ u.id }}/alerts/{{ r.id }}/delete" data-async data-async-target="#user-detail" data-confirm="Delete the alert {{ r.name }} for {{ u.username }}? Its match history is deleted too."><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small warn" type="submit">Delete</button></form>
+      </div>{% endif %}
+    </div></details>
+  {% else %}<p class="dim">{{ u.username }} has no alert rules.</p>{% endfor %}
+  {% if can_edit %}<div class="grp">Add a Rule for {{ u.username }}</div>{{ rule_form(none, kinds, needs_value, 'unew', '/admin/users/' ~ u.id ~ '/alerts/save', '#user-detail') }}{% endif %}
+</div></details>
+
+<details class="panel setsec" id="sec-security"><summary><span class="role-name">Password, Two-Factor and Sign-Ins</span></summary>
+<div class="secbody">
+  <p style="margin-top:0">The current password is never shown to anyone, not even here: it is stored only as a one-way hash. What you can do is give this person a new temporary password, which they must change when they next sign in.</p>
+  <p class="dim" style="margin:6px 0">Two-factor: <b>{{ 'on' if u.totp_enabled else 'off' }}</b> &middot; failed sign-in attempts: <b>{{ u.failed_attempts }}</b>{% if u.locked_until %} &middot; locked until {{ u.locked_until | localtime }}{% endif %} &middot; active sign-ins (30 days): <b>{{ sessions }}</b>{% if u.must_change_password %} &middot; <span class="tag off">must change password</span>{% endif %}</p>
+  {% if can_edit %}
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+    {% for act, label, confirm, cls in (('temp_password', 'Set a Temporary Password', 'Replace ' ~ u.username ~ "'s password with a new temporary one? Their old password stops working.", 'btn small'),
+                                         ('force_change', 'Require a New Password at Next Sign-In', '', 'btn small neutral'),
+                                         ('unlock', 'Unlock the Account', '', 'btn small neutral'),
+                                         ('reset_2fa', 'Turn Off Two-Factor', 'Turn off two-factor sign-in for ' ~ u.username ~ '?', 'btn small neutral'),
+                                         ('remove_passkeys', 'Remove Their Passkeys (' ~ u.passkey_count ~ ')', 'Remove every passkey of ' ~ u.username ~ '? They sign in with their password until they add new ones.', 'btn small neutral') if u.passkey_count else ('', '', '', ''),
+                                         ('remove_google', 'Remove Their Google Link', 'Remove the Google link of ' ~ u.username ~ '? They sign in with their password until they link it again.', 'btn small neutral') if u.google_count else ('', '', '', ''),
+                                         ('sign_out_all', 'Sign Out Everywhere', 'End every sign-in of ' ~ u.username ~ '?', 'btn small warn')) %}
+    {% if act %}<form class="inline" method="post" action="/admin/users/{{ u.id }}/security" data-async data-async-target="#user-detail" {% if confirm %}data-confirm="{{ confirm }}"{% endif %}>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="{{ act }}"><button class="{{ cls }}" type="submit">{{ label }}</button></form>
+    {% endif %}
+    {% endfor %}
+  </div>{% endif %}
+</div></details>
+
+<details class="panel setsec" id="sec-stations"><summary><span class="role-name">Stations</span><span class="dim" style="font-size:.8rem">{{ feeders | length }}</span></summary>
+<div class="secbody">
+  {% for f in feeders %}<div style="margin:6px 0">{% if f.online %}<span class="tag live">online</span>{% else %}<span class="tag off">offline</span>{% endif %} <a href="/admin/feeders/{{ f.uuid }}"><b class="mono">{{ f.station_id or 'no station ID' }}</b> {{ f.name or '' }}</a></div>
+  {% else %}<p class="dim" style="margin:0">{{ u.username }} has not claimed a station.</p>{% endfor %}
+  <p class="dim" style="margin:10px 0 0">Open a station to change its details, owner or location privacy.</p>
+</div></details>
+</div>

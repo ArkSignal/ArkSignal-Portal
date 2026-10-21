@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Hospitals{% endblock %}
+{% block content %}
+{% from "partials/_sorthead.html" import sorthead %}
+<h1><span>Hospitals</span></h1>
+<div class="sub">Hospitals in Arkansas and the states around it, with which have an emergency department, their trauma level where it is known, and the heliport they use. Source: the Centers for Medicare &amp; Medicaid Services (public domain); trauma levels and heliport links are added by the network's administrators.</div>
+<form class="panel filters" method="get">
+  <div><label for="q">Search</label><input type="text" id="q" name="q" value="{{ q }}" placeholder="Name, city, county or ZIP"></div>
+  <div><label for="state">State</label>
+    <select id="state" name="state"><option value="">All</option>{% for s in states %}<option value="{{ s }}" {{ 'selected' if s == state }}>{{ s }}</option>{% endfor %}</select></div>
+  <div><label for="trauma">Trauma Level</label>
+    <select id="trauma" name="trauma"><option value="">Any</option><option value="any" {{ 'selected' if trauma == 'any' }}>Any designated level</option>{% for k, l in trauma_levels if k %}<option value="{{ k }}" {{ 'selected' if k == trauma }}>{{ l }}</option>{% endfor %}</select></div>
+  <div><label for="service">Service</label>
+    <select id="service" name="service"><option value="">Any</option>{% for k, l in services %}<option value="{{ k }}" {{ 'selected' if k == service }}>{{ l }}</option>{% endfor %}</select></div>
+  <label class="check" style="margin:0 0 6px"><input type="checkbox" name="emergency" value="1" {{ 'checked' if emergency == '1' }}><span>Emergency department</span></label>
+  <button class="btn small" type="submit">Search</button>
+</form>
+<div class="panel" style="margin-top:12px;overflow-x:auto">
+  <table>
+    <tr>{{ sorthead("Hospital", "name", sort, direction, pager.args) }}{{ sorthead("City", "city", sort, direction, pager.args) }}{{ sorthead("State", "state", sort, direction, pager.args) }}{{ sorthead("Type", "type", sort, direction, pager.args) }}<th>Emergency</th>{{ sorthead("Trauma", "trauma", sort, direction, pager.args) }}<th>Heliport</th></tr>
+    {% for h in rows %}
+    <tr><td><a href="/hospitals/{{ h.facility_id }}">{{ h.name }}</a>{% if h.services %}<br>{% for sv in h.services.split(',') %}<span class="tag" style="font-size:.68rem">{{ dict(services).get(sv, sv) }}</span> {% endfor %}{% endif %}</td><td>{{ h.city }}</td><td class="mono">{{ h.state }}</td><td class="dim">{{ h.htype }}</td>
+      <td>{% if h.emergency %}<span class="tag live">yes</span>{% else %}<span class="dim">no</span>{% endif %}</td>
+      <td style="white-space:nowrap">{% if h.trauma %}<span class="tag admin" style="white-space:nowrap">Level {{ h.trauma }}</span>{% else %}<span class="dim">-</span>{% endif %}</td>
+      <td>{% if h.heliport_ident %}<a class="mono" href="/airports/{{ h.heliport_ident }}">{{ h.heliport_ident }}</a>{% else %}<span class="dim">-</span>{% endif %}</td></tr>
+    {% else %}<tr><td colspan="7" class="dim">{% if loaded %}No hospitals match that search.{% else %}The hospital list has not been loaded yet. An administrator loads it under Admin &gt; Hospitals.{% endif %}</td></tr>{% endfor %}
+  </table>
+  {% include "partials/_pager.html" %}
+</div>
+{% endblock %}

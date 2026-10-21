@@ -1,0 +1,41 @@
+{% from "partials/_feedsec.html" import sec with context %}
+{% set total_reports = reports.chat | length + reports.mail | length + reports.pm | length %}
+<div id="chat-admin">
+<div class="tiles" style="margin-bottom:14px">
+  <div class="panel tile"><div class="tv">{{ c.chat_day }}</div><div class="tl">Chat messages in 24 hours ({{ c.convs }} chats)</div></div>
+  <div class="panel tile"><div class="tv">{{ c.pm_day }}</div><div class="tl">Private messages sent in 24 hours (count only)</div></div>
+  <div class="panel tile"><div class="tv">{{ c.friends }}</div><div class="tl">Friendships</div></div>
+  <div class="panel tile"><div class="tv">{{ c.reports }}</div><div class="tl">Reports waiting</div></div>
+</div>
+
+{% call sec('reports', 'Reports Waiting (' ~ total_reports ~ ')', True, True) %}
+  {% for kind, label, rows in (('chat', 'Chat', reports.chat), ('mail', 'Message', reports.mail), ('pm', 'Old private message', reports.pm)) %}{% for r in rows %}
+  <div class="panel" style="margin:0 0 10px">
+    <div class="dim" style="font-size:.8rem">{{ label }} &middot; written by <b>{{ r.author }}</b> &middot; reported by {{ r.reporter }} <time class="ts" datetime="{{ r.created_at.isoformat() }}" data-fmt="dt">{{ r.created_at }}</time></div>
+    {% if kind == 'mail' %}<div style="font-weight:700;margin-top:6px">{{ r.subject }}</div>{% endif %}
+    <div style="white-space:pre-wrap;word-break:break-word;margin:6px 0">{{ r.body }}</div>
+    {% if r.note %}<div class="dim" style="font-size:.85rem">Their note: {{ r.note }}</div>{% endif %}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+      <form class="inline" method="post" action="/admin/chat/reports/{{ kind }}/{{ r.id }}/delete" data-async data-async-target="#chat-admin" data-confirm="Delete this message and close the report?"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small warn" type="submit">Delete the Message</button></form>
+      <form class="inline" method="post" action="/admin/chat/reports/{{ kind }}/{{ r.id }}/dismiss" data-async data-async-target="#chat-admin"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small neutral" type="submit">Dismiss</button></form>
+      <form class="inline" method="post" action="/admin/chat/mute" data-async data-async-target="#chat-admin" data-confirm="Mute {{ r.author }} for 24 hours?"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="username" value="{{ r.author }}"><input type="hidden" name="scope" value="{{ 'chat' if kind == 'chat' else 'pm' }}"><input type="hidden" name="hours" value="24"><input type="hidden" name="reason" value="reported message"><button class="btn small neutral" type="submit">Mute the Author for 24 Hours</button></form>
+    </div></div>
+  {% endfor %}{% endfor %}
+  {% if not total_reports %}<p class="dim" style="margin:0">No reports are waiting.</p>{% endif %}
+{% endcall %}
+
+{% call sec('mutes', 'Muted Members (' ~ mutes | length ~ ')', False, True) %}
+  <form method="post" action="/admin/chat/mute" data-async data-async-target="#chat-admin" data-reset class="tfilterbar" style="align-items:flex-end">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div><label for="mu-user">Member</label><input type="text" id="mu-user" name="username" data-memberpicker maxlength="120" style="width:220px" required></div>
+    <div><label for="mu-scope">Mute From</label><select id="mu-scope" name="scope"><option value="both">Chat and private messages</option><option value="chat">Chat only</option><option value="pm">Private messages only</option></select></div>
+    <div><label for="mu-hours">For (Hours, Blank for Until Lifted)</label><input type="number" id="mu-hours" name="hours" min="1" max="8760" style="width:110px"></div>
+    <div><label for="mu-reason">Reason</label><input type="text" id="mu-reason" name="reason" maxlength="200" style="width:240px"></div>
+    <button class="btn" type="submit" style="margin:0">Mute</button>
+  </form>
+  {% if mutes %}<table style="margin-top:10px"><tr><th>Member</th><th>From</th><th>Until</th><th>Reason</th><th>By</th><th></th></tr>
+    {% for m in mutes %}<tr><td>{{ m.username }}</td><td>{{ 'Chat' if m.scope == 'chat' else 'Private messages' }}</td><td>{% if m.until %}<time class="ts" datetime="{{ m.until.isoformat() }}" data-fmt="dt">{{ m.until }}</time>{% else %}until lifted{% endif %}</td><td>{{ m.reason or '-' }}</td><td>{{ m.by_name }}</td>
+      <td><form class="inline" method="post" action="/admin/chat/unmute" data-async data-async-target="#chat-admin"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="user_id" value="{{ m.user_id }}"><input type="hidden" name="scope" value="{{ m.scope }}"><button class="btn small neutral" type="submit">Unmute</button></form></td></tr>{% endfor %}</table>
+  {% else %}<p class="dim" style="margin:10px 0 0">Nobody is muted.</p>{% endif %}
+{% endcall %}
+</div>

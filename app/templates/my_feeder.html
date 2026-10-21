@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% block title %}{{ f.station_id or 'My Feeder' }}{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ leaflet_base }}/leaflet.css" crossorigin="anonymous">
+<h1>My <span>Station</span> {{ f.station_id or '' }}</h1>
+<div class="sub mono" style="font-size:.85rem"><span class="copyable">{{ f.uuid }}</span> &middot;
+  {% if f.banned %}banned{% elif f.online %}online{% else %}offline{% endif %}</div>
+{% if managing %}<div class="panel" style="border-color:var(--acc2);margin-bottom:14px"><b>You are managing {{ managing }}'s feeder as an administrator.</b> Everything here works as it does for the owner and is recorded in the audit log under your name. <a href="/admin/feeders/{{ f.uuid }}">Administrator page for this feeder</a> &middot; <a href="/admin/feeders">Back to the admin list</a></div>{% endif %}
+{% with active = 'feeders' %}{% include "partials/_my_subnav.html" %}{% endwith %}
+{% if feeder_stats and f.station_id %}<p style="margin:0 0 10px"><a href="/view/network-feeders?station={{ f.station_id }}">Statistics for this station</a> &middot; <a href="/{{ f.station_id }}">Live map of the aircraft it hears</a></p>{% endif %}
+
+<div class="tiles" style="max-width:820px">
+  <div class="panel tile"><div class="tv">{% if f.banned %}Banned{% elif f.online %}Online{% else %}Offline{% endif %}</div><div class="tl">Status</div></div>
+  <div class="panel tile"><div class="tv">{{ '%.1f' % uptime }}%</div><div class="tl">Uptime ({{ periods[period][0] }})</div></div>
+  <div class="panel tile"><div class="tv">{{ '%.1f' % latest[1] if latest else '-' }}</div><div class="tl">Msgs/s (latest)</div></div>
+  <div class="panel tile"><div class="tv">{{ '%.1f' % latest[2] if latest else '-' }}</div><div class="tl">Positions/s (latest)</div></div>
+</div>
+
+{% if mlat %}
+<details class="panel setsec" id="sec-mlat" open style="margin-top:14px"><summary><span class="role-name">MLAT</span></summary><div class="secbody">
+  <p style="margin:0 0 8px">{% if mlat.state == 'working' %}<span class="tag live">working</span>{% elif mlat.state == 'off' %}<span class="tag off">not connected</span>{% else %}<span class="tag off">{{ mlat.state }}</span>{% endif %}
+    {{ mlat.text }}</p>
+  {% if mlat.row %}<table style="max-width:420px">
+    <tr><th>Messages/s Sent</th><td>{{ mlat.row.message_rate }}</td></tr>
+    <tr><th>Peer Stations</th><td>{{ mlat.row.peer_count }}</td></tr>
+    <tr><th>Sync Outliers</th><td>{{ '%.1f' % mlat.row.outlier_percent }}%</td></tr>
+  </table>{% endif %}
+  {% if mlat.state == 'off' %}<div class="help">To join MLAT, add the MLAT line from the <a href="/feed/">How to Feed</a> page, set <span class="mono">MLAT_USER</span> to {{ f.station_id or 'your Station ID' }}, make sure your coordinates and altitude are exact, and recreate the container.</div>{% endif %}
+</div></details>
+{% endif %}
+
+<details class="panel setsec" id="sec-range" open style="margin-top:14px"><summary><span class="role-name">Range</span></summary><div class="secbody">
+  <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:center">
+    <div style="flex:1 1 320px;max-width:380px">{{ rng_chart }}</div>
+    <div style="display:grid;grid-template-columns:auto auto;gap:6px 18px;font-size:.92rem">
+      <div class="dim">Farthest in 30 days</div><div class="mono">{{ rng.period_max | u_nm(0) if rng.period_max else '-' }}</div>
+      <div class="dim">Farthest today</div><div class="mono">{{ rng.today_max | u_nm(0) if rng.today_max else '-' }}</div>
+      <div class="dim">Farthest on record</div><div class="mono">{{ rng.all_max | u_nm(0) if rng.all_max else '-' }}</div>
+    </div>
+  </div>
+  <div class="help">{% if f.lat is none %}Set your station's location below to start measuring range. {% endif %}Range is measured from your station's location to every aircraft position your station receives; the farthest in each direction is kept.</div>
+</div></details>
+
+{% if wx_on %}
+<details class="panel setsec" id="sec-weather" open style="margin-top:14px"><summary><span class="role-name">Weather Station</span></summary><div class="secbody">
+  {% if wx %}<p style="margin:0">This feeder also has a weather station: {% if wx.last_report %}last report {{ wx.last_report | localtime("%b %-d %H:%M") }}{% else %}no report yet{% endif %}, {{ 'shown publicly' if wx.public else 'private' }}. <a href="/my/weather/{{ wx.id }}">Manage it</a>{% if wx.public and f.station_id %} &middot; <a href="/weather/{{ f.station_id }}">Public page</a>{% endif %}.</p>
+  {% else %}<p style="margin:0 0 8px">One station can do both jobs: add a weather station to this feeder and it shares this station's ID, location and privacy.</p>
+  <a class="btn small" href="/my/weather?feeder={{ f.uuid }}">Add a Weather Station to This Feeder</a>{% endif %}
+</div></details>
+{% endif %}
+
+<details class="panel setsec" id="sec-activity" open style="margin-top:14px"><summary><span class="role-name">Activity</span></summary><div class="secbody">
+  
+  <div class="subnav" style="margin-bottom:10px">
+    {% for k, v in periods.items() %}<a class="{{ 'active' if k == period }}" href="?period={{ k }}">{{ v[0] }}</a>{% endfor %}
+  </div>
+  {{ chart }}
+  <div class="dim" style="font-size:.82rem;margin-top:6px"><span style="color:var(--acc2)">&#9632;</span> Messages per second &nbsp; <span style="color:var(--acc)">&#9632;</span> Positions per second</div>
+</div></details>
+
+<details class="panel setsec" id="sec-connection-history" style="margin-top:14px;overflow-x:auto"><summary><span class="role-name">Connection History</span></summary><div class="secbody">
+  
+  <table>
+    <tr><th>When</th><th>Event</th><th>Detail</th></tr>
+    {% for e in events %}
+    <tr><td class="dim" style="white-space:nowrap">{{ e.ts | localtime("%Y-%m-%d %H:%M:%S") }}</td><td><span class="tag">{{ e.event }}</span></td><td class="dim mono">{{ e.detail or '' }}</td></tr>
+    {% else %}<tr><td colspan="3" class="dim">No events recorded yet.</td></tr>{% endfor %}
+  </table>
+</div></details>
+
+<details class="panel setsec" id="sec-station-id" open style="margin-top:14px"><summary><span class="role-name">Station ID</span></summary><div class="secbody">
+  
+  <p style="margin-top:0">{% if f.station_id %}This station's ID is <b class="mono">{{ f.station_id }}</b>.{% else %}Choose an ID for this station. It is how the station is identified on the public pages.{% endif %}</p>
+  <div style="display:flex;gap:14px;flex-wrap:wrap">
+    <form method="post" action="/my/feeders/{{ f.uuid }}/station-id"
+          {% if f.station_id %}data-confirm="Change this station's ID? Anyone who has linked to the old ID will need the new one."{% endif %}>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="kind" value="callsign">
+      <button class="btn small" type="submit" {{ 'disabled' if not opts.callsign }}>Use My Callsign{% if opts.callsign %}: {{ opts.callsign }}{% endif %}</button>
+    </form>
+    <form method="post" action="/my/feeders/{{ f.uuid }}/station-id"
+          {% if f.station_id %}data-confirm="Change this station's ID? Anyone who has linked to the old ID will need the new one."{% endif %}>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="kind" value="airport">
+      <button class="btn small" type="submit" {{ 'disabled' if not opts.airport }}>Use Nearest Airport{% if opts.airport %}: {{ opts.airport }}{% endif %}</button>
+    </form>
+  </div>
+  <div class="help">
+    {% if not current_user.callsign %}Add your amateur radio callsign on your <a href="/my/profile">profile</a> to use it here. {% endif %}
+    {% if not opts.airport_row %}Save the station's location below to see the nearest-airport option.{% else %}Nearest airport: {{ opts.airport_row.name }} ({{ opts.airport_row.ident }}), about {{ '%.1f' % opts.airport_row.miles if opts.airport_row.miles is defined else '' }} {{ 'miles' if opts.airport_row.miles is defined }}.{% endif %}
+  </div>
+</div></details>
+
+<details class="panel setsec" id="sec-station" open style="margin-top:14px"><summary><span class="role-name">Station</span></summary><form method="post" action="/my/feeders/{{ f.uuid }}/save" data-async>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  
+  <label for="name">Station Name</label>
+  <input type="text" id="name" name="name" value="{{ f.name or '' }}" maxlength="60">
+  <label for="description">Description</label>
+  <input type="text" id="description" name="description" value="{{ f.description or '' }}" maxlength="500">
+  <label for="mlat_user">MLAT User Name (optional)</label>
+  <input type="text" id="mlat_user" name="mlat_user" value="{{ f.mlat_user or '' }}" placeholder="{{ f.station_id or 'Station ID' }}" maxlength="40" style="max-width:260px">
+  <div class="help">Only needed if your <span class="mono">MLAT_USER</span> is already set to something other than your Station ID. Enter it here and the portal will recognise your MLAT connection. Leave it empty to use your Station ID. Stations that send their UUID, as ultrafeeder does, are recognised either way.</div>
+  <label for="website">Website</label>
+  <input type="text" id="website" name="website" value="{{ f.website or '' }}" placeholder="https://" maxlength="200">
+  <label class="check"><input type="checkbox" name="website_public" value="1" {{ 'checked' if f.website_public }}>
+    <span><b>Show this link publicly</b><br><span class="dim">Adds a Visit link for your station site to the public feeders list and your station page. It opens in a new tab. Leave this off to keep the link private.</span></span></label>
+
+  <div class="grp">Location</div>
+  <div class="help" style="margin-top:0">Click the map to place the station, or type the coordinates. Your exact location is stored privately; the privacy option below controls what the public sees.</div>
+  <div id="pickmap" style="height:320px;border-radius:12px;border:1px solid var(--line);margin:10px 0"></div>
+  <div style="display:flex;gap:14px;flex-wrap:wrap">
+    <div><label for="lat">Latitude</label><input type="text" id="lat" name="lat" value="{{ f.lat if f.lat is not none else '' }}" style="max-width:170px"></div>
+    <div><label for="lon">Longitude</label><input type="text" id="lon" name="lon" value="{{ f.lon if f.lon is not none else '' }}" style="max-width:170px"></div>
+  </div>
+  <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end">
+    <div><label for="antenna_height_ft">Antenna Height (feet)</label><input type="text" id="antenna_height_ft" name="antenna_height_ft" value="{{ f.antenna_height_ft if f.antenna_height_ft is not none else '' }}" style="max-width:150px"></div>
+    <div><label for="height_ref">Measured</label>
+      <select id="height_ref" name="height_ref">
+        <option value="" {{ 'selected' if not f.height_ref }}>Choose</option>
+        <option value="agl" {{ 'selected' if f.height_ref == 'agl' }}>Above ground level (AGL)</option>
+        <option value="asl" {{ 'selected' if f.height_ref == 'asl' }}>Above sea level (ASL)</option>
+      </select></div>
+    <div><label for="ground_elev_ft">Ground Elevation (feet)</label><input type="text" id="ground_elev_ft" name="ground_elev_ft" value="{{ f.ground_elev_ft | round | int if f.ground_elev_ft is not none else '' }}" style="max-width:150px"></div>
+    <button class="btn small" type="button" id="lookup-elev" style="margin:0 0 2px">Look Up Ground Elevation</button>
+  </div>
+  <div class="help" id="height-note">
+    {% if f.antenna_height_ft is not none and f.ground_elev_ft is not none and f.height_ref %}
+      {% if f.height_ref == 'agl' %}Antenna is {{ f.antenna_height_ft | u_ft }} above ground, about {{ (f.antenna_height_ft + f.ground_elev_ft) | u_ft }} above sea level.
+      {% else %}Antenna is {{ f.antenna_height_ft | u_ft }} above sea level, about {{ (f.antenna_height_ft - f.ground_elev_ft) | u_ft }} above ground.{% endif %}
+    {% else %}Enter the antenna height and the ground elevation to see both AGL and ASL values.{% endif %}</div>
+  <label for="privacy">Location Privacy</label>
+  <select id="privacy" name="privacy">
+    {% for k, l in privacy.items() %}<option value="{{ k }}" {{ 'selected' if (f.privacy or 'general') == k }}>{{ l }}</option>{% endfor %}
+  </select>
+  <div class="help">Choose how precisely your location is shown. {{ privacy_help() }}</div>
+
+  <div class="grp">Your Setup</div>
+  {% for key, label, ph, maxlen in setup_fields %}
+  <label for="{{ key }}">{{ label }}</label>
+  <input type="text" id="{{ key }}" name="{{ key }}" value="{{ f[key] or '' }}" placeholder="{{ ph }}" maxlength="{{ maxlen }}">
+  {% endfor %}
+  <label for="notes">Private Notes</label>
+  <input type="text" id="notes" name="notes" value="{{ f.notes or '' }}" maxlength="1000">
+  <div class="help">Only you and administrators can see these notes. Everything else on this page is shown on your public station page, except your exact location when the privacy option is General or Hidden.</div>
+
+  <button class="btn" type="submit">Save Station Details</button>
+</form></details>
+
+<details class="panel setsec" id="sec-release-this-feeder" style="margin-top:14px"><summary><span class="role-name">Release This Feeder</span></summary><form method="post" action="/my/feeders/{{ f.uuid }}/release"
+      data-confirm="Release this feeder? It will lose its station ID and become unclaimed. Its location and details stay on record but are no longer linked to your account.">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  
+  <p class="dim" style="margin-top:0">Unlink this receiver from your account. You can claim it again later.</p>
+  <button class="btn small warn" type="submit" style="margin:0">Release Feeder</button>
+</form></details>
+
+<script src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script>
+<script src="/static/touchhit.js"></script>
+<script>
+(function () {
+  var latEl = document.getElementById("lat"), lonEl = document.getElementById("lon");
+  var has = latEl.value !== "" && lonEl.value !== "";
+  var start = has ? [parseFloat(latEl.value), parseFloat(lonEl.value)] : [{{ map_lat }}, {{ map_lon }}];
+  var map = L.map("pickmap").setView(start, has ? 12 : {{ map_zoom }});
+  L.tileLayer({{ tile_url | tojson }}, {maxZoom: 19, attribution: {{ tile_attr | tojson }}}).addTo(map);
+  var marker = has ? L.marker(start).addTo(map) : null;
+  function place(lat, lon) {
+    if (!marker) marker = L.marker([lat, lon]).addTo(map); else marker.setLatLng([lat, lon]);
+  }
+  map.on("click", function (e) {
+    latEl.value = e.latlng.lat.toFixed(6); lonEl.value = e.latlng.lng.toFixed(6); place(e.latlng.lat, e.latlng.lng);
+  });
+  function fromInputs() {
+    var la = parseFloat(latEl.value), lo = parseFloat(lonEl.value);
+    if (isFinite(la) && isFinite(lo) && Math.abs(la) <= 90 && Math.abs(lo) <= 180) { place(la, lo); map.setView([la, lo], Math.max(map.getZoom(), 12)); }
+  }
+  latEl.addEventListener("change", fromInputs); lonEl.addEventListener("change", fromInputs);
+  document.getElementById("lookup-elev").addEventListener("click", async function () {
+    var box = document.getElementById("action-feedback");
+    try {
+      var r = await fetch("/my/elevation?lat=" + encodeURIComponent(latEl.value) + "&lon=" + encodeURIComponent(lonEl.value), {credentials: "same-origin"});
+      var j = await r.json();
+      if (j.ok) { document.getElementById("ground_elev_ft").value = j.feet; box.textContent = "Ground elevation is about " + j.feet + " ft (" + Math.round(j.meters) + " m). Save the station to keep it."; box.className = "success"; }
+      else { box.textContent = j.message; box.className = "error"; }
+    } catch (e) { box.textContent = "The elevation lookup could not be completed."; box.className = "error"; }
+  });
+})();
+</script>
+{% endblock %}

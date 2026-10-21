@@ -1,0 +1,69 @@
+# Prometheus + Grafana for the hub: /opt/adsb/grafana/compose.yaml on the hub VM.
+# Prometheus scrapes the hub container (hub:9273 and hub:9274, enabled by PROMETHEUS_ENABLE=true on the hub).
+# Grafana is served by Nginx Proxy Manager at https://arksignal.net/grafana/ (see README.md).
+# Images: mallison01/adsb-prometheus and mallison01/adsb-grafana (config and dashboards are baked in, built from deploy/grafana by
+# GitHub Actions). Watchtower (see ../compose.yaml) updates both from the `stable` tag. Dashboard: Ultrafeeder Stats (grafana.com id 18398).
+services:
+  prometheus:
+    image: mallison01/adsb-prometheus:stable
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
+    container_name: prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=1095d
+    volumes:
+      - prom-data:/prometheus
+    networks:
+      - proxy
+
+  grafana:
+    image: mallison01/adsb-grafana:stable
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
+    container_name: grafana
+    restart: unless-stopped
+    init: true
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD}"
+      GF_SERVER_ROOT_URL: "${HUB_PUBLIC_URL}/grafana/"
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      # anyone can view; only the admin can edit. Embedding lets the portal show it inside its own menu.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Viewer"
+      GF_SECURITY_ALLOW_EMBEDDING: "true"
+      # the dashboard's heatmap and graphs panels are HTML iframes
+      GF_PANELS_DISABLE_SANITIZE_HTML: "true"
+      # used by the dashboard import that runs inside the image at every start
+      HUB_PUBLIC_URL: "${HUB_PUBLIC_URL}"
+      MAP_LAT: "${MAP_LAT:-34.80}"
+      MAP_LON: "${MAP_LON:--92.30}"
+      MAP_ZOOM: "${MAP_ZOOM:-7}"
+      FORCE_IMPORT: "${FORCE_IMPORT:-}"
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - proxy
+
+# Data lives on the 500 GB data disk. Create the folders first (see README.md).
+volumes:
+  prom-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/adsb/grafana/prometheus-data
+  grafana-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/adsb/grafana/grafana-data
+
+networks:
+  proxy:
+    external: true

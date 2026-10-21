@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Two-Factor Sign-In{% endblock %}
+{% block content %}
+<div class="authpage">
+<h1><span>Two-Factor</span> Sign-In</h1>
+<div class="sub">Open your authenticator app and enter the 6-digit code for {{ site_name }}.</div>
+<form class="panel narrow" method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <label for="code">Code</label>
+  <input type="text" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" autofocus required maxlength="20" placeholder="123456">
+  <div class="help">Lost your phone? Enter one of your recovery codes instead (each works once).</div>
+  <button class="btn" type="submit">Verify</button>
+  <p style="margin:14px 0 0"><a href="/my/login">Start over</a></p>
+</form>
+</div>
+{% endblock %}

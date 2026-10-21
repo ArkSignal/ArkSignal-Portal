@@ -1,0 +1,22 @@
+{% from "partials/_feedsec.html" import sec with context %}
+{% from "partials/_aisrx.html" import card with context %}
+<div id="ais-admin">
+{% call sec('stations', 'All Stations (' ~ stations | length ~ ')', True, True) %}
+  <p class="dim" style="margin-top:0">{{ c.now }} vessel{{ '' if c.now == 1 else 's' }} heard lately, {{ c.day }} in 24 hours, {{ c.total }} known.</p>
+  {% for r in stations %}{{ card(r, '/admin/ais', '#ais-admin', true) }}
+  {% else %}<p class="dim" style="margin:0">No stations yet.</p>{% endfor %}
+{% endcall %}
+{% call sec('takedown', 'Takedown List (' ~ hidden | length ~ ')', False, True) %}
+  <p style="margin-top:0">A vessel on this list is removed from every page and its broadcasts are no longer stored. Use it when an owner asks (AIS is public by design, but a request is honored).</p>
+  <form method="post" action="/admin/ais/hide" data-async data-async-target="#ais-admin" data-reset class="tfilterbar" style="align-items:flex-end">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div><label for="ah-mmsi">MMSI (Nine Digits)</label><input type="text" id="ah-mmsi" name="mmsi" maxlength="12" inputmode="numeric" style="width:150px" required></div>
+    <div><label for="ah-reason">Reason (Optional)</label><input type="text" id="ah-reason" name="reason" maxlength="200" style="width:300px" placeholder="Owner asked, by email"></div>
+    <button class="btn" type="submit" style="margin:0">Hide This Vessel</button>
+  </form>
+  {% if hidden %}<table style="margin-top:10px"><tr><th>MMSI</th><th>Name</th><th>Reason</th><th>By</th><th></th></tr>
+    {% for h in hidden %}<tr><td class="mono">{{ h.mmsi }}</td><td>{{ h.name or '-' }}</td><td>{{ h.reason or '-' }}</td><td>{{ h.hidden_by }}</td>
+      <td><form class="inline" method="post" action="/admin/ais/unhide/{{ h.mmsi }}" data-async data-async-target="#ais-admin" data-confirm="Show MMSI {{ h.mmsi }} again when it is heard?"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small neutral" type="submit">Show Again</button></form></td></tr>{% endfor %}</table>
+  {% else %}<p class="dim" style="margin:10px 0 0">No vessel is hidden.</p>{% endif %}
+{% endcall %}
+</div>

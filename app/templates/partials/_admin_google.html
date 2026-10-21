@@ -1,0 +1,27 @@
+{% from "partials/_feedsec.html" import sec with context %}
+<div id="google-admin">
+{% call sec('status', 'Status', True) %}
+  <p style="margin-top:0">
+    {% if configured %}<span class="tag live">on</span> Members can sign in with a linked Google account.
+    {% elif enabled %}<span class="tag off">switched on, not complete</span> The client {{ 'secret' if client_id else 'ID and secret' }} {{ 'is' if client_id else 'are' }} missing.
+    {% else %}<span class="tag off">off</span> The sign-in page does not show Google.{% endif %}</p>
+  <div class="k" style="display:grid;grid-template-columns:auto 1fr;gap:4px 14px;max-width:640px">
+    <div class="dim">Client ID</div><div class="mono">{{ client_id or 'not set' }}</div>
+    <div class="dim">Client secret</div><div>{{ 'saved (sealed)' if secret_saved else 'not saved' }}</div>
+    <div class="dim">Redirect address for Google</div><div class="mono">{{ redirect }}</div>
+    <div class="dim">Accounts linked</div><div>{{ links }}{% if signups %} ({{ signups }} made from Google sign-ins){% endif %}</div>
+    <div class="dim">New accounts from Google</div><div>{{ 'allowed (registration is open)' if signup_on else 'not allowed: a member links Google to an account they already have' }}</div>
+  </div>
+  <p class="help">The other choices (on or off, client ID, allowing new accounts, the addresses of Google's endpoints) are under <a href="/admin/settings">Settings</a> &gt; Sign-In with Google.</p>
+{% endcall %}
+{% call sec('secret', 'Client Secret', True) %}
+  <form method="post" action="/admin/google/secret" data-async data-async-target="#google-admin" data-reset>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="gs-secret">Client Secret from Google Cloud</label>
+    <input type="password" id="gs-secret" name="secret" autocomplete="off" maxlength="200" style="max-width:420px" placeholder="{{ 'Saved: paste a new one to replace it' if secret_saved else 'Paste the secret here' }}">
+    <button class="btn" type="submit">Save the Secret</button>
+    {% if secret_saved %}<button class="btn warn" type="submit" name="clear" value="1" formnovalidate data-confirm="Remove the saved client secret? Sign in with Google stops working.">Remove It</button>{% endif %}
+    <div class="help">The secret is stored sealed and never shown again, not even to administrators.</div>
+  </form>
+{% endcall %}
+</div>

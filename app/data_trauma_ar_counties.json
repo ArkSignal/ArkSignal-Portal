@@ -1,0 +1,306 @@
+{
+ "state": "AR",
+ "note": "County to trauma region (the Arkansas Department of Health's seven regions) and trauma zone (ADH Trauma Zone 1 and 2), read from the Department's trauma map",
+ "counties": {
+  "Benton": {
+   "region": "Northwest",
+   "zone": 1
+  },
+  "Washington": {
+   "region": "Northwest",
+   "zone": 1
+  },
+  "Carroll": {
+   "region": "Northwest",
+   "zone": 1
+  },
+  "Madison": {
+   "region": "Northwest",
+   "zone": 1
+  },
+  "Newton": {
+   "region": "Northwest",
+   "zone": 1
+  },
+  "Boone": {
+   "region": "Northwest",
+   "zone": 1
+  },
+  "Crawford": {
+   "region": "Arkansas Valley",
+   "zone": 1
+  },
+  "Sebastian": {
+   "region": "Arkansas Valley",
+   "zone": 1
+  },
+  "Polk": {
+   "region": "Arkansas Valley",
+   "zone": 2
+  },
+  "Franklin": {
+   "region": "Arkansas Valley",
+   "zone": 1
+  },
+  "Johnson": {
+   "region": "Arkansas Valley",
+   "zone": 1
+  },
+  "Pope": {
+   "region": "Arkansas Valley",
+   "zone": 1
+  },
+  "Logan": {
+   "region": "Arkansas Valley",
+   "zone": 1
+  },
+  "Yell": {
+   "region": "Arkansas Valley",
+   "zone": 1
+  },
+  "Scott": {
+   "region": "Arkansas Valley",
+   "zone": 1
+  },
+  "Conway": {
+   "region": "Metro",
+   "zone": 1
+  },
+  "Perry": {
+   "region": "Metro",
+   "zone": 1
+  },
+  "Faulkner": {
+   "region": "Metro",
+   "zone": 2
+  },
+  "Pulaski": {
+   "region": "Metro",
+   "zone": 2
+  },
+  "Saline": {
+   "region": "Metro",
+   "zone": 2
+  },
+  "Lonoke": {
+   "region": "Metro",
+   "zone": 2
+  },
+  "Marion": {
+   "region": "North Central",
+   "zone": 1
+  },
+  "Baxter": {
+   "region": "North Central",
+   "zone": 1
+  },
+  "Fulton": {
+   "region": "North Central",
+   "zone": 1
+  },
+  "Sharp": {
+   "region": "North Central",
+   "zone": 1
+  },
+  "Searcy": {
+   "region": "North Central",
+   "zone": 1
+  },
+  "Van Buren": {
+   "region": "North Central",
+   "zone": 1
+  },
+  "Stone": {
+   "region": "North Central",
+   "zone": 1
+  },
+  "Izard": {
+   "region": "North Central",
+   "zone": 1
+  },
+  "Independence": {
+   "region": "North Central",
+   "zone": 1
+  },
+  "Jackson": {
+   "region": "North Central",
+   "zone": 1
+  },
+  "Woodruff": {
+   "region": "North Central",
+   "zone": 2
+  },
+  "White": {
+   "region": "North Central",
+   "zone": 2
+  },
+  "Cleburne": {
+   "region": "North Central",
+   "zone": 1
+  },
+  "Grant": {
+   "region": "Southeast",
+   "zone": 2
+  },
+  "Jefferson": {
+   "region": "Southeast",
+   "zone": 2
+  },
+  "Arkansas": {
+   "region": "Southeast",
+   "zone": 2
+  },
+  "Cleveland": {
+   "region": "Southeast",
+   "zone": 2
+  },
+  "Lincoln": {
+   "region": "Southeast",
+   "zone": 2
+  },
+  "Desha": {
+   "region": "Southeast",
+   "zone": 2
+  },
+  "Bradley": {
+   "region": "Southeast",
+   "zone": 2
+  },
+  "Drew": {
+   "region": "Southeast",
+   "zone": 2
+  },
+  "Chicot": {
+   "region": "Southeast",
+   "zone": 2
+  },
+  "Ashley": {
+   "region": "Southeast",
+   "zone": 2
+  },
+  "Randolph": {
+   "region": "Northeast",
+   "zone": 1
+  },
+  "Clay": {
+   "region": "Northeast",
+   "zone": 1
+  },
+  "Greene": {
+   "region": "Northeast",
+   "zone": 1
+  },
+  "Lawrence": {
+   "region": "Northeast",
+   "zone": 1
+  },
+  "Craighead": {
+   "region": "Northeast",
+   "zone": 1
+  },
+  "Mississippi": {
+   "region": "Northeast",
+   "zone": 1
+  },
+  "Poinsett": {
+   "region": "Northeast",
+   "zone": 1
+  },
+  "Cross": {
+   "region": "Northeast",
+   "zone": 2
+  },
+  "Crittenden": {
+   "region": "Northeast",
+   "zone": 2
+  },
+  "St. Francis": {
+   "region": "Northeast",
+   "zone": 2
+  },
+  "Lee": {
+   "region": "Northeast",
+   "zone": 2
+  },
+  "Prairie": {
+   "region": "Northeast",
+   "zone": 2
+  },
+  "Monroe": {
+   "region": "Northeast",
+   "zone": 2
+  },
+  "Phillips": {
+   "region": "Northeast",
+   "zone": 2
+  },
+  "Montgomery": {
+   "region": "Southwest",
+   "zone": 2
+  },
+  "Garland": {
+   "region": "Southwest",
+   "zone": 2
+  },
+  "Pike": {
+   "region": "Southwest",
+   "zone": 2
+  },
+  "Hot Spring": {
+   "region": "Southwest",
+   "zone": 2
+  },
+  "Clark": {
+   "region": "Southwest",
+   "zone": 2
+  },
+  "Dallas": {
+   "region": "Southwest",
+   "zone": 2
+  },
+  "Howard": {
+   "region": "Southwest",
+   "zone": 2
+  },
+  "Sevier": {
+   "region": "Southwest",
+   "zone": 2
+  },
+  "Little River": {
+   "region": "Southwest",
+   "zone": 2
+  },
+  "Hempstead": {
+   "region": "Southwest",
+   "zone": 2
+  },
+  "Nevada": {
+   "region": "Southwest",
+   "zone": 2
+  },
+  "Ouachita": {
+   "region": "Southwest",
+   "zone": 2
+  },
+  "Calhoun": {
+   "region": "Southwest",
+   "zone": 2
+  },
+  "Miller": {
+   "region": "Southwest",
+   "zone": 2
+  },
+  "Lafayette": {
+   "region": "Southwest",
+   "zone": 2
+  },
+  "Union": {
+   "region": "Southwest",
+   "zone": 2
+  },
+  "Columbia": {
+   "region": "Southwest",
+   "zone": 2
+  }
+ }
+}

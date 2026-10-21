@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}APRS Weather{% endblock %}
+{% block content %}
+<h1><span>APRS</span> Weather</h1>
+<div class="sub">Weather stations that report over APRS (many are Citizen Weather Observer Program stations), latest observation of each. Your own units apply: change them in the Display menu.</div>
+<div class="panel">
+  <div class="tfilterbar"><label style="margin:0"><input type="checkbox" onchange="location.href='/aprs/weather' + (this.checked ? '?airports=0' : '')" {{ 'checked' if hide_airports }}> Hide airport weather (the airports' own reports, relayed over APRS)</label></div>
+  {% if rows %}<div class="tfilterbar"><input type="search" class="tfilter" data-table="#aprswx-tbl" placeholder="Search stations by call sign" aria-label="Search weather stations"><span class="dim tcount"></span></div>
+  <table class="sortable" id="aprswx-tbl"><thead><tr><th data-sort="text">Station</th><th data-sort="num">Temperature</th><th data-sort="num">Wind</th><th data-sort="num">Gust</th><th data-sort="num">Humidity</th><th data-sort="num">Pressure</th><th data-sort="num">Rain, 24 h</th><th data-sort="text">Reported</th></tr></thead><tbody>
+  {% for r in rows %}<tr><td class="mono"><a href="/aprs/{{ r.call | callurl }}" data-call="{{ r.call }}">{{ r.call }}</a>{% if r.airport %} <span class="tag">airport</span>{% endif %}</td>
+  <td data-v="{{ r.temp_c if r.temp_c is not none else '' }}">{{ r.temp_c | u_temp(0) if r.temp_c is not none else '-' }}</td>
+  <td data-v="{{ r.wind_ms if r.wind_ms is not none else '' }}">{% if r.wind_ms is not none %}{{ r.wind_ms | u_spd }}{% if r.wind_dir is not none %} from {{ r.wind_dir }}&deg;{% endif %}{% else %}-{% endif %}</td>
+  <td data-v="{{ r.gust_ms if r.gust_ms is not none else '' }}">{{ r.gust_ms | u_spd if r.gust_ms is not none else '-' }}</td>
+  <td data-v="{{ r.humidity if r.humidity is not none else '' }}">{{ r.humidity ~ '%' if r.humidity is not none else '-' }}</td>
+  <td data-v="{{ r.pressure_hpa if r.pressure_hpa is not none else '' }}">{{ r.pressure_hpa | u_press(2) if r.pressure_hpa is not none else '-' }}</td>
+  <td data-v="{{ r.rain_24h_mm if r.rain_24h_mm is not none else '' }}">{{ r.rain_24h_mm | u_rain if r.rain_24h_mm is not none else '-' }}</td>
+  <td data-v="{{ r.ts }}"><time class="ts" datetime="{{ r.ts }}" data-fmt="dt">{{ r.ts[:16].replace('T', ' ') }}</time></td></tr>{% endfor %}
+  </tbody></table>{% else %}<p class="dim" style="margin:0">No APRS weather station has reported recently (or the APRS service is not answering).</p>{% endif %}
+</div>
+<p class="dim" style="font-size:.8rem">{{ credit }}. Observations are as sent by each station and are not quality checked. <a href="/aprs/">APRS stations</a> &middot; <a href="/weather/">Weather</a></p>
+{% endblock %}

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Space Weather{% endblock %}
+{% block content %}
+<h1><span>Space Weather</span> for Radio</h1>
+<div class="sub">What the sun and the earth's magnetic field are doing now, from NOAA's Space Weather Prediction Center: it decides how well the HF bands carry. Updated every few minutes.</div>
+{% if not sw.ok %}
+<div class="panel" style="border-color:var(--acc2)"><b>NOAA's space weather numbers cannot be reached right now.</b> Try again in a few minutes.</div>
+{% else %}
+{% set scale_names = {'R': 'Radio Blackouts', 'S': 'Solar Radiation Storms', 'G': 'Geomagnetic Storms'} %}
+{% call sec('now', 'Right Now', True) %}
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px">
+    <div class="panel" style="margin:0"><div class="dim" style="font-size:.78rem">Solar Flux (10.7 cm)</div><div style="font-size:1.6rem;font-weight:700" id="sw-sfi">{{ '%g' % sw.sfi if sw.sfi is not none else '-' }}</div><div class="dim" style="font-size:.78rem">Above 100 helps the higher bands</div></div>
+    <div class="panel" style="margin:0"><div class="dim" style="font-size:.78rem">Planetary K Index</div><div style="font-size:1.6rem;font-weight:700" id="sw-kp">{{ '%g' % sw.kp_now if sw.kp_now is not none else '-' }}</div><div class="dim" style="font-size:.78rem">{% if sw.kp_now is none %}&nbsp;{% elif sw.kp_now >= 5 %}Geomagnetic storm: HF is disturbed{% elif sw.kp_now >= 4 %}Unsettled{% else %}Quiet{% endif %}</div></div>
+    <div class="panel" style="margin:0"><div class="dim" style="font-size:.78rem">X-Ray Flux (flare class)</div><div style="font-size:1.6rem;font-weight:700" id="sw-xray">{{ sw.xray['class'] if sw.xray else '-' }}</div><div class="dim" style="font-size:.78rem">M and X flares cause radio blackouts</div></div>
+  </div>
+  <h3>NOAA Space Weather Scales</h3>
+  <table id="sw-scales"><thead><tr><th>Kind</th><th>Level</th><th>Now</th></tr></thead><tbody>
+    {% for k in ('R', 'S', 'G') %}<tr><td>{{ scale_names[k] }}</td><td class="mono">{{ k }}{{ sw.scales[k].scale if sw.scales else '0' }}</td><td>{{ sw.scales[k].text if sw.scales and sw.scales[k].text else '-' }}</td></tr>{% endfor %}
+  </tbody></table>
+  <div class="help">The scales run from 0 (none) to 5 (extreme). R is the one that blacks out HF on the sunlit side, G is the one that sets the K index, S matters for polar paths and satellites.</div>
+{% endcall %}
+{% call sec('kp', 'K Index, Last Three Days', True, True) %}
+  {% if sw.kp %}
+  <div style="overflow-x:auto;padding-bottom:6px"><div id="sw-kpbars" style="display:flex;align-items:flex-end;gap:4px;min-width:{{ sw.kp | length * 60 }}px">
+    {% for r in sw.kp %}<div class="swk" data-t="{{ r.time }}" data-kp="{{ '%g' % r.kp }}" style="flex:1;min-width:56px;text-align:center;white-space:nowrap">
+      <div style="font:700 .8rem 'JetBrains Mono',monospace;margin-bottom:3px">{{ '%g' % r.kp }}</div>
+      <div title="{{ r.time.replace('T', ' ') }} UTC, K {{ '%g' % r.kp }}" style="height:{{ [r.kp * 12, 4] | max }}px;border-radius:3px 3px 0 0;background:{{ '#ff2d2d' if r.kp >= 5 else '#ff9f1a' if r.kp >= 4 else '#ffe14d' if r.kp >= 3 else '#2fbf5b' }}"></div>
+      <div class="swl" style="font-size:.7rem;line-height:1.25;margin-top:4px;color:var(--dim)">{{ r.time[11:13] }}-{{ '%02d' % ((r.time[11:13] | int + 3) % 24) }}<br>{{ r.time[5:10] }}</div></div>{% endfor %}
+  </div></div>
+  <div class="help">Each bar is three hours; the number is the K index for that period. Under each bar: the time range and date in UTC, then your own time. Oldest on the left. Green is quiet (below 3), yellow active (3), orange unsettled (4), red a storm (5 or more).</div>
+  <script>
+  (function () {
+    var MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"], prev = "";
+    document.querySelectorAll("#sw-kpbars .swk").forEach(function (c) {
+      var t = new Date(c.getAttribute("data-t") + "Z"), e = new Date(t.getTime() + 3 * 3600000), l = c.querySelector(".swl");
+      var utcDay = MON[t.getUTCMonth()] + " " + t.getUTCDate(), h = String(t.getUTCHours()).padStart(2, "0") + "-" + String((t.getUTCHours() + 3) % 24).padStart(2, "0");
+      var f = function (d) { return d.toLocaleTimeString([], {hour: "numeric"}); };
+      l.innerHTML = h + " UTC<br><b style='color:var(--text)'>" + utcDay + "</b><br><span title='In your time zone'>" + f(t) + "-" + f(e) + "</span>" + (utcDay === prev ? "" : "");
+      prev = utcDay;
+    });
+  })();
+  </script>
+  {% else %}<p class="dim">No K index readings are available.</p>{% endif %}
+{% endcall %}
+{% call sec('bands', 'HF Band Guide (Rough)', True, True) %}
+  {% if sw.guide %}
+  <table id="sw-bands"><thead><tr><th>Bands</th><th>Daytime</th><th>Nighttime</th></tr></thead><tbody>
+    {% for bands, day, night in sw.guide %}<tr><td>{{ bands }}</td><td>{{ day }}</td><td>{{ night }}</td></tr>{% endfor %}
+  </tbody></table>
+  <div class="help">A rule of thumb worked out from the solar flux and the K index above, lowered when the K index is high. It is not a forecast: the season, the time of day, the path and your own antenna matter as much. Check the bands themselves.</div>
+  {% else %}<p class="dim">The solar flux is not available, so no guide can be worked out.</p>{% endif %}
+{% endcall %}
+<p class="dim" style="font-size:.82rem">Source: NOAA Space Weather Prediction Center (services.swpc.noaa.gov), public domain. As of {{ sw.at[:16].replace('T', ' ') }} UTC.</p>
+{% endif %}
+{% endblock %}

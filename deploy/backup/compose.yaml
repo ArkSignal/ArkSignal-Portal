@@ -1,0 +1,24 @@
+# Off-site backup service: /opt/adsb/backup/compose.yaml on the hub VM, applied by the stack updater. It reads the hub's data folders read-only and sends
+# encrypted copies to the destination chosen in the portal (Admin > Backups > Off-Site Copy). It keeps only a small state folder of its own (the destination's
+# SSH host key, pinned on first use).
+services:
+  adsb-backup:
+    image: mallison01/adsb-backup:stable
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
+    container_name: adsb-backup
+    restart: unless-stopped
+    init: true
+    environment:
+      TZ: America/Chicago
+      PORTAL_URL: "http://adsb-portal:8430"
+      STACK_TOKEN: "${STACK_TOKEN}"
+    volumes:
+      - /opt/adsb:/opt/adsb:ro
+      - /opt/adsb/backup/state:/state
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true

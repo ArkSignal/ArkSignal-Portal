@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% from "partials/_mapshell.html" import shell, boot with context %}
+{% block title %}Repeater Map{% endblock %}
+{% block main_class %}wide{% endblock %}
+{% block content %}
+{# The same map page as the live (aircraft) map, the Weather Map and the County Map: partials/_mapshell.html carries the layout; repeaters are drawn below. #}
+{% call shell("Search call sign, city or frequency", "Search repeaters", "Repeaters", "Repeater Page", map_type="repeaters") %}
+    <details class="fsec" data-k="show" open><summary><span class="ic">&#9783;</span>Modes and Bands<span class="fbadge" data-fb="show"></span></summary><div class="fbody">
+      <div class="lv-sub">Mode</div>
+      <div class="lv-row" id="rm-modes">{% for m in modes %}<label><input type="checkbox" data-mode="{{ m }}" checked> {{ m }}</label>{% endfor %}</div>
+      <div class="lv-sub">Band</div>
+      <select id="rm-band"><option value="">All bands</option>{% for b in bands %}<option value="{{ b }}">{{ b }}</option>{% endfor %}</select>
+      <div class="lv-row"><label><input type="checkbox" id="rm-active"> Only active repeaters</label></div>
+      <div class="lv-row"><label><input type="checkbox" id="rm-nodes" checked> Linked nodes and gateways (IRLP, AllStar, EchoLink, APRS)</label></div>
+      <div class="lv-row"><label title="Lines between repeaters that are linked together in one system (an ARES net, a wide-area system), shortest set of lines joining them all"><input type="checkbox" id="rm-links"> Links between linked repeaters</label></div>
+      <div class="lv-row"><label>Icon Size <select id="rm-dot"><option value="75">Small</option><option value="100">Medium</option><option value="130">Large</option><option value="170">Extra large</option></select></label></div>
+      <div class="help dim" style="font-size:.78rem;margin-top:6px">{{ credit }}. Click a repeater for its details.</div>
+    </div></details>
+{% endcall %}
+{{ boot("/repeaters/map", "rm") }}
+<script src="/static/touchhit.js"></script>
+<script src="/static/colocate.js"></script>
+<script src="/static/labelfit.js"></script>
+<script>
+(function () {
+  var S = ArkShell, $ = S.$, esc = S.esc;
+  var q = new URLSearchParams(location.search);
+  var map = L.map("lvmap", {zoomControl: false, zoomSnap: 0.25, preferCanvas: false}).setView([parseFloat(q.get("lat")) || {{ map_lat | float }}, parseFloat(q.get("lon")) || {{ map_lon | float }}], parseFloat(q.get("zoom")) || 7);
+  L.control.zoom({position: "bottomright"}).addTo(map);
+  var state = {q: q.get("q") || "", band: q.get("band") || "", active: false, nodes: true, modes: {}, sortKey: "out", sortDir: 1};
+  var shell = S.start({map: map, layers: {{ layers | tojson }}, key: "rm", url: "/repeaters/map", cfg: {tile: {{ tile_url | tojson }}, attr: {{ tile_attr | tojson }}, labelScale: {{ label_scale | int }}, labelBg: {{ label_bg | tojson }}, wxRefresh: {{ wx_refresh | int }}},
+    share: function () { return {q: state.q, band: state.band, rep: cardId || ""}; }, legend: function () { return legend(); }});
+  var BANDS = {"10 m": [28e6, 29.7e6], "6 m": [50e6, 54e6], "2 m": [144e6, 148e6], "1.25 m": [222e6, 225e6], "70 cm": [420e6, 450e6], "33 cm": [902e6, 928e6], "23 cm": [1240e6, 1300e6]};
+  var COL = {FM: "#4fb3ff", DMR: "#ffb454", "D-STAR": "#c58bff", Fusion: "#3ee6a8", P25: "#ff7a59", NXDN: "#ff8cd9", AM: "#c8f06a"};
+  var NODE = {irlp: "IRLP node", allstar: "AllStar node", echolink: "EchoLink node", winlink: "Winlink gateway", aprs: "APRS digipeater", simplex: "Simplex"};
+  var reps = [], marks = {}, group = L.layerGroup().addTo(map), cardId = null, dotScale = parseInt(S.pref("rm.dot"), 10) || 100;
+  var LE = ArkLabels.create(map), LABM = S.pref("rm.labels") || "call";   // the shared label engine: boxes, priority, never overlapping
+  $("m-display").innerHTML = '<div class="lv-sub">Repeater Labels</div><select id="rm-labels"><option value="call">Call sign</option><option value="both">Call sign and frequency</option><option value="freq">Frequency</option><option value="none">No labels</option></select>';
+  $("rm-labels").value = LABM;
+  function renderLabels(vis) {
+    LE.begin(); if (LABM === "none" || map.getZoom() < 9) { LE.flush(); return; }   // names only once zoomed in
+    vis.forEach(function (r) {
+      var c = r.call || "Repeater", f = mhz(r.out), parts = [], plain = [];
+      if (LABM !== "freq") { parts.push(esc(c)); plain.push(c); }
+      if (LABM !== "call") { parts.push("<small>" + f + "</small>"); plain.push(f); }
+      LE.add({lat: r.lat, lon: r.lon, text: plain.join(" "), html: parts.join(" "), color: color(r), priority: (r.status === "active" ? 0 : 2) + (r.kind === "repeater" ? 0 : 1), onClick: function () { select(r.id, false); }});   // active repeaters first, then nodes and gateways
+    });
+    LE.flush();
+  }
+  var lastVis = []; map.on("zoomend moveend", function () { renderLabels(lastVis); });
+  $("rm-dot").value = String(dotScale); $("q").value = state.q; $("rm-band").value = state.band;
+  document.querySelectorAll("#rm-modes input").forEach(function (cb) { state.modes[cb.getAttribute("data-mode")] = true; });
+  function mhz(hz) { return (hz / 1e6).toFixed(4).replace(/0+$/, "").replace(/\.$/, ""); }
+  function off(r) { return r.off ? (r.off > 0 ? "+" : "") + (r.off / 1e6).toFixed(1) + " MHz" : "simplex"; }
+  function color(r) { return COL[r.modes[0]] || "#8a9bb3"; }
+  function match(r) {
+    if (state.active && r.status !== "active") return false;
+    if (!state.nodes && r.kind !== "repeater") return false;
+    if (state.band && !(r.out >= BANDS[state.band][0] && r.out <= BANDS[state.band][1])) return false;
+    if (!r.modes.some(function (m) { return state.modes[m] !== false; })) return false;
+    var t = state.q.trim().toLowerCase();
+    if (t && (r.call + " " + r.city + " " + mhz(r.out) + " " + r.net).toLowerCase().indexOf(t) < 0) return false;
+    return true;
+  }
+  function render() {
+    group.clearLayers(); marks = {};
+    var vis = reps.filter(match);
+    vis.forEach(function (r) {
+      var on = r.status === "active", rad = (on ? 8 : 6) * dotScale / 100;
+      var m = L.circleMarker([r.lat, r.lon], {radius: rad, color: r.id === cardId ? "#fff" : color(r), weight: r.id === cardId ? 3 : 2, fillColor: color(r), fillOpacity: on ? .75 : .18, dashArray: on ? null : "3"}).addTo(group);
+      m.bindTooltip("<b>" + esc(r.call || "Repeater") + "</b> " + mhz(r.out) + " MHz · " + esc(r.modes.join(", ")) + (on ? "" : " (off the air)"), {className: "lv-tip"});
+      m.on("click", function () { select(r.id, false); });
+      Colocate.track(map, "rep", m, r.lat, r.lon);
+      marks[r.id] = m;
+    });
+    lastVis = vis; renderLabels(vis); renderList(vis); renderChips();
+    $("lv-count").textContent = vis.length + " of " + reps.length + " repeaters";
+    shell.renderLegend();
+  }
+  function legend() {
+    var h = "<h6>Repeaters</h6>";
+    Object.keys(COL).forEach(function (k) { h += '<div style="display:flex;gap:8px;align-items:center;margin:3px 0"><span style="width:12px;height:12px;border-radius:50%;background:' + COL[k] + ';display:inline-block"></span>' + esc(k) + "</div>"; });
+    return h + '<div class="dim" style="font-size:.76rem;margin-top:6px">A solid dot is active; a faint dashed one is off the air or not checked. The color follows the first mode listed. Data: Hearham and Arkansas hams.</div>';
+  }
+  function renderChips() {
+    var c = [];
+    if (state.q) c.push(["q", "Search: " + state.q]);
+    if (state.band) c.push(["band", "Band: " + state.band]);
+    if (state.active) c.push(["active", "Only active"]);
+    $("lv-chips").innerHTML = c.map(function (x) { return '<span class="chip" data-c="' + x[0] + '">' + esc(x[1]) + "<b>×</b></span>"; }).join("") + (c.length > 1 ? '<span class="chip chipall" data-c="all">Clear all</span>' : "");
+  }
+  $("lv-chips").addEventListener("click", function (e) {
+    var el = e.target.closest(".chip"); if (!el) return; var k = el.getAttribute("data-c");
+    if (k === "q" || k === "all") { state.q = ""; $("q").value = ""; }
+    if (k === "band" || k === "all") { state.band = ""; $("rm-band").value = ""; }
+    if (k === "active" || k === "all") { state.active = false; $("rm-active").checked = false; }
+    render();
+  });
+  var COLS = [["out", "Output"], ["off", "Offset"], ["call", "Call"], ["city", "City"]];
+  $("lv-tbl").querySelector("thead").innerHTML = "<tr>" + COLS.map(function (c) { return '<th data-k="' + c[0] + '">' + c[1] + "</th>"; }).join("") + "</tr>";
+  $("lv-tbl").querySelector("thead").addEventListener("click", function (e) { var k = e.target.getAttribute("data-k"); if (!k) return; if (state.sortKey === k) state.sortDir = -state.sortDir; else { state.sortKey = k; state.sortDir = 1; } render(); });
+  function renderList(vis) {
+    var rows = vis.slice().sort(function (a, b) { var x = a[state.sortKey], y = b[state.sortKey]; return (x < y ? -1 : x > y ? 1 : 0) * state.sortDir; });
+    $("lv-tbl").querySelector("tbody").innerHTML = rows.slice(0, 400).map(function (r) {
+      return '<tr class="it' + (r.id === cardId ? " sel" : "") + '" data-i="' + r.id + '"><td>' + mhz(r.out) + "</td><td>" + off(r) + "</td><td>" + esc(r.call) + "</td><td>" + esc(r.city) + "</td></tr>";
+    }).join("") || '<tr><td colspan="4" class="dim" style="text-align:left;padding:12px">No repeater matches.</td></tr>';
+  }
+  $("lv-tbl").querySelector("tbody").addEventListener("click", function (e) { var tr = e.target.closest("tr.it"); if (tr) select(parseInt(tr.getAttribute("data-i"), 10), true); });
+  function select(id, zoom) {
+    cardId = id; var r = reps.filter(function (x) { return x.id === id; })[0], card = $("lv-card");
+    if (!r) { card.style.display = "none"; $("lv").classList.remove("has-card"); render(); return; }
+    $("c-name").textContent = (r.call || "Repeater") + " " + mhz(r.out) + " MHz"; (function (e) { e.title = ""; e.__cs = 0; if (r.call) e.setAttribute("data-call", r.call); else e.removeAttribute("data-call"); if (window.ArkCall) ArkCall.enhance(e.parentNode); })($("c-name")); $("c-sub").textContent = (NODE[r.kind] || "Repeater") + (r.city ? " · " + r.city : "");
+    $("c-page").href = "/repeaters/" + r.id;
+    $("c-body").innerHTML = '<div class="k"><div>Input</div><div>' + mhz(r.out + r.off) + " MHz (" + off(r) + ")</div><div>Modes</div><div>" + esc(r.modes.join(", ")) + (r.net ? " (" + esc(r.net) + ")" : "") + "</div>" + (r.tone ? "<div>Tone</div><div>" + esc(r.tone) + "</div>" : "") + (r.cc ? "<div>Color code</div><div>" + esc(r.cc) + "</div>" : "") + ((r.groups || []).length ? "<div>Linked</div><div>" + r.groups.map(function (g) { return '<a href="/repeaters/?group=' + g.id + '">' + esc(g.name) + "</a>"; }).join(", ") + "</div>" : "") + "<div>Status</div><div>" + (r.status === "active" ? "Active" : r.status === "off" ? "Off the air" : "Not verified") + "</div></div>";
+    card.style.display = "block"; $("lv").classList.add("has-card");
+    $("c-follow").onclick = function () { map.setView([r.lat, r.lon], Math.max(map.getZoom(), 11)); };
+    $("c-close").onclick = function () { cardId = null; card.style.display = "none"; $("lv").classList.remove("has-card"); render(); };
+    if (zoom) map.setView([r.lat, r.lon], Math.max(map.getZoom(), 11));
+    render();
+  }
+  $("q").addEventListener("input", function () { state.q = this.value; render(); });
+  $("rm-band").addEventListener("change", function () { state.band = this.value; render(); });
+  $("rm-active").addEventListener("change", function () { state.active = this.checked; render(); });
+  $("rm-nodes").addEventListener("change", function () { state.nodes = this.checked; render(); });
+  var linkG = L.layerGroup(), linksLoaded = false;
+  async function drawLinks() {
+    linkG.clearLayers();
+    if (!$("rm-links").checked) { if (map.hasLayer(linkG)) map.removeLayer(linkG); return; }
+    linkG.addTo(map);
+    try {
+      var d = await (await fetch("/api/repeaters/links.json")).json(), PAL = ["#4fb3ff", "#ffb454", "#3ee6a8", "#c58bff", "#ff6b6b", "#c8f06a"];
+      (d.groups || []).forEach(function (g, gi) {
+        var col = PAL[gi % PAL.length], tip = "<b>" + esc(g.name) + "</b><br>" + g.members.map(function (m) { return esc(m.call) + " " + mhz(m.out) + " MHz"; }).join("<br>") + (g.notes ? "<br><span class=\"dim\">" + esc(g.notes) + "</span>" : "");
+        g.lines.forEach(function (l) { L.polyline([[l[0], l[1]], [l[2], l[3]]], {color: col, weight: 2.5, opacity: .8, dashArray: "7 5"}).addTo(linkG).bindTooltip(tip, {className: "lv-tip", sticky: true}); });
+      });
+    } catch (e) {}
+  }
+  $("rm-links").addEventListener("change", function () { S.pref("rm.links", this.checked ? "1" : "0"); drawLinks(); });
+  if (S.pref("rm.links") === "1") { $("rm-links").checked = true; drawLinks(); }
+  $("rm-labels").addEventListener("change", function () { LABM = this.value; S.pref("rm.labels", this.value); renderLabels(lastVis); });
+  $("rm-dot").addEventListener("change", function () { dotScale = parseInt(this.value, 10); S.pref("rm.dot", this.value); render(); });
+  document.querySelectorAll("#rm-modes input").forEach(function (cb) { cb.addEventListener("change", function () { state.modes[this.getAttribute("data-mode")] = this.checked; render(); }); });
+  fetch("/api/repeaters/map.json").then(function (r) { return r.json(); }).then(function (d) {
+    reps = d.repeaters || [];
+    if (!(q.get("lat") && q.get("lon")) && !q.get("zoom")) { var AR = {{ map_area("repeater_map_area") | tojson }}; if (AR) map.fitBounds([[AR[0], AR[1]], [AR[2], AR[3]]], {padding: [10, 10]}); }
+    render();
+    if (q.get("rep")) select(parseInt(q.get("rep"), 10), true);
+  }).catch(function () { $("lv-count").textContent = "Could not load the repeaters."; });
+})();
+</script>
+{% endblock %}

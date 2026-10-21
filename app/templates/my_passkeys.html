@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Passkeys{% endblock %}
+{% block content %}
+<h1>My <span>Passkeys</span></h1>
+<div class="sub">Sign in with your fingerprint, face, screen lock or a security key instead of typing a password. A passkey cannot be guessed, phished or reused on another site, and it checks that it is you, so it takes the place of the password and the two-factor code together.</div>
+{% with active = 'passkeys' %}{% include "partials/_my_subnav.html" %}{% endwith %}
+
+{% call sec('add', 'Add a Passkey', True) %}
+  <label for="pk-name">Name (so you can tell them apart)</label>
+  <input type="text" id="pk-name" maxlength="60" style="max-width:340px" placeholder="For example Phone or Work laptop">
+  <button class="btn" type="button" id="pk-add">Add a Passkey</button> <span id="pk-msg" style="font-size:.9rem"></span>
+  <div class="help">Your device asks you to confirm with your fingerprint, face, PIN or screen lock. You can have {{ per_user }} passkeys, for example one on each device, and your password keeps working too.</div>
+{% endcall %}
+
+{% call sec('keys', 'Your Passkeys', True, True) %}
+  {% include "partials/_passkeys_list.html" %}
+{% endcall %}
+
+{% call sec('about', 'About Passkeys', False) %}
+  <ul class="plain" style="margin-top:0">
+    <li>On the sign-in page choose <b>Sign In with a Passkey</b>: no user name or password is needed.</li>
+    <li>This site keeps only the public half of each passkey. Your fingerprint or face never leaves your device.</li>
+    <li>A passkey marked <i>synced</i> is kept by your phone's or computer's own keychain (Apple, Google, Microsoft or a password manager), so it also works on your other devices there. One marked <i>this device</i> works only on that device or security key.</li>
+    <li>Lost a device? Sign in another way, remove its passkey here, and add one on the new device. An administrator can remove your passkeys if you cannot sign in.</li>
+    <li>Passkeys need a secure (https) connection and a current browser.</li>
+  </ul>
+{% endcall %}
+<script src="/static/passkeys.js?v={{ app_version }}"></script>
+{% endblock %}

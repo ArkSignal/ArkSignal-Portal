@@ -1,0 +1,7 @@
+# adsb-backup: sends encrypted copies of the hub's data to an off-site destination (SFTP, S3, SMB or WebDAV through rclone). It takes its orders and secrets from the
+# portal (Admin > Backups > Off-Site Copy) and reports back, so nothing is edited by hand. Built by build.yml as mallison01/adsb-backup and released with the rest.
+FROM alpine:3.20
+RUN apk add --no-cache python3 rclone openssl zstd tar bash openssh-client ca-certificates tzdata
+COPY backupd.py /backupd.py
+ENTRYPOINT ["python3", "/backupd.py"]
+CMD []

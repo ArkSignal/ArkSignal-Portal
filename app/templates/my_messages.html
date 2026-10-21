@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Messages{% endblock %}
+{% block content %}
+<h1>My <span>Messages</span></h1>
+<div class="sub">Private messages, like email, between members of this site. Only the people a message was sent to can read it; administrators cannot, except a message you or the other person reports. For a quick back-and-forth use <a href="/chat/">Chat</a>.</div>
+{% include "partials/_my_subnav.html" %}
+{% if mute %}<div class="panel" style="border-color:var(--acc2);margin-bottom:14px">You are muted from private messages{% if mute.reason %}: {{ mute.reason }}{% endif %}. You can still read.</div>{% endif %}
+{% include "partials/_mailnav.html" %}
+{% set title = dict(folders)[folder] ~ ' (' ~ total ~ ')' ~ (' for "' ~ q ~ '"' if q else '') %}
+{% call sec('folder', title, True) %}
+  {% if rows %}
+  <form id="ml-form">
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+      <label class="check" style="margin:0"><input type="checkbox" id="ml-all"><span>All</span></label>
+      {% if folder in ('inbox', 'archive') %}<button class="btn small neutral" type="button" data-bulk="{{ 'archive' if folder == 'inbox' else 'inbox' }}" style="margin:0">{{ 'Archive' if folder == 'inbox' else 'Move to Inbox' }}</button>
+      <button class="btn small neutral" type="button" data-bulk="read" style="margin:0">Mark Read</button><button class="btn small neutral" type="button" data-bulk="unread" style="margin:0">Mark Unread</button>{% endif %}
+      {% if folder == 'trash' %}<button class="btn small neutral" type="button" data-bulk="restore" style="margin:0">Restore</button><button class="btn small warn" type="button" data-bulk="delete" data-confirm="Delete the checked messages for good?" style="margin:0">Delete for Good</button>
+      <button class="btn small warn" type="button" id="ml-empty" style="margin:0">Empty the Trash</button>
+      {% elif folder == 'drafts' %}<button class="btn small warn" type="button" data-bulk="delete" data-confirm="Delete the checked drafts?" style="margin:0">Delete Drafts</button>
+      {% else %}<button class="btn small neutral" type="button" data-bulk="trash" style="margin:0">Delete</button>{% endif %}
+    </div>
+    {% for r in rows %}<div class="ml-row {{ 'unread' if r.unread }}"><input type="checkbox" name="ids" value="{{ r.id }}" aria-label="Choose this message">
+      <a href="/my/messages/{{ r.id }}" class="ml-main"><div class="ml-top"><span class="ml-who">{% if r.mine %}To: {% endif %}{{ r.who }}</span><time class="ts dim" datetime="{{ r.at.isoformat() }}" data-fmt="dt">{{ r.at }}</time></div>
+        <div class="ml-subj">{{ r.subject or '(no subject)' }}</div><div class="dim ml-snip">{{ r.body[:140] }}</div></a></div>{% endfor %}
+  </form>
+  {% set pages = ((total + per - 1) // per) %}
+  {% if pages > 1 %}<p style="margin:12px 0 0">Page {{ page }} of {{ pages }}:
+    {% if page > 1 %}<a class="btn small neutral" href="?folder={{ folder }}&q={{ q | urlencode }}&page={{ page - 1 }}">Newer</a>{% endif %}
+    {% if page < pages %}<a class="btn small neutral" href="?folder={{ folder }}&q={{ q | urlencode }}&page={{ page + 1 }}">Older</a>{% endif %}</p>{% endif %}
+  {% else %}<p class="dim" style="margin:0">{% if q %}Nothing in this folder matches that search.{% elif folder == 'inbox' %}Your inbox is empty.{% elif folder == 'sent' %}You have not sent anything yet.{% elif folder == 'drafts' %}No drafts.{% elif folder == 'archive' %}Nothing is archived.{% else %}The Trash is empty.{% endif %}</p>{% endif %}
+  {% if folder == 'trash' and trash_days %}<p class="dim" style="font-size:.8rem;margin:8px 0 0">Messages in the Trash are removed for good after {{ trash_days }} days.</p>{% endif %}
+{% endcall %}
+<style>
+.ml-row{display:flex;gap:10px;align-items:flex-start;padding:8px 4px;border-bottom:1px solid color-mix(in srgb, var(--line) 50%, transparent)}
+.ml-row.unread .ml-subj,.ml-row.unread .ml-who{font-weight:800}
+.ml-main{flex:1;min-width:0;text-decoration:none;color:inherit}
+.ml-top{display:flex;gap:10px;align-items:baseline}
+.ml-who{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.ml-top time{margin-left:auto;font-size:.76rem;white-space:nowrap}
+.ml-subj{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ml-snip{font-size:.84rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+</style>
+<script>
+(function () {
+  var csrf = "{{ csrf_token() }}";
+  function post(url, data) { var f = new FormData(); f.append("csrf_token", csrf); Object.keys(data || {}).forEach(function (k) { [].concat(data[k]).forEach(function (v) { f.append(k, v); }); }); return fetch(url, { method: "POST", body: f, credentials: "same-origin" }).then(function (r) { return r.json(); }); }
+  var all = document.getElementById("ml-all");
+  if (all) all.addEventListener("change", function () { Array.prototype.forEach.call(document.querySelectorAll("input[name=ids]"), function (c) { c.checked = all.checked; }); });
+  Array.prototype.forEach.call(document.querySelectorAll("[data-bulk]"), function (b) {
+    b.addEventListener("click", function () {
+      var ids = Array.prototype.map.call(document.querySelectorAll("input[name=ids]:checked"), function (c) { return c.value; });
+      if (!ids.length) { alert("Check a message first."); return; }
+      var c = b.getAttribute("data-confirm"); if (c && !confirm(c)) return;
+      post("/my/messages/bulk", { act: b.getAttribute("data-bulk"), ids: ids }).then(function () { location.reload(); });
+    });
+  });
+  var em = document.getElementById("ml-empty");
+  if (em) em.addEventListener("click", function () { if (confirm("Delete everything in the Trash for good?")) post("/my/messages/empty-trash").then(function () { location.reload(); }); });
+})();
+</script>
+{% endblock %}

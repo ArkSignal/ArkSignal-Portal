@@ -1,0 +1,12 @@
+apiVersion: 1
+# The portal's own public statistics files (/api/weather/stats.json, /api/sondes/stats.json) through the Infinity plugin baked into this image: no database login or secret is involved.
+datasources:
+  - name: portal-json
+    uid: portal-json
+    type: yesoreyeram-infinity-datasource
+    access: proxy
+    editable: false
+    jsonData:
+      allowedHosts:
+        - http://adsb-portal:8430
+        - https://arksignal.net

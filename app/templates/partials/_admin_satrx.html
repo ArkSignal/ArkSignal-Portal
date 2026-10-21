@@ -1,0 +1,23 @@
+{% from "partials/_feedsec.html" import sec with context %}
+{% from "partials/_satrx.html" import card with context %}
+<div id="satrx-admin">
+{% call sec('receivers', 'All Receivers (' ~ receivers | length ~ ')', True, True) %}
+  {% for r in receivers %}{{ card(r, '/admin/sat-images', [], '#satrx-admin', true) }}
+  {% else %}<p class="dim" style="margin:0">No receivers yet.</p>{% endfor %}
+{% endcall %}
+{% call sec('pictures', 'Newest Pictures (' ~ images | length ~ ')', True, True) %}
+  <div class="tfilterbar"><input type="search" class="tfilter" data-table="#satimg-tbl" placeholder="Search by satellite or receiver" aria-label="Search pictures"><span class="dim tcount"></span></div>
+  <table class="sortable" id="satimg-tbl">
+    <tr><th>Picture</th><th data-sort="text">Satellite</th><th data-sort="text">Receiver</th><th data-sort="text">Taken</th><th data-sort="num">Size</th><th></th></tr>
+    {% for i in images %}<tr data-search="{{ i.satellite }} {{ i.product }} {{ i.rname }}">
+      <td><a href="/sat/image/{{ i.id }}" target="_blank" rel="noopener"><img src="/sat/image/{{ i.id }}" loading="lazy" alt="" style="width:80px;height:56px;object-fit:cover;border-radius:4px"></a></td>
+      <td>{{ i.satellite or '-' }}<br><span class="dim" style="font-size:.8rem">{{ i.product }}</span>{% if i.hidden %} <span class="tag off">hidden</span>{% endif %}</td><td>{{ i.rname }}</td>
+      <td data-v="{{ i.captured_at.isoformat() }}"><time class="ts" datetime="{{ i.captured_at.isoformat() }}" data-fmt="dt">{{ i.captured_at }}</time></td>
+      <td class="mono" data-v="{{ i.size }}">{{ '%.1f' % (i.size / 1048576) }} MB</td>
+      <td style="white-space:nowrap">
+        <form class="inline" method="post" action="/admin/sat-images/image/{{ i.id }}/{{ 'show' if i.hidden else 'hide' }}" data-async data-async-target="#satrx-admin"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small neutral" type="submit">{{ 'Show' if i.hidden else 'Hide' }}</button></form>
+        <form class="inline" method="post" action="/admin/sat-images/image/{{ i.id }}/delete" data-async data-async-target="#satrx-admin" data-confirm="Delete this picture?"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small warn" type="submit">Delete</button></form></td></tr>
+    {% else %}<tr><td colspan="6" class="dim">No pictures yet.</td></tr>{% endfor %}
+  </table>
+{% endcall %}
+</div>

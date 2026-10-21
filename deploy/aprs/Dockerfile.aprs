@@ -1,0 +1,11 @@
+# The APRS service (aprsd.py): reads APRS-IS around Arkansas with a read-only login and keeps the latest position, a short trail and the weather of each station in its own Postgres database.
+# Built by build.yml as mallison01/adsb-aprs and released with everything else (same latest/stable tags). aprslib (MIT) parses the packets.
+FROM python:3.12-slim
+RUN groupadd -r -g 10003 aprs && useradd -r -u 10003 -g aprs -d /app aprs
+WORKDIR /app
+RUN pip install --no-cache-dir "psycopg[binary]==3.2.*" "aprslib==0.7.2"
+COPY deploy/aprs/aprsd.py /app/aprsd.py
+COPY BUILD_INFO /BUILD_INFO
+USER aprs
+EXPOSE 8480
+CMD ["python", "-u", "/app/aprsd.py"]

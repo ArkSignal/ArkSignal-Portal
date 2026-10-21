@@ -1,0 +1,14 @@
+<div id="intlist" class="panel" style="overflow-x:auto">
+  <table class="sortable">
+    <tr><th data-sort="text">Hex</th><th data-sort="text">Registration</th><th data-sort="text">Type</th><th data-sort="text">Category</th><th data-sort="text">Owner or Note</th><th data-sort="text">Source</th><th></th></tr>
+    {% for r in rows %}
+    <tr {% if r.excluded %}style="opacity:.55"{% endif %}><td class="mono"><b>{{ r.hex }}</b></td><td class="mono">{{ r.reg }}</td><td class="mono">{{ r.type }}</td><td>{{ r.category }}</td>
+      <td>{{ r.note or r.owner }}{% if r.note and r.owner %}<br><span class="dim" style="font-size:.78rem">{{ r.owner }}</span>{% endif %}</td>
+      <td><span class="tag {{ 'live' if r.source != 'planealert' }}">{{ {'manual': 'added', 'csv': 'CSV file', 'planealert': 'Plane-Alert'}.get(r.source, r.source) }}</span>{% if r.excluded %} <span class="tag off">excluded</span>{% endif %}</td>
+      <td>
+        <form class="inline" method="post" action="/admin/interesting/{{ r.hex }}/{{ 'include' if r.excluded else 'exclude' }}" data-async data-async-target="#intlist"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small neutral" type="submit">{{ 'Include' if r.excluded else 'Exclude' }}</button></form>
+        {% if r.source != 'planealert' %}<form class="inline" method="post" action="/admin/interesting/{{ r.hex }}/remove" data-async data-async-target="#intlist"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small warn" type="submit">Remove</button></form>{% endif %}
+      </td></tr>
+    {% else %}<tr><td colspan="7" class="dim">Nothing yet. Add an aircraft, import a CSV, or download the Plane-Alert list.</td></tr>{% endfor %}
+  </table>
+</div>

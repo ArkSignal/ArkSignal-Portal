@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Google Sign-In{% endblock %}
+{% block content %}
+<h1><span>Admin</span> Google Sign-In</h1>
+<div class="sub">Let members sign in with a Google account they have linked. It stays off, and nothing shows on the sign-in page, until you have entered the client ID and secret from Google Cloud and turned it on.</div>
+{% include "partials/_admin_subnav.html" %}
+
+{% include "partials/_admin_google.html" %}
+
+{% call sec('setup', 'Setting It Up at Google (Once)', False) %}
+  <ol style="margin-top:0">
+    <li>Open <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Google Cloud Console &gt; APIs and Services &gt; Credentials</a> and pick or create a project. On the OAuth consent screen choose <b>External</b>, give the application a name and your support email, and publish it (sign-in with only the basic scopes needs no review).</li>
+    <li>Choose <b>Create Credentials &gt; OAuth client ID</b>, type <b>Web application</b>.</li>
+    <li>Under <b>Authorized redirect URIs</b> add exactly: <span class="mono">{{ redirect }}</span> (it must be https on the real site).</li>
+    <li>Copy the <b>Client ID</b> into <a href="/admin/settings">Settings</a> &gt; Sign-In with Google &gt; Google Client ID, and paste the <b>Client secret</b> into the box above.</li>
+    <li>Set <b>Sign In with Google</b> to On in Settings. The button appears on the sign-in page and members link their account on My Account &gt; Google Sign-In.</li>
+  </ol>
+{% endcall %}
+{% endblock %}

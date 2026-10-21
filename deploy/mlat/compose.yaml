@@ -1,0 +1,22 @@
+# MLAT server: /opt/adsb/mlat/compose.yaml on the hub VM, applied by the stack updater (adsb-stack) like every other service.
+# Stations connect their mlat-client to port 31090 (forward it on the router like the 30004 feed port); multilateration results come out as
+# BaseStation lines on adsb-mlat:30105 inside the docker network (the hub can read them there). /work holds sync.json and clients.json with
+# station coordinates: keep it private (the portal reads it read-only, only to report per-station MLAT health).
+services:
+  adsb-mlat:
+    image: mallison01/adsb-mlat:stable
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
+    container_name: adsb-mlat
+    restart: unless-stopped
+    init: true
+    ports:
+      - 31090:31090
+    volumes:
+      - /opt/adsb/mlat/work:/work
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true

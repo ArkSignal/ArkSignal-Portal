@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Contact{% endblock %}
+{% block content %}
+<h1><span>Contact</span></h1>
+<div class="sub">{{ intro }}</div>
+{% if contacts %}
+<div class="cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px">
+  {% for c in contacts %}
+  <div class="panel">
+    <div style="font-weight:600;font-size:1.05rem">{{ c.name }}</div>
+    {% if c.role %}<div class="dim" style="font-size:.85rem">{{ c.role }}</div>{% endif %}
+    {% if c.email %}<div style="margin-top:8px"><a href="mailto:{{ c.email }}">{{ c.email }}</a></div>{% endif %}
+    {% if c.url %}<div style="margin-top:4px"><a href="{{ c.url }}" target="_blank" rel="noopener nofollow">{{ c.url }}</a></div>{% endif %}
+    {% if c.notes %}<p class="dim" style="margin:10px 0 0;font-size:.88rem">{{ c.notes }}</p>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="panel"><p class="dim" style="margin:0">No contact details have been added yet.{% if current_user.is_authenticated and current_user.has_permission('manage_settings') %} Add them under <a href="/admin/contacts">Admin &gt; Contacts</a>.{% endif %}</p></div>
+{% endif %}
+{% endblock %}

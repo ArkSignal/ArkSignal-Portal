@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Display and Maps{% endblock %}
+{% block content %}
+<h1>My <span>Display and Maps</span></h1>
+<div class="sub">Everything the Display menu sets, in one place, kept with your account so it follows you to every device; your saved map views too.</div>
+{% with active = 'display' %}{% include "partials/_my_subnav.html" %}{% endwith %}
+<div style="max-width:760px">
+
+{% call sec('look', 'Look', True) %}
+  <label for="d-theme">Theme</label><select id="d-theme" data-key="theme"></select>
+  <label class="check" style="margin:6px 0"><input type="checkbox" id="d-deco"><span>Seasonal decorations (ribbon, symbols, holiday pictures, map symbols)</span></label>
+  <label for="d-width">Page width</label>
+  <select id="d-width" data-key="pageWidth"><option value="">Site default ({{ 'limited' if page_width_mode == 'limited' else 'full width' }})</option><option value="limited">Limited, for wide monitors</option><option value="full">Full width</option></select>
+{% endcall %}
+
+{% call sec('time', 'Time', True) %}
+  <label for="d-hour">Clock</label><select id="d-hour" data-key="hour" data-default="auto"><option value="auto">Browser default</option><option value="12">12-hour</option><option value="24">24-hour</option></select>
+  <label for="d-tz">Time zone</label><select id="d-tz" data-key="tz" data-default="browser"><option value="browser">My browser's time zone</option><option value="site">Site time zone ({{ site_tz }})</option><option value="utc">UTC (Zulu, as aviation uses)</option></select>
+{% endcall %}
+
+{% call sec('units', 'Units', True) %}
+  <p class="dim" style="margin-top:0">Each service starts in its own industry's units. Your choice for a service beats your overall choice, which beats the site's default.</p>
+  <label for="d-units">Overall</label>
+  <select id="d-units" data-key="units"><option value="">Site default</option><option value="imperial">Feet, mph, miles, &deg;F</option><option value="aero">Feet, knots, nautical miles</option><option value="metric">Meters, km/h, kilometers</option></select>
+  <div id="d-ua"></div>
+{% endcall %}
+
+{% call sec('aircraft', 'Aircraft Map', True) %}
+  <label for="d-icon">Aircraft icon size</label>
+  <select id="d-icon" data-key="iconScale"><option value="">Site default</option><option value="0.8">Small</option><option value="1">Medium</option><option value="1.3">Normal</option><option value="1.7">Large</option><option value="2.2">Extra large</option></select>
+  <label for="d-tlabels">Trail labels (speed, altitude and time along a selected aircraft's trail)</label>
+  <select id="d-tlabels" data-key="trailLabels"><option value="">Site default</option><option value="1">Shown</option><option value="0">Hidden</option></select>
+  <label for="d-lastleg">Trail</label>
+  <select id="d-lastleg" data-key="lastLeg"><option value="">Site default</option><option value="1">Last flight only</option><option value="0">Every recorded flight of the day</option></select>
+  <label for="d-focus">When one aircraft is selected</label>
+  <select id="d-focus" data-key="focusOnly"><option value="">Site default</option><option value="1">Hide the others</option><option value="0">Show the others</option></select>
+  <label for="d-route">Route line of a selected aircraft</label>
+  <select id="d-route" data-key="route"><option value="">Site default</option><option value="1">Shown</option><option value="0">Hidden</option></select>
+{% endcall %}
+
+{% call sec('views', 'Saved Map Views', True) %}
+  <p class="dim" style="margin-top:0">A view is a name for how a map looks (where it looks, the filters, the layers). Save one from the map's Display and View section.</p>
+  <div id="d-views">Loading...</div>
+{% endcall %}
+
+{% call sec('reset', 'Start Over', False) %}
+  <p class="dim" style="margin-top:0">Put every choice on this page back to the site defaults. Saved map views are kept.</p>
+  <button class="btn" type="button" id="d-reset">Reset My Display Choices</button>
+  <button class="btn neutral" type="button" id="d-resetmaps" title="Label sizes, icon sizes, open sections and the other map choices this browser remembers">Reset Map Settings in This Browser</button>
+  <span id="d-note" class="dim" style="font-size:.85rem"></span>
+{% endcall %}
+
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); }, P = function () { return window.PREFS || {}; };
+  function say(t) { $("d-note").textContent = t; setTimeout(function () { $("d-note").textContent = ""; }, 4000); }
+  function save(c) { if (window.adsbSavePrefs) window.adsbSavePrefs(c); }
+  ArkThemes.fillSelect($("d-theme"), P());
+  var NAMES = {imperial: "Feet, mph, miles, °F", aero: "Feet, knots, nautical miles", metric: "Meters, km/h, kilometers"}, html = "";
+  (window.ARK_AREAS || []).forEach(function (a) {
+    var site = P().units || (window.SITE_UNITS_BY || {})[a[0]], dflt = site ? "Default (" + NAMES[site] + ")" : "Standard";
+    html += '<label for="d-u-' + a[0] + '">' + a[1] + '</label><select id="d-u-' + a[0] + '" data-area="' + a[0] + '"><option value="">' + dflt + '</option><option value="imperial">' + NAMES.imperial + '</option><option value="aero">' + NAMES.aero + '</option><option value="metric">' + NAMES.metric + "</option></select>";
+  });
+  $("d-ua").innerHTML = html;
+  function show() {
+    var p = P();
+    document.querySelectorAll("select[data-key]").forEach(function (s) { s.value = p[s.dataset.key] != null && p[s.dataset.key] !== "" ? p[s.dataset.key] : (s.dataset.default || (s.id === "d-theme" ? "site" : "")); });
+    $("d-deco").checked = p.deco !== "0";
+    document.querySelectorAll("#d-ua select").forEach(function (s) { s.value = p["u_" + s.dataset.area] || ""; });
+  }
+  document.querySelectorAll("select[data-key]").forEach(function (s) { s.addEventListener("change", function () { var c = {}; c[s.dataset.key] = s.value; save(c); say("Saved."); }); });
+  $("d-deco").addEventListener("change", function () { save({deco: this.checked ? "1" : "0"}); say("Saved."); });
+  document.querySelectorAll("#d-ua select").forEach(function (s) { s.addEventListener("change", function () { var c = {}; c["u_" + s.dataset.area] = s.value; save(c); say("Saved."); }); });
+  $("d-reset").addEventListener("click", function () {
+    if (!window.confirm("Put every display choice back to the site defaults?")) return;
+    var c = {theme: "site", deco: "1", hour: "auto", tz: "browser", pageWidth: "", units: "", iconScale: "", trailLabels: "", lastLeg: "", focusOnly: "", route: ""};
+    (window.ARK_AREAS || []).forEach(function (a) { c["u_" + a[0]] = ""; });
+    save(c); show(); say("Your display choices are back to the site defaults.");
+  });
+  $("d-resetmaps").addEventListener("click", function () {
+    if (!window.confirm("Forget the map choices this browser remembers (label sizes, icon sizes, open sections and so on)?")) return;
+    try { Object.keys(localStorage).filter(function (k) { return k.indexOf("lv.") === 0 || k.indexOf("ark.") === 0; }).forEach(function (k) { localStorage.removeItem(k); }); } catch (e) {}
+    say("This browser's map settings are cleared.");
+  });
+  // ---- saved map views
+  var KINDS = {"/live": "Aircraft Map", "/weather/map": "Weather Map", "/sondes/map": "Radiosonde Map", "/counties": "County Map", "/trauma": "Trauma Map", "/repeaters/map": "Repeater Map", "/aprs/map": "APRS Map", "/coverage": "Coverage Map"};
+  function esc(t) { return String(t == null ? "" : t).replace(/[&<>"]/g, function (c) { return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]; }); }
+  var views = [];
+  function csrf() { return "{{ csrf_token() }}"; }
+  function post(path, body) { return fetch(path, {method: "POST", credentials: "same-origin", headers: {"Content-Type": "application/json", "X-CSRFToken": csrf()}, body: JSON.stringify(body)}).then(function (r) { return r.json(); }); }
+  function draw() {
+    if (!views.length) { $("d-views").innerHTML = '<p class="dim" style="margin:0">You have no saved views yet.</p>'; return; }
+    $("d-views").innerHTML = '<table><thead><tr><th>Name</th><th>Map</th><th></th></tr></thead><tbody>' + views.map(function (v, i) {
+      var path = v.url.split("?")[0].replace(/\/$/, "") || "/";
+      return '<tr><td>' + esc(v.name) + '</td><td>' + esc(KINDS[path] || path) + '</td><td style="white-space:nowrap"><a class="btn small" href="' + esc(v.url) + '" style="margin:0">Open</a> <button class="btn small neutral" type="button" data-ren="' + i + '" style="margin:0">Rename</button> <button class="btn small neutral" type="button" data-del="' + i + '" style="margin:0">Delete</button></td></tr>';
+    }).join("") + "</tbody></table>";
+  }
+  $("d-views").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    if (b.dataset.del != null) { var v = views[+b.dataset.del]; if (!window.confirm('Delete the view "' + v.name + '"?')) return; post("/my/map-views/delete", {name: v.name, url: v.url}).then(function (d) { views = d.views || []; draw(); }); }
+    if (b.dataset.ren != null) {
+      var o = views[+b.dataset.ren], nn = window.prompt("New name for this view:", o.name); if (!nn || !nn.trim() || nn.trim() === o.name) return;
+      post("/my/map-views", {name: nn.trim(), url: o.url, layers: o.layers || ""}).then(function (d) { if (d.error) { say(d.error); return; } return post("/my/map-views/delete", {name: o.name, url: o.url}); }).then(function (d) { if (d) { views = d.views || []; draw(); } });
+    }
+  });
+  fetch("/my/map-views", {credentials: "same-origin"}).then(function (r) { return r.json(); }).then(function (d) { views = d.views || []; draw(); }).catch(function () { $("d-views").textContent = "Your saved views could not be loaded."; });
+  show();
+  document.addEventListener("adsb-prefs", show);
+})();
+</script>
+{% endblock %}

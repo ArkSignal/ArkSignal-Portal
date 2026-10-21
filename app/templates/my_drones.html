@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% from "partials/_ridrx.html" import fields with context %}
+{% block title %}My Remote ID Stations{% endblock %}
+{% block content %}
+<h1>My <span>Remote ID Stations</span></h1>
+<div class="sub">Your drone Remote ID receivers (an ESP32 scanner, a phone app or anything that reads Remote ID) that send the drones they hear to <a href="/drones/">Drones</a>. Each gets a private upload address. New to this? Read <a href="/feed/drones">How to Feed Remote ID</a>.</div>
+{% with active = 'drones' %}{% include "partials/_my_subnav.html" %}{% endwith %}
+
+{% call sec('add', 'Add a Station', False) %}
+  <form method="post" action="/my/drones/add" data-async data-async-target="#my-drones" data-reset>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {{ fields(none, 'new') }}
+    <button class="btn" type="submit">Add the Station</button>
+    <div class="help">You can have {{ limit }} stations.</div>
+  </form>
+{% endcall %}
+
+{% call sec('mine', 'Your Stations', True) %}
+  {% include "partials/_my_drones.html" %}
+{% endcall %}
+
+{% call sec('how', 'How to Send What You Hear', False) %}
+  <p style="margin-top:0">Run the <a href="/static/rid_bridge.py">ArkSignal Remote ID bridge</a> next to your receiver and give it the upload address from the station's card. It passes the messages your receiver prints or sends over UDP on over https. The whole recipe is on <a href="/feed/drones">How to Feed Remote ID</a>.</p>
+  <pre class="code">cat /dev/ttyUSB0 | python3 rid_bridge.py UPLOAD_ADDRESS</pre>
+  <p class="dim" style="margin-bottom:0">Without the bridge, any program that can post text works: <span class="mono">curl --data-binary @messages.txt UPLOAD_ADDRESS</span>, one message per line, either the raw hex of a Remote ID message or a JSON object of what your receiver decoded.</p>
+{% endcall %}
+{% endblock %}

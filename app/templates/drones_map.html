@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% from "partials/_mapshell.html" import shell, boot with context %}
+{% block title %}Drone Map{% endblock %}
+{% block main_class %}wide{% endblock %}
+{% block content %}
+{# The same map page as every other map: partials/_mapshell.html carries the layout; drones are drawn below. #}
+{% call shell("Search a drone's ID", "Search drones", "Drones", "Drone Page", map_type="drones") %}
+    <details class="fsec" data-k="show" open><summary><span class="ic">&#9992;</span>Drones<span class="fbadge" data-fb="show"></span></summary><div class="fbody">
+      <div class="lv-sub">Status</div>
+      <select id="av-cat"><option value="">All</option>{% for k, cv in kinds.items() %}<option value="{{ k }}">{{ cv[0] }}</option>{% endfor %}</select>
+      <div class="lv-sub">Heard Within</div>
+      <select id="av-hours"><option value="1">The last hour</option><option value="6">6 hours</option><option value="24" {{ 'selected' if hours == 24 }}>24 hours</option><option value="72">3 days</option><option value="168">7 days</option></select>
+      <div class="lv-row"><label><input type="checkbox" id="av-moving"> Only drones that are moving</label></div>
+      <div class="lv-row"><label><input type="checkbox" id="av-trail" checked> Show where a selected drone has been</label></div>
+      <div class="lv-row"><label>Icon Size <select id="av-dot"><option value="75">Small</option><option value="100">Medium</option><option value="130">Large</option><option value="170">Extra large</option></select></label></div>
+      <div class="help dim" style="font-size:.78rem;margin-top:6px">{{ credit }}. Click a drone for its details.</div>
+    </div></details>
+{% endcall %}
+{{ boot("/drones/map", "av") }}
+<script src="/static/touchhit.js"></script>
+<script src="/static/colocate.js"></script>
+<script src="/static/labelfit.js"></script>
+<script>
+(function () {
+  var S = ArkShell, $ = S.$, esc = S.esc;
+  var q = new URLSearchParams(location.search);
+  var map = L.map("lvmap", {zoomControl: false, zoomSnap: 0.25, preferCanvas: false}).setView([parseFloat(q.get("lat")) || {{ map_lat | float }}, parseFloat(q.get("lon")) || {{ map_lon | float }}], parseFloat(q.get("zoom")) || 7);
+  L.control.zoom({position: "bottomright"}).addTo(map);
+  var state = {q: q.get("q") || "", cat: "", hours: {{ hours | int }}, moving: false, trail: true, sortKey: "last_seen", sortDir: -1};
+  var shell = S.start({map: map, layers: {{ layers | tojson }}, key: "av", url: "/drones/map", cfg: {tile: {{ tile_url | tojson }}, attr: {{ tile_attr | tojson }}, labelScale: {{ label_scale | int }}, labelBg: {{ label_bg | tojson }}, wxRefresh: {{ wx_refresh | int }}},
+    share: function () { return {q: state.q, id: cardId || ""}; }, legend: function () { return legend(); }});
+  var CATS = {{ kinds | tojson }}, FRESH = {{ current | int }} * 60000;
+  var drones = [], marks = {}, group = L.layerGroup().addTo(map), trailG = L.layerGroup().addTo(map), cardId = null, dotScale = parseInt(S.pref("av.dot"), 10) || 100;
+  var LE = ArkLabels.create(map), LABM = S.pref("av.labels") || "name";
+  $("m-display").innerHTML = '<div class="lv-sub">Drone Labels</div><select id="av-labels"><option value="name">ID</option><option value="none">No labels</option></select>';
+  $("av-labels").value = LABM; $("av-dot").value = String(dotScale); $("q").value = state.q;
+  function color(v) { return (CATS[v.kind] || CATS.other)[1]; }
+  function ago(iso) { var m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000)); return m < 60 ? m + " min ago" : m < 1440 ? Math.round(m / 60) + " h ago" : Math.round(m / 1440) + " d ago"; }
+  function fresh(v) { return (Date.now() - new Date(v.last_seen).getTime()) < FRESH; }
+  function match(v) {
+    if (v.lat == null) return false;
+    if (state.cat && v.kind !== state.cat) return false;
+    if (state.moving && !(v.speed > 0.5)) return false;
+    if ((Date.now() - new Date(v.last_seen).getTime()) > state.hours * 3600000) return false;
+    var t = state.q.trim().toLowerCase();
+    return !t || (v.id + " " + (v.op_id || "") + " " + (v.description || "") + " " + (v.ua_name || "")).toLowerCase().indexOf(t) >= 0;
+  }
+  function renderLabels(vis) {
+    LE.begin(); if (LABM === "none" || map.getZoom() < 9) { LE.flush(); return; }
+    vis.forEach(function (v) { LE.add({key: v.id, lat: v.lat, lon: v.lon, html: esc(v.id), color: color(v), priority: (v.kind === "air" ? 0 : 1) + (v.id === cardId ? -2 : 0), onClick: function () { select(v.id, false); }}); });
+    LE.flush();
+  }
+  var lastVis = []; map.on("zoomend moveend", function () { renderLabels(lastVis); });
+  function render() {
+    group.clearLayers(); marks = {};
+    var vis = drones.filter(match);
+    vis.forEach(function (v) {
+      var rad = (v.kind === "air" ? 8 : 6) * dotScale / 100, on = fresh(v);
+      var m = L.circleMarker([v.lat, v.lon], {radius: rad, color: v.id === cardId ? "#fff" : color(v), weight: v.id === cardId ? 3 : 2, fillColor: color(v), fillOpacity: on ? .8 : .22}).addTo(group);
+      m.bindTooltip("<b>" + esc(v.id) + "</b> " + esc(v.ua_name) + (v.speed != null ? " · " + (v.speed * 2.23694).toFixed(0) + " mph" : "") + " · " + ago(v.last_seen), {className: "lv-tip"});
+      m.on("click", function () { select(v.id, false); });
+      Colocate.track(map, "drones", m, v.lat, v.lon);
+      marks[v.id] = m;
+    });
+    lastVis = vis; renderLabels(vis); renderList(vis); renderChips();
+    $("lv-count").textContent = vis.length + " of " + drones.length + " drones";
+    shell.renderLegend();
+  }
+  function legend() {
+    var h = "<h6>Drones</h6>";
+    Object.keys(CATS).forEach(function (k) { h += '<div style="display:flex;gap:8px;align-items:center;margin:3px 0"><span style="width:12px;height:12px;border-radius:50%;background:' + CATS[k][1] + ';display:inline-block"></span>' + esc(CATS[k][0]) + "</div>"; });
+    return h + '<div class="dim" style="font-size:.76rem;margin-top:6px">A solid dot was heard in the last {{ current }} minutes; a faint one earlier. Positions are what each drone broadcast as Remote ID, received by members\' own receivers.</div>';
+  }
+  function renderChips() {
+    var c = [];
+    if (state.q) c.push(["q", "Search: " + state.q]);
+    if (state.cat) c.push(["cat", CATS[state.cat][0]]);
+    if (state.moving) c.push(["moving", "Moving only"]);
+    $("lv-chips").innerHTML = c.map(function (x) { return '<span class="chip" data-c="' + x[0] + '">' + esc(x[1]) + "<b>×</b></span>"; }).join("") + (c.length > 1 ? '<span class="chip chipall" data-c="all">Clear all</span>' : "");
+  }
+  $("lv-chips").addEventListener("click", function (e) {
+    var el = e.target.closest(".chip"); if (!el) return; var k = el.getAttribute("data-c");
+    if (k === "q" || k === "all") { state.q = ""; $("q").value = ""; }
+    if (k === "cat" || k === "all") { state.cat = ""; $("av-cat").value = ""; }
+    if (k === "moving" || k === "all") { state.moving = false; $("av-moving").checked = false; }
+    render();
+  });
+  var COLS = [["id", "ID"], ["ua_name", "Kind"], ["last_seen", "Heard"]];
+  $("lv-tbl").querySelector("thead").innerHTML = "<tr>" + COLS.map(function (c) { return '<th data-k="' + c[0] + '">' + c[1] + "</th>"; }).join("") + "</tr>";
+  $("lv-tbl").querySelector("thead").addEventListener("click", function (e) { var k = e.target.getAttribute("data-k"); if (!k) return; if (state.sortKey === k) state.sortDir = -state.sortDir; else { state.sortKey = k; state.sortDir = k === "last_seen" ? -1 : 1; } render(); });
+  function renderList(vis) {
+    var rows = vis.slice().sort(function (a, b) { var x = a[state.sortKey] || "", y = b[state.sortKey] || ""; return (x < y ? -1 : x > y ? 1 : 0) * state.sortDir; });
+    $("lv-tbl").querySelector("tbody").innerHTML = rows.slice(0, 400).map(function (v) {
+      return '<tr class="it' + (v.id === cardId ? " sel" : "") + '" data-i="' + esc(v.id) + '"><td>' + esc(v.id) + "</td><td>" + esc(v.ua_name) + "</td><td>" + ago(v.last_seen) + "</td></tr>";
+    }).join("") || '<tr><td colspan="3" class="dim" style="text-align:left;padding:12px">No drone matches.</td></tr>';
+  }
+  $("lv-tbl").querySelector("tbody").addEventListener("click", function (e) { var tr = e.target.closest("tr.it"); if (tr) select(tr.getAttribute("data-i"), true); });
+  function select(did, zoom) {
+    cardId = did; var v = drones.filter(function (x) { return x.id === did; })[0], card = $("lv-card");
+    trailG.clearLayers();
+    if (!v) { card.style.display = "none"; $("lv").classList.remove("has-card"); render(); return; }
+    $("c-name").textContent = v.id; $("c-sub").textContent = v.ua_name + (v.status_name ? " · " + v.status_name : "") + " · heard " + ago(v.last_seen);
+    $("c-page").href = "/drones/" + encodeURIComponent(v.id);
+    var rows = [["Kind", v.ua_name], ["Status", v.status_name || "-"], ["Altitude", v.alt_geo != null ? Math.round(v.alt_geo * 3.28084) + " ft (" + Math.round(v.alt_geo) + " m)" : "-"], ["Above takeoff", v.height != null ? Math.round(v.height * 3.28084) + " ft" : "-"],
+                ["Speed", v.speed != null ? (v.speed * 2.23694).toFixed(0) + " mph (" + v.speed.toFixed(1) + " m/s)" : "-"], ["Heading", v.heading != null ? v.heading.toFixed(0) + "°" : "-"], ["Described as", v.description || "-"], ["Operator ID", v.op_id || "-"]];
+    $("c-body").innerHTML = '<div class="k">' + rows.map(function (r) { return "<div>" + r[0] + "</div><div>" + esc(r[1]) + "</div>"; }).join("") + "</div>";
+    card.style.display = "block"; $("lv").classList.add("has-card");
+    $("c-follow").onclick = function () { map.setView([v.lat, v.lon], Math.max(map.getZoom(), 12)); };
+    $("c-close").onclick = function () { cardId = null; card.style.display = "none"; $("lv").classList.remove("has-card"); trailG.clearLayers(); render(); };
+    if (zoom) map.setView([v.lat, v.lon], Math.max(map.getZoom(), 12));
+    if (state.trail) fetch("/api/drones/" + encodeURIComponent(v.id) + ".json").then(function (r) { return r.json(); }).then(function (d) {
+      if (cardId !== did) return;
+      var pts = (d.trail || []).map(function (t) { return [t[0], t[1]]; });
+      if (pts.length > 1) L.polyline(pts, {color: color(v), weight: 3, opacity: .85, interactive: false}).addTo(trailG);
+    }).catch(function () {});
+    render();
+  }
+  $("q").addEventListener("input", function () { state.q = this.value; render(); });
+  $("av-cat").addEventListener("change", function () { state.cat = this.value; render(); });
+  $("av-hours").addEventListener("change", function () { state.hours = parseInt(this.value, 10); render(); });
+  $("av-moving").addEventListener("change", function () { state.moving = this.checked; render(); });
+  $("av-trail").addEventListener("change", function () { state.trail = this.checked; if (!this.checked) trailG.clearLayers(); else if (cardId) select(cardId, false); });
+  $("av-labels").addEventListener("change", function () { LABM = this.value; S.pref("av.labels", this.value); renderLabels(lastVis); });
+  $("av-dot").addEventListener("change", function () { dotScale = parseInt(this.value, 10); S.pref("av.dot", this.value); render(); });
+  function load() {
+    return fetch("/api/drones/drones.json").then(function (r) { return r.json(); }).then(function (d) { drones = (d.drones || []).filter(function (v) { return v.lat != null; }); render(); });
+  }
+  load().then(function () {
+    if (!(q.get("lat") && q.get("lon")) && !q.get("zoom")) { var AR = {{ map_area("rid_map_area") | tojson }}; if (AR) map.fitBounds([[AR[0], AR[1]], [AR[2], AR[3]]], {padding: [10, 10]}); }
+    if (q.get("id")) { var hit = drones.filter(function (x) { return x.id === q.get("id"); })[0]; if (hit) select(hit.id, true); }
+  }).catch(function () { $("lv-count").textContent = "Could not load the drones."; });
+  setInterval(function () { load().catch(function () {}); }, 10000);
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,96 @@
+# Production stack for the feeder portal: /opt/adsb/portal/compose.yaml on the hub VM.
+# The app joins the existing "proxy" network (shared with Nginx Proxy Manager and the hub) so NPM reaches it
+# as adsb-portal:8430. The database is on an internal-only network and publishes no ports.
+services:
+  portal-app:
+    # Docker Hub, `stable` = the release you last promoted (see README, Releases). `latest` is every build, not necessarily tested.
+    image: mallison01/adsb-portal:stable
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
+    container_name: adsb-portal
+    restart: unless-stopped
+    init: true
+    depends_on:
+      portal-db:
+        condition: service_healthy
+    environment:
+      SECRET_KEY: "${SECRET_KEY}"
+      ADMIN_USERNAME: "${ADMIN_USERNAME:-admin}"
+      ADMIN_EMAIL: "${ADMIN_EMAIL}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD}"
+      BACKUP_DIR: /backups
+      HUB_URL: "http://hub:80"
+      # lets an administrator press Update Now on Admin > Updates (talks to the watchtower service below)
+      WATCHTOWER_URL: "http://watchtower:8080"
+      WATCHTOWER_TOKEN: "${WATCHTOWER_TOKEN}"
+      # Update Now also asks the stack updater (adsb-stack) to apply the current compose files before Watchtower replaces images
+      STACK_URL: "http://adsb-stack:8099"
+      STACK_TOKEN: "${STACK_TOKEN:-}"
+      DATABASE_URL: "postgresql://portal:${POSTGRES_PASSWORD}@portal-db:5432/portal"
+    volumes:
+      - portal-backups:/backups
+      # the MLAT server's status folder, read-only (only health numbers are shown; it also holds exact station coordinates)
+      - /opt/adsb/mlat/work:/mlat:ro
+    networks:
+      - proxy
+      - internal
+
+  portal-db:
+    image: postgres:17-alpine
+    container_name: adsb-portal-db
+    restart: unless-stopped
+    init: true
+    environment:
+      POSTGRES_USER: portal
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      POSTGRES_DB: portal
+    volumes:
+      - portal-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U portal -d portal"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - internal
+
+  # Keeps the portal, Grafana and Prometheus up to date: every night at 4 a.m. it pulls the `stable` image of each container that
+  # carries the label com.centurylinklabs.watchtower.enable=true (and only those) and restarts it when there is a new one. The portal's
+  # Update Now button calls its HTTP API. The database, the hub and Nginx Proxy Manager are not labelled and are never touched.
+  watchtower:
+    image: ghcr.io/nicholas-fedor/watchtower:latest
+    container_name: watchtower
+    restart: unless-stopped
+    init: true
+    environment:
+      TZ: America/Chicago
+      WATCHTOWER_LABEL_ENABLE: "true"
+      WATCHTOWER_CLEANUP: "true"
+      WATCHTOWER_SCHEDULE: "0 0 4 * * *"
+      WATCHTOWER_HTTP_API_UPDATE: "true"
+      WATCHTOWER_HTTP_API_PERIODIC_POLLS: "true"
+      WATCHTOWER_HTTP_API_TOKEN: "${WATCHTOWER_TOKEN}"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - internal
+
+# Both folders live on the 500 GB data disk. Create them first (see README.md).
+volumes:
+  portal-db-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/adsb/portal/db
+  portal-backups:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/adsb/portal/backups
+
+networks:
+  proxy:
+    external: true
+  internal:

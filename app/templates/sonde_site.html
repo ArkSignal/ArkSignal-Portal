@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% from "partials/_sonde_rows.html" import flight_table %}
+{% block title %}{{ s.name }} | Launch Site{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ leaflet_base }}/leaflet.css" crossorigin="anonymous">
+<h1>{{ s.name }} <span>Launch Site</span></h1>
+<div class="sub">{% if s.nws %}National Weather Service{% else %}Research or other{% endif %} launch site {{ s.site_id }}</div>
+<p style="display:flex;gap:10px;flex-wrap:wrap"><a href="/sondes/">&larr; Radiosondes</a>
+  {% with sm_lat=s.lat, sm_lon=s.lon, sm_layer="sondes", sm_zoom=9 %}{% include "partials/_showmap.html" %}{% endwith %}
+  <a class="btn small show-on-map" href="/sondes/map?only=site:{{ s.site_id }}&amp;lat={{ '%.4f' % s.lat }}&amp;lon={{ '%.4f' % s.lon }}&amp;zoom=9">Show on Radiosonde Map</a></p>
+<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">
+  <div class="panel" style="flex:1 1 320px"><table>
+    <tr><th style="width:150px">Site number</th><td class="mono copyable">{{ s.site_id }}</td></tr>
+    <tr><th>Position</th><td class="mono">{{ '%.4f' % s.lat }}, {{ '%.4f' % s.lon }}{% if s.alt is not none %}, {{ s.alt | round | int }} m{% endif %}</td></tr>
+    <tr><th>Radiosonde types</th><td>{{ s.rs_types or '-' }}</td></tr>
+    <tr><th>Schedule</th><td>{% if s.nws %}Twice a day, about 45 minutes before 00 and 12 UTC{% elif s.times %}{{ s.times }}{% else %}Irregular{% endif %}</td></tr>
+    <tr><th>Flights recorded</th><td>{{ total }}</td></tr>
+  </table></div>
+  <div class="panel" style="flex:1 1 360px;padding:0;overflow:hidden"><div id="smap" style="height:260px"></div></div>
+</div>
+<h3>Recent Flights From This Site</h3>
+<div class="panel">{{ flight_table(rows, 'No flight from this site has been recorded yet.') }}
+  <p style="margin:10px 0 0"><a href="/sondes/flights?site={{ s.site_id }}&amp;hours=0">All flights from this site</a></p></div>
+<p class="dim" style="font-size:.8rem">Launch sites: SondeHub, Creative Commons BY-SA 2.0.</p>
+<script src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script>
+<script src="/static/touchhit.js"></script>
+<script>
+(function () {
+  var map = L.map("smap").setView([{{ s.lat }}, {{ s.lon }}], 8);
+  L.tileLayer({{ tile_url | tojson }}, {maxZoom: 19, attribution: {{ tile_attr | tojson }}}).addTo(map);
+  L.circleMarker([{{ s.lat }}, {{ s.lon }}], {radius: 8, color: "#4fb3ff", weight: 2, fillOpacity: .7}).addTo(map).bindTooltip({{ s.name | tojson }});
+})();
+</script>
+{% include "partials/_sondecredit.html" %}
+{% endblock %}

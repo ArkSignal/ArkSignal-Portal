@@ -1,0 +1,6 @@
+<label for="{{ fp }}-label">Name for This Login (for your own reference)</label>
+<input type="text" id="{{ fp }}-label" name="label" maxlength="60" placeholder="Hilltop repeater" value="{{ r.label if r else '' }}">
+<label for="{{ fp }}-nodes">Your Node(s) (optional)</label>
+<input type="text" id="{{ fp }}-nodes" name="nodes" maxlength="300" placeholder="!a1b2c3d4 (Meshtastic ID) or the MeshCore public key" value="{{ r.nodes if r else '' }}">
+<div class="help">Only used to show your name on those nodes' pages, and only if you tick the box below.</div>
+<label style="display:flex;gap:8px;align-items:center;margin:10px 0"><input type="checkbox" name="public" value="1" {{ 'checked' if r and r.public }}> Show my name as the operator on those nodes' pages</label>

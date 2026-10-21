@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Admin{% endblock %}
+{% block content %}
+<h1><span>Admin</span> Overview</h1>
+<div class="sub">What needs attention, and how the network, the people, the data and the system are doing. Version <span class="mono">{{ ov.version }}</span>.</div>
+{% include "partials/_admin_subnav.html" %}
+
+<details class="panel setsec" id="sec-attention" open><summary><span class="role-name">Needs Attention</span>
+  <span class="tag {{ 'live' if not ov.attention else 'off' }}">{{ ov.attention | length if ov.attention else 'nothing' }}</span>
+  <span class="dim" style="font-size:.8rem">{{ ov.message }}</span></summary>
+  <div class="secbody">
+  {% if ov.attention %}
+  <table style="width:100%">{% for a in ov.attention %}
+    <tr><td style="width:26px"><span style="color:{{ {'down': 'var(--err)', 'warn': '#f5c542', 'info': 'var(--acc2)'}[a.level] }}">&#9679;</span></td><td>{{ a.text }}</td><td style="width:110px;text-align:right"><a href="{{ a.link }}">{{ a.label }}</a></td></tr>
+  {% endfor %}</table>
+  {% else %}<p style="margin:0">Nothing needs attention right now. {{ ov.message }}</p>{% endif %}
+  </div></details>
+
+<div class="tiles" style="margin:14px 0">
+  {% for label, value, link, state in ov.tiles %}
+  <a class="panel tile" href="{{ link }}" style="text-decoration:none;color:inherit{% if state in ('down', 'warn') %};border-color:{{ 'var(--err)' if state == 'down' else '#f5c542' }}{% endif %}"><div class="tv">{{ value }}</div><div class="tl">{{ label }}</div></a>
+  {% endfor %}
+</div>
+
+{% if ov.data %}<details class="panel setsec" id="sec-data-health" open><summary><span class="role-name">Data We Keep</span><span class="dim" style="font-size:.8rem">what is loaded and when it was last refreshed</span></summary>
+  <div class="secbody"><table style="width:100%">
+    <tr><th style="text-align:left">Data</th><th style="text-align:left">Loaded</th><th style="text-align:left">Notes</th><th style="text-align:left">Last refreshed</th></tr>
+    {% for d in ov.data %}<tr><td><a href="{{ d.link }}">{{ d.name }}</a></td><td class="mono">{{ d.count }}</td><td class="dim">{{ d.note }}</td><td>{{ d.when }}</td></tr>{% endfor %}
+  </table><p class="dim" style="margin:8px 0 0">Schedules and Run Now are under <a href="/admin/data-updates/">Data Updates</a>; the outside sources themselves are on <a href="/admin/status">Status</a>.</p></div></details>{% endif %}
+
+{% if ov.show_system %}<details class="panel setsec" id="sec-system" open><summary><span class="role-name">System</span><span class="dim" style="font-size:.8rem">the services behind the site</span></summary>
+  <div class="secbody"><table style="width:100%">
+    {% for s in ov.system %}<tr><td style="width:230px"><b>{{ s.name }}</b></td><td style="width:130px"><span class="tag {{ 'live' if s.state == 'ok' else 'off' }}" {% if s.state == 'warn' %}style="color:#f5c542;border-color:#f5c542"{% endif %}>{{ s.word }}</span></td><td>{{ s.text }}</td></tr>{% endfor %}
+  </table><p class="dim" style="margin:8px 0 0"><a href="/admin/status">Every service and outside source, with the reasons</a></p></div></details>{% endif %}
+
+{% if ov.show_activity %}<details class="panel setsec" id="sec-recent-activity" open><summary><span class="role-name">Recent Activity</span><span class="dim" style="font-size:.8rem">the last {{ ov.activity | length }} things done in admin</span></summary>
+  <div class="secbody"><table style="width:100%">
+    {% for a in ov.activity %}<tr><td style="width:190px" class="dim"><time class="ts" datetime="{{ a.ts.isoformat() }}">{{ a.ts }}</time></td><td style="width:150px">{{ a.actor_name }}</td><td class="mono">{{ a.action }}</td><td class="dim">{{ a.target or '' }}</td></tr>
+    {% else %}<tr><td class="dim">Nothing recorded yet.</td></tr>{% endfor %}
+  </table><p class="dim" style="margin:8px 0 0"><a href="/admin/audit">The full audit log</a></p></div></details>
+{% endif %}
+{% endblock %}

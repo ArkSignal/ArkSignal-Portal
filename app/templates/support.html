@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Support the Network{% endblock %}
+{% block content %}
+<h1>Support the <span>Network</span></h1>
+<div class="sub">{{ site_name }} is built and run by volunteers. It is free to use and it stays free. If you would like to help with what it costs to run, here is where the money goes.</div>
+
+<div class="panel" style="margin-top:14px">
+  {% for para in intro.split('\n\n') if para.strip() %}<p style="margin:{{ 0 if loop.first else 10 }}px 0 0">{{ para }}</p>{% endfor %}
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
+    {% if kofi %}<a class="btn" href="{{ kofi }}" target="_blank" rel="noopener noreferrer">Support on Ko-fi</a>{% endif %}
+    {% if paypal %}<a class="btn" href="{{ paypal }}" target="_blank" rel="noopener noreferrer">Donate with PayPal</a>{% endif %}
+    {% if other %}<a class="btn" href="{{ other }}" target="_blank" rel="noopener noreferrer">{{ other_label }}</a>{% endif %}
+  </div>
+  <p class="dim" style="margin:10px 0 0;font-size:.82rem">These buttons take you to the donation service's own site; nothing about your payment passes through this site. Donations are not tax-deductible and are not required for anything on this site.</p>
+</div>
+
+{% if costs %}
+<details class="panel setsec" id="sec-running-costs" open style="margin-top:14px"><summary><span class="role-name">What It Costs to Run</span></summary><div class="secbody">
+  <table>
+    {% for c in costs %}<tr><td>{{ c.name }}</td><td class="mono" style="text-align:right">${{ '%.2f' % c.monthly }}/month</td></tr>{% endfor %}
+    <tr><th>Total</th><th class="mono" style="text-align:right">${{ '%.2f' % total }}/month</th></tr>
+  </table>
+  {% if total %}<div class="prog" style="margin-top:12px"><i style="width:{{ pct }}%"></i></div>
+  <div class="dim" style="font-size:.82rem;margin-top:4px">${{ '%.2f' % raised }} received this month toward ${{ '%.2f' % total }}</div>{% endif %}
+</div></details>
+{% endif %}
+
+{% if equipment %}
+<details class="panel setsec" id="sec-equipment-fund" open style="margin-top:14px"><summary><span class="role-name">Equipment Fund</span></summary><div class="secbody">
+  <p style="margin:0 0 10px">Antennas, receivers, filters, amplifiers, radios and mesh nodes that the project buys and installs at host locations around the state. Equipment stays the project's property and is placed by agreement with the host.</p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px">
+    {% for e in equipment %}
+    <div style="border:1px solid var(--line);border-radius:12px;padding:10px 12px">
+      <div style="display:flex;justify-content:space-between;gap:8px"><b>{{ e.item }}</b><span class="tag {{ 'live' if e.status in ('installed', 'bought', 'funded') }}">{{ status_labels[e.status] }}</span></div>
+      {% if e.price %}<div class="dim" style="font-size:.84rem;margin-top:2px">${{ '%.0f' % e.price }}{% if e.status == 'needed' %} &middot; ${{ '%.0f' % e.funded }} funded{% endif %}</div>
+      {% if e.status == 'needed' %}<div class="prog" style="margin-top:6px"><i style="width:{{ (100 * e.funded / e.price) | round | int }}%"></i></div>{% endif %}{% endif %}
+      {% if e.note %}<div class="dim" style="font-size:.82rem;margin-top:6px">{{ e.note }}</div>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div></details>
+{% endif %}
+
+{% if supporters %}
+<details class="panel setsec" id="sec-supporters" style="margin-top:14px"><summary><span class="role-name">Thank You</span></summary><div class="secbody">
+  {% if thanks %}<p style="margin:0 0 8px">{{ thanks }}</p>{% endif %}
+  <p style="margin:0">{{ supporters | join(' · ') }}</p>
+</div></details>
+{% endif %}
+{% endblock %}

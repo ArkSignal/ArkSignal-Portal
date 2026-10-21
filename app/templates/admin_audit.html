@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Audit Log{% endblock %}
+{% block content %}
+<h1><span>Admin</span> Audit Log</h1>
+<div class="sub">A record of administrative actions and account changes. Times are shown in the display timezone.</div>
+{% include "partials/_admin_subnav.html" %}
+{% call sec('filter', 'Filter', True, False) %}<form class="filters" method="get">
+  <div><label for="q">Search</label><input type="text" id="q" name="q" value="{{ q }}" placeholder="Name, target, detail or IP"></div>
+  <div><label for="action">Action</label>
+    <select id="action" name="action"><option value="">All actions</option>
+      {% for a in actions %}<option value="{{ a }}" {{ 'selected' if a == action }}>{{ a }}</option>{% endfor %}</select></div>
+  <div><label for="days">Period</label>
+    <select id="days" name="days">{% for k, l in day_choices %}<option value="{{ k }}" {{ 'selected' if k == days }}>{{ l }}</option>{% endfor %}</select></div>
+  <button class="btn small" type="submit">Apply Filters</button>
+  <a class="btn small" href="?{{ (pager.args | urlencode) ~ '&' if pager.args else '' }}format=csv">Export CSV</a>
+</form>{% endcall %}
+{% call sec('log', 'Audit Log', True, True) %}
+  <table>
+    <tr><th>When</th><th>Who</th><th>Action</th><th>Target</th><th>Details</th><th>IP</th></tr>
+    {% for r in rows %}
+    <tr><td class="dim" style="white-space:nowrap">{{ r.ts | localtime("%Y-%m-%d %H:%M:%S") }}</td><td>{{ r.actor_name }}</td>
+      <td><span class="tag">{{ r.action }}</span></td><td>{{ r.target or '' }}</td><td class="dim">{{ r.detail or '' }}</td><td class="dim mono">{{ r.ip or '' }}</td></tr>
+    {% else %}<tr><td colspan="6" class="dim">No records match these filters.</td></tr>{% endfor %}
+  </table>
+  {% include "partials/_pager.html" %}
+{% endcall %}
+{% endblock %}

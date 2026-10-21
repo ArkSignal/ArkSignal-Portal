@@ -1,0 +1,19 @@
+# Same policy as the photo pipeline: requirements.txt pins exact versions on purpose (an unreviewed framework update could
+# silently change request, cookie or session behaviour), so nothing else in CI notices a new release. This opens one weekly
+# pull request per outdated package, version bump only, still reviewed and tested like any other change. Unpinned transitive
+# dependencies and the base image refresh on the daily image rebuild without a pull request.
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"

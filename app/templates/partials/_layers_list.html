@@ -1,0 +1,50 @@
+{% macro fields(l, pre) %}
+  <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+    <div><label for="{{ pre }}name">Name</label><input type="text" id="{{ pre }}name" name="name" value="{{ l.name if l else '' }}" maxlength="60" style="width:210px" required></div>
+    <div><label for="{{ pre }}slug">Short Name</label><input type="text" id="{{ pre }}slug" name="slug" value="{{ l.slug if l else '' }}" maxlength="39" style="width:150px" placeholder="nexrad" required></div>
+    <div><label for="{{ pre }}grp">Group</label><input type="text" id="{{ pre }}grp" name="grp" value="{{ l.grp if l else 'Weather' }}" maxlength="40" style="width:170px" required></div>
+    <div><label for="{{ pre }}kind">Type</label><select id="{{ pre }}kind" name="kind">{% for k, n in kinds %}<option value="{{ k }}" {{ 'selected' if l and l.kind == k }}>{{ n }}</option>{% endfor %}</select></div>
+    <div><label for="{{ pre }}order">Order</label><input type="text" id="{{ pre }}order" name="sort_order" value="{{ l.sort_order if l else 100 }}" style="width:70px"></div>
+  </div>
+  <label for="{{ pre }}url">Address</label>
+  <input type="text" id="{{ pre }}url" name="url" value="{{ l.url if l else '' }}" maxlength="500" required>
+  <div class="help">A full https:// address. Map tiles use {z}, {x} and {y}, and {date} for the previous day's date. Shapes use a GeoJSON address; their options may say label=PROPERTY to write a property on the shape, or colorby=PROPERTY:A|B=#4895ef;C=#852d45 to color by a property. RainViewer uses its weather-maps.json address. Refresh 0 loads once.</div>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+    <div><label for="{{ pre }}opt">Layer Names or Shape Options</label><input type="text" id="{{ pre }}opt" name="options" value="{{ l.options if l else '' }}" maxlength="200" style="width:260px"></div>
+    <div><label for="{{ pre }}opa">Opacity</label><input type="text" id="{{ pre }}opa" name="opacity" value="{{ l.opacity if l else 0.7 }}" style="width:70px"></div>
+    <div><label for="{{ pre }}minz">Lowest Zoom</label><input type="text" id="{{ pre }}minz" name="min_zoom" value="{{ l.min_zoom if l else 0 }}" style="width:70px"></div>
+    <div><label for="{{ pre }}maxz">Highest Zoom</label><input type="text" id="{{ pre }}maxz" name="max_zoom" value="{{ l.max_zoom if l else 19 }}" style="width:70px"></div>
+    <div><label for="{{ pre }}ref">Refresh (Minutes)</label><input type="text" id="{{ pre }}ref" name="refresh_minutes" value="{{ l.refresh_minutes if l else 0 }}" style="width:70px"></div>
+    <div><label for="{{ pre }}col">Shape Color</label><input type="text" id="{{ pre }}col" name="color" value="{{ l.color if l else '#ff4d4d' }}" style="width:90px"></div>
+  </div>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+    <div><label for="{{ pre }}wxg">Weather Panel Heading</label><input type="text" id="{{ pre }}wxg" name="wx_group" value="{{ l.wx_group if l else '' }}" maxlength="30" style="width:170px" placeholder="Radar"></div>
+    <div style="flex:1;min-width:260px"><label for="{{ pre }}desc">Weather Panel Description</label><input type="text" id="{{ pre }}desc" name="description" value="{{ l.description if l else '' }}" maxlength="200"></div>
+  </div>
+  <div class="help">Give an overlay a heading (Radar, Satellite, Clouds...) and it appears as a tile with a preview in the live map's Weather panel instead of the Filters list. Leave the heading blank for an ordinary overlay.</div>
+  <label for="{{ pre }}attr">Credit Text</label>
+  <input type="text" id="{{ pre }}attr" name="attribution" value="{{ l.attribution if l else '' }}" maxlength="300">
+  <div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:6px">
+    <label class="check"><input type="checkbox" name="enabled" value="1" {{ 'checked' if not l or l.enabled }}><span>Available on the map</span></label>
+    <label class="check"><input type="checkbox" name="default_on" value="1" {{ 'checked' if l and l.default_on }}><span>On for new visitors</span></label>
+    <label class="check"><input type="checkbox" name="is_base" value="1" {{ 'checked' if l and l.is_base }}><span>Base map (pick one) instead of an overlay</span></label>
+  </div>
+{% endmacro %}
+{% if layers is defined %}
+<div id="layers-list">
+{% for l in layers %}
+<details class="panel setsec" data-item data-search="{{ l.name }} {{ l.slug }} {{ l.grp }} {{ l.kind }} {{ l.url }}" id="layer-{{ l.id }}" style="margin-bottom:10px">
+  <summary><span class="role-name">{{ l.name }}</span><span class="dim" style="font-size:.8rem">{{ l.grp }} &middot; {{ 'Base map' if l.is_base else 'Overlay' }}{% if not l.enabled %} &middot; hidden{% endif %}</span></summary>
+  <form method="post" action="/admin/layers/save" data-async data-async-target="#layers-list">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="id" value="{{ l.id }}">
+    {{ fields(l, 'l' ~ l.id ~ '-') }}
+    <div class="setsec-actions"><button class="btn" type="submit">Save Layer</button></div>
+  </form>
+  <form method="post" action="/admin/layers/{{ l.id }}/delete" data-async data-async-target="#layers-list" data-confirm="Delete {{ l.name }}? It disappears from the live map.">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn small warn" type="submit" style="margin-top:0">Delete Layer</button>
+  </form>
+</details>
+{% else %}<div class="panel dim">No layers are configured.</div>{% endfor %}
+</div>
+{% endif %}

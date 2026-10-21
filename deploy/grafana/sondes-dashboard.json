@@ -1,0 +1,1122 @@
+{
+ "uid": "sondes",
+ "title": "Radiosonde Dashboard",
+ "tags": [
+  "arksignal"
+ ],
+ "timezone": "browser",
+ "schemaVersion": 39,
+ "version": 1,
+ "refresh": "5m",
+ "time": {
+  "from": "now-24h",
+  "to": "now"
+ },
+ "editable": true,
+ "templating": {
+  "list": [
+   {
+    "type": "custom",
+    "name": "kinds",
+    "label": "Kinds",
+    "query": "nws,amateur,other",
+    "multi": true,
+    "includeAll": false,
+    "current": {
+     "text": "nws",
+     "value": "nws"
+    },
+    "options": [
+     {
+      "selected": true,
+      "text": "nws",
+      "value": "nws"
+     },
+     {
+      "selected": false,
+      "text": "amateur",
+      "value": "amateur"
+     },
+     {
+      "selected": false,
+      "text": "other",
+      "value": "other"
+     }
+    ],
+    "hide": 0
+   },
+   {
+    "type": "custom",
+    "name": "status",
+    "label": "Status",
+    "query": ",aloft,landed,lost",
+    "multi": false,
+    "includeAll": false,
+    "current": {
+     "text": "",
+     "value": ""
+    },
+    "options": [
+     {
+      "selected": true,
+      "text": "",
+      "value": ""
+     },
+     {
+      "selected": false,
+      "text": "aloft",
+      "value": "aloft"
+     },
+     {
+      "selected": false,
+      "text": "landed",
+      "value": "landed"
+     },
+     {
+      "selected": false,
+      "text": "lost",
+      "value": "lost"
+     }
+    ],
+    "hide": 0
+   },
+   {
+    "type": "textbox",
+    "name": "sites",
+    "label": "Launch sites (72340|72248)",
+    "query": "",
+    "current": {
+     "text": "",
+     "value": ""
+    },
+    "options": [
+     {
+      "selected": true,
+      "text": "",
+      "value": ""
+     }
+    ],
+    "hide": 0
+   },
+   {
+    "type": "textbox",
+    "name": "stations",
+    "label": "Receiving stations (CALL|CALL)",
+    "query": "",
+    "current": {
+     "text": "",
+     "value": ""
+    },
+    "options": [
+     {
+      "selected": true,
+      "text": "",
+      "value": ""
+     }
+    ],
+    "hide": 0
+   },
+   {
+    "type": "textbox",
+    "name": "flights",
+    "label": "Flights (serial|serial)",
+    "query": "",
+    "current": {
+     "text": "",
+     "value": ""
+    },
+    "options": [
+     {
+      "selected": true,
+      "text": "",
+      "value": ""
+     }
+    ],
+    "hide": 0
+   }
+  ]
+ },
+ "panels": [
+  {
+   "id": 1,
+   "type": "barchart",
+   "title": "Flights per day",
+   "datasource": {
+    "type": "yesoreyeram-infinity-datasource",
+    "uid": "portal-json"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "yesoreyeram-infinity-datasource",
+      "uid": "portal-json"
+     },
+     "type": "json",
+     "source": "url",
+     "format": "table",
+     "url": "http://adsb-portal:8430/api/sondes/stats.json",
+     "root_selector": "per_day",
+     "url_options": {
+      "method": "GET",
+      "params": [
+       {
+        "key": "sources",
+        "value": "${kinds:csv}"
+       },
+       {
+        "key": "sites",
+        "value": "${sites}"
+       },
+       {
+        "key": "stations",
+        "value": "${stations}"
+       },
+       {
+        "key": "flights",
+        "value": "${flights}"
+       },
+       {
+        "key": "from",
+        "value": "${__from:date:YYYY-MM-DD}"
+       },
+       {
+        "key": "to",
+        "value": "${__to:date:YYYY-MM-DD}"
+       },
+       {
+        "key": "status",
+        "value": "${status}"
+       }
+      ]
+     },
+     "columns": [
+      {
+       "selector": "day",
+       "text": "Day",
+       "type": "string"
+      },
+      {
+       "selector": "n",
+       "text": "Flights",
+       "type": "number"
+      }
+     ]
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none"
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 2,
+   "type": "barchart",
+   "title": "How high flights burst",
+   "datasource": {
+    "type": "yesoreyeram-infinity-datasource",
+    "uid": "portal-json"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 0,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "yesoreyeram-infinity-datasource",
+      "uid": "portal-json"
+     },
+     "type": "json",
+     "source": "url",
+     "format": "table",
+     "url": "http://adsb-portal:8430/api/sondes/stats.json",
+     "root_selector": "burst_hist",
+     "url_options": {
+      "method": "GET",
+      "params": [
+       {
+        "key": "sources",
+        "value": "${kinds:csv}"
+       },
+       {
+        "key": "sites",
+        "value": "${sites}"
+       },
+       {
+        "key": "stations",
+        "value": "${stations}"
+       },
+       {
+        "key": "flights",
+        "value": "${flights}"
+       },
+       {
+        "key": "from",
+        "value": "${__from:date:YYYY-MM-DD}"
+       },
+       {
+        "key": "to",
+        "value": "${__to:date:YYYY-MM-DD}"
+       },
+       {
+        "key": "status",
+        "value": "${status}"
+       }
+      ]
+     },
+     "columns": [
+      {
+       "selector": "from_m",
+       "text": "Burst height from (m)",
+       "type": "number"
+      },
+      {
+       "selector": "n",
+       "text": "Flights",
+       "type": "number"
+      }
+     ]
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none"
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 3,
+   "type": "table",
+   "title": "Receiving stations that heard the most flights",
+   "datasource": {
+    "type": "yesoreyeram-infinity-datasource",
+    "uid": "portal-json"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 8,
+    "w": 8,
+    "h": 10
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "yesoreyeram-infinity-datasource",
+      "uid": "portal-json"
+     },
+     "type": "json",
+     "source": "url",
+     "format": "table",
+     "url": "http://adsb-portal:8430/api/sondes/stats.json",
+     "root_selector": "top_stations",
+     "url_options": {
+      "method": "GET",
+      "params": [
+       {
+        "key": "sources",
+        "value": "${kinds:csv}"
+       },
+       {
+        "key": "sites",
+        "value": "${sites}"
+       },
+       {
+        "key": "stations",
+        "value": "${stations}"
+       },
+       {
+        "key": "flights",
+        "value": "${flights}"
+       },
+       {
+        "key": "from",
+        "value": "${__from:date:YYYY-MM-DD}"
+       },
+       {
+        "key": "to",
+        "value": "${__to:date:YYYY-MM-DD}"
+       },
+       {
+        "key": "status",
+        "value": "${status}"
+       }
+      ]
+     },
+     "columns": [
+      {
+       "selector": "callsign",
+       "text": "Station",
+       "type": "string"
+      },
+      {
+       "selector": "flights",
+       "text": "Flights",
+       "type": "number"
+      }
+     ]
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none"
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 4,
+   "type": "table",
+   "title": "Flights",
+   "datasource": {
+    "type": "yesoreyeram-infinity-datasource",
+    "uid": "portal-json"
+   },
+   "gridPos": {
+    "x": 8,
+    "y": 8,
+    "w": 16,
+    "h": 10
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "yesoreyeram-infinity-datasource",
+      "uid": "portal-json"
+     },
+     "type": "json",
+     "source": "url",
+     "format": "table",
+     "url": "http://adsb-portal:8430/api/sondes/stats.json",
+     "root_selector": "flights",
+     "url_options": {
+      "method": "GET",
+      "params": [
+       {
+        "key": "sources",
+        "value": "${kinds:csv}"
+       },
+       {
+        "key": "sites",
+        "value": "${sites}"
+       },
+       {
+        "key": "stations",
+        "value": "${stations}"
+       },
+       {
+        "key": "flights",
+        "value": "${flights}"
+       },
+       {
+        "key": "from",
+        "value": "${__from:date:YYYY-MM-DD}"
+       },
+       {
+        "key": "to",
+        "value": "${__to:date:YYYY-MM-DD}"
+       },
+       {
+        "key": "status",
+        "value": "${status}"
+       }
+      ]
+     },
+     "columns": [
+      {
+       "selector": "serial",
+       "text": "Flight",
+       "type": "string"
+      },
+      {
+       "selector": "type",
+       "text": "Type",
+       "type": "string"
+      },
+      {
+       "selector": "site",
+       "text": "Launch site",
+       "type": "string"
+      },
+      {
+       "selector": "status",
+       "text": "Status",
+       "type": "string"
+      },
+      {
+       "selector": "max_alt",
+       "text": "Burst height (m)",
+       "type": "number"
+      }
+     ]
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none"
+    },
+    "overrides": []
+   },
+   "options": {}
+  },
+  {
+   "id": 5,
+   "type": "stat",
+   "title": "In the Air Now",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "ultrafeeder-prom"
+   },
+   "gridPos": {
+    "h": 4,
+    "w": 4,
+    "x": 0,
+    "y": 18
+   },
+   "targets": [
+    {
+     "expr": "adsb_portal_sondes_aloft",
+     "legendFormat": "",
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "ultrafeeder-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "area",
+    "textMode": "auto"
+   }
+  },
+  {
+   "id": 6,
+   "type": "stat",
+   "title": "Climbing",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "ultrafeeder-prom"
+   },
+   "gridPos": {
+    "h": 4,
+    "w": 4,
+    "x": 4,
+    "y": 18
+   },
+   "targets": [
+    {
+     "expr": "adsb_portal_sondes_climbing",
+     "legendFormat": "",
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "ultrafeeder-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "area",
+    "textMode": "auto"
+   }
+  },
+  {
+   "id": 7,
+   "type": "stat",
+   "title": "Burst, Falling",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "ultrafeeder-prom"
+   },
+   "gridPos": {
+    "h": 4,
+    "w": 4,
+    "x": 8,
+    "y": 18
+   },
+   "targets": [
+    {
+     "expr": "adsb_portal_sondes_falling",
+     "legendFormat": "",
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "ultrafeeder-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "area",
+    "textMode": "auto"
+   }
+  },
+  {
+   "id": 8,
+   "type": "stat",
+   "title": "Flights, Last 24 Hours",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "ultrafeeder-prom"
+   },
+   "gridPos": {
+    "h": 4,
+    "w": 4,
+    "x": 12,
+    "y": 18
+   },
+   "targets": [
+    {
+     "expr": "adsb_portal_sondes_flights_24h",
+     "legendFormat": "",
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "ultrafeeder-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "area",
+    "textMode": "auto"
+   }
+  },
+  {
+   "id": 9,
+   "type": "stat",
+   "title": "Flights Recorded",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "ultrafeeder-prom"
+   },
+   "gridPos": {
+    "h": 4,
+    "w": 4,
+    "x": 16,
+    "y": 18
+   },
+   "targets": [
+    {
+     "expr": "adsb_portal_sondes_flights_total",
+     "legendFormat": "",
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "ultrafeeder-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "area",
+    "textMode": "auto"
+   }
+  },
+  {
+   "id": 10,
+   "type": "stat",
+   "title": "Receiving Stations Active",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "ultrafeeder-prom"
+   },
+   "gridPos": {
+    "h": 4,
+    "w": 4,
+    "x": 20,
+    "y": 18
+   },
+   "targets": [
+    {
+     "expr": "adsb_portal_sonde_stations_active",
+     "legendFormat": "",
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "ultrafeeder-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "area",
+    "textMode": "auto"
+   }
+  },
+  {
+   "id": 11,
+   "type": "timeseries",
+   "title": "Balloons in the Air",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "ultrafeeder-prom"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 0,
+    "y": 22
+   },
+   "targets": [
+    {
+     "expr": "adsb_portal_sondes_climbing",
+     "legendFormat": "Climbing",
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "ultrafeeder-prom"
+     }
+    },
+    {
+     "expr": "adsb_portal_sondes_falling",
+     "legendFormat": "Falling",
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "ultrafeeder-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 8,
+      "spanNulls": 3600000,
+      "showPoints": "never"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   }
+  },
+  {
+   "id": 12,
+   "type": "timeseries",
+   "title": "Altitude of Each Balloon",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "ultrafeeder-prom"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 12,
+    "y": 22
+   },
+   "targets": [
+    {
+     "expr": "adsb_portal_sonde_altitude_m",
+     "legendFormat": "{{serial}} {{source}}",
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "ultrafeeder-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "lengthm",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 8,
+      "spanNulls": 3600000,
+      "showPoints": "never"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   }
+  },
+  {
+   "id": 13,
+   "type": "timeseries",
+   "title": "Vertical Speed",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "ultrafeeder-prom"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 0,
+    "y": 30
+   },
+   "targets": [
+    {
+     "expr": "adsb_portal_sonde_vertical_speed_ms",
+     "legendFormat": "{{serial}} {{source}}",
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "ultrafeeder-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "velocityms",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 8,
+      "spanNulls": 3600000,
+      "showPoints": "never"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   }
+  },
+  {
+   "id": 14,
+   "type": "timeseries",
+   "title": "Air Temperature Measured",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "ultrafeeder-prom"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 12,
+    "y": 30
+   },
+   "targets": [
+    {
+     "expr": "adsb_portal_sonde_temperature_c",
+     "legendFormat": "{{serial}} {{source}}",
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "ultrafeeder-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "celsius",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 8,
+      "spanNulls": 3600000,
+      "showPoints": "never"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   }
+  },
+  {
+   "id": 15,
+   "type": "timeseries",
+   "title": "Flights Recorded",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "ultrafeeder-prom"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 0,
+    "y": 38
+   },
+   "targets": [
+    {
+     "expr": "adsb_portal_sondes_flights_total",
+     "legendFormat": "All",
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "ultrafeeder-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 8,
+      "spanNulls": 3600000,
+      "showPoints": "never"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   }
+  },
+  {
+   "id": 16,
+   "type": "timeseries",
+   "title": "National Weather Service Flights Recorded",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "ultrafeeder-prom"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 12,
+    "y": 38
+   },
+   "targets": [
+    {
+     "expr": "adsb_portal_sondes_nws_flights_total",
+     "legendFormat": "NWS",
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "ultrafeeder-prom"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 8,
+      "spanNulls": 3600000,
+      "showPoints": "never"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   }
+  }
+ ],
+ "annotations": {
+  "list": []
+ }
+}

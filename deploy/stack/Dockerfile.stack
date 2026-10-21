@@ -1,0 +1,20 @@
+# adsb-stack: applies the hub's compose stacks (see stackd.py). Built from the repository root by .github/workflows/build.yml as
+# mallison01/adsb-stack and released together with the portal (same latest/stable tags).
+FROM docker:cli
+RUN apk add --no-cache python3
+COPY deploy/compose.yaml /stacks/portal/compose.yaml
+COPY deploy/grafana/compose.yaml /stacks/grafana/compose.yaml
+COPY deploy/mlat/compose.yaml /stacks/mlat/compose.yaml
+COPY deploy/backup/compose.yaml /stacks/backup/compose.yaml
+COPY deploy/planefence/compose.yaml /stacks/planefence/compose.yaml
+COPY deploy/photon/compose.yaml /stacks/photon/compose.yaml
+COPY deploy/predict/compose.yaml /stacks/predict/compose.yaml
+COPY deploy/aprs/compose.yaml /stacks/aprs/compose.yaml
+COPY deploy/acars/compose.yaml /stacks/acars/compose.yaml
+COPY deploy/mesh/compose.yaml /stacks/mesh/compose.yaml
+COPY deploy/hub/compose.yaml /stacks/hub/compose.yaml
+COPY deploy/stack/stacks.json /stacks/stacks.json
+COPY deploy/stack/stackd.py /stackd.py
+COPY BUILD_INFO /BUILD_INFO
+ENTRYPOINT []
+CMD ["python3", "/stackd.py"]

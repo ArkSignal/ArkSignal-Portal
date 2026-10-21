@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Counties{% endblock %}
+{% block content %}
+<h1><span>Admin</span> Counties</h1>
+<div class="sub">Each county's trauma region and zone (Arkansas Department of Health), its website and its picture. Websites and pictures are found automatically in Wikidata and Wikimedia Commons (Data Updates > Hospital and County Websites and Pictures); anything typed here is kept.</div>
+{% include "partials/_admin_subnav.html" %}
+<form method="get" style="margin-bottom:12px"><input type="text" name="q" value="{{ q }}" placeholder="Search a county" style="max-width:280px"> <button class="btn small" type="submit">Search</button></form>
+<p class="dim">{{ total }} counties.</p>
+{% for r in rows %}
+<details class="panel setsec" id="c-{{ r.slug }}" style="margin-bottom:8px"><summary><span class="role-name">{{ r.name }}</span><span class="dim" style="font-size:.8rem">{{ r.state }}{% if r.region %} &middot; {{ r.region }} Region &middot; Zone {{ r.zone }}{% endif %}{% if r.website %} &middot; website{% endif %}{% if r.photo_url %} &middot; picture{% endif %}{% if r.edited %} &middot; typed in{% endif %}</span></summary>
+  <form method="post" action="/admin/counties/{{ r.slug }}/save" data-async>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="w-{{ r.slug }}">Website</label><input type="text" id="w-{{ r.slug }}" name="website" value="{{ r.website or '' }}" maxlength="300" placeholder="https://">
+    <label for="p-{{ r.slug }}">Picture Address</label><input type="text" id="p-{{ r.slug }}" name="photo_url" value="{{ r.photo_url or '' }}" maxlength="500" placeholder="https://">
+    <label for="c-{{ r.slug }}-credit">Picture Credit</label><input type="text" id="c-{{ r.slug }}-credit" name="photo_credit" value="{{ r.photo_credit or '' }}" maxlength="200" placeholder="Photographer and license">
+    <div class="help">Clear all three to hand the county back to the automatic lookup.</div>
+    <div class="setsec-actions"><button class="btn" type="submit">Save County</button> <a href="/counties/{{ r.slug }}">View public page</a></div>
+  </form>
+</details>
+{% endfor %}
+{% endblock %}

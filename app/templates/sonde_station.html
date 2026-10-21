@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% from "partials/_sonde_rows.html" import flight_table %}
+{% block title %}{{ s.callsign }} | Receiving Station{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ leaflet_base }}/leaflet.css" crossorigin="anonymous">
+<h1>{{ s.callsign }} <span>Receiving Station</span></h1>
+<div class="sub">{{ s.display_name or 'Radiosonde receiving station' }} &middot; {% if s.claim_status == 'claimed' %}claimed by {{ owner or 'a member' }}{% else %}unclaimed{% endif %}{% if s.last_seen %} &middot; last heard {{ s.last_seen | localtime("%b %-d %H:%M") }}{% endif %}</div>
+<p style="display:flex;gap:10px;flex-wrap:wrap"><a href="/sondes/stations/">&larr; Receiving Stations</a>
+  {% if loc %}<a class="btn small show-on-map" href="/sondes/map?only=station:{{ s.callsign | urlencode }}&amp;lat={{ '%.4f' % loc[0] }}&amp;lon={{ '%.4f' % loc[1] }}&amp;zoom=9">Show on Radiosonde Map</a>{% endif %}
+  {% if s.claim_status != 'claimed' %}<a class="btn small" href="/my/sondes?callsign={{ s.callsign | urlencode }}">This Is My Station</a>{% endif %}</p>
+<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">
+  <div class="panel" style="flex:1 1 360px">
+    <table>
+      <tr><th style="width:150px">Call sign</th><td class="mono copyable">{{ s.callsign | cs }}</td></tr>
+      <tr><th>License</th><td class="cs-license dim" data-call="{{ s.callsign }}">looking up...</td></tr>
+      <tr><th>Software</th><td>{{ s.software or '-' }} {{ s.version }}</td></tr>
+      {% if s.radio %}<tr><th>Radio</th><td>{{ s.radio }}</td></tr>{% endif %}
+      <tr><th>Antenna</th><td>{{ s.antenna or '-' }}</td></tr>
+      <tr><th>Position</th><td class="mono">{% if loc %}{{ loc[0] }}, {{ loc[1] }}{% if approx %} <span class="dim">approximate (about {{ 10|u_dist }})</span>{% endif %}{% else %}<span class="dim">hidden{% if s.mobile %} (a station that moves){% endif %}</span>{% endif %}</td></tr>
+      <tr><th>First heard</th><td>{{ s.first_seen | localtime("%b %-d, %Y") }}</td></tr>
+      {% if s.notes and s.claim_status == 'claimed' %}<tr><th>About</th><td>{{ s.notes }}</td></tr>{% endif %}
+    </table>
+  </div>
+  {% if loc %}<div class="panel" style="flex:1 1 360px;padding:0;overflow:hidden"><div id="smap" style="height:300px"></div></div>{% endif %}
+</div>
+<h3>Flights Heard</h3>
+<div class="panel">{{ flight_table(flights, 'No flights recorded for this station yet.') }}
+  <p style="margin:10px 0 0"><a href="/sondes/flights?station={{ s.callsign | urlencode }}">All flights heard by this station</a></p></div>
+<p class="dim" style="font-size:.8rem">Station details and telemetry: SondeHub, Creative Commons BY-SA 2.0.</p>
+{% if loc %}<script src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script>
+<script src="/static/touchhit.js"></script>
+<script>
+(function () {
+  var map = L.map("smap").setView([{{ loc[0] }}, {{ loc[1] }}], {{ 10 if approx else 13 }});
+  L.tileLayer({{ tile_url | tojson }}, {maxZoom: 19, attribution: {{ tile_attr | tojson }}}).addTo(map);
+  {% if approx %}L.circle([{{ loc[0] }}, {{ loc[1] }}], {radius: {{ radius_m or approx_radius_m }}, color: "#ffb454", weight: 1, dashArray: "4", fillOpacity: .08}).addTo(map);{% endif %}
+  L.circleMarker([{{ loc[0] }}, {{ loc[1] }}], {radius: 7, color: "#ffb454", weight: 2, fillOpacity: .7}).addTo(map).bindTooltip({{ s.callsign | tojson }});
+})();
+</script>{% endif %}
+{% include "partials/_sondecredit.html" %}
+{% endblock %}

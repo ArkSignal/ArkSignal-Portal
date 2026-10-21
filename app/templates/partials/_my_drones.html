@@ -1,0 +1,5 @@
+{% from "partials/_ridrx.html" import card with context %}
+<div id="my-drones">
+  {% for r in stations %}{{ card(r, '/my/drones', '#my-drones', false) }}
+  {% else %}<p class="dim" style="margin:0">You have no Remote ID stations yet. Add one above.</p>{% endfor %}
+</div>

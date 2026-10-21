@@ -1,0 +1,17 @@
+{# A table of balloon flights. rows: rows from the sondes table. #}
+{% macro flight_table(rows, empty='No flights.') -%}
+<div style="overflow-x:auto"><table>
+  <thead><tr><th>Balloon</th><th>Type</th><th>Source</th><th>Launch Site</th><th>Highest</th><th>Status</th><th>Last Heard</th></tr></thead>
+  <tbody>
+  {% for r in rows %}<tr>
+    <td><a class="mono" href="/sondes/{{ r.serial }}">{{ r.serial }}</a></td>
+    <td>{{ r.type }}</td>
+    <td>{% if r.agency %}<span class="tag admin">{{ r.agency }}</span>{% elif r.kind == 'amateur' %}<span class="tag">Amateur</span>{% else %}<span class="dim">Other</span>{% endif %}</td>
+    <td>{% if r.site_name %}<a href="/sondes/sites/{{ r.site_id }}">{{ r.site_name }}</a>{% else %}<span class="dim">-</span>{% endif %}</td>
+    <td class="mono">{% if r.max_alt is not none %}{{ r.max_alt | u_alt(0) }}{% else %}-{% endif %}</td>
+    <td>{% set ph = sonde_phase(r) %}{% if ph == 'climbing' %}<span class="tag live">Climbing</span>{% elif ph == 'falling' %}<span class="tag" style="border-color:#ff9f43;color:#ff9f43" title="{{ sonde_phase_label(r) }}">Burst, falling</span>{% elif ph == 'landed' %}<span class="tag off">Landed</span>{% else %}<span class="tag off">Signal lost</span>{% endif %}
+      {% if r.rec_recovered %}<span class="tag live" title="Recovered by {{ r.rec_by }}">Recovered</span>{% elif r.rec_recovered is not none %}<span class="tag" style="border-color:#ff9f43;color:#ff9f43" title="{{ r.rec_note }}">Not found</span>{% endif %}</td>
+    <td class="dim">{{ r.last_seen | localtime("%b %-d %H:%M") }}</td>
+  </tr>{% else %}<tr><td colspan="7" class="dim">{{ empty }}</td></tr>{% endfor %}
+  </tbody></table></div>
+{%- endmacro %}

@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Chat and Messages{% endblock %}
+{% block content %}
+<h1><span>Admin</span> Chat and Messages</h1>
+<div class="sub">Moderate <a href="/chat/">Chat</a>, <a href="/my/messages">Messages</a> and <a href="/my/friends">Friends</a>: read the reports, delete a reported message, and mute a member. You cannot read chats or messages here, only a message someone reported. The limits are in <a href="/admin/settings">Settings</a> (Chat, Private Messages and Friends).</div>
+{% include "partials/_admin_subnav.html" %}
+{% include "partials/_admin_chat.html" %}
+{% endblock %}

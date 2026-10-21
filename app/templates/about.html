@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}About{% endblock %}
+{% block content %}
+<h1>About {{ brand_name }}<span>{{ brand_accent }}</span></h1>
+<div class="sub">{{ tagline }}</div>
+
+<details class="panel setsec" open id="about-network"><summary><span class="role-name">The Network</span></summary>
+  <div class="secbody">
+    <p style="margin-top:0">{{ intro }}</p>
+    <p>Every aircraft carries a transponder that announces its identity, position, altitude and speed on 1090 MHz (ADS-B), and many small aircraft use 978 MHz (UAT). Each station in the network
+    receives those broadcasts with an inexpensive receiver and sends them to a central hub, which merges them into one statewide picture. Where
+    stations overlap, coverage is better, and when three or more stations hear the same aircraft the network can even work out the position of aircraft that
+    do not broadcast one (MLAT). Where there are gaps, a new station fills one.</p>
+    <p style="margin-bottom:0">Want to add a station of your own? Start with <a href="/feed/">How to Feed</a>. Questions? <a href="/contact">Contact us</a>.</p>
+  </div>
+</details>
+
+<details class="panel setsec" open id="about-who"><summary><span class="role-name">Who Runs This</span></summary>
+  <div class="secbody"><p style="margin:0">{{ team }}</p></div>
+</details>
+
+<details class="panel setsec" id="about-here"><summary><span class="role-name">What You Can Do Here Today</span></summary>
+  <div class="secbody">
+    <ul class="plain" style="margin:0">
+      <li><a href="/live">Live Map</a>: every aircraft heard across the network, with filters, weather and radar layers, and a detail card for each aircraft that says how its position is known.</li>
+      <li><a href="/flight/">Flights</a> and <a href="/history/">Flight History</a>: what is in the air now and what flew before, searchable by callsign, registration, type or hex code.</li>
+      <li><a href="/feeders/">Feeders</a>, the <a href="/coverage">Coverage Map</a> and the <a href="/mlat/">MLAT network</a>: who is part of the network, how well each station hears, and what the network covers.</li>
+      <li><a href="/airports/">Airports</a> and <a href="/hospitals/">Hospitals</a>: frequencies, runways, trauma levels, services and where each is, with the heliports that serve them.</li>
+      {% for href, name, text in service_about %}<li><a href="{{ href }}">{{ name }}</a>: {{ text }}</li>{% endfor %}   {# one line per service, from app/services.py #}
+      <li>Planefence and Plane-Alert, Sky View, the Heatmap and other tools in the Tools menu.</li>
+      <li>Sign-in alerts for the aircraft you care about, with notifications to your phone or chat.</li>
+      <li><a href="/status">Service Status</a>, <a href="/release-notes">Release Notes</a> and the <a href="/roadmap">Roadmap</a>: whether everything is working, what changed, and what we plan next.</li>
+    </ul>
+  </div>
+</details>
+
+<details class="panel setsec" id="about-next"><summary><span class="role-name">Where It Is Going</span></summary>
+  <div class="secbody">
+    <p style="margin:0">The aircraft network was the first part. Members' weather stations, radiosonde (weather balloon) tracking and the county map are here now. Next are a repeater directory, APRS and mesh radio nodes,
+    so one account and one set of maps cover what is overhead, outdoors and on the air. The <a href="/roadmap">Roadmap</a> shows what is being built now.</p>
+  </div>
+</details>
+
+<details class="panel setsec" id="about-privacy"><summary><span class="role-name">Your Privacy</span></summary>
+  <div class="secbody">
+    <p style="margin-top:0">Station owners decide how precisely their location is shown: by default it is rounded to roughly {{ 10|u_dist }}, and each owner can choose anything from exact
+    through twelve steps of rounding to hidden. The public pages show station names and statistics, never home addresses. Aircraft data is public radio traffic.</p>
+    <p style="margin-bottom:0">The site uses a sign-in cookie for members and stores your display choices (theme, clock and time zone) in your browser or account. It does not
+    use advertising or tracking cookies, and aircraft lookups are made by the portal on your behalf, so the outside services do not see which aircraft you looked at.</p>
+  </div>
+</details>
+
+<details class="panel setsec" id="about-credits"><summary><span class="role-name">Built With Open Source, and Credits</span></summary>
+  <div class="secbody">
+    <p style="margin-top:0">This site stands on the work of many open-source projects and open data providers. Thank you to all of them. Each remains under its own license.</p>
+    <div class="scrollx"><table>
+      <tr><th>Used for</th><th>Project</th><th>License</th></tr>
+      <tr><td>Receiving, merging and serving aircraft data</td><td><a href="https://github.com/wiedehopf/readsb" rel="noopener nofollow" target="_blank">readsb</a>, <a href="https://github.com/wiedehopf/tar1090" rel="noopener nofollow" target="_blank">tar1090</a> and the <a href="https://github.com/sdr-enthusiasts/docker-adsb-ultrafeeder" rel="noopener nofollow" target="_blank">SDR Enthusiasts Ultrafeeder</a></td><td>GPL</td></tr>
+      <tr><td>Maps</td><td><a href="https://leafletjs.com/" rel="noopener nofollow" target="_blank">Leaflet</a></td><td>BSD 2-Clause</td></tr>
+      <tr><td>Map data and images</td><td><a href="https://www.openstreetmap.org/copyright" rel="noopener nofollow" target="_blank">OpenStreetMap</a> contributors</td><td>ODbL</td></tr>
+      <tr><td>Cities, ZIP code areas and counties for map search</td><td><a href="https://www.census.gov/geographies/reference-files/time-series/geo/gazetteer-files.html" rel="noopener nofollow" target="_blank">US Census Bureau Gazetteer files</a></td><td>Public domain (US government)</td></tr>
+      <tr><td>Hospitals, and finding where they are</td><td><a href="https://data.cms.gov/provider-data/" rel="noopener nofollow" target="_blank">Centers for Medicare &amp; Medicaid Services Provider Data Catalog</a> and the <a href="https://geocoding.geo.census.gov/" rel="noopener nofollow" target="_blank">US Census Bureau Geocoder</a></td><td>Public domain (US government)</td></tr>
+      <tr><td>Trauma centre designations</td><td>Arkansas Department of Health designations and the ATCC trauma centre map compiled by one of ArkSignal's two volunteers, a data analyst for the state trauma system</td><td>Public information, used with the author's permission</td></tr>
+      <tr><td>Aircraft owners and types (air ambulance filter)</td><td><a href="https://github.com/wiedehopf/tar1090-db" rel="noopener nofollow" target="_blank">tar1090-db</a>, the aircraft database used by tar1090</td><td>As published by that project</td></tr>
+      <tr><td>Airports, runways and frequencies</td><td><a href="https://ourairports.com/" rel="noopener nofollow" target="_blank">OurAirports</a></td><td>Public domain</td></tr>
+      <tr><td>Aircraft photos</td><td><a href="https://www.planespotters.net/" rel="noopener nofollow" target="_blank">Planespotters.net</a>; each photo credits its photographer</td><td>The photographers' own terms</td></tr>
+      <tr><td>Aircraft types, owners and flight routes</td><td><a href="https://www.adsbdb.com/" rel="noopener nofollow" target="_blank">adsbdb</a> and the community route data from <a href="https://adsb.im/" rel="noopener nofollow" target="_blank">adsb.im</a></td><td>Their own terms</td></tr>
+      <tr><td>Airline logos on map labels</td><td>Each logo belongs to its airline and is shown only to identify the aircraft's operator. Military aircraft show the official emblem of their service (works of the US government, from Wikimedia Commons)</td><td>Trademarks of their owners; US government works</td></tr>
+      <tr><td>MLAT server, Planefence and off-site backups</td><td><a href="https://github.com/wiedehopf/mlat-server" rel="noopener nofollow" target="_blank">mlat-server</a> (the source of the version we run is linked from it), <a href="https://github.com/sdr-enthusiasts/docker-planefence" rel="noopener nofollow" target="_blank">docker-planefence</a> from the SDR Enthusiasts, and <a href="https://rclone.org/" rel="noopener nofollow" target="_blank">rclone</a></td><td>AGPL 3.0 / GPL 3.0 / MIT</td></tr>
+      <tr><td>Weather balloon telemetry, launch sites and recovery reports</td><td><a href="https://sondehub.org" rel="noopener nofollow" target="_blank">SondeHub</a> (live feed and the <a href="https://registry.opendata.aws/sondehub-telemetry/" rel="noopener nofollow" target="_blank">open data archive</a>, accessed 2026-10-09), from the receiving stations of volunteers running <a href="https://github.com/projecthorus/radiosonde_auto_rx" rel="noopener nofollow" target="_blank">radiosonde_auto_rx</a> and similar software</td><td><a href="https://creativecommons.org/licenses/by-sa/2.0/" rel="noopener nofollow" target="_blank">Creative Commons BY-SA 2.0</a></td></tr>
+      <tr><td>County outlines</td><td><a href="https://tigerweb.geo.census.gov/" rel="noopener nofollow" target="_blank">US Census Bureau TIGERweb</a></td><td>Public domain</td></tr>
+      <tr><td>Live balloon feed connection</td><td><a href="https://github.com/eclipse/paho.mqtt.python" rel="noopener nofollow" target="_blank">Eclipse Paho MQTT client</a></td><td>EPL 2.0 / BSD 3-Clause</td></tr>
+      <tr><td>Home Assistant weather integration and Tempest bridge</td><td><a href="https://github.com/mallison01/arksignal-homeassistant" rel="noopener nofollow" target="_blank">ArkSignal Weather</a>, written for this network</td><td>MIT</td></tr>
+      <tr><td>Statistics graphs</td><td><a href="https://grafana.com/oss/grafana/" rel="noopener nofollow" target="_blank">Grafana</a> and <a href="https://prometheus.io/" rel="noopener nofollow" target="_blank">Prometheus</a></td><td>AGPL 3.0 / Apache 2.0</td></tr>
+      <tr><td>Web application</td><td><a href="https://flask.palletsprojects.com/" rel="noopener nofollow" target="_blank">Flask</a>, <a href="https://www.postgresql.org/" rel="noopener nofollow" target="_blank">PostgreSQL</a>, <a href="https://www.docker.com/" rel="noopener nofollow" target="_blank">Docker</a> and <a href="https://containrrr.dev/watchtower/" rel="noopener nofollow" target="_blank">Watchtower</a></td><td>BSD / PostgreSQL / Apache 2.0</td></tr>
+      <tr><td>Typefaces</td><td><a href="https://rsms.me/inter/" rel="noopener nofollow" target="_blank">Inter</a> and <a href="https://www.jetbrains.com/lp/mono/" rel="noopener nofollow" target="_blank">JetBrains Mono</a></td><td>SIL Open Font License</td></tr>
+    </table></div>
+    <p class="dim" style="margin-bottom:0;font-size:.85rem">The look and workings of this portal are original to this network; none of the sites mentioned endorse it.{% if built %} This version of the portal was built on {{ built }}.{% endif %}</p>
+  </div>
+</details>
+{% endblock %}

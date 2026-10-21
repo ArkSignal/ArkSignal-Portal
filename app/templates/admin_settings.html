@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<h1><span>Admin</span> {{ service_label ~ " " if service_label }}Settings</h1>
+<div class="sub">{% if service %}The settings of this service. {% else %}Every setting on the site, in tabs by service (each service's own Settings page, in the admin menu, shows just its part). {% endif %}Each section saves on its own, and changes take effect immediately; no restart is required.</div>
+{% include "partials/_admin_subnav.html" %}
+
+<div class="subnav" id="settabs" role="tablist" aria-label="Settings groups">
+  {% for t, ts in tabs %}<a href="#tab-{{ ts }}" data-tab="{{ ts }}" role="tab">{{ t }}</a>{% endfor %}
+</div>
+<div class="tfilterbar"><input type="search" id="setsearch" placeholder="Find a setting by name (for example retention, map, email)" aria-label="Find a setting"><span class="dim" id="setcount"></span></div>
+<div class="setsec-tools">
+  <button class="btn small neutral" type="button" onclick="document.querySelectorAll('details.setsec').forEach(function(d){d.open=true})">Expand All</button>
+  <button class="btn small neutral" type="button" onclick="document.querySelectorAll('details.setsec').forEach(function(d){d.open=false})">Collapse All</button>
+</div>
+
+{% macro intfield(key, label, width='120px') %}
+<label for="{{ key }}">{{ label }}</label>
+<input type="text" id="{{ key }}" name="{{ key }}" value="{{ v[key] }}" style="max-width:{{ width }}">
+{% endmacro %}
+
+{% for name, slug, core, rows in sections %}
+<details class="panel setsec" id="sec-{{ slug }}" data-tab="{{ tab_of(name) | lower | replace(' ', '-') }}">
+  <summary><span class="role-name">{{ name }}</span></summary>
+  <form method="post" action="/admin/settings/save" data-async data-commit>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="section" value="{{ slug }}"><input type="hidden" name="service" value="{{ service }}">
+
+    {% if name == 'General' %}
+    <label for="site_name">Site Name</label>
+    <input type="text" id="site_name" name="site_name" value="{{ v.site_name }}" maxlength="80">
+    <div class="help">Shown in the browser title and the page footer.</div>
+    <label class="check"><input type="checkbox" name="registration_open" value="1" {{ 'checked' if v.registration_open == '1' }}>
+      <span><b>Registration Open</b><br><span class="dim">Allows anyone to create an account. Turn this off to stop new sign-ups; existing accounts are not affected.</span></span></label>
+
+    {% elif name == 'Feeders' %}
+    <label for="default_privacy">Default Location Privacy</label>
+    <select id="default_privacy" name="default_privacy">
+      {% for key, label in privacy_choices %}<option value="{{ key }}" {{ 'selected' if v.default_privacy == key }}>{{ label }}</option>{% endfor %}
+    </select>
+    <div class="help">What the public sees for a newly claimed feeder until its owner chooses otherwise. Exact locations are never shown publicly unless the owner opts in.</div>
+    <label for="feed_mode">Feed Mode</label>
+    <select id="feed_mode" name="feed_mode">
+      {% for key, label in feed_mode_choices %}<option value="{{ key }}" {{ 'selected' if v.feed_mode == key }}>{{ label }}</option>{% endfor %}
+    </select>
+    <div class="help">Open lets any receiver feed the hub. Registration required is recorded now and will be enforced once the feed gate is built.</div>
+    <label for="feed_host">Feed Hostname</label>
+    <input type="text" id="feed_host" name="feed_host" value="{{ v.feed_host }}" style="max-width:360px">
+    <div class="help">The address feeders send data to. It appears in the setup instructions on the How to Feed page.</div>
+    <label for="feed_port">Feed Port</label>
+    <input type="text" id="feed_port" name="feed_port" value="{{ v.feed_port }}" style="max-width:120px">
+    <label class="check"><input type="checkbox" name="mlat_enabled" value="1" {{ 'checked' if v.mlat_enabled == '1' }}>
+      <span><b>MLAT Available</b><br><span class="dim">Shows the MLAT feed line on the How to Feed page. Turn this on only once the MLAT server is running.</span></span></label>
+    <label for="mlat_port">MLAT Port</label>
+    <input type="text" id="mlat_port" name="mlat_port" value="{{ v.mlat_port }}" style="max-width:120px">
+    <label class="check"><input type="checkbox" name="uat_enabled" value="1" {{ 'checked' if v.uat_enabled == '1' }}>
+      <span><b>UAT (978 MHz) Setup Shown</b><br><span class="dim">Shows the 978 MHz receiver setup steps on the How to Feed page. UAT needs no extra port or hub setting: a station's UAT aircraft travel through its normal feed.</span></span></label>
+
+    {% elif name == 'Map Defaults' %}
+    <div style="display:flex;gap:14px;flex-wrap:wrap">
+      <div><label for="map_lat">Center Latitude</label><input type="text" id="map_lat" name="map_lat" value="{{ v.map_lat }}" style="max-width:150px"></div>
+      <div><label for="map_lon">Center Longitude</label><input type="text" id="map_lon" name="map_lon" value="{{ v.map_lon }}" style="max-width:150px"></div>
+      <div><label for="map_zoom">Zoom Level</label><input type="text" id="map_zoom" name="map_zoom" value="{{ v.map_zoom }}" style="max-width:100px"></div>
+      <div><label for="map_zoom_page">Full-Page Map Zoom</label><input type="text" id="map_zoom_page" name="map_zoom_page" value="{{ v.map_zoom_page }}" style="max-width:100px"></div>
+    </div>
+    <div class="help">Where the maps open. Zoom runs from 1 (world) to 18 (street) and may include a decimal such as 7.5. The first zoom is for the small maps on the feeder pages; the full-page zoom is for the Live Map, Heatmap and Replay tools. The defaults frame the whole of Arkansas.</div>
+
+    {% elif name == 'Display' %}
+    <label for="timezone">Display Timezone</label>
+    <select id="timezone" name="timezone">
+      {% for tz in timezones %}<option value="{{ tz }}" {{ 'selected' if v.timezone == tz }}>{{ tz }}</option>{% endfor %}
+    </select>
+    <div class="help">Times are stored in UTC and shown in this timezone throughout the admin pages.</div>
+
+    {% elif name == 'Security' %}
+    <div style="display:flex;gap:14px;flex-wrap:wrap">
+      <div><label for="max_failed_attempts">Failed Sign-In Attempts</label><input type="text" id="max_failed_attempts" name="max_failed_attempts" value="{{ v.max_failed_attempts }}" style="max-width:120px"></div>
+      <div><label for="lockout_minutes">Lockout Duration (Minutes)</label><input type="text" id="lockout_minutes" name="lockout_minutes" value="{{ v.lockout_minutes }}" style="max-width:120px"></div>
+    </div>
+    <div class="help">An account is locked for the lockout duration after this many wrong passwords in a row.</div>
+
+    {% elif name == 'History' %}
+    {{ intfield('history_retention_days', 'History Retention (Days)') }}
+    <div class="help">Audit log and sign-in history older than this are deleted once a day. Enter 0 to keep everything.</div>
+    {{ intfield('max_rules_per_user', 'Alert Rules per User') }}
+    <div class="help">The most aircraft alert rules one user can create.</div>
+    {{ intfield('sample_retention_days', 'Feeder Statistics Detail (Days)') }}
+    <div class="help">Per-feeder statistics are kept at full detail for this many days, then averaged into hourly values.</div>
+    {% endif %}
+
+    {% for s in rows %}
+    <label for="{{ s.key }}">{{ s.label }}{% if s.kind == 'dist' %} ({{ dist_unit(s.extra.base) }}){% endif %}</label>
+    {% if s.kind == 'collist' %}
+    <div style="display:flex;flex-wrap:wrap;gap:2px 18px">{% for k, l in s.extra.choices %}<label class="check" style="margin:3px 0"><input type="checkbox" name="{{ s.key }}" value="{{ k }}" {{ 'checked' if k in v[s.key].split(',') }}><span>{{ l }}</span></label>{% endfor %}</div>
+    {% elif s.kind == 'select' %}
+    <select id="{{ s.key }}" name="{{ s.key }}">{% for k, l in s.extra.choices %}<option value="{{ k }}" {{ 'selected' if v[s.key] == k }}>{{ l }}</option>{% endfor %}</select>
+    {% elif s.kind == 'dist' %}
+    <input type="text" id="{{ s.key }}" name="{{ s.key }}" value="{{ dist_show(v[s.key], s.extra.base) }}" style="max-width:140px" title="A number in {{ dist_unit(s.extra.base) }}, or add a unit such as 250 m or 0.5 mi">
+    {% else %}
+    <input type="text" id="{{ s.key }}" name="{{ s.key }}" value="{{ v[s.key] }}" style="max-width:{{ '120px' if s.kind in ('int','float') else '100%' }}">
+    {% endif %}
+    <div class="help">{{ s.help }}</div>
+    {% endfor %}
+
+    <div class="setsec-actions">
+      <button class="btn" type="submit">Save {{ name }}</button>
+      <button class="btn neutral" type="reset">Reset</button>
+    </div>
+  </form>
+  {% if name == 'Security' %}
+  <form method="post" action="/admin/security/sign-out-all" data-async data-confirm="Sign everyone out now? Every other signed-in person, including other administrators, has to sign in again. You stay signed in." style="padding-top:0">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="grp">Emergency</div>
+    <div class="help" style="margin:0 0 8px">Ends every other sign-in immediately. Use it if you suspect an account was taken over or a device was lost.</div>
+    <button class="btn small warn" type="submit" style="margin-top:0">Sign Everyone Out Now</button>
+  </form>
+  {% endif %}
+</details>
+{% endfor %}
+<script>
+// Settings sub-nav: one group of sections at a time, a search that spans every group, and old links such as #sec-security still open their section.
+(function () {
+  var tabs = Array.prototype.slice.call(document.querySelectorAll("#settabs a")), secs = Array.prototype.slice.call(document.querySelectorAll("details.setsec"));
+  var box = document.getElementById("setsearch"), count = document.getElementById("setcount");
+  tabs.forEach(function (a) { var n = secs.filter(function (d) { return d.dataset.tab === a.dataset.tab; }).length; if (!n) a.style.display = "none"; });
+  function show(tab) {
+    tabs.forEach(function (a) { a.classList.toggle("active", a.dataset.tab === tab); a.setAttribute("aria-selected", a.dataset.tab === tab ? "true" : "false"); });
+    secs.forEach(function (d) { d.style.display = d.dataset.tab === tab ? "" : "none"; });
+    count.textContent = "";
+  }
+  function search() {
+    var q = box.value.trim().toLowerCase();
+    if (!q) { var a = document.querySelector("#settabs a.active"); show(a ? a.dataset.tab : FIRST); return; }
+    var words = q.split(/\s+/), n = 0;
+    tabs.forEach(function (a) { a.classList.remove("active"); });
+    secs.forEach(function (d) {
+      var txt = (d.querySelector("summary").textContent + " " + Array.prototype.map.call(d.querySelectorAll("label, .help, .grp"), function (e) { return e.textContent; }).join(" ")).toLowerCase();
+      var hit = words.every(function (w) { return txt.indexOf(w) >= 0; });
+      d.style.display = hit ? "" : "none"; if (hit) { d.open = true; n++; }
+    });
+    count.textContent = n + " section" + (n === 1 ? "" : "s") + " match";
+  }
+  tabs.forEach(function (a) { a.addEventListener("click", function (e) { e.preventDefault(); box.value = ""; show(a.dataset.tab); history.replaceState(null, "", "#tab-" + a.dataset.tab); }); });
+  box.addEventListener("input", search);
+  var OLD = {"#sec-maps-and-data-sources": "#sec-map-tiles-and-weather"};   // the section that was split up: an old link opens the map one
+  var h = location.hash; if (OLD[h]) h = OLD[h];
+  var FIRST = {{ (tabs[0][1] if tabs else "general") | tojson }};
+  var d = h && document.querySelector("details.setsec" + (h.indexOf("#sec-") === 0 ? h : "#none"));
+  if (d) { show(d.dataset.tab); d.open = true; d.scrollIntoView(); }
+  else show(h.indexOf("#tab-") === 0 && document.querySelector('#settabs a[data-tab="' + h.slice(5) + '"]') ? h.slice(5) : FIRST);
+  var HOME = {{ section_home | tojson }};   // an old link such as /admin/settings#sec-routing goes to the Settings page of the service that holds the section
+  if (!d && h.indexOf("#sec-") === 0 && HOME[h.slice(5)] && HOME[h.slice(5)] !== location.pathname) location.replace(HOME[h.slice(5)] + h);
+  var field = new URLSearchParams(location.search).get("field"), el = field && document.getElementById(field);   // a search result: open the section and mark the setting
+  if (el) { var sec = el.closest("details.setsec"); if (sec) { show(sec.dataset.tab); sec.open = true; } el.scrollIntoView({block: "center"}); el.focus(); var lb = document.querySelector('label[for="' + field + '"]'); if (lb) { lb.style.outline = "2px solid var(--acc)"; lb.style.outlineOffset = "3px"; } }
+})();
+</script>
+{% endblock %}

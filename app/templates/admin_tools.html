@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Tools{% endblock %}
+{% block content %}
+<h1><span>Admin</span> Tools</h1>
+<div class="sub">Pages from the hub, such as the live map, the Grafana statistics dashboard or Planefence, shown inside the portal so visitors keep the same menu instead of opening new tabs.</div>
+{% include "partials/_admin_subnav.html" %}
+<details class="panel setsec" id="sec-add-a-tool" open style="margin-bottom:14px"><summary><span class="role-name">Add a Tool</span></summary><form method="post" action="/admin/tools/save" data-async data-async-target="#tools-list">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  
+  <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+    <div><label for="n-name">Name</label><input type="text" id="n-name" name="name" maxlength="40" style="width:170px" required></div>
+    <div><label for="n-slug">Short Name</label><input type="text" id="n-slug" name="slug" maxlength="39" style="width:150px" placeholder="grafana" required></div>
+    <div><label for="n-url">Address</label><input type="text" id="n-url" name="url" maxlength="300" style="width:280px" placeholder="/grafana/" required></div>
+    <div><label for="n-desc">Description</label><input type="text" id="n-desc" name="description" maxlength="120" style="width:240px" placeholder="Shown on the home page"></div>
+    <div><label for="n-order">Order</label><input type="text" id="n-order" name="sort_order" value="100" style="width:80px"></div>
+    <label class="check" style="margin:0 0 6px"><input type="checkbox" name="enabled" value="1" checked><span>Shown</span></label>
+    <button class="btn small" type="submit" style="margin:0 0 4px">Add Tool</button>
+  </div>
+  <div class="help">The address is a path on this site, such as /map/, or a full https:// address. The page must allow being shown inside a frame. Visitors reach each tool at /view/ followed by its short name.</div>
+</form></details>
+{% include "partials/_tools_list.html" %}
+{% endblock %}

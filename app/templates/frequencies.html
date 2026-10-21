@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Frequencies{% endblock %}
+{% block content %}
+<h1><span>Frequencies</span></h1>
+<div class="sub">The frequencies people ask about, in one list: APRS, the amateur calling frequencies, FRS, GMRS, MURS, weather radio, marine and aviation, and mesh networks. These are the standard United States ones; check your own license and local band plan before transmitting.</div>
+<form method="get" action="/frequencies" class="panel" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+  <div><label for="fq-s">Service</label><select id="fq-s" name="service"><option value="">All</option>{% for k, l in services %}<option value="{{ k }}" {{ 'selected' if k == service }}>{{ l }}</option>{% endfor %}</select></div>
+  <div><label for="fq-q">Search</label><input type="text" id="fq-q" name="q" value="{{ q }}" maxlength="60" placeholder="144.39, APRS, channel 20" style="width:240px"></div>
+  <button class="btn" type="submit" style="margin:0 0 2px">Show</button></form>
+<div class="panel" style="margin-top:14px;overflow-x:auto"><table class="sortable"><thead><tr><th data-sort="text">Service</th><th data-sort="text">Name</th><th data-sort="num">MHz</th><th data-sort="text">Mode</th><th>Notes</th>{% if can_edit %}<th></th>{% endif %}</tr></thead><tbody>
+  {% for r in rows %}<tr><td>{{ dict(services).get(r.service, r.service) }}</td><td>{{ r.name }}</td><td class="mono">{{ mhz(r.freq_hz) }}</td><td>{{ r.mode }}</td><td class="dim" style="font-size:.84rem">{{ r.notes }}</td>
+    {% if can_edit %}<td><form method="post" action="/frequencies/{{ r.id }}/delete" data-async data-confirm="Remove this frequency?" style="margin:0"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small neutral" type="submit" style="margin:0">Remove</button></form></td>{% endif %}</tr>
+  {% else %}<tr><td colspan="6" class="dim">No frequency matches.</td></tr>{% endfor %}</tbody></table>
+  <div class="help">{{ rows | length }} frequencies. Repeaters, with their offsets, tones and talkgroups, are in the <a href="/repeaters/">Repeater</a> list.</div></div>
+{% if can_edit %}<details class="panel setsec" style="margin-top:14px"><summary><span class="role-name">Add a Frequency</span></summary><div class="secbody">
+  <form method="post" action="/frequencies/add" data-async data-reset style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div><label for="fa-s">Service</label><select id="fa-s" name="service">{% for k, l in services %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></div>
+    <div><label for="fa-n">Name</label><input type="text" id="fa-n" name="name" maxlength="80" required style="width:220px"></div>
+    <div><label for="fa-f">MHz</label><input type="text" id="fa-f" name="mhz" required style="width:110px" placeholder="146.52"></div>
+    <div><label for="fa-m">Mode</label><input type="text" id="fa-m" name="mode" maxlength="40" style="width:110px" placeholder="FM"></div>
+    <div style="flex:1 1 220px"><label for="fa-o">Notes</label><input type="text" id="fa-o" name="notes" maxlength="300" style="width:100%"></div>
+    <button class="btn small" type="submit" style="margin:0 0 2px">Add</button></form></div></details>{% endif %}
+{% endblock %}

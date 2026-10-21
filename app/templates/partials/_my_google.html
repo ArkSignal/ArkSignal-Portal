@@ -1,0 +1,12 @@
+<div id="my-google">
+  {% if link %}
+  <p style="margin-top:0"><span class="tag live">linked</span> <b>{{ link.email or 'A Google account' }}</b>{% if link.name %} <span class="dim">({{ link.name }})</span>{% endif %}</p>
+  <p class="dim">Linked <time class="ts" datetime="{{ link.linked_at.isoformat() }}" data-fmt="dt">{{ link.linked_at }}</time>{% if link.last_login %}; last signed in with it <time class="ts" datetime="{{ link.last_login.isoformat() }}" data-fmt="dt">{{ link.last_login }}</time>{% else %}; not used to sign in yet{% endif %}.{% if link.created_by_signup %} This account was made from a Google sign-in, so it has no password you know yet: before you unlink, use <b>Forgot Password</b> on the sign-in page to set one.{% endif %}</p>
+  <form method="post" action="/my/google/unlink" data-async data-async-target="#my-google" data-confirm="Unlink your Google account? You will sign in with your password.">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn warn" type="submit">Unlink Google</button>
+  </form>
+  {% else %}
+  <p style="margin-top:0"><span class="tag off">not linked</span> No Google account is linked to this member yet.</p>
+  <a class="btn" href="/my/google/link">Link My Google Account</a>
+  {% endif %}
+</div>

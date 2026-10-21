@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}MLAT{% endblock %}
+{% block content %}
+<h1><span>MLAT</span></h1>
+<div class="sub">Stations connected to the multilateration server. Positions of aircraft that only transmit Mode S need three or more well-placed stations that hear the same aircraft.</div>
+{% include "partials/_admin_subnav.html" %}
+
+{% if rows is none %}
+{% call sec('server', 'MLAT Server', True, False) %}
+  <p>The MLAT server's status folder is not available to the portal, so nothing can be shown here.</p>
+  <p class="dim">The server runs as the <span class="mono">adsb-mlat</span> container, installed by the stack updater. The portal reads its status from the folder <span class="mono">/mlat</span> (read-only). Turn on <b>MLAT Available</b> in Settings once it is running.</p>
+{% endcall %}
+{% else %}
+{% if not enabled %}<div class="flash error">The MLAT server is running but <b>MLAT Available</b> is off in <a href="/admin/settings">Settings</a>, so the How to Feed page does not show the MLAT line and stations see no MLAT status. Turn it on to open MLAT to the network.</div>{% endif %}
+<div class="tiles">
+  <div class="panel tile"><div class="tv">{{ rows | length }}</div><div class="tl">Stations Connected</div></div>
+  <div class="panel tile"><div class="tv">{{ rows | map(attribute='message_rate') | sum }}</div><div class="tl">Messages/s Sent</div></div>
+  <div class="panel tile"><div class="tv">{{ rows | selectattr('bad_sync_timeout') | list | length }}</div><div class="tl">With Sync Problems</div></div>
+</div>
+<div style="margin-top:14px"></div><div class="tfilterbar"><input type="search" class="tfilter" data-table="#mlat-tbl" placeholder="Search by station, MLAT user or UUID" aria-label="Search by station, MLAT user or UUID"><span class="dim tcount"></span></div>
+{% call sec('stations', 'MLAT Stations', True, True) %}
+  <table class="sortable" id="mlat-tbl">
+    <tr><th data-sort="text">Station</th><th data-sort="text">MLAT User</th><th data-sort="num">Messages/s</th><th data-sort="num">Peers</th><th data-sort="num">Outliers</th><th data-sort="text">Sync</th><th>Actions</th></tr>
+    {% for r in rows %}
+    <tr data-search="{{ r.user }} {{ r.feeder.name if r.feeder else '' }} {{ r.feeder.station_id if r.feeder else '' }} {{ r.feeder.uuid if r.feeder else '' }}">
+      <td>{% if r.feeder %}<a href="/admin/feeders/{{ r.feeder.uuid }}">{{ r.feeder.name or r.feeder.station_id or 'Unnamed' }}</a>{% else %}<span class="dim">Not matched to a feeder</span>{% endif %}</td>
+      <td class="mono">{{ r.user }}</td>
+      <td>{{ r.message_rate }}</td><td>{{ r.peer_count }}</td><td>{{ '%.1f' % r.outlier_percent }}%</td>
+      <td>{% if r.bad_sync_timeout %}<span style="color:#ff7a59">Timed out {{ r.bad_sync_timeout }} s</span>{% elif r.peer_count == 0 %}<span class="dim">No peers yet</span>{% else %}OK{% endif %}</td>
+      <td style="white-space:nowrap">
+        {% if r.feeder %}<a class="btn small" href="{{ '/my/feeders/' ~ r.feeder.uuid if r.feeder.owner_id else '/admin/feeders/' ~ r.feeder.uuid }}" title="Open it with the owner's own pages, where its MLAT status is explained">Manage</a>
+        {% if r.feeder.owner_id %}<a class="btn small neutral" href="/admin/feeders/{{ r.feeder.uuid }}">Details</a>{% endif %}
+        <form method="post" action="/admin/feeders/{{ r.feeder.uuid }}/manage" {% if not r.feeder.banned %}data-confirm="Ban this feeder? It is hidden from every public page."{% endif %} style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="{{ 'unban' if r.feeder.banned else 'ban' }}"><input type="hidden" name="next" value="mlat"><button class="btn small {{ '' if r.feeder.banned else 'danger' }}" type="submit">{{ 'Unban' if r.feeder.banned else 'Ban' }}</button></form>
+        {% else %}<span class="dim">Not matched to a feeder</span>{% endif %}
+      </td>
+    </tr>
+    {% else %}<tr><td colspan="7" class="dim">No station is connected to MLAT right now.</td></tr>{% endfor %}
+  </table>
+{% endcall %}
+<p class="dim" style="margin-top:10px">Exact station locations and addresses are held by the MLAT server and are never shown by the portal.</p>
+{% endif %}
+{% endblock %}

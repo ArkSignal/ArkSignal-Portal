@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Mesh{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ leaflet_base }}/leaflet.css" crossorigin="anonymous">
+<style>.bar{height:8px;border-radius:5px;background:var(--acc);opacity:.75}.mo-row{display:grid;grid-template-columns:minmax(0,1fr) 3.5em;gap:8px;align-items:center;margin:3px 0}.mo-row .bw{grid-column:1 / 3}</style>
+<h1><span>Mesh</span></h1>
+<div class="sub">Everything the network knows about the Meshtastic and MeshCore mesh radios around Arkansas: how many nodes there are and how many are on the air, who hears them, what they run, what needs attention and where they are. Only what a node publishes in the clear is used. <a href="/mesh/nodes">All Nodes</a> &middot; <a href="/mesh/map">Mesh Map</a> &middot; <a href="/mesh/health">Mesh Health</a> &middot; <a href="/feed/mesh">Join the Arkansas Mesh</a></div>
+{% if not o.ok %}<div class="panel" style="border-color:var(--acc2);margin-bottom:14px"><b>{{ o.note }}</b> The numbers below fill in when the mesh service answers.</div>{% else %}
+{% set sd = o.sd %}
+{% call sec('glance', 'Mesh at a Glance', True) %}
+<div class="tiles" id="mesh-glance" style="overflow-wrap:anywhere;grid-template-columns:repeat(auto-fill,minmax(165px,1fr))">
+  <div class="panel tile" id="g-nodes"><div class="tl" style="font-weight:700;font-size:1.05rem">Nodes</div><div class="tv">{{ sd.nodes }}</div>
+    <div class="tl">{{ sd.meshtastic }} Meshtastic, {{ sd.meshcore }} MeshCore; {{ sd.placed }} on the map.</div><p style="margin:10px 0 0"><a class="btn small" href="/mesh/nodes">All Nodes</a></p></div>
+  <div class="panel tile" id="g-online"><div class="tl" style="font-weight:700;font-size:1.05rem">Online Now</div><div class="tv">{{ o.online }}</div>
+    <div class="tl">Nodes heard in the last {{ o.online_minutes }} minutes (of {{ o.rows }} heard this week).</div></div>
+  <div class="panel tile" id="g-heard"><div class="tl" style="font-weight:700;font-size:1.05rem">Heard Lately</div><div class="tv">{{ sd.heard_day }}</div>
+    <div class="tl">In the last 24 hours; {{ sd.heard_hour }} in the last hour.</div></div>
+  <div class="panel tile" id="g-gateways"><div class="tl" style="font-weight:700;font-size:1.05rem">Gateways and Observers</div><div class="tv">{{ o.gateways.meshtastic + o.gateways.meshcore }}</div>
+    <div class="tl">{{ o.gateways.meshtastic }} Meshtastic gateways and {{ o.gateways.meshcore }} MeshCore observers have reported; {{ o.gateways.active }} in the last 24 hours.</div></div>
+  <div class="panel tile" id="g-routers"><div class="tl" style="font-weight:700;font-size:1.05rem">Routers and Repeaters</div><div class="tv">{{ sd.routers }}</div>
+    <div class="tl">The nodes that carry the mesh.</div></div>
+  <div class="panel tile" id="g-links"><div class="tl" style="font-weight:700;font-size:1.05rem">Direct Links</div><div class="tv">{{ o.links.total if o.links.shown else '-' }}</div>
+    <div class="tl">{% if o.links.shown %}Pairs of nodes that report hearing each other directly (Neighbor Info), {{ o.links.reporters }} nodes reporting; {{ o.links.day }} reported in the last day.{% else %}Neighbor Info links are switched off in Settings.{% endif %}</div>
+    <p style="margin:10px 0 0"><a class="btn small" href="/mesh/map">Mesh Map</a></p></div>
+  <div class="panel tile" id="g-new"><div class="tl" style="font-weight:700;font-size:1.05rem">New Nodes</div><div class="tv">{{ o.new_count }}</div>
+    <div class="tl">First heard in the last 24 hours.</div></div>
+  <div class="panel tile"><div class="tl" style="font-weight:700;font-size:1.05rem">Join the Mesh</div><div class="tv">Add Yours</div>
+    <div class="tl">Connect a node to our broker and it shows here, and on the map.</div><p style="margin:10px 0 0;display:flex;gap:8px;flex-wrap:wrap"><a class="btn small" href="/feed/mesh">How to Join</a><a class="btn small neutral" href="/my/mesh">My Mesh Nodes</a></p></div>
+</div>
+{% endcall %}
+
+{% call sec('attention', 'Needs Attention', True) %}
+{% set p = o.problems %}
+<div class="tiles" id="mesh-attn" style="grid-template-columns:repeat(auto-fill,minmax(155px,1fr))">
+  <div class="panel tile"><div class="tv">{{ p.quiet }}</div><div class="tl">Routers not heard for {{ p.off_h }} hours</div></div>
+  <div class="panel tile"><div class="tv">{{ p.low }}</div><div class="tl">Nodes at or below {{ p.low_pct }}% battery</div></div>
+  <div class="panel tile"><div class="tv">{{ p.busy }}</div><div class="tl">Nodes with the channel {{ p.busy_pct }}% busy or more</div></div>
+  <div class="panel tile"><div class="tv">{{ p.old }}</div><div class="tl">Nodes on old firmware</div></div>
+  <div class="panel tile"><div class="tv">{{ p.gaps }}</div><div class="tl">Places with no router within {{ p.gap_mi }} miles</div></div>
+</div>
+<p style="margin:10px 0 0"><a class="btn small" href="/mesh/health">Mesh Health: the lists behind these numbers</a></p>
+{% endcall %}
+
+{% call sec('used', 'Roles, Firmware and Hardware', False) %}
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px">
+  {% for title, items in o.groups %}
+  <div><h3 style="margin:0 0 6px;font-size:1rem">{{ title }}</h3>
+    {% for name, n, pct in items %}<div class="mo-row"><span>{{ name }}</span><b style="text-align:right">{{ n }}</b><div class="bw"><div class="bar" style="width:{{ pct }}%"></div></div></div>{% endfor %}</div>
+  {% else %}<p class="dim" style="margin:0">Nothing heard yet.</p>{% endfor %}
+</div>
+{% endcall %}
+
+{% call sec('gateways', 'Busiest Gateways and Observers', False) %}
+{% if o.busiest %}<div style="overflow-x:auto"><table style="width:100%"><tr><th>Gateway</th><th>Kind</th><th>Nodes heard</th><th>Last</th></tr>
+  {% for g in o.busiest %}<tr><td class="mono">{{ (g.name or g.gateway)[:24] }}</td><td>{{ 'MeshCore observer' if g.network == 'meshcore' else 'Meshtastic gateway' }}</td><td>{{ g.nodes }}</td><td>{% if g.last %}<time class="ts" datetime="{{ g.last }}" data-fmt="dt">{{ g.last[:16].replace('T', ' ') }}</time>{% else %}-{% endif %}</td></tr>{% endfor %}</table></div>
+<p class="dim" style="margin:8px 0 0;font-size:.85rem">A gateway is a node that uplinks to the broker; the more nodes it hears, the more of the mesh the map can see. What each hears is on <a href="/mesh/map">the map</a> as measured coverage.</p>
+{% else %}<p class="dim" style="margin:0">No gateway has reported yet.</p>{% endif %}
+{% endcall %}
+
+{% call sec('new', 'Newly Seen Nodes', False) %}
+{% if o.new %}<ul class="plain" style="margin:0">{% for n in o.new %}<li><a href="/mesh/{{ n.slug }}">{{ n.long_name or n.short_name or n.id[:12] }}</a> <span class="dim">{{ 'MeshCore' if n.network == 'meshcore' else 'Meshtastic' }}{% if n.role_name %}, {{ n.role_name }}{% endif %}, first heard <time class="ts" datetime="{{ n.first_seen }}" data-fmt="dt">{{ n.first_seen[:16].replace('T', ' ') }}</time></span></li>{% endfor %}</ul>
+{% else %}<p class="dim" style="margin:0">No node was first heard in the last 24 hours.</p>{% endif %}
+{% endcall %}
+
+{% call sec('map', 'Where the Nodes Are', True) %}
+<div style="padding:0;border-radius:10px;overflow:hidden;border:1px solid var(--line)"><div id="meshmap" style="height:360px"></div></div>
+<p style="margin:8px 0 0;display:flex;gap:8px;flex-wrap:wrap"><a class="btn small" href="/mesh/map">Open the Mesh Map</a><span class="dim" id="mm-note" style="align-self:center;font-size:.85rem"></span></p>
+{% endcall %}
+{% endif %}
+
+{% call sec('resources', 'Local Meshes and Maps', False) %}
+<p class="dim" style="margin-top:0">Communities and maps for Arkansas and the states around it. Their data is theirs: these are links, not copies.</p>
+<ul class="plain" style="margin:0">{% for name, url, what in resources %}<li><a href="{{ url }}" target="_blank" rel="noopener">{{ name }}</a>: {{ what }}</li>{% endfor %}</ul>
+{% endcall %}
+<p class="dim" style="font-size:.8rem">{{ credit }}. Only what a node publishes in the clear is used; private channels and chat are never read. A node's owner can ask for it to be hidden (<a href="/contact">Contact</a>).</p>
+{% if o.ok %}
+<script src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script>
+<script src="/static/colocate.js?v=mesh2"></script>
+<script>
+(function () {
+  var map = L.map("meshmap", {scrollWheelZoom: false}).setView([{{ map_lat }}, {{ map_lon }}], 6);
+  L.tileLayer({{ tile_url | tojson }}, {maxZoom: 19, attribution: {{ tile_attr | tojson }}}).addTo(map);
+  var COL = {{ colors | tojson }};
+  fetch("/api/mesh/nodes.json").then(function (r) { return r.json(); }).then(function (d) {
+    var pts = (d.nodes || []).filter(function (n) { return n.lat != null; });
+    pts.forEach(function (n) { var m = L.circleMarker([n.lat, n.lon], {radius: 4, weight: 1, color: "#071018", fillColor: COL[n.role_name] || "#8a9bb3", fillOpacity: .85}).addTo(map); m.bindTooltip(n.short_name || n.long_name || n.id); Colocate.track(map, "mesh", m, n.lat, n.lon); });
+    document.getElementById("mm-note").textContent = pts.length + " node" + (pts.length === 1 ? "" : "s") + " with a position (seen in the last 7 days)";
+    map.invalidateSize(); window.addEventListener("resize", function () { map.invalidateSize(); });
+    var AR = {{ map_area("mesh_map_area") | tojson }}; if (AR) map.fitBounds([[AR[0], AR[1]], [AR[2], AR[3]]], {padding: [10, 10]});
+  }).catch(function () { document.getElementById("mm-note").textContent = "The nodes could not be loaded."; });
+})();
+</script>{% endif %}
+{% endblock %}

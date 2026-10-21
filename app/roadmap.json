@@ -1,0 +1,1110 @@
+{
+  "updated": "2026-10-17",
+  "items": [
+    {
+      "title": "Air ambulances on the Trauma Map",
+      "summary": "A single switch on the Trauma Map draws every air ambulance helicopter and airplane the network hears, with a details card.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "Kiosk display",
+      "summary": "A wall-screen mode (Display menu, /kiosk): chosen pages full screen whose menus and map controls hide after a set time with no input and return with any input, an Exit button, a Setup panel (pages, seconds for each, presets, one page only), the date and time at a chosen corner and size, and ?kiosk=1 on any page.",
+      "status": "done",
+      "area": "Community"
+    },
+    {
+      "title": "Space weather",
+      "summary": "Radio > Space Weather: NOAA storm scales, K index, solar flux, flare class and a rough HF band guide.",
+      "status": "done",
+      "area": "Radio"
+    },
+    {
+      "title": "Weather overview",
+      "summary": "The Weather overview shows the whole weather setup at a glance: stations, alerts, radar and satellite, earthquakes, rivers, space weather and balloons, with the station map and list below.",
+      "status": "done",
+      "area": "Weather"
+    },
+    {
+      "title": "Earthquakes layer",
+      "summary": "Recent earthquakes in and around Arkansas (the New Madrid zone) from the USGS, drawn by magnitude on the maps, with the time, depth and USGS link on click.",
+      "status": "done",
+      "area": "Data"
+    },
+    {
+      "title": "Phone maps: folding top panel and clear popups",
+      "summary": "On a phone the map's top panel folds to one row of buttons once the map is moved, and popups open clear of the panels; the radiosonde Heard By table has a Sort by choice. Floating buttons no longer cover an open card. The Radiosonde Map shows claimed stations as claimed. My Account pages use the site's folding sections. Admin pages all use folding sections.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "Usage history, pickers and filters",
+      "summary": "Admin > Usage keeps request and feed counts by the hour and for all time, with From, To and All Time pickers and filters for the table; a service restart loses nothing.",
+      "status": "done",
+      "area": "Admin"
+    },
+    {
+      "title": "One merged map",
+      "summary": "Every map is one page built from one shell, and the Map selector switches the kind of map in place, keeping the view; each type shows only its own layers and filters. We keep it this way rather than putting every filter on one map.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "Smoother wind streams",
+      "summary": "Wind streams follow a smooth blended wind field and curve with it at every zoom. Wind from a forecast model would improve them further.",
+      "status": "done",
+      "area": "Weather"
+    },
+    {
+      "title": "Radio overview, repeater position picker and call sign links",
+      "summary": "A Radio overview page, a repeater list with locations, a map picker to set a repeater's position, and links that work for any call sign.",
+      "status": "done",
+      "area": "Radio"
+    },
+    {
+      "title": "Service status checked in the background",
+      "summary": "The status page opens at once and shows the result of checks that run on a schedule; only an administrator can force a run.",
+      "status": "done",
+      "area": "Hub"
+    },
+    {
+      "title": "Frequencies list",
+      "summary": "APRS, calling frequencies, FRS, GMRS, MURS, weather radio, marine and mesh frequencies in one list.",
+      "status": "done",
+      "area": "Radio"
+    },
+    {
+      "title": "Clearer feeder icons",
+      "summary": "Feeders show as airplane badges that can be seen at state level, on the Feeders page and the Coverage Map.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "County Map outline-only look",
+      "summary": "A look that draws just the thin county lines, the same as the County outlines box on other maps.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "Grafana statistics dashboards",
+      "summary": "Weather and radiosonde statistics in Grafana with filters, delivered by the normal update.",
+      "status": "done",
+      "area": "Weather"
+    },
+    {
+      "title": "Call signs, contacts and talkgroups",
+      "summary": "One page to look up a call sign, find a DMR contact and browse talkgroups; call sign details show wherever a call sign appears.",
+      "status": "done",
+      "area": "Radio"
+    },
+    {
+      "title": "DMR time slots and talkgroups on repeaters",
+      "summary": "Each DMR repeater shows its color code, ID and both time slots with their talkgroups; editors add them from the standard list.",
+      "status": "done",
+      "area": "Radio"
+    },
+    {
+      "title": "Weather map for any region",
+      "summary": "The weather map loads only what is in view, anywhere we have data, and never lets labels overlap.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "Radiosonde station coverage from real flights",
+      "summary": "Each receiving station's coverage outline is built from the flights it really heard, like an ADS-B station's.",
+      "status": "done",
+      "area": "Radiosondes"
+    },
+    {
+      "title": "Labels that never overlap on every map",
+      "summary": "Aircraft, weather, APRS, repeater, radiosonde and county map labels never overlap; one shared label engine measures every label as drawn and keeps the most important.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "Repeater code plug formats and a review queue",
+      "summary": "More radio export formats and a queue for imported repeaters waiting for a position.",
+      "status": "done",
+      "area": "Radio"
+    },
+    {
+      "title": "Weather for any place",
+      "summary": "Type a ZIP code, city, airport or address and get a full weather page made from the stations near it, with the National Weather Service forecast and history charts.",
+      "status": "done",
+      "area": "Weather"
+    },
+    {
+      "title": "Drive times from anywhere on a map",
+      "summary": "Click the map to pick a place, or search a city or an address, and the nearest hospitals are listed by road drive time and distance (near-ties by trauma level, then services). Drive-time rings of 15, 30, 60 and 90 minutes can be shown for any hospital or place, on the County Map and the other maps. An estimate from the network's own routing server.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "One list of location precision",
+      "summary": "Twelve steps from exact to hidden, the same on every form and setting, written in your own units. Radiosonde stations show to about 0.7 mile until their owner chooses.",
+      "status": "done",
+      "area": "Stations"
+    },
+    {
+      "title": "Highways map layer and hospital drive-time rings",
+      "summary": "Interstates, US and state highways as a map layer on every map, and 15, 30 and 60 minute drive-time rings on hospital pages (an estimate from the network's own routing server).",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "APRS stations and weather",
+      "summary": "Digipeaters, gateways, weather stations (CWOP included) and optionally moving stations from the APRS-IS network around Arkansas, with a map, station pages, an APRS weather page and a takedown list.",
+      "status": "done",
+      "area": "Radio"
+    },
+    {
+      "title": "Repeater directory",
+      "summary": "Amateur radio repeaters in every mode from Hearham's open data and Arkansas hams, with a map, reports, sysop claims and member submissions. More layers, coverage estimates and extra sources are still to come.",
+      "status": "done",
+      "area": "Radio"
+    },
+    {
+      "title": "Phone-friendly pages",
+      "summary": "Menu, section bars, tables as cards, folded map panels and smoother scrolling on phones.",
+      "status": "done",
+      "area": "Site"
+    },
+    {
+      "title": "Balloon landing forecasts and archive history",
+      "summary": "A separate prediction service imports SondeHub's open archive and forecasts where the balloons of upcoming launches will land, then scores itself against the real flights. Members can also load any flight by serial.",
+      "status": "done",
+      "area": "Radiosondes"
+    },
+    {
+      "title": "Arkansas trauma list and hospital capabilities",
+      "summary": "Load the state's designated trauma centres and what each hospital can do from the state's own files, with their source shown.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "Interesting aircraft list",
+      "summary": "Keep your own list of interesting aircraft (military, government, rare, news) that feeds the Interesting filter on the map.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "Collapse the map panels from the bottom",
+      "summary": "A small arrow at the bottom of the Filters and Weather panels folds them away.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "Tidier admin area",
+      "summary": "One consistent width for every admin section, the admin area using the full screen width, and shorter, better grouped settings.",
+      "status": "done",
+      "area": "Admin"
+    },
+    {
+      "title": "Site icon",
+      "summary": "A signal-arc icon for the browser tab, bookmarks and phone home screens.",
+      "status": "done",
+      "area": "Site"
+    },
+    {
+      "title": "Complete How to Feed pages",
+      "summary": "ADS-B, MLAT and UAT each have their settings, hardware and setup, in the same layout.",
+      "status": "done",
+      "area": "Feeding"
+    },
+    {
+      "title": "Better hospital positions",
+      "summary": "Hospitals are placed more exactly, with a locate button and the trauma list's own coordinates.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "Automatic data updates",
+      "summary": "One schedule page for every outside data set (places, airports, hospitals, trauma levels, air ambulances), with run now, last result and failures on Status.",
+      "status": "done",
+      "area": "Hub"
+    },
+    {
+      "title": "Fixed-wing air ambulances",
+      "summary": "Medical transport aircraft as a second filter beside the helicopters.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "County map",
+      "summary": "A clickable county map: every Arkansas county is one shape, shaded by how many feeders, weather stations, hospitals, airports or balloon launch sites it has, with a page for each county and county layers on the aircraft and home maps. Released in 1.0.31. Later: drive-time rings around hospitals and interstates.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "APRS",
+      "summary": "Amateur radio position reports on the map: stations, digipeaters, IGates and weather, with an APRS coverage map.",
+      "status": "done",
+      "area": "Radio"
+    },
+    {
+      "title": "Sign in with Google",
+      "summary": "Members link a Google account on My Account > Google Sign-In and sign in with it (the site checks Google's signed answer itself; accounts are linked by Google's account number, never by email alone; two-factor still applies). An administrator enters the Google client ID and secret to switch it on.",
+      "status": "done",
+      "area": "Accounts"
+    },
+    {
+      "title": "Passkeys",
+      "summary": "Sign in with a passkey (fingerprint, face, screen lock or security key): added on My Account, used from the sign-in page, checked in full on the server; administrators can remove a member's passkeys.",
+      "status": "done",
+      "area": "Accounts"
+    },
+    {
+      "title": "Administrators can edit a user's account",
+      "summary": "Open any account to change its profile, email, display choices, alerts and sign-ins; the password is never shown.",
+      "status": "done",
+      "area": "Admin"
+    },
+    {
+      "title": "Map legend",
+      "summary": "A collapsible legend that explains whatever the map is showing.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "Trauma level import",
+      "summary": "Load trauma-centre designations from a list and show them on each hospital.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "Air ambulance filter",
+      "summary": "See air ambulance helicopters on the live map and filter to them.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "Hospitals and heliports",
+      "summary": "A hospital list and map layer with emergency care, trauma level and the heliport each one uses.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "Search the map by place",
+      "summary": "Jump to a city, ZIP code or county from the live map's search box; the start of places, hospitals and heliports with drill-down.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "New home page and Aircraft Tracking",
+      "summary": "An ArkSignal overview with a live strip, map preview, one search box and a card per service; the old home page becomes Aircraft Tracking.",
+      "status": "done",
+      "area": "Site"
+    },
+    {
+      "title": "ArkSignal",
+      "summary": "The project has a new name, wordmark and tagline; the same network, now with room for weather, radio and mesh.",
+      "status": "done",
+      "area": "Site"
+    },
+    {
+      "title": "Choose your landing page",
+      "summary": "Pick where you land after signing in, with a site default.",
+      "status": "done",
+      "area": "Accounts"
+    },
+    {
+      "title": "Coverage Map",
+      "summary": "A map of what the network covers, with layers by type; repeaters, weather stations, radiosondes and mesh nodes join later.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "How to Feed split into pages",
+      "summary": "ADS-B, MLAT, UAT and Am I Feeding each get their own page with a sub-menu.",
+      "status": "done",
+      "area": "Feeding"
+    },
+    {
+      "title": "Search and sort on lists",
+      "summary": "Search the admin and public station lists; sort Flights, Flight History and Airports by any column.",
+      "status": "done",
+      "area": "Site"
+    },
+    {
+      "title": "Settings tabs and search",
+      "summary": "Admin settings are grouped into tabs, with a search that finds a setting by name.",
+      "status": "done",
+      "area": "Admin"
+    },
+    {
+      "title": "Navigation always in view",
+      "summary": "The top menu and a slim bottom bar stay on screen while you scroll long pages.",
+      "status": "done",
+      "area": "Site"
+    },
+    {
+      "title": "Planefence and Plane-Alert",
+      "summary": "Which aircraft flew over Arkansas, with photos, airlines and routes, plus a list of interesting aircraft (military, government, rare). Notifications to Discord and others are set up by an administrator.",
+      "status": "done",
+      "area": "Data"
+    },
+    {
+      "title": "Off-site backups",
+      "summary": "Encrypted copies of everything (database, settings, statistics, traffic history) sent to a server, bucket or NAS elsewhere, a small daily copy and a big weekly copy.",
+      "status": "done",
+      "area": "Hub"
+    },
+    {
+      "title": "Restore part of a backup",
+      "summary": "Bring back one area (accounts, stations, flight history...) or a single person, station or alert rule instead of everything.",
+      "status": "done",
+      "area": "Hub"
+    },
+    {
+      "title": "Aircraft type filter",
+      "summary": "Show only helicopters, jets, turboprops, piston props, large and heavy aircraft, gliders, drones or ground vehicles.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "Collapsible filter sections",
+      "summary": "Every group of map filters folds up like the aircraft details, remembers how you left it, and shows how many filters are active.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "Keyboard shortcuts popup",
+      "summary": "The shortcuts help opens in the middle of the screen, on top of everything.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "Sign-up checklist",
+      "summary": "Registration and password forms list the requirements and tick them as you type, including whether the two passwords match.",
+      "status": "done",
+      "area": "Accounts"
+    },
+    {
+      "title": "Live Release Notes and Roadmap",
+      "summary": "These two pages update themselves from the project's repository, so they stay current while work is under way.",
+      "status": "done",
+      "area": "Hub"
+    },
+    {
+      "title": "Map revamp: one map for every kind of data",
+      "summary": "Every map shares one layout, icons, popups and settings, with saved views, one search box that never filters, satellite and hybrid styles, your location, county outlines and drive times on every map. The single merged map (one page, lazy modules) is still to do.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "Places, roads, counties and hospitals",
+      "summary": "Counties, county pages, cities, hospitals, heliports, highways and drive-time rings are done.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "Weather stations",
+      "summary": "Members' own weather stations on the weather pages, the weather map and the home page.",
+      "status": "done",
+      "area": "Stations"
+    },
+    {
+      "title": "Radiosondes",
+      "summary": "Live balloons, flights, launch sites, receiving stations, recovery reports and chase mode.",
+      "status": "done",
+      "area": "Data"
+    },
+    {
+      "title": "Repeater directory",
+      "summary": "An Arkansas directory of repeaters in every mode (FM, DMR, D-STAR, Fusion, P25 and more) laid out like the airports, started from open data and local lists and kept right by the community. Anyone signed in can submit one or report a correction.",
+      "status": "done",
+      "area": "Data"
+    },
+    {
+      "title": "Meshtastic and MeshCore nodes",
+      "summary": "Where the mesh nodes are, who hears whom, and a guide for joining the Arkansas mesh; every member gets their own broker login on My Mesh Nodes. Still to come: claims, coverage areas and operations help. The overview page shows live numbers, and nodes' Neighbor Info reports draw Direct Links on the map.",
+      "status": "done",
+      "area": "Stations"
+    },
+    {
+      "title": "ACARS messages",
+      "summary": "Aircraft datalink messages received by member stations, shown on the aircraft details and on a live messages page.",
+      "status": "done",
+      "area": "Data"
+    },
+    {
+      "title": "Satellite-relayed aircraft",
+      "summary": "Positions of aircraft reported over Inmarsat (JAERO ADS-C), Iridium and HFDL by members' receivers, through the ACARS service: they appear on the live map's ACARS positions layer with the age of the report.",
+      "status": "done",
+      "area": "Data"
+    },
+    {
+      "title": "Support the project",
+      "summary": "A page for donations toward running costs (Ko-fi and PayPal) and an equipment fund for antennas, receivers and mesh nodes the project installs at host sites. The page appears once the project's donation links are set up.",
+      "status": "done",
+      "area": "Community"
+    },
+    {
+      "title": "Native replay and heatmap",
+      "summary": "Replay a past day and see where traffic flies, built into the map instead of the embedded classic tools.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "More of the classic map's features",
+      "summary": "Multi-select, persistence, without-position filter, UTC times, QNH-corrected altitude, auto-select, last flight only, sea-level geometric altitude (EGM96), slim wind labels and the list's show more rows are all built.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "Phone polish",
+      "summary": "The first pass from your phone screenshots is built: full-screen Layers and Filters with an easy Close, a short footer, smaller labels and icons, readable panels and a handful of page fixes.",
+      "status": "next",
+      "area": "Map"
+    },
+    {
+      "title": "Email",
+      "summary": "Password reset by email and alert emails are built, with a test message, on Admin > SMTP: enter a sending service's settings there to turn it on. Account verification by email is not built.",
+      "status": "done",
+      "area": "Accounts"
+    },
+    {
+      "title": "Admin area allow-list",
+      "summary": "Limit the whole Admin area to chosen addresses and networks (Settings > Security); it cannot be saved from an address that is not on the list, and a server command clears it.",
+      "status": "done",
+      "area": "Accounts"
+    },
+    {
+      "title": "API keys",
+      "summary": "Members make API keys (My Account) for a documented public API at /api/v1 with per-minute and per-day limits; administrators manage, limit and revoke them.",
+      "status": "done",
+      "area": "Accounts"
+    },
+    {
+      "title": "Built to scale and survive a failure",
+      "summary": "Designed so the hub, the MLAT server and the portal can run on more than one machine and share the load. Considered as things are built, and done last unless something needs it sooner.",
+      "status": "planned",
+      "area": "Hub"
+    },
+    {
+      "title": "Weather alerts on the map",
+      "summary": "National Weather Service warnings, watches and advisories drawn as colored areas on the maps (a Weather Alerts layer), with the details on click; the states and refresh are settings.",
+      "status": "done",
+      "area": "Data"
+    },
+    {
+      "title": "River and lake gauges",
+      "summary": "River and lake gauges in and around Arkansas from NOAA's National Water Prediction Service, colored by flood category, with the stage and flow on click.",
+      "status": "done",
+      "area": "Data"
+    },
+    {
+      "title": "River traffic (AIS)",
+      "summary": "Barges, towboats and boats on the Arkansas, White and Mississippi rivers and the lakes from members' AIS receivers: a list, a map, a page for each vessel, a Marine Traffic layer on every map, a How to Feed page with a bridge program, and an administrator takedown list.",
+      "status": "done",
+      "area": "Stations"
+    },
+    {
+      "title": "Amateur radio extras",
+      "summary": "Space weather and HF band guide (Radio > Space Weather), net schedules (Radio > Nets) and Winlink gateways (Radio > Winlink Gateways), the last two kept by members with an editors' check.",
+      "status": "done",
+      "area": "Data"
+    },
+    {
+      "title": "Drone Remote ID",
+      "summary": "Drones that broadcast Remote ID, heard by members' own receivers (ESP32 scanners or phones): a list, a map, a page for each drone, a Drones layer on every map and a How to Feed page with a bridge program. The operator's location is not kept unless an administrator allows it, and pilots can ask for an ID to be hidden.",
+      "status": "done",
+      "area": "Stations"
+    },
+    {
+      "title": "Satellite imagery and passes",
+      "summary": "Visible and water vapor satellite imagery and lightning layers (Weather panel), and Radio > Satellite Passes: pass predictions for the space station, weather satellites and amateur radio satellites over any place. The Satellites map layer shows where each satellite is now with its path, what it can see and a card on how to work it (frequencies, mode, equipment, Doppler on the pass page). Members' own weather satellite receivers (Meteor-M, GOES, NOAA) send decoded pictures to a gallery (Radio > Satellite Images), each receiver with a private upload address. Weather > GOES Imagery shows NOAA's newest GOES-East and West pictures for the Arkansas region and the country. Satellite receivers have a How to Feed page and an uploader script. GOES Imagery adds full disk views for GOES-East and GOES-West and animation loops; members' satellite pictures are put together into loops the same way. The GOES viewer zooms, picks the loop length and fills the window; the passes page picks satellites with grouped buttons and shows how to work only the one you look up.",
+      "status": "done",
+      "area": "Data"
+    },
+    {
+      "title": "Discord bot",
+      "summary": "Alerts in Discord from a bot of the site (needs Marty to create the Discord application and give the site its token). Kiosk mode is built (its own item).",
+      "status": "planned",
+      "area": "Community"
+    },
+    {
+      "title": "Phone app",
+      "summary": "An installable phone app. Its own item, only if it is ever done.",
+      "status": "idea",
+      "area": "Phone App"
+    },
+    {
+      "title": "Messages",
+      "summary": "Email-style private messages between members: Inbox, Sent, Drafts, Archive and Trash, a subject, several recipients, threads with Reply and Reply to All, read and unread, search; administrators cannot read them, moderators see only a reported message.",
+      "status": "done",
+      "area": "Community"
+    },
+    {
+      "title": "Chat",
+      "summary": "Live chat between two or more members: direct chats and small named groups, messages that appear without reloading, typing and seen notices, online dots and unread counts in the menu; moderators see only a reported message.",
+      "status": "done",
+      "area": "Community"
+    },
+    {
+      "title": "Friends lists",
+      "summary": "Send, accept and decline friend requests, see which friends are online, start a chat or a message in one click, block a member, and choose who may contact you (everyone, friends only, nobody new).",
+      "status": "done",
+      "area": "Community"
+    },
+    {
+      "title": "Radio bridges for chats",
+      "summary": "Link a chat to an APRS call sign (messages out from your own call sign, replies in) or to a Meshtastic node. APRS is built and opt in with licensing notes; the mesh side is ready on the portal and waits for the mesh gateway. APRS needs a verified license: the call sign is checked against the FCC amateur license data, re-checked weekly, with administrator review and override.",
+      "status": "progress",
+      "area": "Community"
+    },
+    {
+      "title": "Station achievements and leaderboards",
+      "summary": "Badges for feeders (range, uptime, activity, age) on the Feeders page and each feeder's page, with a section that says what each takes and who holds it; the ranking table was already there.",
+      "status": "done",
+      "area": "Community"
+    },
+    {
+      "title": "One-click updates for the whole stack",
+      "summary": "New services appear on the hub with the Update button and no commands: the stack updater, MLAT and the hub itself.",
+      "status": "done",
+      "area": "Hub"
+    },
+    {
+      "title": "MLAT",
+      "summary": "A network MLAT server, MLAT status for every station, an MLAT network page showing who is synchronised with whom, and recognition by MLAT user name.",
+      "status": "done",
+      "area": "Stations"
+    },
+    {
+      "title": "How an aircraft is tracked",
+      "summary": "The aircraft card says whether a position came from ADS-B, MLAT, UAT/ADS-R, TIS-B or none, and how many stations hear it.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "Service Status pages",
+      "summary": "A plain-words status page for everyone and an in-depth one for administrators.",
+      "status": "done",
+      "area": "Hub"
+    },
+    {
+      "title": "A complete How to Feed guide",
+      "summary": "How ADS-B, MLAT and UAT work, setup for new and existing stations, ports, troubleshooting and privacy.",
+      "status": "done",
+      "area": "Stations"
+    },
+    {
+      "title": "Classic map features: units, shortcuts, search, filters",
+      "summary": "Units (aeronautical, metric, imperial), keyboard shortcuts, search with lists and wildcards, data source and flags filters, jump to a place, shareable links, altitude chart and KML export.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "Release Notes",
+      "summary": "What was added, improved and fixed in every release, back to the first.",
+      "status": "done",
+      "area": "Hub"
+    },
+    {
+      "title": "Easier navigation on every page",
+      "summary": "A grouped top menu (overview first, map second) and an always-visible bar on every page.",
+      "status": "done",
+      "area": "Hub"
+    },
+    {
+      "title": "ArkSignal: a new name",
+      "summary": "The network is ArkSignal: new name, wordmark, About page and emails.",
+      "status": "done",
+      "area": "Community"
+    },
+    {
+      "title": "A new home page with a page for each service",
+      "summary": "The overview home page is live with a map of every kind of station and a card for each service, and each service has its own overview page and menu.",
+      "status": "done",
+      "area": "Hub"
+    },
+    {
+      "title": "Report and correct repeaters",
+      "summary": "Submit a new repeater, flag a wrong frequency or tone or one that is off the air, and let sysops keep their own current, with a review queue and credit to contributors.",
+      "status": "done",
+      "area": "Community"
+    },
+    {
+      "title": "Address lookup for hospitals and our own address search",
+      "summary": "Look up a hospital's address with the Census, our own Photon and OpenStreetMap, see the answers on a small map and keep the one you choose.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "Check all hospital positions at once",
+      "summary": "One button checks every hospital's address with two address finders, confirms the ones that agree and lists the rest for review.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "Hospital data issues flag and filter",
+      "summary": "Flags hospitals with missing information, doubtful positions or a heliport that is not close to the hospital.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "Collapsible Filters and Weather panels on the live map",
+      "summary": "A small arrow on the bottom edge folds the open panel up so the map shows.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "Altitude bar always visible on the live map",
+      "summary": "Keep the altitude colour bar at the bottom of the map so it can be read at all times.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "Places menu group",
+      "summary": "Move Hospitals and Airports out of the Aircraft menu into their own group for places and facilities.",
+      "status": "done",
+      "area": "Site"
+    },
+    {
+      "title": "Settings regrouped",
+      "summary": "The long Maps and Data Sources settings are split into groups that match what they control.",
+      "status": "done",
+      "area": "Site"
+    },
+    {
+      "title": "One width for every admin section",
+      "summary": "Admin pages use the whole window and every section is the same width.",
+      "status": "done",
+      "area": "Site"
+    },
+    {
+      "title": "Full service status with outside data sources",
+      "summary": "The status page shows every service and every outside data source we depend on, and how fresh our copy of each is.",
+      "status": "done",
+      "area": "Site"
+    },
+    {
+      "title": "A real admin overview",
+      "summary": "What needs attention, the network, the data and the system at a glance, with recent activity.",
+      "status": "done",
+      "area": "Site"
+    },
+    {
+      "title": "Organised admin menu",
+      "summary": "Admin pages are grouped by purpose and kept in a fixed order, enforced by a test.",
+      "status": "done",
+      "area": "Site"
+    },
+    {
+      "title": "Feet and miles by default",
+      "summary": "Distance settings default to imperial units with metric available.",
+      "status": "done",
+      "area": "Site"
+    },
+    {
+      "title": "Map button in the top bar",
+      "summary": "A simple Map button beside Display so the live map is one click from anywhere.",
+      "status": "done",
+      "area": "Site"
+    },
+    {
+      "title": "Full-width pages with one section width",
+      "summary": "The whole site, not only admin, uses the full window width with every section the same width.",
+      "status": "done",
+      "area": "Site"
+    },
+    {
+      "title": "Home page station map and Right Now panel",
+      "summary": "The home map shows every kind of station across Arkansas, and the panel beside it shows what is worth a look right now.",
+      "status": "done",
+      "area": "Site"
+    },
+    {
+      "title": "Page width choice for ultra-wide monitors",
+      "summary": "Page content is limited to a comfortable width by default, with full width one click away, saved on your profile.",
+      "status": "done",
+      "area": "Site"
+    },
+    {
+      "title": "Show on Map links",
+      "summary": "Airport, hospital and weather station pages have a Show on Map button that opens the live map on that place.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "Flight paths that separate",
+      "summary": "A flight that lands out of range and flies again later is drawn as its own path, not joined to the earlier one.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "Home Assistant integration and Tempest bridge",
+      "summary": "Install ArkSignal Weather from HACS, choose your weather device and it sends the readings; Tempest owners without Home Assistant run a small bridge that listens to their hub locally.",
+      "status": "done",
+      "area": "Stations"
+    },
+    {
+      "title": "Weather map with layers and filters",
+      "summary": "A full Weather Map with radar and satellite layers, a station list, wind arrows, filters and a details card; the same markers on the live map and the Weather page.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "Home page for Arkansas only",
+      "summary": "The home page's right-now numbers, cards and map count only what is in Arkansas, with a margin at the border.",
+      "status": "done",
+      "area": "Hub"
+    },
+    {
+      "title": "Faster Planefence",
+      "summary": "Streamed and compressed data, cached pages and a fence limited to low-flying aircraft, and Plane-Alert can use the Interesting Aircraft list.",
+      "status": "done",
+      "area": "Data"
+    },
+    {
+      "title": "Admin forms to add things for a member",
+      "summary": "Administrators add a weather station, feeder or radiosonde station for a member with every option the member has, finding the member as they type.",
+      "status": "done",
+      "area": "Admin"
+    },
+    {
+      "title": "Granular administrator roles",
+      "summary": "Separate permissions for weather stations, radiosondes and map data (and a repeater moderator for later), so someone can be an administrator of one service only.",
+      "status": "done",
+      "area": "Accounts"
+    },
+    {
+      "title": "One registry for every service",
+      "summary": "A new service appears on the home map, the home Right Now card, the admin Overview, About, the Feed menu and the roles from one place, with a checklist and a test.",
+      "status": "done",
+      "area": "Hub"
+    },
+    {
+      "title": "Stations at the same place",
+      "summary": "Feeders, weather stations and balloon stations that share a location fan out on the maps instead of hiding each other.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "Balloon recovery reports and chase mode",
+      "summary": "Signed-in members report recoveries to SondeHub, see recovered, planned and unrecoverable sondes on the map, and use a chase mode.",
+      "status": "done",
+      "area": "Data"
+    },
+    {
+      "title": "Predictions for future balloon flights",
+      "summary": "Where the next launches from each site are likely to land, learned from years of history: a landing area, burst height and flight time, with a score of how well it did before.",
+      "status": "done",
+      "area": "Data"
+    },
+    {
+      "title": "SondeHub archive import",
+      "summary": "Bring in SondeHub's open archive for Arkansas and the surrounding launch sites, as far back as it goes, so predictions start with years of data.",
+      "status": "done",
+      "area": "Data"
+    },
+    {
+      "title": "A prediction and archive service",
+      "summary": "The heavy work runs in its own container with its own database, so it can move to another host as the network grows.",
+      "status": "done",
+      "area": "Hub"
+    },
+    {
+      "title": "Read-only production access",
+      "summary": "A locked-down login that lets Claude read logs and container state on the hub, and nothing else.",
+      "status": "progress",
+      "area": "Hub",
+      "audience": "admin"
+    },
+    {
+      "title": "Backups kept in step with every feature",
+      "summary": "Every table has a restore area and a test fails when a new one does not.",
+      "status": "done",
+      "area": "Hub"
+    },
+    {
+      "title": "Hospital drive-time rings",
+      "summary": "Rings on the map showing how far an ambulance can drive from each hospital in 15, 30 and 60 minutes.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "Send your weather station to the APRS network",
+      "summary": "Owners can send a weather station's newest reading to CWOP or APRS-IS as an APRS weather report (with consent, their own ID or call sign, a preview and a Send Now button).",
+      "status": "done",
+      "area": "Stations"
+    },
+    {
+      "title": "Satellite map",
+      "summary": "A satellite imagery base map on every map.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "Your location on every map",
+      "summary": "An option to show where you are on any map.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "APRS and airport weather on the Weather Map",
+      "summary": "The APRS weather stations and airport weather in the same format as the members' stations, without duplicates.",
+      "status": "done",
+      "area": "Stations"
+    },
+    {
+      "title": "Live weather layers",
+      "summary": "Heat maps, wind streams, UV and cloud across the state from every weather source and the balloons.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "Statistics with real filters",
+      "summary": "Weather and balloon statistics you can filter by area, ZIP, city, county, station, flight or receiving station, with each data source switchable.",
+      "status": "done",
+      "area": "Data"
+    },
+    {
+      "title": "Repeater details for digital radios",
+      "summary": "Talkgroups, DMR and other IDs, call sign lookups and more import options, built around what a radio's code plug needs.",
+      "status": "done",
+      "area": "Community"
+    },
+    {
+      "title": "Radiosonde map and flight details",
+      "summary": "Click a balloon for the same flyout as every other map; filters and search on the heard-by table; forecasts picked from a launch site with dates, like SondeHub.",
+      "status": "done",
+      "area": "Stations"
+    },
+    {
+      "title": "Replay and heat map of past traffic",
+      "summary": "The portal's own Replay (play back any past time at up to 100x) and Heat Map (where aircraft flew in any period) on the live map, read from the hub's history files.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "ACARS and satellite datalink",
+      "summary": "Members' ACARS, VDL2 and HF datalink receivers feed a messages page, station pages and the aircraft card. Satellite receivers (JAERO, Iridium) can use the same bridge.",
+      "status": "done",
+      "area": "Aircraft"
+    },
+    {
+      "title": "Repeater code plug export",
+      "summary": "Repeaters out to a radio: the DM32's channel and talkgroup lists, CHIRP and an RT Systems style file, plus a queue for repeaters waiting for a position.",
+      "status": "done",
+      "area": "Radio"
+    },
+    {
+      "title": "Mesh nodes (Meshtastic and MeshCore)",
+      "summary": "Nodes that publish themselves, on a list, a map and node pages, with who hears whom, and links to the local meshes. Each member gets a private login for their node.",
+      "status": "done",
+      "area": "Radio"
+    },
+    {
+      "title": "Radiosonde Map forecasts can be cleared; Flights can be filtered by receiving station",
+      "summary": "A Clear Forecast button for a launch forecast, and a Heard by list on the Flights page.",
+      "status": "done",
+      "area": "Radio"
+    },
+    {
+      "title": "Full screen maps",
+      "summary": "A Full Screen button on every map.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "Radiosonde stations can send frames directly",
+      "summary": "A claimed station can pass auto_rx's payload summary on to ArkSignal through a small bridge, besides the SondeHub feed.",
+      "status": "done",
+      "area": "Radio"
+    },
+    {
+      "title": "Mesh broker certificate renews itself",
+      "summary": "The mesh broker takes its certificate from the site's proxy and follows renewals; the public Meshtastic server can also be read, if switched on.",
+      "status": "done",
+      "area": "Radio"
+    },
+    {
+      "title": "Usage page",
+      "summary": "What the site asks of outside services and what each service stores.",
+      "status": "done",
+      "area": "Hub"
+    },
+    {
+      "title": "Our own forecast data (GFS)",
+      "summary": "The prediction service reads NOAA's GFS model itself (winds by height and the surface forecast, every six hours, for Arkansas and a wide margin): the balloon predictor flies through our own winds and Weather for a Place has an hour-by-hour model forecast. A separate Tawhiri (our own flight model already exists; the Tawhiri option still calls an outside predictor) and a longer-range model are not built.",
+      "status": "done",
+      "area": "Weather"
+    },
+    {
+      "title": "Numbered radiosonde forecasts",
+      "summary": "Forecast flights on the Radiosonde Map are numbered in launch order.",
+      "status": "done",
+      "area": "Radio"
+    },
+    {
+      "title": "All My Stations",
+      "summary": "One page showing everything you run, by service, with a count for each.",
+      "status": "done",
+      "area": "Accounts"
+    },
+    {
+      "title": "Linked repeaters",
+      "summary": "Groups of linked repeaters on the list and as lines on the Repeater Map.",
+      "status": "done",
+      "area": "Radio"
+    },
+    {
+      "title": "Site themes and seasonal themes",
+      "summary": "Color schemes you can pick, and seasonal and holiday themes that switch on by date, with their own decorations and map icons (Santa planes at Christmas, pumpkin and skeleton balloons at Halloween).",
+      "status": "done",
+      "area": "Site"
+    },
+    {
+      "title": "Units for each service",
+      "summary": "Radiosondes default to metric like SondeHub; every service has its own unit setting, in the Display menu and in each map's Layers and Filters.",
+      "status": "done",
+      "area": "Site"
+    },
+    {
+      "title": "Trauma Map and trauma regions",
+      "summary": "Arkansas' seven trauma regions and two trauma zones on the County Map and on a new simple Trauma Map (Places menu): trauma centers by level, hospitals near the state line, drive times, pictures and websites.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "County and hospital pages: websites, pictures and a bigger map",
+      "summary": "Each county and hospital page links to its website and shows a picture where the map used to be; the map is larger and sits across the bottom of the page.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "Classic tar1090 map retired",
+      "summary": "The live map has every feature of the embedded tar1090 map, so the Classic Map menu item is gone (old links open the live map).",
+      "status": "done",
+      "area": "Aircraft"
+    },
+    {
+      "title": "Display preferences and saved map views in My Account",
+      "summary": "My Account > Display and Maps holds every choice of the Display menu (theme, units for each service, times, page width, map label and icon sizes, trail options) in folding sections, follows you to every device, and lists your saved map views.",
+      "status": "done",
+      "area": "Accounts"
+    },
+    {
+      "title": "County Map: limit what is shown by state, county or ZIP",
+      "summary": "The County Map's Show on the Map section has a Limit To filter (state, county or ZIP area) that applies to every choice: hospitals, airports, stations, launch sites and the rest.",
+      "status": "done",
+      "area": "Map"
+    },
+    {
+      "title": "NWS stations on the Weather Map",
+      "summary": "Looked at and not built: the National Weather Service's own data service only gives observations for airport stations, which the Airport weather source already shows; its mesonet and RAWS stations reach us through the APRS (CWOP) source.",
+      "status": "done",
+      "area": "Weather"
+    },
+    {
+      "title": "Matrix and the Element app for chat",
+      "summary": "Chat and messages move to Matrix so conversations are end-to-end encrypted, with read receipts, typing notices, reactions and notifications. Element Web, themed and framed to look like the site's own chat, signs members in with their site accounts; the built-in chat is replaced. Next big project; needs a host name for Element and the Matrix server.",
+      "status": "planned",
+      "area": "Community"
+    },
+    {
+      "title": "Mesh owner alerts",
+      "summary": "Tell a node's owner when a router goes quiet or its battery is low.",
+      "status": "planned",
+      "area": "Stations"
+    },
+    {
+      "title": "Mesh channels and QR codes",
+      "summary": "A channel configurator for the Meshtastic app: create private channels, share them with members and groups, with a QR code to scan.",
+      "status": "planned",
+      "area": "Stations"
+    },
+    {
+      "title": "Extend the mesh through our broker",
+      "summary": "Link separate mesh areas (for example Little Rock and Sheridan) through the site's MQTT broker, without loops; first proved with two real nodes.",
+      "status": "planned",
+      "area": "Stations"
+    },
+    {
+      "title": "Mesh alert and weather channel",
+      "summary": "Warnings and weather station readings pushed to a mesh channel.",
+      "status": "planned",
+      "area": "Stations"
+    },
+    {
+      "title": "Mesh node history and coverage planning",
+      "summary": "Charts of battery, channel use and who hears a node, and where the next router would help most.",
+      "status": "planned",
+      "area": "Stations"
+    },
+    {
+      "title": "Mesh Communities",
+      "summary": "A page, a map and a small site for each local mesh (Little Rock, Northwest Arkansas, Hot Springs and others), edited by its own managers.",
+      "status": "planned",
+      "area": "Stations"
+    },
+    {
+      "title": "Mesh node telemetry",
+      "summary": "Show and list temperature, humidity, pressure and other readings from mesh nodes that share them, with charts on the node page.",
+      "status": "planned",
+      "area": "Stations"
+    },
+    {
+      "title": "Scoped roles for communities",
+      "summary": "Roles and permissions that apply inside one community only (a mesh, an APRS group, a repeater club), so each group manages its own page and resources.",
+      "status": "planned",
+      "area": "Stations"
+    },
+    {
+      "title": "Mesh group self-management",
+      "summary": "A mesh group sets up its own gateway logins, uplinks and downlinks, and sees its own statistics, charts and nodes.",
+      "status": "planned",
+      "area": "Stations"
+    },
+    {
+      "title": "Remote administration of mesh nodes",
+      "summary": "Queue configuration commands for a group's nodes from the site, run by a small bridge program beside a gateway node, with approval and a full audit log; tracks new Meshtastic releases.",
+      "status": "planned",
+      "area": "Stations"
+    },
+    {
+      "title": "Chat and message notifications",
+      "summary": "Browser notifications for new chats, messages and friend requests, even when the site is closed (Web Push), with per-member choices and an installable app.",
+      "status": "planned",
+      "area": "Community"
+    },
+    {
+      "title": "Share files in chats and messages",
+      "summary": "Send pictures and files in chats and messages, with size and type limits, private to the conversation and covered by backup.",
+      "status": "planned",
+      "area": "Community"
+    },
+    {
+      "title": "Data retention and thinning",
+      "summary": "Admin > Storage: for every growing table, keep full detail for a time, then thin to coarser points, then delete; attachments pruned after a set time; dry run, run log and audit.",
+      "status": "planned",
+      "area": "Platform"
+    },
+    {
+      "title": "Radio bridge in the profile and in every chat",
+      "summary": "Show the verified call sign on the profile, a Send to APRS or Mesh button in chats and messages, and a Radio section in My Account.",
+      "status": "planned",
+      "area": "Community"
+    },
+    {
+      "title": "Forward mesh data to the public Meshtastic server",
+      "summary": "Members who opt in can have their node's data also shared on the public Meshtastic MQTT server, under its rules, without loops.",
+      "status": "planned",
+      "area": "Stations"
+    },
+    {
+      "title": "End-to-end encryption for chats and messages",
+      "summary": "Encrypted conversations that only the people in them can read, through Matrix and the Element app (decided), with sign-in by the site's own accounts.",
+      "status": "planned",
+      "area": "Community"
+    },
+    {
+      "title": "Public source code (AGPL)",
+      "summary": "A public copy of the portal's code under the AGPL on a GitHub organization, published at each release with private infrastructure details left out.",
+      "status": "planned",
+      "area": "Platform"
+    }
+  ]
+}

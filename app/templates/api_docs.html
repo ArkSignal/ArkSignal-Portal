@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}API{% endblock %}
+{% block content %}
+<h1><span>API</span> for Builders</h1>
+<div class="sub">The network's public data, for programs: aircraft, receiving stations, weather stations, radiosonde flights and repeaters, as JSON, with a key for each project and fair limits. It is free, for hobby, club, education and community projects.</div>
+
+{% call sec('start', 'Getting Started', True) %}
+  <ol class="plain" style="margin-top:0">
+    <li><a href="/my/login">Sign in</a> (or <a href="/my/register">register</a>), then {% if member_keys %}open <a href="/my/api-keys">My Account &gt; API Keys</a> and make a key for your project{% else %}ask an administrator through <a href="/contact">Contact</a> for a key for your project (on this site administrators make the keys; you then see yours under <a href="/my/api-keys">My Account &gt; API Keys</a>){% endif %}. It is shown once: copy it.</li>
+    <li>Send it with every request: <span class="mono">Authorization: Bearer YOUR_KEY</span>.</li>
+    <li>Ask for an endpoint below. Everything is read-only.</li>
+  </ol>
+  <pre class="code mono">curl -H "Authorization: Bearer YOUR_KEY" {{ request.host_url.rstrip("/") }}{{ ex1 }}</pre>
+  <pre class="code mono">import requests
+r = requests.get("{{ request.host_url.rstrip("/") }}{{ ex1 }}", headers={"Authorization": "Bearer YOUR_KEY"}, timeout=20)
+print(r.json()["totals"], r.headers["X-RateLimit-Remaining"])</pre>
+  <pre class="code mono">const r = await fetch("{{ request.host_url.rstrip("/") }}{{ ex2 }}", {headers: {Authorization: "Bearer YOUR_KEY"}});
+const data = await r.json();</pre>
+{% endcall %}
+
+{% call sec('endpoints', 'Endpoints', True, True) %}
+  <table id="api-endpoints">
+    <tr><th>Address</th><th>What It Returns</th></tr>
+    {% for e in endpoints %}<tr><td class="mono"><a href="{{ e.path }}" rel="nofollow">{{ e.path }}</a></td><td><b>{{ e.name }}</b><br><span class="dim">{{ e.about }}</span></td></tr>{% endfor %}
+  </table>
+  <div class="help">A link here needs your key, so a browser asks for it (a program sends the header). <span class="mono">/api/v1/</span> lists them again, as JSON.</div>
+{% endcall %}
+
+{% call sec('limits', 'Limits', True) %}
+  <p style="margin-top:0">Each key may make <b>{{ per_min }} requests a minute</b> and <b>{{ '{:,}'.format(per_day) }} a day</b> (the day restarts at midnight UTC). Every answer says where you stand:</p>
+  <table>
+    <tr><th>Header</th><th>Meaning</th></tr>
+    <tr><td class="mono">X-RateLimit-Limit</td><td>Requests allowed per minute for your key.</td></tr>
+    <tr><td class="mono">X-RateLimit-Remaining</td><td>Requests left this minute.</td></tr>
+    <tr><td class="mono">X-RateLimit-Day-Limit</td><td>Requests allowed per day.</td></tr>
+    <tr><td class="mono">X-RateLimit-Day-Remaining</td><td>Requests left today.</td></tr>
+    <tr><td class="mono">Retry-After</td><td>Seconds to wait, on a 429 answer.</td></tr>
+  </table>
+  <p class="dim" style="margin-bottom:0">The data changes every few seconds at most, so asking more than about once every five seconds gains nothing. Need more for a real project? Ask through <a href="/contact">Contact</a>: an administrator can raise one key's limits.</p>
+{% endcall %}
+
+{% call sec('errors', 'Answers and Errors', False) %}
+  <table>
+    <tr><th>Status</th><th>Meaning</th></tr>
+    <tr><td class="mono">200</td><td>The data.</td></tr>
+    <tr><td class="mono">401</td><td>No key, or the key is not valid (it may have been revoked). The body says which: <span class="mono">key_required</span> or <span class="mono">invalid_key</span>.</td></tr>
+    <tr><td class="mono">403</td><td>That endpoint is switched off on this site (<span class="mono">endpoint_disabled</span>). It is not counted against your limits.</td></tr>
+    <tr><td class="mono">404</td><td>That part of the network (or the API) is switched off on this site.</td></tr>
+    <tr><td class="mono">429</td><td>Over a limit: <span class="mono">rate_limited</span> (per minute) or <span class="mono">daily_limit</span>. Wait for <span class="mono">Retry-After</span>.</td></tr>
+    <tr><td class="mono">503</td><td>The data source is away for a moment. Try again shortly.</td></tr>
+  </table>
+  <p class="dim" style="margin-bottom:0">Errors are JSON: <span class="mono">{"error": "rate_limited", "message": "..."}</span>.</p>
+{% endcall %}
+
+{% call sec('rules', 'Rules of Use', False) %}
+  <ul class="plain" style="margin-top:0">
+    <li>Keep your key private and use one per project. A key that leaks is revoked on My Account &gt; API Keys.</li>
+    <li>Be reasonable: stay inside the limits, cache what you can, and do not build something that hammers the network.</li>
+    <li>Say where the data comes from. Radiosonde data is from <a href="https://sondehub.org/" target="_blank" rel="noopener">SondeHub</a> (CC BY-SA 2.0): keep the credit that comes with it. The rest is the network's members' own receivers and stations.</li>
+    <li>Locations are only as precise as each owner chose: the API never reveals more than the site shows. Do not try to work out hidden locations.</li>
+    <li>For hobby, club, education and community use. For a business or a product, <a href="/contact">ask first</a>.</li>
+    <li>We may change or stop the API; changes to <span class="mono">/api/v1/</span> will add things, not break them, and a new version gets a new address.</li>
+  </ul>
+{% endcall %}
+{% endblock %}

@@ -1,0 +1,54 @@
+services:
+  portal-app:
+    build: .
+    image: mallison01/adsb-portal:latest
+    container_name: adsb-portal
+    restart: unless-stopped
+    depends_on:
+      portal-db:
+        condition: service_healthy
+    environment:
+      SECRET_KEY: "${SECRET_KEY}"
+      ADMIN_USERNAME: "${ADMIN_USERNAME:-admin}"
+      ADMIN_EMAIL: "${ADMIN_EMAIL:-}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-}"
+      FORCE_INSECURE_COOKIES: "${FORCE_INSECURE_COOKIES:-}"
+      TOOLS_BASE_URL: "${TOOLS_BASE_URL:-}"
+      TOOLS_GRAFANA_URL: "${TOOLS_GRAFANA_URL:-}"
+      BACKUP_DIR: /backups
+      STACK_TOKEN: "${STACK_TOKEN:-}"
+      HUB_URL: "${HUB_URL:-}"
+      PLANEFENCE_URL: "${PLANEFENCE_URL:-}"            # test box: a Planefence container started by hand (see tests/README.md); empty means the planefence service of the hub
+      PLANEFENCE_CONFIG_URL: "${PLANEFENCE_CONFIG_URL:-}"
+      DATABASE_URL: "postgresql://portal:${POSTGRES_PASSWORD}@portal-db:5432/portal"
+    ports:
+      - "18430:8430"   # test box only; production reaches it as adsb-portal:8430 over the proxy network
+    volumes:
+      - portal-backups:/backups
+    networks:
+      - internal
+
+  portal-db:
+    image: postgres:17-alpine
+    container_name: adsb-portal-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: portal
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      POSTGRES_DB: portal
+    volumes:
+      - portal-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U portal -d portal"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - internal
+
+volumes:
+  portal-db-data:
+  portal-backups:
+
+networks:
+  internal:

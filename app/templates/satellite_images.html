@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Satellite Images{% endblock %}
+{% block content %}
+<h1><span>Satellite</span> Images</h1>
+<div class="sub">Weather satellite pictures (Meteor-M, GOES, NOAA) received and decoded by this network's members with their own radios. Each shows which satellite, which receiver and when.</div>
+
+{% call sec('filters', 'Filters', False) %}
+  <form method="get" action="/radio/satellite-images" class="tfilterbar" style="align-items:flex-end">
+    <div><label for="si-sat">Satellite</label><select id="si-sat" name="sat"><option value="">All</option>{% for s in sats %}<option value="{{ s }}" {{ 'selected' if s == sat }}>{{ s }}</option>{% endfor %}</select></div>
+    <div><label for="si-kind">Kind</label><select id="si-kind" name="kind"><option value="">All</option>{% for k, t in kinds.items() %}<option value="{{ k }}" {{ 'selected' if k == kind }}>{{ t }}</option>{% endfor %}</select></div>
+    <div><label for="si-rx">Receiver</label><select id="si-rx" name="rx"><option value="">All</option>{% for r in rxs %}<option value="{{ r.id }}" {{ 'selected' if r.id == rx }}>{{ r.name }}</option>{% endfor %}</select></div>
+    <div><label for="si-from">From</label><input type="date" id="si-from" name="from" value="{{ frm }}"></div>
+    <div><label for="si-to">To</label><input type="date" id="si-to" name="to" value="{{ to }}"></div>
+    <button class="btn" type="submit" style="margin:0">Show</button><a class="btn neutral" href="/radio/satellite-images" style="margin:0">Clear</a>
+  </form>
+{% endcall %}
+
+{% if loops %}{% call sec('loops', 'Animation Loops (' ~ loops|length ~ ')', True) %}
+  <div id="si-loops" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px">
+    {% for l in loops %}<a class="panel" href="/radio/satellite-images/loop/{{ l.anchor }}" style="margin:0;padding:8px;text-decoration:none">
+      <img src="/sat/image/{{ l.anchor }}" loading="lazy" alt="Newest picture of the {{ l.satellite or 'satellite' }} loop" style="width:100%;height:160px;object-fit:cover;border-radius:8px;background:#0008">
+      <div style="font-size:.85rem;margin-top:6px"><b>{{ l.satellite or 'Satellite' }}</b>{% if l.product %} <span class="dim">{{ l.product }}</span>{% endif %}<br>{{ l.count }} pictures, <time class="ts" datetime="{{ l.first.isoformat() }}" data-fmt="dt">{{ l.first }}</time> to <time class="ts" datetime="{{ l.last.isoformat() }}" data-fmt="dt">{{ l.last }}</time><br><span class="dim">{{ l.receiver }}</span><br><b>Play Loop</b></div></a>{% endfor %}
+  </div>
+{% endcall %}{% endif %}
+
+{% call sec('pictures', 'Pictures (' ~ total ~ ')', True) %}
+  {% if rows %}
+  <div id="si-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px">
+    {% for i in rows %}<figure class="panel" style="margin:0;padding:8px">
+      <a href="/sat/image/{{ i.id }}" target="_blank" rel="noopener"><img src="/sat/image/{{ i.id }}" loading="lazy" alt="{{ i.satellite or 'Satellite picture' }} from {{ i.rname }}" style="width:100%;height:200px;object-fit:cover;border-radius:8px;background:#0008"></a>
+      <figcaption style="font-size:.85rem;margin-top:6px"><b>{% if i.satellite and passes_on and norad.get(i.satellite) %}<a href="/radio/satellites?sat={{ norad[i.satellite] }}">{{ i.satellite }}</a>{% else %}{{ i.satellite or 'Satellite picture' }}{% endif %}</b>{% if i.product %} <span class="dim">{{ i.product }}</span>{% endif %}<br>
+        <time class="ts" datetime="{{ i.captured_at.isoformat() }}" data-fmt="dt">{{ i.captured_at }}</time><br>
+        <span class="dim">{{ i.rname }}{% if i.place %}, {{ i.place }}{% endif %} ({{ kind_short[i.kind] }})</span>{% if i.note %}<br><span class="dim">{{ i.note }}</span>{% endif %}</figcaption></figure>{% endfor %}
+  </div>
+  {% set pages = ((total + per - 1) // per) %}
+  {% if pages > 1 %}<p style="margin:12px 0 0">Page {{ page }} of {{ pages }}:
+    {% if page > 1 %}<a class="btn small neutral" href="?sat={{ sat | urlencode }}&kind={{ kind }}&rx={{ rx or '' }}&from={{ frm }}&to={{ to }}&page={{ page - 1 }}">Newer</a>{% endif %}
+    {% if page < pages %}<a class="btn small neutral" href="?sat={{ sat | urlencode }}&kind={{ kind }}&rx={{ rx or '' }}&from={{ frm }}&to={{ to }}&page={{ page + 1 }}">Older</a>{% endif %}</p>{% endif %}
+  {% else %}<p class="dim" style="margin:0">No pictures yet{% if sat or kind or rx or frm or to %} for those choices{% endif %}. Members with a weather satellite receiver can add it on My Account &gt; My Satellite Receivers and send pictures to it.</p>{% endif %}
+{% endcall %}
+
+{% call sec('about', 'About These Pictures', False) %}
+  <p style="margin-top:0">Every picture here was received by a member's own station from the satellite itself and sent to this site by the member. The times are when the satellite passed, shown in the time zone chosen in the Display menu. The <a href="/radio/satellites">Satellite Passes</a> page says when each one is overhead. For satellite imagery of the whole continent, see the Satellite layers in the Weather panel of the maps.</p>
+  <p class="dim" style="margin-bottom:0">Want to send pictures of your own? <a href="/feed/satellites">How to Feed Satellite Pictures</a> explains what you need, then add your receiver on <a href="/my/sat-receivers">My Account &gt; My Satellite Receivers</a>.</p>
+{% endcall %}
+{% endblock %}

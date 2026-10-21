@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% from "partials/_satrx.html" import fields with context %}
+{% block title %}Satellite Images{% endblock %}
+{% block content %}
+<h1><span>Admin</span> Satellite Images</h1>
+<div class="sub">The satellite receivers members have added and the pictures they send to <a href="/radio/satellite-images">the gallery</a>: add a receiver for a member, switch one off, hide or delete a picture, or make a new upload address.</div>
+{% include "partials/_admin_subnav.html" %}
+
+{% call sec('add-for-member', 'Add a Receiver for a Member', False) %}
+  <form method="post" action="/admin/sat-images/add" data-async data-async-target="#satrx-admin" data-reset>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="as-user">Member (User Name, Display Name, Call Sign or Email; Leave Blank for the Network Itself)</label>
+    <input type="text" id="as-user" name="username" data-memberpicker maxlength="120" style="width:320px" placeholder="Start typing to search members">
+    {{ fields(none, 'new') }}
+    <button class="btn" type="submit">Add the Receiver</button>
+  </form>
+{% endcall %}
+
+{% include "partials/_admin_satrx.html" %}
+{% endblock %}

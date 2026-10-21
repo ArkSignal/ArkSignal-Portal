@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Feeder{% endblock %}
+{% block content %}
+<h1><span>Feeder</span> {{ f.name or f.station_id or 'Anonymous feeder' }}</h1>
+<div class="sub mono" style="font-size:.85rem">{{ f.uuid }}</div>
+{% include "partials/_admin_subnav.html" %}
+<p><a href="/admin/feeders">&larr; All Feeders</a></p>
+
+<div class="tiles">
+  <div class="panel tile"><div class="tv">{% if f.banned %}Banned{% elif f.online %}Online{% else %}Offline{% endif %}</div><div class="tl">Status</div></div>
+  <div class="panel tile"><div class="tv">{{ '%.1f' % uptime }}%</div><div class="tl">Uptime ({{ periods[period][0] }})</div></div>
+  <div class="panel tile"><div class="tv">{{ '%.1f' % latest[1] if latest else '-' }}</div><div class="tl">Msgs/s (latest)</div></div>
+  <div class="panel tile"><div class="tv">{{ '%.1f' % latest[2] if latest else '-' }}</div><div class="tl">Positions/s (latest)</div></div>
+</div>
+
+{% call sec('details', 'Feeder Details', True, False) %}
+  <table>
+    <tr><th style="width:180px">Owner</th><td>{{ f.owner_name or 'Unclaimed' }}</td></tr>
+    <tr><th>IP Address</th><td class="mono">{{ f.last_ip or '' }}</td></tr>
+    <tr><th>First Seen</th><td>{{ f.first_seen | localtime("%Y-%m-%d %H:%M:%S") }}</td></tr>
+    <tr><th>Last Seen</th><td>{{ 'now' if f.online else (f.last_seen | localtime("%Y-%m-%d %H:%M:%S")) }}</td></tr>
+    {% if mlat %}<tr><th>MLAT</th><td>Connected, {{ mlat.message_rate }} msgs/s, {{ mlat.peer_count }} peers, {{ '%.1f' % mlat.outlier_percent }}% outliers{% if mlat.bad_sync_timeout %} <span style="color:#ff7a59">(sync timed out)</span>{% endif %}</td></tr>{% endif %}
+    <tr><th>Connected Since</th><td>{{ f.connected_since | localtime("%Y-%m-%d %H:%M:%S") if f.online and f.connected_since else '' }}</td></tr>
+  </table>
+{% endcall %}
+
+<details class="panel setsec" id="sec-station" open style="margin-top:14px"><summary><span class="role-name">Station</span></summary><div class="secbody">
+  
+  <table>
+    <tr><th style="width:180px">Station ID</th><td class="mono">{{ f.station_id or '' }}{% if f.station_id_kind %} <span class="dim">({{ f.station_id_kind }})</span>{% endif %}</td></tr>
+    <tr><th>Name</th><td>{{ f.name or '' }}</td></tr>
+    <tr><th>Website</th><td>{% if f.website %}<a href="{{ f.website }}" target="_blank" rel="noopener nofollow">{{ f.website }}</a> <span class="dim">({{ 'shown publicly' if f.website_public else 'not shown' }})</span>{% endif %}</td></tr>
+    <tr><th>Location</th><td class="mono">{% if f.lat is not none %}{{ '%.5f' % f.lat }}, {{ '%.5f' % f.lon }}{% endif %} <span class="dim">{{ f.privacy or '' }}</span></td></tr>
+    <tr><th>Antenna</th><td>{% if f.antenna_height_ft is not none %}{{ f.antenna_height_ft | u_ft }} {{ (f.height_ref or '') | upper }}{% endif %}</td></tr>
+    <tr><th>Claimed</th><td class="dim">{{ f.claimed_at | localtime if f.claimed_at else 'Not claimed' }}{% if f.claim_method %} ({{ f.claim_method }}){% endif %}</td></tr>
+  </table>
+  <div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:14px">
+    <form class="inline-row" method="post" action="/admin/feeders/{{ f.uuid }}/manage">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="owner">
+      <select name="owner_id" aria-label="Owner"><option value="">Unclaimed</option>
+        {% for u in all_users %}<option value="{{ u.id }}" {{ 'selected' if f.owner_id == u.id }}>{{ u.username }}</option>{% endfor %}</select>
+      <button class="btn small" type="submit">Set Owner</button>
+    </form>
+    <form class="inline-row" method="post" action="/admin/feeders/{{ f.uuid }}/manage">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="station_id">
+      <input type="text" name="station_id" value="{{ f.station_id or '' }}" placeholder="Station ID" maxlength="16" style="max-width:170px" aria-label="Station ID">
+      <button class="btn small" type="submit">Set Station ID</button>
+    </form>
+    <form class="inline-row" method="post" action="/admin/feeders/{{ f.uuid }}/manage">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="website">
+      <input type="text" name="website" value="{{ f.website or '' }}" placeholder="https://example.org/" maxlength="200" style="min-width:300px" aria-label="Station website">
+      <label class="check" style="margin:0"><input type="checkbox" name="website_public" value="1" {{ 'checked' if f.website_public }}><span>Show publicly</span></label>
+      <button class="btn small" type="submit">Save Website</button>
+    </form>
+    <form class="inline-row" method="post" action="/admin/feeders/{{ f.uuid }}/manage">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="official">
+      <label class="check" style="margin:0"><input type="checkbox" name="official" value="1" {{ 'checked' if f.official }}><span>Network station (pinned to the top)</span></label>
+      <input type="text" name="official_order" value="{{ f.official_order }}" style="width:70px" aria-label="Pin order" title="Pin order: lower numbers come first">
+      <button class="btn small" type="submit">Save Pin</button>
+    </form>
+    <form class="inline-row" method="post" action="/admin/feeders/{{ f.uuid }}/manage"
+          {% if not f.banned %}data-confirm="Ban this feeder? It is hidden from every public page and flagged here. Its data still arrives until the feed gate is built."{% endif %}>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="{{ 'unban' if f.banned else 'ban' }}">
+      <button class="btn small {{ '' if f.banned else 'warn' }}" type="submit">{{ 'Unban Feeder' if f.banned else 'Ban Feeder' }}</button>
+    </form>
+  </div>
+</div></details>
+
+<details class="panel setsec" id="sec-activity" open style="margin-top:14px"><summary><span class="role-name">Activity</span></summary><div class="secbody">
+  
+  <div class="subnav" style="margin-bottom:10px">
+    {% for k, v in periods.items() %}<a class="{{ 'active' if k == period }}" href="?period={{ k }}">{{ v[0] }}</a>{% endfor %}
+  </div>
+  {{ chart }}
+  <div class="dim" style="font-size:.82rem;margin-top:6px"><span style="color:var(--acc2)">&#9632;</span> Messages per second &nbsp; <span style="color:var(--acc)">&#9632;</span> Positions per second</div>
+</div></details>
+
+<details class="panel setsec" id="sec-connection-history" style="margin-top:14px;overflow-x:auto"><summary><span class="role-name">Connection History</span></summary><div class="secbody">
+  
+  <table>
+    <tr><th>When</th><th>Event</th><th>Detail</th></tr>
+    {% for e in events %}
+    <tr><td class="dim" style="white-space:nowrap">{{ e.ts | localtime("%Y-%m-%d %H:%M:%S") }}</td><td><span class="tag">{{ e.event }}</span></td><td class="dim mono">{{ e.detail or '' }}</td></tr>
+    {% else %}<tr><td colspan="3" class="dim">No events recorded.</td></tr>{% endfor %}
+  </table>
+</div></details>
+{% endblock %}

@@ -1,0 +1,470 @@
+{% extends "base.html" %}
+{% from "partials/_mapshell.html" import shell, boot with context %}
+{% block title %}Radiosonde Map{% endblock %}
+{% block main_class %}wide{% endblock %}
+{% block content %}
+{# The same map page as the live (aircraft) map and the Weather Map (partials/_mapshell.html carries the shared layout); the balloons, their tracks, the launch sites and the receiving stations are drawn below. #}
+{% call shell("Search balloon, station or launch site", "Search balloons, receiving stations and launch sites", "Balloons", "Flight Page", map_type="balloons") %}
+    <details class="fsec" data-k="show" open><summary><span class="ic">◉</span>Show<span class="fbadge" data-fb="show"></span></summary><div class="fbody">
+      <div class="lv-sub">Flights From the Last</div>
+      <select id="sm-hours">{% for h, l in hours_choices %}<option value="{{ h }}">{{ l }}</option>{% endfor %}<option value="range">Pick dates (history)...</option></select>
+      <div id="sm-range" style="display:none"><div class="lv-row"><label>From <input type="date" id="sm-from"></label><label>To <input type="date" id="sm-to"></label></div>
+        <div class="lv-row"><button class="btn small" type="button" id="sm-rangego" style="margin:0">Load History</button></div>
+        <div class="help dim" style="font-size:.78rem;margin-top:4px">Older flights, loaded for the dates you pick (up to {{ history_max_days }} days at a time). Live updating is paused while you look at history.</div><div id="sm-rangenote" class="dim" style="font-size:.78rem"></div></div>
+      <div class="lv-sub">Source</div>
+      <select id="sm-src"><option value="">All balloons</option><option value="NWS">National Weather Service only</option><option value="other">Other radiosondes</option><option value="amateur">Amateur balloons</option></select>
+      <div class="lv-sub">Show Balloons</div>
+      <select id="sm-show"><option value="">All balloons</option><option value="live">Live only (in the air now)</option><option value="landed">Landed only</option></select>
+      <div class="lv-sub">Recovery</div>
+      <select id="sm-rec"><option value="">All balloons</option><option value="need">Down and not recovered yet</option><option value="planned">Recovery planned</option><option value="recovered">Recovered</option><option value="notfound">Looked for, not found</option></select>
+      <div class="lv-row"><label><input type="checkbox" id="sm-hiderec"> Hide recovered sondes</label></div>
+      <div class="lv-sub">On the Map</div>
+      <div class="lv-row"><label><input type="checkbox" id="sm-tracks" checked> Tracks</label><label><input type="checkbox" id="sm-pred" checked> Predicted landings</label>
+        <input type="checkbox" id="sm-fc" checked hidden aria-hidden="true" tabindex="-1">   {# forecasts are asked for from a launch site's flyout, not from here #}
+        <label id="sm-fcalab" style="display:none"><input type="checkbox" id="sm-fcarea"> Forecast landing areas</label>
+        <button class="btn small neutral" type="button" id="sm-fcclear" style="display:none;margin:0">Clear Forecasts</button>
+        <label><input type="checkbox" id="sm-sites" checked> Launch sites</label><label><input type="checkbox" id="sm-stations" checked> Receiving stations</label></div>
+    </div></details>
+    <div id="sm-results" class="dim" style="font-size:.82rem"></div>
+    <details class="fsec" data-k="chase"><summary><span class="ic">&#9992;</span>Chase<span class="fbadge" data-fb="chase"></span></summary><div class="fbody">
+    {% if current_user.is_authenticated %}
+      <div class="lv-row"><label><input type="checkbox" id="ch-on"> Chase Mode</label></div>
+      <div class="help" style="margin-top:0">Shows where you are (your browser's position, kept in your browser) and, for the balloon you choose on the map or list, the distance, bearing and a way to get directions to where it is coming down. Other chasers' cars are shown too.</div>
+      <div id="ch-info" class="dim" style="font-size:.84rem;margin:8px 0"></div>
+      <div class="lv-row"><label><input type="checkbox" id="ch-cars" checked> Show chase cars</label></div>
+      {% if chase_share != '0' %}<div class="lv-row"><label><input type="checkbox" id="ch-share"> Share My Position as a Chase Car</label></div>
+      <div class="help" style="margin-top:0">{% if chase_name %}Sends your position to SondeHub every few seconds as <b>{{ chase_name }}</b>, where everyone can see it, until you switch this off (or {{ chase_hours }} hours).{% if chase_share == 'test' %} <b>Test mode: nothing is sent.</b>{% endif %}{% else %}Add your amateur radio call sign to your <a href="/my/profile">profile</a> first: your car is shown as YOURCALL_chase.{% endif %}</div>{% endif %}
+    {% else %}
+      <p class="dim" style="margin:0"><a href="/my/login?next=/sondes/map">Sign in</a> to use chase mode: your position, the distance and bearing to a balloon, and other chasers' cars.</p>
+    {% endif %}
+    </div></details>
+{% endcall %}
+{{ boot("/sondes/map", "sm") }}
+<script src="/static/sondeicons.js"></script>
+<script src="/static/labelfit.js"></script>
+
+<script>
+(function () {
+  var S = ArkShell, $ = S.$, esc = S.esc;
+  var CFG = {{ {"labelScale": label_scale | int, "labelBg": label_bg, "lat": map_lat | float, "lon": map_lon | float, "zoom": map_zoom | int, "wxRefresh": wx_refresh | int, "hours": hours, "live": sonde_live, "area": map_area("balloon_map_area")} | tojson }};
+  var q = new URLSearchParams(location.search);
+  var map = L.map("lvmap", {zoomControl: false, zoomSnap: 0.25}).setView([parseFloat(q.get("lat")) || CFG.lat, parseFloat(q.get("lon")) || CFG.lon], parseFloat(q.get("zoom")) || 6);
+  map.attributionControl.addAttribution('Radiosonde data and forecasts: <a href="https://sondehub.org" target="_blank" rel="noopener">SondeHub</a> (CC BY-SA 2.0)');   // everything on this map is SondeHub data
+  L.control.zoom({position: "bottomright"}).addTo(map);
+  // the map opens on Arkansas whole (the Home Page Map Area setting), the same as the home page, unless the link says where to look
+  if (CFG.area && !(q.get("lat") && q.get("lon")) && !q.get("zoom")) map.fitBounds([[CFG.area[0], CFG.area[1]], [CFG.area[2], CFG.area[3]]], {padding: [10, 10], animate: false});   // not animated: a later move to a flight would be overridden when the animation ends
+  var state = {hours: parseInt(q.get("hours"), 10) || CFG.hours, src: q.get("src") || "", show: q.get("show") || (q.get("aloft") === "1" ? "live" : ""), rec: q.get("rec") || "", only: (q.get("only") || "").slice(0, 60), from: /^\d{4}-\d\d-\d\d$/.test(q.get("from") || "") ? q.get("from") : "", to: /^\d{4}-\d\d-\d\d$/.test(q.get("to") || "") ? q.get("to") : "", hiderec: S.pref("sm.hiderec") === "1", q: q.get("q") || "", units: ArkUnits.system(), label: S.pref("sm.label") || "alt", isize: parseInt(S.pref("sm.isize"), 10) || 125};
+  function sz(base) { return Math.round(base * state.isize / 100); }
+  var shell = S.start({map: map, layers: {{ layers | tojson }}, key: "sm", url: "/sondes/map", cfg: {tile: {{ tile_url | tojson }}, attr: {{ tile_attr | tojson }}, labelScale: CFG.labelScale, labelBg: CFG.labelBg, wxRefresh: CFG.wxRefresh},
+    share: function () { return {only: state.only, hours: state.hours, from: state.from, to: state.to, src: state.src, show: state.show, rec: state.rec, q: state.q, serial: cardId || ""}; }, legend: function () { return legend(); }});
+  $("m-display").innerHTML = '<div class="lv-sub">Station and Site Labels</div><select id="sm-slabels"><option value="names">Names (call signs and launch sites)</option><option value="none">No labels</option></select>' +
+    '<div class="lv-sub">Icon Size</div><select id="sm-isize"><option value="75">Small</option><option value="100">Medium</option><option value="125">Large</option><option value="160">Extra large</option><option value="200">Huge</option></select>' +
+    '<div class="lv-sub">Label Next to the Icon</div><select id="sm-label"><option value="none">No label (hover for the details)</option><option value="id">Serial</option><option value="alt">Serial and altitude</option><option value="full">Serial, altitude and type</option></select>';
+  $("sm-label").value = state.label; $("sm-isize").value = String(state.isize); $("sm-hours").value = state.from ? "range" : String(state.hours); $("sm-src").value = state.src; $("sm-show").value = state.show; $("sm-rec").value = state.rec; $("sm-hiderec").checked = state.hiderec; $("q").value = state.q;
+
+  var UNIT = {aero: {alt: [3.28084, "ft"], spd: [1.943844, "kt"], vs: [196.85, "ft/min"]}, metric: {alt: [1, "m"], spd: [3.6, "km/h"], vs: [1, "m/s"]}, imperial: {alt: [3.28084, "ft"], spd: [2.236936, "mph"], vs: [196.85, "ft/min"]}};
+  function U(k) { return UNIT[state.units][k]; }
+  function fmt(k, v) { return v == null ? "-" : Math.round(v * U(k)[0]).toLocaleString() + " " + U(k)[1]; }
+  var STOPS = [[0, "#3ee6a8"], [5000, "#6be28f"], [10000, "#c8f06a"], [15000, "#ffd24f"], [20000, "#ff9f43"], [25000, "#ff6b6b"], [30000, "#c58bff"]];
+  function altColor(m) { if (m == null) return "#8a9bb3"; var c = STOPS[0][1]; STOPS.forEach(function (s) { if (m >= s[0]) c = s[1]; }); return c; }
+  function ago(s) { return s < 90 ? s + " s" : s < 5400 ? Math.round(s / 60) + " min" : s < 172800 ? Math.round(s / 3600) + " h" : Math.round(s / 86400) + " d"; }
+
+  var LE = ArkLabels.create(map), labItems = [], SLAB = S.pref("sm.slabels") || "names";   // the shared label engine: receiving stations first, then launch sites, never overlapping
+  function drawLabels() { LE.begin(); labItems.forEach(function (i) { LE.add(i); }); LE.flush(); }
+  map.on("zoomend moveend", drawLabels);
+  var flights = [], stations = [], sites = [], marks = {}, lines = {}, fg = L.layerGroup().addTo(map), ln = L.layerGroup().addTo(map), sg = L.layerGroup().addTo(map), stg = L.layerGroup().addTo(map);
+  var APPROX_M = {{ approx_radius_m }};
+  var predPaths = {}, cardId = null, sortKey = "age", sortDir = 1, loaded = false;
+  function onlyKind() { return /^site:/.test(state.only) ? "site" : /^station:/.test(state.only) ? "station" : state.only ? "flight" : ""; }
+  // a track is drawn bright and thick over a dark edge, like the flight page's map, so it stands out on any base map
+  function trk(pts, color, f) {
+    var sel = f.id === cardId, w = sel ? 5 : 3.5;
+    L.polyline(pts, {color: "#0b1422", weight: w + 2.5, opacity: f.status === "aloft" ? .6 : .4, interactive: false, lineCap: "round"}).addTo(ln);
+    L.polyline(pts, {color: color, weight: w, opacity: f.status === "aloft" ? 1 : .85, interactive: false, lineCap: "round"}).addTo(ln);
+  }
+  function match(f) {
+    if (state.only) return onlyKind() === "flight" && f.id.toLowerCase() === state.only.toLowerCase();   // "Show on Radiosonde Map" shows only that item
+    if (state.show === "live" && f.status !== "aloft") return false;
+    if (state.show === "landed" && f.status === "aloft") return false;
+    if (state.src === "NWS" && f.agency !== "NWS") return false;
+    if (state.src === "other" && (f.agency === "NWS" || f.kind === "amateur")) return false;
+    if (state.src === "amateur" && f.kind !== "amateur") return false;
+    if (state.hiderec && f.rec_state === "recovered") return false;
+    if (state.rec === "recovered" && f.rec_state !== "recovered") return false;
+    if (state.rec === "planned" && f.rec_state !== "planned") return false;
+    if (state.rec === "notfound" && f.rec_state !== "notfound") return false;
+    if (state.rec === "need" && !((f.status === "landed" || f.status === "lost") && f.rec_state !== "recovered")) return false;
+    var t = state.q.toLowerCase(); if (t && (f.id + " " + f.type + " " + f.site + " " + f.agency).toLowerCase().indexOf(t) < 0) return false;
+    return true;
+  }
+  function labelText(f) {
+    if (state.label === "none") return "";
+    return esc(f.id) + (state.label !== "id" && f.alt != null ? " <small>" + fmt("alt", f.alt) + "</small>" : "") + (state.label === "full" && f.type ? " <small>" + esc(f.type) + (f.agency ? " " + esc(f.agency) : "") + "</small>" : "");
+  }
+  function markerHtml(f, noLabel) { return SondeIcons.marker(f.status !== "aloft" && f.rec_state ? f.rec_state : f.phase, altColor(f.alt), noLabel ? "" : labelText(f), {dim: f.status !== "aloft", border: altColor(f.alt), size: sz(34), serial: f.id}); }
+  // a balloon that went up from a known launch site needs no flag: the flag would sit on the site's own icon (while the launch sites are shown)
+  function atKnownSite(f) { return !!f.site_id && $("sm-sites").checked && sites.some(function (st) { return map.distance([st.lat, st.lon], f.launch) < 3000; }); }
+  function extra(kind, ll, tip, size, href) {   // launch, burst and landing markers: the same icons as the flight page, with a wide touch target
+    var m = L.marker(ll, {icon: L.divIcon({className: "", html: SondeIcons.marker(kind, kind === "burst" ? "#ffb454" : kind === "launch" ? "#4fb3ff" : "#ff8cd9", "", {size: sz(size)}), iconSize: [0, 0]}), zIndexOffset: 100}).addTo(ln);
+    m.bindTooltip(tip, {className: "lv-tip", direction: "top", offset: [0, -sz(size) / 2]}); if (href) m.on("click", function () { select(decodeURIComponent(href.split("/").pop())); });   // a launch, burst or landing marker opens its flight in the same flyout as the balloon itself
+    return m;
+  }
+  function recText(f) {   // what the latest recovery report says, as " (recovered by X)"
+    return f.rec_state === "recovered" ? " (recovered by " + esc(f.rec_by) + ")" : f.rec_state === "planned" ? " (recovery planned by " + esc(f.rec_by) + ")" : f.rec_state === "notfound" ? " (looked for by " + esc(f.rec_by) + ", not found)" : "";
+  }
+  // forecast landing areas of the next launches (the prediction service): a shaded circle holds half of the past flights like it, a dashed one nine in ten
+  var fcG = L.layerGroup().addTo(map), forecast = [], fcOn = false, siteFc = [], customFc = [], fcSites = {};
+  function rebuildSiteFc() {   // the forecast flights drawn: the next launches of the sites that asked for them, and the ones asked for at a chosen date and time
+    siteFc = forecast.filter(function (p) { return fcSites[p.site]; }).concat(customFc);
+    $("sm-fcalab").style.display = siteFc.length ? "" : "none"; $("sm-fcclear").style.display = siteFc.length ? "" : "none"; drawForecast();
+    var cb = document.getElementById("st-clear"); if (cb) cb.style.display = customFc.length ? "" : "none";
+  }
+  function methodName() { var o = (methodList.filter(function (m) { return m.id === method; })[0]) || {}; return o.name || ""; }
+  function clearForecasts() {   // takes every forecast flight off the map: the ones asked for at a chosen date and time and the next launches switched on from a site
+    customFc = []; fcSites = {}; rebuildSiteFc();
+    var nx = document.getElementById("st-next"); if (nx) nx.textContent = "Show Next Launches";
+    var nt = document.getElementById("st-note"); if (nt) nt.textContent = "The forecasts are cleared.";
+  }
+  $("sm-fcclear").onclick = clearForecasts;
+  function siteOf(p) { return sites.filter(function (st) { return String(st.id) === String(p.site); })[0] || null; }   // the known launch site a forecast belongs to: the forecast flight starts exactly there
+  function drawForecast() {
+    fcG.clearLayers();
+    if (!siteFc.length || state.only) return;
+    siteFc.slice().sort(function (a, b) { return new Date(a.launch) - new Date(b.launch) || String(a.site).localeCompare(String(b.site)); }).forEach(function (p, i) { p._n = i + 1; });   // numbered in the order they launch
+    siteFc.forEach(function (p) {
+      var site = siteOf(p), start = site ? [site.lat, site.lon] : [p.launch_lat, p.launch_lon];
+      var when = new Date(p.launch), c = [p.lat, p.lon], tip = "<b>Forecast #" + p._n + ": " + esc(p.name) + " launch, " + (window.fmtTime ? window.fmtTime(when, "dt") : when.toLocaleString()) + "</b><br>Expected landing near here, half of past flights like it within " + ArkUnits.text.dist(p.r50_km) + ", nine in ten within " + ArkUnits.text.dist(p.r90_km) + (p.burst_alt ? "<br>Usual burst height " + ArkUnits.text.alt(p.burst_alt) : "") + (p.flight_min ? ", flight about " + Math.round(p.flight_min / 60 * 10) / 10 + " h" : "") + "<br>From " + p.samples + " past flights" + (p.recent ? " and the latest " + p.recent : "");
+      if ($("sm-fcarea").checked) {   // how far off a forecast has been: half of past flights like it landed inside the inner circle, nine in ten inside the outer one
+        L.circle(c, {radius: p.r90_km * 1000, color: "#c58bff", weight: 1.2, dashArray: "5 5", fillOpacity: 0, interactive: false}).addTo(fcG);
+        L.circle(c, {radius: p.r50_km * 1000, color: "#c58bff", weight: 1.5, fillColor: "#c58bff", fillOpacity: .1}).addTo(fcG).bindTooltip(tip, {className: "lv-tip", sticky: true});
+      }
+      if (p.path && p.path.length > 2) {
+        // the forecast flight itself, like SondeHub's predictor: the climb (colored by height), the burst, the fall (dashed) and the landing
+        var bi = 0; p.path.forEach(function (q, i) { if (q[3] > p.path[bi][3]) bi = i; });
+        var run = [start], rc = altColor(p.path[0][3]);
+        for (var i = 1; i <= bi; i++) {
+          var col = altColor(p.path[i][3]); run.push([p.path[i][1], p.path[i][2]]);
+          if (col !== rc || i === bi) { L.polyline(run, {color: rc, weight: 3, opacity: .85, interactive: false}).addTo(fcG); run = [[p.path[i][1], p.path[i][2]]]; rc = col; }
+        }
+        L.polyline(p.path.slice(bi).map(function (q) { return [q[1], q[2]]; }), {color: "#c58bff", weight: 2.5, opacity: .85, dashArray: "6 6", interactive: false}).addTo(fcG);
+        var dur = p.path[p.path.length - 1][0], at = function (sec) { var d = new Date(when.getTime() + sec * 1000); return window.fmtTime ? window.fmtTime(d, "ts") : d.toLocaleTimeString(); };
+        function mk(kind, color, ll, size, text) { L.marker(ll, {icon: L.divIcon({className: "", html: SondeIcons.marker(kind, color, "", {size: sz(size)}), iconSize: [0, 0]}), zIndexOffset: 200}).addTo(fcG).bindTooltip(text, {className: "lv-tip"}); }
+        if (!(site && $("sm-sites").checked)) mk("launch", "#4fb3ff", start, 26, "<b>Forecast #" + p._n + " launch from " + esc(p.name) + "</b><br>" + (window.fmtTime ? window.fmtTime(when, "dt") : when.toLocaleString()));
+        mk("burst", "#ffb454", [p.burst[0], p.burst[1]], 26, "<b>Forecast #" + p._n + " burst</b> at " + ArkUnits.text.alt(p.burst[2]) + ", about " + at(p.path[bi][0]) + "<br>" + esc(p.name) + " launch");
+        mk("landed", "#c58bff", c, 26, tip + "<br>Down about " + at(dur));
+      } else {
+        L.polyline([start, c], {color: "#c58bff", weight: 1, dashArray: "2 6", opacity: .6, interactive: false}).addTo(fcG);
+      }
+      L.marker(c, {icon: L.divIcon({className: "fcnum", html: '<div style="width:18px;height:18px;border-radius:50%;background:#c58bff;color:#111;font:700 11px/18px system-ui,sans-serif;text-align:center;box-shadow:0 0 0 2px #0008">' + p._n + "</div>", iconSize: [18, 18], iconAnchor: [-5, 30]}), interactive: false, zIndexOffset: 300}).addTo(fcG);
+    });
+  }
+  var method = "", methodList = [];
+  try { method = localStorage.getItem("ark_sonde_method") || ""; } catch (e) {}
+  function setMethod(m) {   // the predictor you chose (kept in this browser): it draws the forecast landing areas and flights
+    method = m; try { localStorage.setItem("ark_sonde_method", method); } catch (e) {}
+    customFc = []; loadForecast();
+  }
+  async function loadForecast() {
+    try {
+      var d = await (await fetch("/api/sondes/predictions.json" + (method ? "?method=" + encodeURIComponent(method) : ""))).json();
+      methodList = d.methods || [];
+      if (!methodList.some(function (m) { return m.id === method; })) method = d.method;
+      var sel = document.getElementById("st-method"); if (sel) { sel.value = method; }
+      fcOn = !!(d.enabled && (d.predictions || []).length); forecast = d.predictions || [];
+      rebuildSiteFc();
+    } catch (e) {}
+  }
+  document.addEventListener("adsb-prefs", function () { if (typeof render === "function") render(); });   // a new theme may bring its own balloon symbols
+  window.arkUnitsChanged = function () { state.units = ArkUnits.system(); var id = cardId; render(); if (id) select(id); chaseDraw(); };   // the Units box in Layers and Filters: write the figures again in the new unit
+  function render() {
+    fg.clearLayers(); ln.clearLayers(); marks = {}; labItems = []; drawForecast();
+    var vis = flights.filter(match);
+    vis.forEach(function (f) {
+      var mk = L.marker([f.lat, f.lon], {icon: L.divIcon({className: "", html: markerHtml(f, true), iconSize: [0, 0]}), zIndexOffset: f.status === "aloft" ? 500 : 0}).addTo(fg); marks[f.id] = mk;
+      mk.on("click", function () { select(f.id); });
+      var lt = labelText(f); if (lt) labItems.push({lat: f.lat, lon: f.lon, html: lt, color: altColor(f.alt), priority: -1, side: "right", gap: Math.round(sz(34) / 2) + 4, opacity: f.status !== "aloft" ? .7 : 0, onClick: function () { select(f.id); }});   // balloons first, beside the icon
+      mk.bindTooltip("<b>" + esc(f.id) + "</b> " + esc(f.type) + (f.agency ? " (" + esc(f.agency) + ")" : "") + " · " + fmt("alt", f.alt) + "<br>" + esc(f.label) + recText(f).replace(/^ \(/, " · ").replace(/\)$/, ""), {className: "lv-tip", direction: "top", offset: [0, -16]});
+      if ($("sm-tracks").checked && f.trail && f.trail.length > 1) {
+        var run = [[f.trail[0][0], f.trail[0][1]]], rc = altColor(f.trail[0][2]);
+        for (var i = 1; i < f.trail.length; i++) {
+          var c = altColor(f.trail[i][2]); run.push([f.trail[i][0], f.trail[i][1]]);
+          if (c !== rc || i === f.trail.length - 1) { trk(run, rc, f); run = [[f.trail[i][0], f.trail[i][1]]]; rc = c; }
+        }
+        trk([[f.trail[f.trail.length - 1][0], f.trail[f.trail.length - 1][1]], [f.lat, f.lon]], altColor(f.alt), f);
+      }
+      if ($("sm-pred").checked && f.pred && f.status === "aloft") {
+        var pp = predPaths[f.id];   // the whole predicted path once the flight's card has been opened, else a straight line
+        L.polyline(pp && pp.length > 1 ? [[f.lat, f.lon]].concat(pp.map(function (p) { return [p[1], p[2]]; })) : [[f.lat, f.lon], f.pred], {color: "#fff", weight: 1.5, dashArray: "4 6", opacity: .7, interactive: false}).addTo(ln);
+        L.circleMarker(f.pred, {radius: 6, color: "#fff", weight: 2, fillColor: altColor(0), fillOpacity: .9}).addTo(ln).bindTooltip("Predicted landing of " + esc(f.id), {className: "lv-tip"});
+      }
+      if ($("sm-tracks").checked) {   // where it went up and where it burst, so the whole flight reads at a glance
+        if (f.launch && !atKnownSite(f)) extra("launch", f.launch, "Launch of " + esc(f.id) + (f.site ? " from " + esc(f.site) : ""), 24, f.href);
+        if (f.burst) extra("burst", f.burst, "Burst of " + esc(f.id) + " at " + fmt("alt", f.max_alt), 24, f.href);
+      }
+      if (f.land && f.status === "landed") extra(f.rec_state || "landed", f.land, "Landed: " + esc(f.id) + recText(f), 26, f.href);
+    });
+    sg.clearLayers(); stg.clearLayers();
+    if ($("sm-sites").checked) sites.forEach(function (st) {
+      if (state.only && state.only !== "site:" + st.id) return;
+      var m = L.marker([st.lat, st.lon], {icon: L.divIcon({className: "", html: SondeIcons.marker("site", st.nws ? "#4fb3ff" : "#8a9bb3", "", {size: sz(st.nws ? 28 : 22)}), iconSize: [0, 0]}), zIndexOffset: -300}).addTo(sg);
+      m.bindTooltip(esc(st.name) + (st.nws ? " (National Weather Service)" : ""), {className: "lv-tip", direction: "top", offset: [0, -14]}); m.on("click", function () { placeCard("site", st); });
+      if (SLAB !== "none") labItems.push({lat: st.lat, lon: st.lon, text: st.name, html: esc(st.name), color: st.nws ? "#4fb3ff" : "#8a9bb3", priority: 1, onClick: function () { placeCard("site", st); }});
+    });
+    if ($("sm-stations").checked) stations.forEach(function (st) {
+      if (state.only && state.only !== "station:" + st.id) return;
+      var m = L.marker([st.lat, st.lon], {icon: L.divIcon({className: "", html: SondeIcons.marker("station", st.claimed ? "#ffb454" : "#c9a15a", "", {size: sz(28)}), iconSize: [0, 0]}), zIndexOffset: -250}).addTo(stg);
+      m.bindTooltip("Receiving station " + esc(st.id) + (st.approx ? " (approximate position)" : ""), {className: "lv-tip", direction: "top", offset: [0, -14]}); m.on("click", function () { placeCard("station", st); });
+      if (SLAB !== "none") labItems.push({lat: st.lat, lon: st.lon, text: st.id, html: esc(st.id), color: st.claimed ? "#ffb454" : "#c9a15a", priority: 0, onClick: function () { placeCard("station", st); }});
+      if (st.approx) L.circle([st.lat, st.lon], {radius: st.radius_m || APPROX_M, color: "#ffb454", weight: 1, dashArray: "4", fillOpacity: .05, interactive: false}).addTo(stg);
+    });
+    drawLabels();
+    $("lv-count").textContent = vis.length + " of " + flights.length + " balloons";
+    renderList(vis); renderChips(); shell.renderLegend();
+  }
+
+  // ---- the list
+  var COLS = [["id", "Balloon"], ["type", "Type"], ["agency", "Source"], ["alt", "Altitude"], ["vz", "Climb"], ["status", "Status"], ["age", "Heard"]];
+  $("lv-tbl").querySelector("thead").innerHTML = "<tr>" + COLS.map(function (c) { return '<th data-k="' + c[0] + '">' + c[1] + "</th>"; }).join("") + "</tr>";
+  $("lv-tbl").querySelector("thead").addEventListener("click", function (e) { var k = e.target.getAttribute("data-k"); if (!k) return; if (sortKey === k) sortDir = -sortDir; else { sortKey = k; sortDir = k === "id" || k === "type" ? 1 : -1; } render(); });
+  function renderList(vis) {
+    var rows = vis.slice().sort(function (a, b) { var x = a[sortKey], y = b[sortKey]; if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1; return (x < y ? -1 : x > y ? 1 : 0) * sortDir; });
+    $("lv-tbl").querySelector("tbody").innerHTML = rows.map(function (f) {
+      return '<tr class="it' + (f.id === cardId ? " sel" : "") + '" data-id="' + esc(f.id) + '" style="' + (f.status === "aloft" ? "" : "opacity:.6") + '"><td>' + esc(f.id) + "</td><td>" + esc(f.type) + "</td><td>" + esc(f.agency || (f.kind === "amateur" ? "Amateur" : "")) + "</td><td>" + fmt("alt", f.alt) + "</td><td>" + (f.vz == null ? "-" : (f.vz > 0 ? "+" : "") + fmt("vs", f.vz)) + "</td><td>" + esc(f.label) + (f.rec_state === "recovered" ? ' <span title="Recovered by ' + esc(f.rec_by) + '">&#10003;</span>' : f.rec_state === "planned" ? ' <span title="Recovery planned by ' + esc(f.rec_by) + '">&#9873;</span>' : f.rec_state === "notfound" ? ' <span title="Looked for, not found">&#10007;</span>' : "") + "</td><td>" + ago(f.age) + "</td></tr>";
+    }).join("") || '<tr><td colspan="7" class="dim" style="text-align:left;padding:12px">No balloons match.</td></tr>';
+  }
+  $("lv-tbl").querySelector("tbody").addEventListener("click", function (e) { var tr = e.target.closest("tr.it"); if (tr) { select(tr.getAttribute("data-id")); var f = byId(tr.getAttribute("data-id")); if (f) map.setView([f.lat, f.lon], Math.max(map.getZoom(), 9)); } });
+  function byId(id) { return flights.filter(function (f) { return f.id === id; })[0]; }
+
+  // ---- the card
+  // a launch site or a receiving station opens in the same flyout as a balloon (and as an aircraft or a weather station on their maps), with a link to its page
+  function dstr(d) { var z = new Date(d.getTime() - d.getTimezoneOffset() * 60000); return z.toISOString().slice(0, 10); }
+  function wireSite(it) {
+    var now = new Date(), soon = new Date(now.getTime() + 6 * 3600000);
+    $("st-to").value = dstr(now); $("st-from").value = dstr(new Date(now.getTime() - 7 * 86400000));
+    $("st-when").value = new Date(soon.getTime() - soon.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    function histShown() { return state.site === it.id && !!state.from; }
+    function paintShow() { $("st-show").textContent = histShown() ? "Hide These Flights" : "Show These Flights"; }
+    paintShow();
+    $("st-show").onclick = function () {   // the flights that went up from this site in those dates, loaded as history (the live windows stop at 48 hours); pressed again it puts the map back
+      if (histShown()) {
+        state.site = ""; state.from = state.to = ""; $("sm-hours").value = String(state.hours); document.getElementById("sm-range").style.display = "none"; $("sm-rangenote").textContent = "";
+        load(); paintShow(); $("st-note").textContent = "The history flights are hidden."; return;
+      }
+      state.site = it.id; state.from = $("st-from").value; state.to = $("st-to").value || state.from; $("sm-hours").value = "range"; $("sm-from").value = state.from; $("sm-to").value = state.to;
+      document.getElementById("sm-range").style.display = ""; load(); paintShow(); $("st-note").textContent = "Showing the flights from " + it.name + ", " + state.from + " to " + state.to + ".";
+    };
+    $("st-next").onclick = function () { fcSites[it.id] = !fcSites[it.id]; rebuildSiteFc(); this.textContent = (fcSites[it.id] ? "Hide" : "Show") + " Next Launches"; if (fcSites[it.id]) { var mine = forecast.filter(function (p) { return p.site === it.id; }); $("st-note").textContent = mine.length ? "Forecast flights for the next " + mine.length + " launch" + (mine.length === 1 ? "" : "es") + " are drawn." : "No launch from this site is forecast right now."; } };
+    $("st-clear").onclick = clearForecasts;
+    $("st-method").onchange = function () { setMethod(this.value); $("st-note").textContent = "Predictor: " + methodName() + "."; };
+    $("st-fc").onclick = function () {
+      var v = $("st-when").value; if (!v) { $("st-note").textContent = "Choose a date and time."; return; }
+      $("st-note").textContent = "Working out the flight...";
+      fetch("/api/sondes/forecast.json?site=" + encodeURIComponent(it.id) + "&when=" + encodeURIComponent(new Date(v).toISOString()) + (method ? "&method=" + encodeURIComponent(method) : "")).then(function (r) { return r.json(); }).then(function (d) {
+        if (!d.enabled) { $("st-note").textContent = "The prediction service is switched off."; return; }
+        if (!d.prediction) { $("st-note").textContent = d.note || "No forecast could be made."; return; }
+        customFc = customFc.filter(function (p) { return !(p.site === d.prediction.site && p.launch === d.prediction.launch); }).concat([d.prediction]).slice(-6);
+        rebuildSiteFc(); var p = d.prediction;
+        $("st-note").textContent = (d.method_name ? d.method_name + ". " : "") + "Forecast: lands about " + ArkUnits.text.dist(p.drift_km) + " away" + (p.bearing != null ? ", bearing " + p.bearing + "°" : "") + ", burst near " + ArkUnits.text.alt(p.burst_alt) + ", about " + Math.round(p.flight_min) + " minutes in the air (from " + p.samples + " similar past flights).";
+        map.fitBounds(L.latLngBounds([[it.lat, it.lon], [p.lat, p.lon]]).pad(.5), {maxZoom: 10});
+      }).catch(function () { $("st-note").textContent = "The forecast could not be loaded."; });
+    };
+  }
+  function placeCard(kind, it) {
+    cardId = null; var card = $("lv-card");
+    function k(l, v) { return v ? "<div>" + l + "</div><div>" + v + "</div>" : ""; }
+    if (kind === "site") {
+      var fl = flights.filter(function (f) { return f.site_id === it.id; }).sort(function (a, b) { return a.age - b.age; }).slice(0, 8);
+      $("c-name").textContent = it.name; if (window.ArkCall) ArkCall.tag($("c-name"), ""); $("c-sub").textContent = (it.nws ? "National Weather Service launch site " : "Launch site ") + it.id; $("c-page").textContent = "Launch Site Page";
+      $("c-body").innerHTML = '<div class="k">' + k("Site number", esc(it.id)) + k("Position", it.lat.toFixed(4) + ", " + it.lon.toFixed(4)) + k("Flights on the map", String(fl.length)) + "</div>" +
+        (fl.length ? '<div class="lv-sub">Recent Flights</div>' + fl.map(function (f) { return '<div><a href="#" data-sel="' + esc(f.id) + '">' + esc(f.id) + "</a> <span class=\"dim\">" + esc(f.label) + " · " + ago(f.age) + " ago</span></div>"; }).join("") : "") +
+        '<p style="margin:10px 0 0"><a href="/sondes/flights?site=' + encodeURIComponent(it.id) + '&hours=0">All flights from this site</a></p>' +
+        '<div class="lv-sub">Past Flights From Here</div><div class="lv-row"><label>From <input type="date" id="st-from"></label><label>To <input type="date" id="st-to"></label></div>' +
+        '<div class="lv-row"><button class="btn small" type="button" id="st-show" style="margin:0">Show These Flights</button></div>' +
+        '<div class="lv-sub">Forecast</div><div class="lv-row" id="st-methrow" style="display:' + (methodList.length > 1 ? "" : "none") + '"><label title="Which predictor works out the forecast flights; your choice is kept in this browser">Predictor <select id="st-method" aria-label="Predictor">' + methodList.map(function (m) { return '<option value="' + m.id + '"' + (m.id === method ? " selected" : "") + ">" + esc(m.name) + "</option>"; }).join("") + '</select></label></div><div class="lv-row"><button class="btn small" type="button" id="st-next" style="margin:0">' + (fcSites[it.id] ? "Hide" : "Show") + ' Next Launches</button><span class="dim" style="font-size:.78rem">' + forecast.filter(function (p) { return p.site === it.id; }).length + " forecast</span></div>" +
+        '<div class="lv-row"><label>Launch date and time <input type="datetime-local" id="st-when"></label></div><div class="lv-row"><button class="btn small" type="button" id="st-fc" style="margin:0">Forecast This Launch</button><button class="btn small neutral" type="button" id="st-clear" style="margin:0;display:' + (customFc.length ? "" : "none") + '">Clear Forecast</button></div><div id="st-note" class="dim" style="font-size:.78rem"></div>';
+    } else {
+      $("c-name").textContent = it.id; if (window.ArkCall) ArkCall.tag($("c-name"), it.id); $("c-sub").textContent = "Sonde receiving station" + (it.claimed ? "" : " · not claimed yet"); $("c-page").textContent = "Receiving Station Page";
+      $("c-body").innerHTML = '<div class="k">' + k("Farthest balloon heard", it.reach_km ? ArkUnits.text.dist(it.reach_km) : "none yet") + k("Software", esc(it.software || "")) + k("Antenna", esc(it.antenna || "")) + k("Position", it.approx ? "approximate (the owner chose how precisely it shows)" : it.lat.toFixed(4) + ", " + it.lon.toFixed(4)) + "</div>";
+    }
+    $("c-page").href = it.href;
+    if (kind === "site") wireSite(it);
+    $("c-body").querySelectorAll("[data-sel]").forEach(function (a) { a.addEventListener("click", function (e) { e.preventDefault(); select(a.getAttribute("data-sel")); }); });
+    card.style.display = "block"; $("lv").classList.add("has-card");
+    $("c-follow").onclick = function () { map.setView([it.lat, it.lon], Math.max(map.getZoom(), 10)); };
+    $("c-close").onclick = function () { card.style.display = "none"; $("lv").classList.remove("has-card"); };
+    render();
+  }
+  async function select(id) {
+    cardId = id; var f = byId(id), card = $("lv-card"); if (!f) { card.style.display = "none"; $("lv").classList.remove("has-card"); return; }
+    $("c-name").textContent = f.id; if (window.ArkCall) ArkCall.tag($("c-name"), ""); $("c-sub").textContent = (f.type || "radiosonde") + (f.agency ? " · " + f.agency : f.kind === "amateur" ? " · amateur balloon" : "") + " · " + f.label;
+    $("c-page").href = f.href; $("c-page").textContent = "Flight Page";
+    function k(l, v) { return v ? "<div>" + l + "</div><div>" + v + "</div>" : ""; }
+    $("c-body").innerHTML = '<div class="k">' + k("Status", esc(f.label)) + k("Recovery", f.rec_state === "recovered" ? "Recovered by " + esc(f.rec_by) : f.rec_state === "planned" ? "Recovery planned by " + esc(f.rec_by) : f.rec_state === "notfound" ? "Looked for by " + esc(f.rec_by) + ", not found" : (f.status !== "aloft" ? '<a href="' + esc(f.href) + '#sec-recovery">Report a recovery</a>' : "")) + k("Altitude", fmt("alt", f.alt)) + k("Climb", f.vz == null ? "" : (f.vz > 0 ? "+" : "") + fmt("vs", f.vz)) + k("Temperature", f.temp == null ? "" : ArkUnits.text.temp(f.temp, 1)) + k("Highest", fmt("alt", f.max_alt)) +
+      k("Launched from", f.site ? '<a href="/sondes/sites/' + esc(f.site_id) + '">' + esc(f.site) + "</a>" : "") + k("Frequency", f.freq ? f.freq.toFixed(3) + " MHz" : "") + k("Last heard", ago(f.age) + " ago") +
+      k("Predicted landing", f.pred ? f.pred[0].toFixed(3) + ", " + f.pred[1].toFixed(3) : "") + k("Landed", f.land ? f.land[0].toFixed(3) + ", " + f.land[1].toFixed(3) : "") + '</div><div id="sm-prof" class="dim" style="font-size:.78rem">Loading profile...</div>';
+    card.style.display = "block"; $("lv").classList.add("has-card"); chaseDraw();
+    $("c-follow").onclick = function () { map.setView([f.lat, f.lon], Math.max(map.getZoom(), 10)); };
+    $("c-close").onclick = function () { cardId = null; card.style.display = "none"; $("lv").classList.remove("has-card"); render(); };
+    render();
+    try {
+      var d = await (await fetch("/api/sondes/" + encodeURIComponent(id) + "/track.json")).json(); if (cardId !== id) return;
+      if (d.pred_path) { predPaths[id] = d.pred_path; render(); }
+      var t = d.track, n = t.alt.length; if (n < 2) { $("sm-prof").textContent = "No track stored yet."; return; }
+      var vals = t.alt.filter(function (x) { return x != null; }), lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals) || 1, path = "";
+      t.alt.forEach(function (a, i) { if (a != null) path += (path ? "L" : "M") + (i / (n - 1) * 200).toFixed(1) + "," + (52 - (a - lo) / ((hi - lo) || 1) * 48).toFixed(1); });
+      $("sm-prof").innerHTML = 'Altitude over the flight<svg viewBox="0 0 200 56" preserveAspectRatio="none" style="width:100%;height:56px;display:block"><path d="' + path + '" fill="none" stroke="#3ee6a8" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>';
+    } catch (e) {}
+  }
+
+  // ---- chips, legend, search
+  function renderChips() {
+    var c = [];
+    if (state.src) c.push(["src", {NWS: "National Weather Service", other: "Other radiosondes", amateur: "Amateur"}[state.src]]);
+    if (state.only) c.push(["only", "Only: " + state.only.replace(/^(site|station):/, "")]);
+    if (state.show) c.push(["show", state.show === "live" ? "Live only" : "Landed only"]);
+    if (state.site) c.push(["site", "Site: " + ((sites.filter(function (s) { return s.id === state.site; })[0] || {}).name || state.site)]);
+    if (state.from) c.push(["history", "History: " + state.from + " to " + (state.to || state.from)]);
+    if (state.rec) c.push(["rec", {need: "Down, not recovered", planned: "Recovery planned", recovered: "Recovered", notfound: "Not found"}[state.rec]]);
+    if (state.hiderec) c.push(["hiderec", "Recovered hidden"]);
+    if (state.q) c.push(["q", "Search: " + state.q]);
+    $("lv-chips").innerHTML = c.map(function (x) { return '<span class="chip" data-c="' + x[0] + '">' + esc(x[1]) + "<b>×</b></span>"; }).join("") + (c.length > 1 ? '<span class="chip chipall" data-c="all">Clear all</span>' : "");
+  }
+  $("lv-chips").addEventListener("click", function (e) {
+    var el = e.target.closest(".chip"); if (!el) return; var k = el.getAttribute("data-c");
+    if (k === "src" || k === "all") { state.src = ""; $("sm-src").value = ""; } if ((k === "only" || k === "all") && state.only) { state.only = ""; load(); }
+    if ((k === "site" || k === "all") && state.site) { state.site = ""; load(); }
+    var sb = document.getElementById("st-show"); if (sb && (k === "site" || k === "history" || k === "all")) sb.textContent = "Show These Flights";
+    if (k === "show" || k === "all") { state.show = ""; $("sm-show").value = ""; } if ((k === "history" || k === "all") && state.from) { state.from = state.to = ""; $("sm-hours").value = String(state.hours); $("sm-range").style.display = "none"; $("sm-rangenote").textContent = ""; load(); } if (k === "rec" || k === "all") { state.rec = ""; $("sm-rec").value = ""; } if (k === "hiderec" || k === "all") { state.hiderec = false; $("sm-hiderec").checked = false; S.pref("sm.hiderec", "0"); } if (k === "q" || k === "all") { state.q = ""; $("q").value = ""; $("sm-results").innerHTML = ""; }
+    load();
+  });
+  function legend() {
+    var h = "<h6>Balloon altitude</h6>" + STOPS.map(function (s, i) { var nx = STOPS[i + 1]; return '<div style="display:flex;gap:8px;align-items:center;margin:3px 0"><span style="width:18px;height:12px;border-radius:3px;background:' + s[1] + ';display:inline-block"></span>' + Math.round(s[0] * U("alt")[0]).toLocaleString() + (nx ? " to " + Math.round(nx[0] * U("alt")[0]).toLocaleString() : "+") + " " + U("alt")[1] + "</div>"; }).join("");
+    function row(kind, color, text) { return '<div style="display:flex;gap:8px;align-items:center;margin:4px 0"><span style="display:inline-block;width:22px;height:22px">' + SondeIcons.svg(kind, color, 22) + "</span>" + text + "</div>"; }
+    return h + "<h6>Balloons</h6>" + row("climbing", "#3ee6a8", "climbing, balloon intact") + row("falling", "#ff9f43", "burst, falling on its parachute") + row("landed", "#ff8cd9", "landed") + row("recovered", "", "landed and recovered") + row("planned", "", "landed, a recovery is planned") + row("notfound", "", "landed, looked for, not found") + row("lost", "#ff6b6b", "signal lost in the air") +
+      ((typeof chase !== "undefined" && chase.on) ? "<h6>Chase</h6>" + row("me", "", "you are here") + row("chase", "#ff8c42", "another chaser's car") : "") + "<h6>On the map</h6>" + row("launch", "#4fb3ff", "launch position") + row("burst", "#ffb454", "where the balloon burst") + row("site", "#4fb3ff", "National Weather Service launch site") + row("station", "#ffb454", "receiving station (a ring means the position is approximate)") + '<div class="dim" style="font-size:.76rem;margin-top:6px">{{ credit }}</div>';
+  }
+  (function altbar() {
+    var n = STOPS.length; $("lv-altname").textContent = "Balloon altitude"; $("lv-altgrad").style.background = "linear-gradient(90deg," + STOPS.map(function (s, i) { return s[1] + " " + (i / n * 100).toFixed(1) + "% " + ((i + 1) / n * 100).toFixed(1) + "%"; }).join(",") + ")";
+    $("lv-alticks").innerHTML = STOPS.slice(1).map(function (s, i) { return '<span style="left:' + ((i + 1) / n * 100).toFixed(1) + '%">' + Math.round(s[0] / 1000) + "k</span>"; }).join("");
+  })();
+  var qt = null;
+  $("q").addEventListener("input", function () {
+    state.q = this.value.trim(); render(); clearTimeout(qt);
+    qt = setTimeout(async function () {
+      if (state.q.length < 2) { $("sm-results").innerHTML = ""; return; }
+      try {
+        var d = await (await fetch("/api/sondes/search.json?q=" + encodeURIComponent(state.q))).json();
+        $("sm-results").innerHTML = (d.results || []).length ? '<div class="lv-sub">Search Results</div>' + d.results.map(function (r, i) { return '<div><a href="#" data-i="' + i + '">' + esc(r.label) + "</a></div>"; }).join("") : "";
+        $("sm-results").onclick = function (e) { var a = e.target.closest("a[data-i]"); if (!a) return; e.preventDefault(); var r = d.results[a.dataset.i]; if (r.kind !== "flight" && r.lat != null) { map.setView([r.lat, r.lon], 9); } else location.href = r.href; };
+      } catch (e) {}
+    }, 300);
+  });
+  function dstr(d) { var z = new Date(d.getTime() - d.getTimezoneOffset() * 60000); return z.toISOString().slice(0, 10); }
+  function rangeUi() {
+    var on = $("sm-hours").value === "range"; $("sm-range").style.display = on ? "" : "none";
+    if (on) { if (!$("sm-from").value) $("sm-from").value = state.from || dstr(new Date(Date.now() - 3 * 86400000)); if (!$("sm-to").value) $("sm-to").value = state.to || dstr(new Date()); }
+  }
+  $("sm-hours").addEventListener("change", function () {
+    if (this.value === "range") { rangeUi(); state.from = $("sm-from").value; state.to = $("sm-to").value; }
+    else { state.hours = parseInt(this.value, 10); state.from = state.to = ""; rangeUi(); $("sm-rangenote").textContent = ""; }
+    load();
+  });
+  $("sm-rangego").addEventListener("click", function () { state.from = $("sm-from").value; state.to = $("sm-to").value || state.from; if (state.from) load(); });
+  ["sm-from", "sm-to"].forEach(function (id) { $(id).addEventListener("change", function () { if ($("sm-from").value && $("sm-to").value) { state.from = $("sm-from").value; state.to = $("sm-to").value; load(); } }); });
+  if (state.from) { $("sm-from").value = state.from; $("sm-to").value = state.to || state.from; rangeUi(); }
+  $("sm-src").addEventListener("change", function () { state.src = this.value; if (state.src === "amateur") load(); else render(); });
+  $("sm-show").addEventListener("change", function () { state.show = this.value; render(); });
+  $("sm-rec").addEventListener("change", function () { state.rec = this.value; render(); });
+  $("sm-hiderec").addEventListener("change", function () { state.hiderec = this.checked; S.pref("sm.hiderec", this.checked ? "1" : "0"); render(); });
+  ["sm-tracks", "sm-pred", "sm-fc", "sm-fcarea", "sm-sites", "sm-stations"].forEach(function (id) { $(id).addEventListener("change", render); });
+  document.addEventListener("adsb-prefs", function () { var u = ArkUnits.system(); if (u !== state.units) { state.units = u; render(); if (cardId) select(cardId); chaseDraw(); } });   // the units of this map are the one choice in Layers and Filters (or the Display menu)
+  $("sm-label").addEventListener("change", function () { state.label = this.value; S.pref("sm.label", this.value); render(); });
+  $("sm-slabels").value = SLAB; $("sm-slabels").addEventListener("change", function () { SLAB = this.value; S.pref("sm.slabels", this.value); drawLabels(); });
+  $("sm-isize").addEventListener("change", function () { state.isize = parseInt(this.value, 10); S.pref("sm.isize", this.value); render(); });
+
+  // ---- chase mode (signed-in members): where I am, distance and bearing to the chosen balloon, other chasers' cars, and optionally my car on SondeHub's map
+  var chase = {on: false, me: null, watch: null, mark: null, line: null, cars: L.layerGroup().addTo(map), carTimer: null, shareTimer: null, sharing: false};
+  var CSRF = {{ csrf_token() | tojson }};
+  function kmBetween(a, b, c, d) { var r = Math.PI / 180, x = Math.sin((c - a) * r / 2) ** 2 + Math.cos(a * r) * Math.cos(c * r) * Math.sin((d - b) * r / 2) ** 2; return 6371.0088 * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x)); }
+  function bearing(a, b, c, d) { var r = Math.PI / 180, y = Math.sin((d - b) * r) * Math.cos(c * r), x = Math.cos(a * r) * Math.sin(c * r) - Math.sin(a * r) * Math.cos(c * r) * Math.cos((d - b) * r); return (Math.atan2(y, x) / r + 360) % 360; }
+  function compass(deg) { return ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"][Math.round(deg / 22.5) % 16]; }
+  function dist(km) { return ArkUnits.text.dist(km); }
+  function target() { var f = cardId && byId(cardId); if (!f) return null; var p = f.status === "aloft" ? (f.pred || [f.lat, f.lon]) : (f.land || [f.lat, f.lon]); return {f: f, ll: p, what: f.status === "aloft" ? (f.pred ? "predicted landing" : "current position") : "landing"}; }
+  function chaseDraw() {
+    if (!chase.on) return;
+    var t = target(), info = $("ch-info");
+    if (chase.line) { map.removeLayer(chase.line); chase.line = null; }
+    if (!chase.me) { info.textContent = "Waiting for your position... (allow location access in the browser)"; return; }
+    if (!t) { info.textContent = "Choose a balloon on the map or in the list to see the distance and bearing to it."; return; }
+    var km = kmBetween(chase.me[0], chase.me[1], t.ll[0], t.ll[1]), br = bearing(chase.me[0], chase.me[1], t.ll[0], t.ll[1]);
+    chase.line = L.polyline([chase.me, t.ll], {color: "#3b82f6", weight: 3, dashArray: "8 8", opacity: .9, interactive: false}).addTo(map);
+    info.innerHTML = "<b>" + esc(t.f.id) + "</b>: " + dist(km) + " " + compass(br) + " (" + Math.round(br) + "&deg;) to the " + t.what + "<br>" + (t.f.status === "aloft" ? "Altitude " + fmt("alt", t.f.alt) + ", " + esc(t.f.label) + "<br>" : "") +
+      '<a href="https://www.google.com/maps/dir/?api=1&destination=' + t.ll[0].toFixed(5) + "," + t.ll[1].toFixed(5) + '" target="_blank" rel="noopener">Directions to the ' + t.what + "</a>";
+  }
+  function setMe(pos) {
+    chase.me = [pos.coords.latitude, pos.coords.longitude]; chase.alt = pos.coords.altitude;
+    if (!chase.mark) chase.mark = L.marker(chase.me, {icon: L.divIcon({className: "", html: SondeIcons.marker("me", "#3b82f6", "", {size: sz(30)}), iconSize: [0, 0]}), zIndexOffset: 900}).bindTooltip("You are here", {className: "lv-tip", direction: "top"}).addTo(map);
+    else chase.mark.setLatLng(chase.me);
+    chaseDraw();
+  }
+  async function loadCars() {
+    if (!chase.on || !$("ch-cars").checked) { chase.cars.clearLayers(); return; }
+    try {
+      var d = await (await fetch("/api/sondes/chase.json", {credentials: "same-origin"})).json(); chase.cars.clearLayers();
+      (d.cars || []).forEach(function (c) {
+        if (d.name && c.id.toUpperCase() === d.name) return;   // my own car is the blue dot
+        L.marker([c.lat, c.lon], {icon: L.divIcon({className: "", html: SondeIcons.marker("chase", "#ff8c42", "", {size: sz(30)}), iconSize: [0, 0]}), zIndexOffset: 800}).bindTooltip("Chase car " + esc(c.id) + " · heard " + ago(c.age) + " ago", {className: "lv-tip", direction: "top"}).addTo(chase.cars);
+      });
+    } catch (e) {}
+  }
+  async function sendPosition() {
+    if (!chase.sharing || !chase.me) return;
+    var body = new URLSearchParams({lat: chase.me[0], lon: chase.me[1], alt: chase.alt == null ? "" : chase.alt});
+    try {
+      var r = await fetch("/my/sondes/chase/position", {method: "POST", body: body, credentials: "same-origin", headers: {"X-CSRFToken": CSRF, "X-Requested-With": "XMLHttpRequest"}}), d = await r.json();
+      if (!d.ok) { $("ch-share").checked = false; shareOff(); document.getElementById("ch-info").textContent = d.message; }
+    } catch (e) {}
+  }
+  function shareOff() { chase.sharing = false; clearInterval(chase.shareTimer); }
+  function chaseOn(on) {
+    chase.on = on;
+    document.querySelector('[data-fb="chase"]').textContent = on ? "on" : "";
+    if (!on) {
+      if (chase.watch != null) navigator.geolocation.clearWatch(chase.watch); chase.watch = null;
+      if (chase.mark) { map.removeLayer(chase.mark); chase.mark = null; } if (chase.line) { map.removeLayer(chase.line); chase.line = null; }
+      chase.me = null; chase.cars.clearLayers(); clearInterval(chase.carTimer); shareOff(); if ($("ch-share")) $("ch-share").checked = false; $("ch-info").textContent = ""; shell.renderLegend(); return;
+    }
+    if (!navigator.geolocation) { $("ch-info").textContent = "This browser cannot give its position."; return; }
+    chaseDraw();
+    chase.watch = navigator.geolocation.watchPosition(setMe, function (e) { $("ch-info").textContent = "Could not get your position: " + e.message; }, {enableHighAccuracy: true, maximumAge: 5000, timeout: 30000});
+    loadCars(); chase.carTimer = setInterval(loadCars, 30000); shell.renderLegend();
+  }
+  if ($("ch-on")) {
+    $("ch-on").addEventListener("change", function () { chaseOn(this.checked); });
+    $("ch-cars").addEventListener("change", loadCars);
+    if ($("ch-share")) $("ch-share").addEventListener("change", function () {
+      if (this.checked) { if (!$("ch-on").checked) { $("ch-on").checked = true; chaseOn(true); } chase.sharing = true; clearInterval(chase.shareTimer); chase.shareTimer = setInterval(sendPosition, {{ chase_seconds * 1000 }}); setTimeout(sendPosition, 3000); } else shareOff();
+    });
+    if (q.get("chase") === "1") { $("ch-on").checked = true; chaseOn(true); }
+  }
+  window.smDebug = function () { return {flights: flights.length, shown: Object.keys(marks).length, stations: stations.length, sites: sites.length, hours: state.hours, card: cardId}; };
+  window.smMap = map;
+
+  async function load() {
+    try {
+      var d = await (await fetch("/api/sondes/map.json?hours=" + state.hours + (onlyKind() === "flight" ? "&serial=" + encodeURIComponent(state.only) : "") + (state.site ? "&site=" + encodeURIComponent(state.site) : "") + (state.from ? "&from=" + state.from + "&to=" + (state.to || state.from) : "") + (loaded ? "&static=0" : ""))).json();
+      if (state.from) { $("sm-rangenote").textContent = d.note || (d.range ? "Showing " + d.range[0] + " to " + d.range[1] + "." : ""); }
+      flights = d.flights || []; if (d.stations) stations = d.stations; if (d.sites) sites = d.sites;
+      var first = !loaded; loaded = true; render();
+      if (first) {
+        var sel = q.get("serial") || (onlyKind() === "flight" ? state.only : ""); if (sel && byId(sel)) { select(sel); var f = byId(sel); map.setView([f.lat, f.lon], 9, {animate: false}); }
+        var o = onlyKind() === "site" ? sites.filter(function (s) { return "site:" + s.id === state.only; })[0] : onlyKind() === "station" ? stations.filter(function (s) { return "station:" + s.id === state.only; })[0] : null;
+        if (o && !(q.get("lat") && q.get("lon"))) map.setView([o.lat, o.lon], 10, {animate: false});
+      } else if (cardId) select(cardId);
+    } catch (e) { $("lv-count").textContent = "Could not load the balloons."; }
+  }
+  load(); loadForecast(); setInterval(loadForecast, 600000);
+  setInterval(function () { if (!document.hidden && !state.from) load(); }, Math.max(5, CFG.live) * 1000);
+})();
+</script>
+{% endblock %}

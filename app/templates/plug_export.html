@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Code Plug Export{% endblock %}
+{% block content %}
+<h1>Repeater <span>Code Plug Export</span></h1>
+<div class="sub">Choose the repeaters you want in your radio and download them in the shape its programming program reads: the Anytone DM32's channel and talkgroup lists, a CHIRP file (most radios), or an RT Systems style file. A DMR repeater becomes one channel for each of its talkgroups. <a href="/repeaters/">Repeater List</a> &middot; <a href="/repeaters/map">Repeater Map</a></div>
+<form method="get" action="/repeaters/export" class="panel" style="margin-bottom:14px">
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px">
+    <div><div class="lv-sub" style="margin-top:0">Bands</div>{% for b in bands %}<label style="display:flex;gap:6px;margin:3px 0"><input type="checkbox" name="band" value="{{ b }}" {{ 'checked' if b in f.bands }}> {{ b }}</label>{% endfor %}<div class="help">None ticked means every band.</div></div>
+    <div><div class="lv-sub" style="margin-top:0">Modes</div>{% for m in modes %}<label style="display:flex;gap:6px;margin:3px 0"><input type="checkbox" name="mode" value="{{ m }}" {{ 'checked' if m in f.modes }}> {{ m }}</label>{% endfor %}<div class="help">The DM32 takes FM and DMR; CHIRP takes FM.</div></div>
+    <div><div class="lv-sub" style="margin-top:0">Where</div>
+      <label for="px-state">State</label><select id="px-state" name="state"><option value="">Any</option>{% for s in states %}<option value="{{ s }}" {{ 'selected' if f.state == s }}>{{ s }}</option>{% endfor %}</select>
+      <label for="px-city">City contains</label><input type="text" id="px-city" name="city" value="{{ f.city }}" maxlength="40">
+      <label for="px-near">Within (miles) of latitude and longitude</label>
+      <div style="display:flex;gap:6px"><input type="text" id="px-miles" name="miles" value="{{ f.near[2]|int if f.near else '' }}" placeholder="50" style="width:70px"><input type="text" name="lat" value="{{ f.near[0] if f.near else '' }}" placeholder="34.75" style="width:90px"><input type="text" name="lon" value="{{ f.near[1] if f.near else '' }}" placeholder="-92.3" style="width:90px"></div>
+      <label style="display:flex;gap:6px;margin:8px 0 3px"><input type="checkbox" name="active" value="1" {{ 'checked' if f.active }}> Only active repeaters</label>
+      <label style="display:flex;gap:6px;margin:3px 0"><input type="checkbox" name="mapped" value="1" {{ 'checked' if f.mapped }}> Only ones with a position</label></div>
+    <div><div class="lv-sub" style="margin-top:0">The Radio</div>
+      <label for="px-power">Power</label><select id="px-power" name="power"><option value="high">High</option><option value="low" {{ 'selected' if o.power == 'low' }}>Low</option></select>
+      <label for="px-bw">FM bandwidth</label><select id="px-bw" name="bw"><option value="25">25 kHz</option><option value="12.5" {{ 'selected' if o.bw == '12.5' }}>12.5 kHz</option></select>
+      <label for="px-id">Radio ID name (DMR, as in your radio)</label><input type="text" id="px-id" name="radio_id" value="{{ o.radio_id }}" maxlength="16" placeholder="KD5VCF">
+      <label for="px-rx">RX group list name (DMR, optional)</label><input type="text" id="px-rx" name="rxgroup" value="{{ o.rxgroup }}" maxlength="16" placeholder="None">
+      <label style="display:flex;gap:6px;margin:8px 0 3px"><input type="checkbox" name="dmr" value="0" {{ 'checked' if o.no_dmr }}> Leave the DMR channels out</label></div>
+  </div>
+  <button class="btn" type="submit" style="margin-top:12px">Show What Is Selected</button>
+</form>
+
+<div class="tiles" style="margin-bottom:14px">
+  <div class="panel tile"><div class="tv">{{ n }}</div><div class="tl">Repeaters selected</div></div>
+  <div class="panel tile"><div class="tv">{{ n_chan }}</div><div class="tl">DM32 channels</div></div>
+  <div class="panel tile"><div class="tv">{{ n_tg }}</div><div class="tl">Talkgroups</div></div>
+  <div class="panel tile"><div class="tv">{{ n_fm }}</div><div class="tl">FM repeaters (CHIRP, RT Systems)</div></div>
+</div>
+<div class="panel" style="margin-bottom:14px">
+  <h3 style="margin-top:0">Download</h3>
+  {% if not n %}<p class="dim" style="margin:0">Nothing is selected: widen the filters above.</p>{% else %}
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <a class="btn" href="/repeaters/export/dm32-channels.csv?{{ qs }}">DM32 Channels (CSV)</a>
+    <a class="btn" href="/repeaters/export/dm32-talkgroups.csv?{{ qs }}">DM32 Talkgroups (CSV)</a>
+    <a class="btn neutral" href="/repeaters/export/chirp.csv?{{ qs }}">CHIRP (CSV)</a>
+    <a class="btn neutral" href="/repeaters/export/rtsystems.csv?{{ qs }}">RT Systems Style (CSV)</a>
+  </div>
+  <p class="help" style="margin-bottom:0">In the DM32 programming program, import the talkgroup file first (Digital Contacts), then the channel file, so each channel's contact finds its talkgroup. Repeaters without a position are still exported: a position only matters for the map. {% if n and mapped < n %}{{ n - mapped }} of these have no position yet.{% endif %}</p>{% endif %}
+</div>
+{% if preview %}<div class="panel" style="margin-bottom:14px;overflow-x:auto"><h3 style="margin-top:0">The First Channels</h3>
+  <table class="sortable"><thead><tr><th>No.</th><th>Name</th><th>Type</th><th>RX MHz</th><th>TX MHz</th><th>Color Code</th><th>Slot</th><th>Talkgroup</th><th>Tone</th></tr></thead><tbody>
+  {% for c in preview %}<tr><td>{{ c['No.'] }}</td><td class="mono">{{ c['Channel Name'] }}</td><td>{{ c['Channel Type'] }}</td><td class="mono">{{ c['RX Frequency[MHz]'] }}</td><td class="mono">{{ c['TX Frequency[MHz]'] }}</td><td>{{ c['Color Code'] if c['Channel Type'] == 'Digital' else '' }}</td><td>{{ c['Time Slot'] if c['Channel Type'] == 'Digital' else '' }}</td><td>{{ c['TX Contact'] if c['TX Contact'] != 'None' else '' }}</td><td class="mono">{{ c['CTC/DCS Encode'] if c['CTC/DCS Encode'] != '00.0' else '' }}</td></tr>{% endfor %}
+  </tbody></table></div>{% endif %}
+<details class="panel setsec" id="sec-field-by-field"><summary><span class="role-name">What Goes In Each DM32 Field</span></summary><div class="secbody">
+  <p style="margin-top:0">Compared with the columns a real DM32 export carries (the same ones the portal's <b>Import a Radio Code Plug</b> reads). Anything not listed keeps the value a normal channel has.</p>
+  <table><thead><tr><th>Field</th><th>What it gets</th><th>From</th></tr></thead><tbody>{% for field, what, src in comparison %}<tr><td>{{ field }}</td><td>{{ what }}</td><td class="dim">{{ src }}</td></tr>{% endfor %}</tbody></table>
+</div></details>
+<p class="dim" style="font-size:.8rem">Repeater data: {{ 'Hearham (open data) and Arkansas hams' }}. Check a repeater's details before you rely on them; the listings can be out of date. A radio's own settings are never changed by this file: you import it in the programming program.</p>
+{% endblock %}

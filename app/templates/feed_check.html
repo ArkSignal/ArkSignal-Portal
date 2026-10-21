@@ -1,0 +1,116 @@
+{% extends "feed_base.html" %}
+{% block title %}Am I Feeding? | How to Feed{% endblock %}
+{% block feed_body %}
+<h1>Am I <span>Feeding</span>?</h1>
+<div class="sub">Check whether the hub is hearing your station right now.</div>
+<details class="panel setsec" id="sec-am-i-feeding" open open style="margin-bottom:14px"><summary><span class="role-name">Am I Feeding?</span></summary><div class="secbody">
+  <p style="margin-top:0">Check whether the hub has seen a feeder from this network in the last {{ lookback }} hour{{ '' if lookback == 1 else 's' }}. Your public IP address is <span class="mono">{{ ip }}</span>.</p>
+  {% if private_ip %}<p class="dim">That is a private network address, so the portal is not seeing your real public address. This happens when the portal is reached directly on a local network or the proxy does not pass the visitor's address on. An administrator can fix it under Settings > Accounts > Visitor Address Headers.</p>{% endif %}
+  <form method="get" action="/feed/check"><input type="hidden" name="check" value="1"><button class="btn small" type="submit" style="margin:0">Check Now</button></form>
+  {% if check %}
+  <div style="margin-top:12px">
+    {% for r in found %}
+    <div class="panel" style="margin:8px 0;padding:14px">
+      {% if r.online %}<span class="tag live">online</span>{% else %}<span class="tag off">offline</span>{% endif %}
+      {% if r.claimed %}
+        {% if r.public %}<b class="mono">{{ r.station_id }}</b> {{ r.name or '' }} &mdash; <a href="/feeders/{{ r.station_id }}">View station</a>{% else %}A claimed feeder{% endif %}
+      {% else %}
+        <span class="mono copyable">{{ r.uuid }}</span> &mdash; not claimed yet. <a href="/my/claim">Claim this feeder</a>
+      {% endif %}
+      <span class="dim"> &middot; last seen {{ 'now' if r.online else (r.last_seen | localtime) }}</span>
+      {% if r.mlat %}<div style="margin-top:6px"><b>MLAT:</b>
+        {% if r.mlat.state == 'working' %}<span class="tag live">working</span>{% elif r.mlat.state == 'off' %}<span class="tag off">not connected</span>{% else %}<span class="tag off">{{ r.mlat.state }}</span>{% endif %}
+        <span class="dim">{{ r.mlat.text }}{% if r.mlat.state == 'off' %} Add the MLAT line shown on the <a href="/feed/">ADS-B page</a>, set <span class="mono">MLAT_USER</span> and exact coordinates, and recreate the container.{% endif %}</span></div>{% endif %}
+    </div>
+    {% else %}
+    <p class="dim" style="margin:0">No feeder has connected from {{ ip }} in the last {{ lookback }} hour{{ '' if lookback == 1 else 's' }}. If you just set one up, wait a minute and check again. If you feed from a different network than this browser, this check cannot see it. The <a href="/feed/#sec-troubleshooting">troubleshooting</a> section lists the usual causes.</p>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div></details>
+
+{% if rid_enabled %}
+<details class="panel setsec" id="sec-rid-stations" open style="margin-bottom:14px"><summary><span class="role-name">Your Remote ID Stations</span></summary><div class="secbody">
+  {% if not current_user.is_authenticated %}
+  <p style="margin:0">Remote ID stations send to a private address, so they are found by your account, not by network address. <a href="/my/login?next=/feed/check%3Fcheck%3D1">Sign in</a> and check again to see yours.</p>
+  {% elif not check %}
+  <p style="margin:0">Press Check Now above to see whether your Remote ID stations are reporting.</p>
+  {% elif not rid_rows %}
+  <p class="dim" style="margin:0">You have no Remote ID stations yet. <a href="/feed/drones">How to feed Remote ID</a> explains how to add one.</p>
+  {% else %}
+  {% for r in rid_rows %}
+  <div class="panel" style="margin:8px 0;padding:14px">
+    {% if not r.enabled %}<span class="tag off">switched off</span>{% elif r.last_report %}<span class="tag live">reporting</span>{% else %}<span class="tag off">nothing heard yet</span>{% endif %}
+    <b>{{ r.name }}</b> &mdash; <a href="/my/drones#rid-{{ r.id }}">Open station</a>
+    <span class="dim"> &middot; {{ r.msgs }} message{{ '' if r.msgs == 1 else 's' }} &middot; {% if r.last_report %}last report {{ r.last_report | localtime }}{% else %}nothing received yet{% endif %}</span>
+    {% if r.enabled and not r.last_report %}<div class="dim" style="margin-top:6px">Check the upload address on the station's card and that the bridge is running: <a href="/feed/drones#sec-troubleshooting">Troubleshooting</a>.</div>{% endif %}
+  </div>
+  {% endfor %}
+  {% endif %}
+</div></details>
+{% endif %}
+
+{% if ais_enabled %}
+<details class="panel setsec" id="sec-ais-stations" open style="margin-bottom:14px"><summary><span class="role-name">Your AIS Stations</span></summary><div class="secbody">
+  {% if not current_user.is_authenticated %}
+  <p style="margin:0">AIS stations send to a private address, so they are found by your account, not by network address. <a href="/my/login?next=/feed/check%3Fcheck%3D1">Sign in</a> and check again to see yours.</p>
+  {% elif not check %}
+  <p style="margin:0">Press Check Now above to see whether your AIS stations are reporting.</p>
+  {% elif not ais_rows %}
+  <p class="dim" style="margin:0">You have no AIS stations yet. <a href="/feed/ais">How to feed AIS</a> explains how to add one.</p>
+  {% else %}
+  {% for r in ais_rows %}
+  <div class="panel" style="margin:8px 0;padding:14px">
+    {% if not r.enabled %}<span class="tag off">switched off</span>{% elif r.last_report %}<span class="tag live">reporting</span>{% else %}<span class="tag off">nothing heard yet</span>{% endif %}
+    <b>{{ r.name }}</b> &mdash; <a href="/my/ais#ais-{{ r.id }}">Open station</a>
+    <span class="dim"> &middot; {{ r.msgs }} message{{ '' if r.msgs == 1 else 's' }} &middot; {% if r.last_report %}last report {{ r.last_report | localtime }}{% else %}nothing received yet{% endif %}</span>
+    {% if r.enabled and not r.last_report %}<div class="dim" style="margin-top:6px">Check the upload address on the station's card and that the bridge is running: <a href="/feed/ais#sec-troubleshooting">Troubleshooting</a>.</div>{% endif %}
+  </div>
+  {% endfor %}
+  {% endif %}
+</div></details>
+{% endif %}
+
+{% if satimg_enabled %}
+<details class="panel setsec" id="sec-satellite-receivers" open style="margin-bottom:14px"><summary><span class="role-name">Your Satellite Receivers</span></summary><div class="secbody">
+  {% if not current_user.is_authenticated %}
+  <p style="margin:0">Satellite receivers send to a private address, so they are found by your account, not by network address. <a href="/my/login?next=/feed/check%3Fcheck%3D1">Sign in</a> and check again to see yours.</p>
+  {% elif not check %}
+  <p style="margin:0">Press Check Now above to see whether your satellite receivers are sending pictures.</p>
+  {% elif not sat_rows %}
+  <p class="dim" style="margin:0">You have no satellite receivers yet. <a href="/feed/satellites">How to feed satellite pictures</a> explains how to add one.</p>
+  {% else %}
+  {% for r in sat_rows %}
+  <div class="panel" style="margin:8px 0;padding:14px">
+    {% if not r.enabled %}<span class="tag off">switched off</span>{% elif r.last_image_at %}<span class="tag live">sending</span>{% else %}<span class="tag off">no picture yet</span>{% endif %}
+    <b>{{ r.name }}</b> &mdash; <a href="/my/sat-receivers#satrx-{{ r.id }}">Open receiver</a>
+    <span class="dim"> &middot; {{ r.n }} picture{{ '' if r.n == 1 else 's' }} kept &middot; {% if r.last_image_at %}last picture {{ r.last_image_at | localtime }}{% else %}nothing received yet{% endif %}</span>
+    {% if r.enabled and not r.last_image_at %}<div class="dim" style="margin-top:6px">Check the upload address on the receiver's card and that your uploader is running: <a href="/feed/satellites#sec-troubleshooting">Troubleshooting</a>.</div>{% endif %}
+  </div>
+  {% endfor %}
+  {% endif %}
+</div></details>
+{% endif %}
+
+{% if wx_enabled %}
+<details class="panel setsec" id="sec-weather-stations" open style="margin-bottom:14px"><summary><span class="role-name">Your Weather Stations</span></summary><div class="secbody">
+  {% if not current_user.is_authenticated %}
+  <p style="margin:0">Weather stations send to a private address, so they are found by your account, not by network address. <a href="/my/login?next=/feed/check%3Fcheck%3D1">Sign in</a> and check again to see yours.</p>
+  {% elif not check %}
+  <p style="margin:0">Press Check Now above to see whether your weather stations are reporting.</p>
+  {% elif not wx_rows %}
+  <p class="dim" style="margin:0">You have no weather stations yet. <a href="/feed/weather">How to feed weather</a> explains how to add one.</p>
+  {% else %}
+  {% for r in wx_rows %}
+  <div class="panel" style="margin:8px 0;padding:14px">
+    {% if r.disabled %}<span class="tag off">switched off</span>{% elif r.online %}<span class="tag live">reporting</span>{% else %}<span class="tag off">no recent report</span>{% endif %}
+    <b class="mono">{{ r.sid or 'No station ID' }}</b> {{ r.name or '' }} &mdash; <a href="/my/weather/{{ r.id }}">Open station</a>
+    <span class="dim"> &middot; {{ r.kind }} &middot; {% if r.last_report %}last report {{ r.last_report | localtime }}{% else %}nothing received yet{% endif %}</span>
+    {% if r.error %}<div class="dim" style="margin-top:6px"><b>Last problem:</b> <span class="mono">{{ r.error }}</span></div>
+    {% elif not r.online and not r.disabled %}<div class="dim" style="margin-top:6px">{% if r.pull %}The portal reads this account about every few minutes; use Read Now on the station's page to test it.{% else %}Check that the upload address on the station's page is entered in your gateway, Home Assistant integration or bridge, and that it can reach this site.{% endif %}</div>{% endif %}
+  </div>
+  {% endfor %}
+  {% endif %}
+</div></details>
+{% endif %}
+{% endblock %}

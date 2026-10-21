@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Service Status (Admin)' if admin else 'Service Status' }}{% endblock %}
+{% block content %}
+<h1>{% if admin %}<span>Admin</span> {% endif %}Service <span>Status</span></h1>
+<div class="sub">{% if admin %}Every service with the reason behind its state. The public page shows the plain-words version.{% else %}Is everything working? The live services are checked in the background every minute.{% endif %}</div>
+{% if admin %}{% include "partials/_admin_subnav.html" %}{% endif %}
+
+<div class="panel" style="margin-top:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+  <span id="st-dot" style="font-size:1.6rem;color:var(--dim)">&#9679;</span>
+  <div style="flex:1 1 240px"><b id="st-msg" style="font-size:1.1rem">Checking the services...</b><div class="dim" style="font-size:.82rem" id="st-when">&nbsp;{% if not admin %}<a href="/mlat/">MLAT network</a>{% endif %}</div></div>
+  {% if admin %}<button class="btn small" type="button" id="st-now" style="margin:0">Check Now</button>{% endif %}
+</div>
+
+<div class="panel" style="margin-top:14px;overflow-x:auto">
+  <table id="st-tbl">
+    <thead><tr><th style="width:210px">Service</th><th style="width:140px">State</th><th>{{ 'Details' if admin else 'What it means' }}</th></tr></thead>
+    <tbody><tr><td colspan="3" class="dim">Loading the states...</td></tr></tbody>
+  </table>
+</div>
+{% if not admin %}<p class="dim" style="margin-top:10px;font-size:.85rem">Seeing a problem that is not listed here? Use the <a href="/contact">contact page</a>.</p>{% endif %}
+<script>
+(function () {
+  var ADMIN = {{ 'true' if admin else 'false' }}, url = ADMIN ? "/admin/status/data.json" : "/api/status.json", tries = 0;
+  function $(i) { return document.getElementById(i); }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]; }); }
+  var COL = {ok: "var(--acc)", warn: "#f5c542", down: "var(--err)"};
+  function ago(sec) { return sec < 90 ? Math.max(0, Math.round(sec)) + " seconds ago" : sec < 5400 ? Math.round(sec / 60) + " minutes ago" : Math.round(sec / 3600) + " hours ago"; }
+  var last = null;
+  function paint(d) {
+    last = d; $("st-dot").style.color = COL[d.overall] || "var(--dim)"; $("st-msg").textContent = d.message;
+    var rows = "", g = null;
+    d.checks.forEach(function (c) {
+      if (c.group !== g) { g = c.group; rows += '<tr><th colspan="3" style="background:rgba(62,230,168,.08);color:var(--acc);text-transform:uppercase;letter-spacing:.12em;font-size:.7rem">' + (g === "sources" ? "Outside data sources we use" : "Our services") + "</th></tr>"; }
+      rows += "<tr><td><b>" + esc(c.name) + '</b></td><td><span class="tag ' + (c.state === "ok" ? "live" : c.state === "down" || c.state === "warn" ? "off" : "") + '"' + (c.state === "warn" ? ' style="color:#f5c542;border-color:#f5c542"' : "") + ">" + esc(c.word) + "</span></td><td>" + esc(c.summary || "") + (ADMIN && c.detail ? '<div class="dim" style="font-size:.82rem;margin-top:' + (c.summary ? 3 : 0) + 'px">' + esc(c.detail) + "</div>" : "") + "</td></tr>";
+    });
+    $("st-tbl").querySelector("tbody").innerHTML = rows || '<tr><td colspan="3" class="dim">Nothing to show.</td></tr>';
+    when();
+  }
+  function when() { if (last) $("st-when").innerHTML = "Last checked " + ago(Date.now() / 1000 - last.at) + "; checked again every " + (last.every >= 120 ? Math.round(last.every / 60) + " minutes" : last.every + " seconds") + "." + (ADMIN ? "" : ' &middot; <a href="/mlat/">MLAT network</a>'); }
+  function load() {
+    fetch(url, {credentials: "same-origin", cache: "no-store"}).then(function (r) { return r.json(); }).then(function (d) {
+      if (d.pending) { if (++tries < 40) setTimeout(load, 3000); return; }
+      paint(d);
+    }).catch(function () { $("st-msg").textContent = "The status could not be loaded just now."; setTimeout(load, 15000); });
+  }
+  load(); setInterval(load, 30000); setInterval(when, 10000);
+  {% if admin %}$("st-now").addEventListener("click", function () {
+    var b = this; b.disabled = true; b.textContent = "Checking...";
+    fetch("/admin/status/run", {method: "POST", headers: {"X-CSRFToken": "{{ csrf_token() }}", "X-Requested-With": "XMLHttpRequest"}, credentials: "same-origin"}).then(function () { return fetch(url, {credentials: "same-origin", cache: "no-store"}); }).then(function (r) { return r.json(); }).then(paint).finally(function () { b.disabled = false; b.textContent = "Check Now"; });
+  });{% endif %}
+})();
+</script>
+{% endblock %}

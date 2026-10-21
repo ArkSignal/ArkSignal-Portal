@@ -1,0 +1,5 @@
+{% from "partials/_aisrx.html" import card with context %}
+<div id="my-ais">
+  {% for r in stations %}{{ card(r, '/my/ais', '#my-ais', false) }}
+  {% else %}<p class="dim" style="margin:0">You have no AIS stations yet. Add one above.</p>{% endfor %}
+</div>

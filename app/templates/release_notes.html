@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Release Notes{% endblock %}
+{% block content %}
+<h1>Release <span>Notes</span></h1>
+<div class="sub">What was added, improved, fixed and secured, and when. Newest first.{% if running and running != 'unreleased' %} This site is running <b>{{ running }}</b>.{% endif %}</div>
+
+{% for e in entries %}
+<details class="panel setsec" id="v{{ e.version }}" {{ 'open' if loop.index <= 3 or e.running }} style="margin-top:14px{{ ';border-style:dashed' if e.version == 'next' }}"><summary>
+  <span class="role-name">{% if e.version == 'next' %}Coming Next{% else %}{{ e.version }}{% endif %}</span>
+  <span class="dim" style="margin-left:10px;font-size:.88rem">{{ e.title }}</span>
+  {% if e.running %}<span class="tag live" style="margin-left:10px">running now</span>{% endif %}
+  <span class="dim" style="margin-left:auto;font-size:.82rem">{% if e.released %}{{ e.released | localtime("%Y-%m-%d") }}{% elif e.version == 'next' %}not released yet{% else %}date not recorded{% endif %}</span>
+</summary><div class="secbody">
+  {% for label, items in e.sections %}
+  <div style="margin:{{ 0 if loop.first else 12 }}px 0 4px;font:600 .72rem Inter,sans-serif;text-transform:uppercase;letter-spacing:.12em;color:{{ {'Added': 'var(--acc)', 'Improved': 'var(--acc2)', 'Fixed': '#f5c542', 'Security': '#ff7a59'}[label] }}">{{ label }}</div>
+  <ul class="plain" style="margin:0">{% for i in items %}<li>{{ i }}</li>{% endfor %}</ul>
+  {% endfor %}
+</div></details>
+{% endfor %}
+<p class="dim" style="margin-top:14px;font-size:.82rem">{% if meta.source == 'github' %}Live from the project repository, fetched {{ fetched | localtime }}, so the Coming Next section changes as work is finished.{% else %}Showing the list built into this release{% if meta.error %} (the live copy could not be reached: {{ meta.error }}){% endif %}.{% endif %}</p>
+<p class="dim" style="margin-top:14px;font-size:.84rem">Versions 1.0.15 and 1.0.17 were built but not published; their changes are included in 1.0.16 and 1.0.18. The first release, 1.0.0, was the work of the first day.</p>
+{% endblock %}

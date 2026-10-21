@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}{{ u.username }}{% endblock %}
+{% block content %}
+<h1><span>Admin</span> {{ u.username }}</h1>
+<div class="sub">Change anything this person can change about their own account. The password is never shown. Every change is written to the audit log.</div>
+{% include "partials/_admin_subnav.html" %}
+<p><a href="/admin/users">&larr; All Users</a></p>
+{% include "partials/_admin_user_body.html" %}
+{% endblock %}

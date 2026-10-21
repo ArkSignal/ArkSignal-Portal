@@ -1,0 +1,74 @@
+<div id="roles-list">
+{% for item in roles %}
+{% set r = item.role %}
+{% set locked = r.is_super_admin and not actor.is_super_admin %}
+<details class="panel role" id="role-{{ r.id }}">
+  <summary>
+    <span class="role-name">{{ r.name }}</span>
+    {% if r.is_builtin %}<span class="tag">built-in</span>{% endif %}
+    {% if r.is_super_admin %}<span class="tag admin">super admin</span>{% endif %}
+    <span class="dim role-sum">
+      {% if r.is_super_admin %}All permissions{% else %}{{ item.perms|length }} permission{{ '' if item.perms|length == 1 else 's' }}{% endif %}
+      &middot; {{ item.members|length }} member{{ '' if item.members|length == 1 else 's' }}
+    </span>
+  </summary>
+
+  <form method="post" action="/admin/roles/{{ r.id }}/save" data-async data-async-target="#roles-list" class="role-body">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="rn-{{ r.id }}">Role Name</label>
+    <input type="text" id="rn-{{ r.id }}" name="name" value="{{ r.name }}" maxlength="60" {{ 'readonly' if r.is_builtin or locked }}>
+    <label for="rd-{{ r.id }}">Description</label>
+    <input type="text" id="rd-{{ r.id }}" name="description" value="{{ r.description }}" maxlength="300" {{ 'readonly' if locked }}>
+
+    {% if actor.is_super_admin %}
+    <label class="check"><input type="checkbox" name="is_super_admin" value="1" {{ 'checked' if r.is_super_admin }}>
+      <span><b>Super Admin</b><br><span class="dim">Grants every permission, including any added in the future. Use sparingly.</span></span></label>
+    {% endif %}
+
+    <div class="grp">Permissions</div>
+    {% for key, info in permissions.items() if not key.startswith('use_') %}
+    <label class="check"><input type="checkbox" name="permissions" value="{{ key }}"
+        {{ 'checked' if key in item.perms or r.is_super_admin }} {{ 'disabled' if locked or r.is_super_admin }}>
+      <span><b>{{ info[0] }}</b><br><span class="dim">{{ info[1] }}</span></span></label>
+    {% endfor %}
+    <details class="panel setsec" style="margin:10px 0"><summary><span class="role-name">Feature Access: What This Role Can See</span></summary><div class="secbody">
+      <p class="dim" style="margin-top:0">These matter only for a feature that Settings &gt; Site &gt; Feature Access limits to roles with the See permission. Everyone else sees such a feature only through a role that holds its permission.</p>
+      {% for key, info in permissions.items() if key.startswith('use_') %}
+      <label class="check"><input type="checkbox" name="permissions" value="{{ key }}" {{ 'checked' if key in item.perms or r.is_super_admin }} {{ 'disabled' if locked or r.is_super_admin }}><span><b>{{ info[0] }}</b></span></label>
+      {% endfor %}
+    </div></details>
+    {% if not locked %}<button class="btn" type="submit">Save Role</button>{% endif %}
+  </form>
+
+  <div class="grp">Members</div>
+  <div class="members">
+    {% for m in item.members %}
+    <form class="inline" method="post" action="/admin/roles/{{ r.id }}/members" data-async data-async-target="#roles-list"
+          data-confirm="Remove {{ m.username }} from the {{ r.name }} role? They will lose the access this role grants.">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="remove">
+      <input type="hidden" name="user_id" value="{{ m.id }}">
+      <span class="tag member">{{ m.username }} <button type="submit" class="x" title="Remove">&times;</button></span>
+    </form>
+    {% else %}<span class="dim">No members.</span>{% endfor %}
+  </div>
+  {% set member_ids = item.members | map(attribute='id') | list %}
+  <form class="inline-row" method="post" action="/admin/roles/{{ r.id }}/members" data-async data-async-target="#roles-list">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="add">
+    <select name="user_id" aria-label="User to add">
+      {% for u in all_users if u.id not in member_ids %}<option value="{{ u.id }}">{{ u.username }}</option>{% endfor %}
+    </select>
+    <button class="btn small" type="submit">Add Member</button>
+  </form>
+
+  {% if not r.is_builtin and not locked %}
+  <form method="post" action="/admin/roles/{{ r.id }}/delete" data-async data-async-target="#roles-list"
+        data-confirm="Delete the role {{ r.name }}?{% if item.members %} These users will lose the access it grants: {{ item.members | map(attribute='username') | join(', ') }}.{% else %} No users currently hold it.{% endif %}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn small warn" type="submit" style="margin-top:18px">Delete Role</button>
+  </form>
+  {% endif %}
+</details>
+{% endfor %}
+</div>

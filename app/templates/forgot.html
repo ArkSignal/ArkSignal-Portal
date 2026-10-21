@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Forgot Password{% endblock %}
+{% block content %}
+<div class="authpage wide">
+<h1>Forgot <span>Password</span></h1>
+<div class="sub">Choose a way to get back into your account. If neither works, the <a href="/contact">Contact</a> page lists who can help.</div>
+
+<details class="panel setsec" id="sec-reset-by-email" {{ 'open' if email_ready }} style="margin-bottom:12px"><summary><span class="role-name">Reset by Email</span></summary>
+{% if email_ready %}
+<form method="post" action="/my/forgot/email">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <label for="login-e">Username or email address</label>
+  <input type="text" id="login-e" name="login" autocomplete="username" required maxlength="254">
+  <div class="help">We email a link that lets you choose a new password. It works once and expires soon.</div>
+  <button class="btn" type="submit">Email Me a Reset Link</button>
+</form>
+{% else %}
+<div class="secbody"><p class="dim" style="margin:0">Email is not set up on this site yet, so reset links cannot be sent. Use the station method below, or ask for help on the <a href="/contact">Contact</a> page.</p></div>
+{% endif %}
+</details>
+
+{% if by_station %}
+<details class="panel setsec" id="sec-reset-with-a-station" {{ 'open' if not email_ready }}><summary><span class="role-name">Reset With a Station You Own</span></summary>
+<form method="post" action="/my/forgot/station">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <label for="login-s">Username or email address</label>
+  <input type="text" id="login-s" name="login" autocomplete="username" required maxlength="254">
+  <label for="uuid">Station UUID</label>
+  <input type="text" id="uuid" name="uuid" required maxlength="40" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off" style="font-family:'JetBrains Mono',monospace">
+  <div class="help">The long identifier of a station you have claimed. You can find it on the station's page under My Feeders, or in your receiver's configuration (the <span class="mono">uuid</span> setting). Only the owner of the station knows it.</div>
+  <label for="new">New password</label>
+  <input type="password" id="new" name="new" autocomplete="new-password" required data-pwcheck data-minlen="{{ min_password }}" data-mix="{{ '1' if password_mix }}" data-confirm="#confirm">
+  <label for="confirm">Confirm new password</label>
+  <input type="password" id="confirm" name="confirm" autocomplete="new-password" required>
+  <div class="help">{{ password_rules }}</div>
+  <button class="btn" type="submit">Reset Password</button>
+</form>
+</details>
+<script src="/static/pwcheck.js" defer></script>
+{% endif %}
+<p class="dim" style="margin-top:16px"><a href="/my/login">&larr; Back to Sign In</a></p>
+</div>
+{% endblock %}

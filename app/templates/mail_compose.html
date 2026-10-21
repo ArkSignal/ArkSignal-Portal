@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Write a Message{% endblock %}
+{% block content %}
+<h1>Write a <span>Message</span></h1>
+<div class="sub"><a href="/my/messages">Back to Messages</a>. Only the people you send it to can read it.</div>
+{% include "partials/_my_subnav.html" %}
+{% include "partials/_mailnav.html" %}
+{% call sec('compose', 'New Message', True) %}
+  <form id="mc-form">
+    <input type="hidden" name="parent" value="{{ parent or '' }}"><input type="hidden" name="draft" value="{{ draft or '' }}">
+    <label for="mc-to">To (User Names, Separated by Commas; up to {{ max_to }})</label>
+    <input type="text" id="mc-to" name="to" value="{{ to }}" data-memberpicker="people" data-multi="1" placeholder="User name, call sign or email address (several with commas)" maxlength="400" style="width:100%;max-width:560px" required {{ 'disabled' if mute }}>
+    <label for="mc-subject">Subject</label>
+    <input type="text" id="mc-subject" name="subject" value="{{ subject }}" maxlength="{{ max_subject }}" style="width:100%;max-width:560px" {{ 'disabled' if mute }}>
+    <label for="mc-body">Message</label>
+    <textarea id="mc-body" name="body" maxlength="{{ max_len }}" required style="width:100%;max-width:700px;min-height:200px" {{ 'disabled' if mute }}>{{ body }}</textarea>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px">
+      <button class="btn" type="submit" {{ 'disabled' if mute }} style="margin:0">Send</button>
+      <button class="btn neutral" type="button" id="mc-save" {{ 'disabled' if mute }} style="margin:0">Save as Draft</button>
+      <span id="mc-note" class="dim" role="status"></span>
+    </div>
+  </form>
+{% endcall %}
+<script>
+(function () {
+  var csrf = "{{ csrf_token() }}", f = document.getElementById("mc-form"), note = document.getElementById("mc-note");
+  function post(url) { var d = new FormData(f); d.append("csrf_token", csrf); return fetch(url, { method: "POST", body: d, credentials: "same-origin" }).then(function (r) { return r.json(); }); }
+  f.addEventListener("submit", function (e) { e.preventDefault(); post("/my/messages/send").then(function (d) { if (d.ok) location.href = d.url; else note.textContent = d.message || "Could not send."; }); });
+  document.getElementById("mc-save").addEventListener("click", function () { post("/my/messages/draft").then(function (d) { if (d.ok) { f.draft.value = d.id; note.textContent = d.message; } }); });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,19 @@
+# The network's MLAT server: wiedehopf/mlat-server, unmodified, pinned to a known commit (AGPL: the server tells every client where this
+# source is, https://github.com/wiedehopf/mlat-server, which stays accurate because we change nothing). Built by build.yml as
+# mallison01/adsb-mlat and released with everything else. Bump MLAT_REF to take a newer upstream version.
+FROM python:3.12-slim AS build
+ARG MLAT_REF=9b27a6d609c5bb47549016412222a79ecb0f48e4
+RUN apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev git && rm -rf /var/lib/apt/lists/*
+RUN python -m venv /opt/venv && /opt/venv/bin/pip install --no-cache-dir -U pip \
+ && /opt/venv/bin/pip install --no-cache-dir numpy scipy pykalman python-graph-core uvloop ujson Cython "setuptools<81"
+RUN git clone https://github.com/wiedehopf/mlat-server /opt/mlat-server && cd /opt/mlat-server && git checkout "$MLAT_REF" \
+ && /opt/venv/bin/python setup.py build_ext --inplace && rm -rf .git
+
+FROM python:3.12-slim
+COPY --from=build /opt/venv /opt/venv
+COPY --from=build /opt/mlat-server /opt/mlat-server
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod 755 /entrypoint.sh && mkdir -p /work
+ENV MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 PATH=/opt/venv/bin:$PATH
+WORKDIR /opt/mlat-server
+ENTRYPOINT ["/entrypoint.sh"]

@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block title %}Weather Map{% endblock %}
+{% block main_class %}wide{% endblock %}
+{% block content %}
+{# The same map page as the live (aircraft) map: the look comes from static/mapshell.css and the layout uses the same element names (lv, lvmap, lv-left, lv-tools, lv-toolsbody, fsec, lv-card, lv-list, lv-legend, lv-altbar). A new kind of map page is built the same way. #}
+{% from "partials/_mapshell.html" import shell, boot with context %}
+{% include "partials/_wxicons.html" %}
+{% set wm_display_top %}<div class="lv-sub">Units</div>
+      <select id="l-units"><option value="imperial">°F, mph, inches</option><option value="metric">°C, km/h, mm</option></select>{% endset %}
+{% call shell("Search station, name or owner", "Search weather stations", "Weather Stations", "Weather Page", display_top=wm_display_top, alt_label="Color scale: the color of a station marker is the value shown", alt_name="Temperature", map_type="weather") %}
+    <details class="fsec" data-k="show" open><summary><span class="ic"><svg class="wxi"><use href="#wxi-temp"/></svg></span>Show<span class="fbadge" data-fb="show"></span></summary><div class="fbody">
+      <div class="lv-sub">Weather Sources</div>
+      <div class="lv-row" id="wm-src" style="flex-direction:column;align-items:flex-start">
+        <label><input type="checkbox" data-src="members" checked> Members' stations</label>
+        <label title="CWOP and amateur weather stations heard on the APRS network"><input type="checkbox" data-src="aprs"> APRS stations</label>
+        <label title="Airport weather reports (METAR). The airports APRS also carries are drawn once, from here"><input type="checkbox" data-src="airport"> Airport weather</label></div>
+      <div class="lv-sub">Weather Across the Map</div>
+      <div class="lv-row" style="flex-direction:column;align-items:flex-start" id="wm-surf">
+        <label title="Colors blended across the map from every station shown"><input type="checkbox" id="wm-heat"> Heat map</label>
+        <label class="wm-sub" style="margin-left:22px">Heat map shows <select id="wm-heatmetric" aria-label="The reading the heat map shows"></select></label>
+        <label title="Streams that flow with the measured wind"><input type="checkbox" id="wm-wind"> Wind streams</label></div>
+      <div class="help dim" style="font-size:.78rem;margin-top:4px">Both can be on together. Worked out from the latest readings of every station switched on above, so more sources make a fuller picture. It stays clear far from any station.</div>
+      <div id="wm-opts"></div>
+    </div></details>
+    <details class="fsec" data-k="range"><summary><span class="ic">↕</span>Value Range<span class="fbadge" data-fb="range"></span></summary><div class="fbody">
+      <div id="wm-filter"></div>
+    </div></details>
+{% endcall %}
+{{ boot("/weather/map", "wm") }}
+<script src="/static/labelfit.js"></script>
+<script src="/static/wxmap.js"></script>
+<script src="/static/wxsurface.js"></script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var LAYERS = {{ layers | tojson }}, CFG = {{ {"units": wx_units, "metric": wx_metric, "arrows": wx_arrows, "refresh": wx_refresh, "live": wx_live, "labelScale": label_scale | int, "labelBg": label_bg, "lat": map_lat | float, "lon": map_lon | float, "zoom": map_zoom | int} | tojson }};
+  var q = new URLSearchParams(location.search);
+  var map = L.map("lvmap", {zoomControl: false, zoomSnap: 0.25}).setView([parseFloat(q.get("lat")) || CFG.lat, parseFloat(q.get("lon")) || CFG.lon], parseFloat(q.get("zoom")) || CFG.zoom);
+  var AREA = {{ map_area("weather_map_area") | tojson }};   // opens on Arkansas whole (Settings > Home Page Map Area), like every map, unless the link says where to look
+  if (AREA && !(q.get("lat") && q.get("lon")) && !q.get("zoom")) map.fitBounds([[AREA[0], AREA[1]], [AREA[2], AREA[3]]], {padding: [10, 10], animate: false});
+  L.control.zoom({position: "bottomright"}).addTo(map);
+  var units = q.get("units") === "metric" ? "metric" : (q.get("units") === "imperial" ? "imperial" : CFG.units);
+  $("l-units").value = units;
+  var shell = ArkShell.start({map: map, layers: LAYERS, key: "wm", url: "/weather/map", reset: ["ark.wx", "ark.wm"], cfg: {tile: {{ tile_url | tojson }}, attr: {{ tile_attr | tojson }}, labelScale: CFG.labelScale, labelBg: CFG.labelBg, wxRefresh: CFG.refresh},
+    share: function () { var o = {show: wx.state.metric, units: wx.units()}; if (surf && surf.mode() !== "off") o.surface = surf.mode(); if (heatMetric) o.heat = heatMetric; if (wx.state.online) o.online = "1"; if (wx.state.q) o.q = wx.state.q; return o; }, legend: function () { if (!wx) return ""; var h = heatKey(); return (h ? "<div class=\"dim\" style=\"font-size:.74rem\">Labels</div>" : "") + wx.legend() + (h ? "<div class=\"dim\" style=\"font-size:.74rem;margin-top:10px\">Heat map</div>" + wx.legend(h) : ""); }});
+  var AL = shell.AL;
+  function heatKey() { return surf && (surf.mode() === "heat" || surf.mode() === "both") && heatMetric && heatMetric !== wx.state.metric ? heatMetric : ""; }   // the heat map's own reading, when it differs from the labels
+  // ---- the stations (the shared component, so a marker looks the same here, on the live map and on the Weather page)
+  var sortKey = "val", sortDir = -1, cardId = null;
+  var SRC = {members: true, aprs: false, airport: false};   // which weather sources are drawn (remembered in this browser; ?sources=members,aprs,airport in a link)
+  try { var sv = JSON.parse(ArkShell.pref("wm.sources") || "null"); if (sv) SRC = sv; } catch (e) {}
+  if (q.get("sources")) { SRC = {members: false, aprs: false, airport: false}; q.get("sources").split(",").forEach(function (k) { if (k in SRC) SRC[k] = true; }); }
+  function srcList() { var l = Object.keys(SRC).filter(function (k) { return SRC[k]; }); return (l.length ? l : ["members"]).join(","); }
+  document.querySelectorAll("#wm-src input").forEach(function (cb) { cb.checked = !!SRC[cb.getAttribute("data-src")]; });
+  var surf = null, surfMode = q.get("surface") || ArkShell.pref("wm.surface") || "off";
+  if (["off", "heat", "wind", "both"].indexOf(surfMode) < 0) surfMode = "off";
+  var heatMetric = q.get("heat") || ArkShell.pref("wm.heat") || "";   // the reading the heat map shows: blank follows the labels
+  if (heatMetric && !ArkWx.METRICS[heatMetric]) heatMetric = "";
+  $("wm-heatmetric").innerHTML = '<option value="">Same as the labels</option>' + ArkWx.ORDER.map(function (k) { return '<option value="' + k + '">' + ArkWx.METRICS[k].label + "</option>"; }).join("");
+  $("wm-heatmetric").value = heatMetric; $("wm-heat").checked = surfMode === "heat" || surfMode === "both"; $("wm-wind").checked = surfMode === "wind" || surfMode === "both";
+  var wx = ArkWx.create(map, {viewport: true, sources: srcList, units: units, defaults: {metric: CFG.metric, arrows: CFG.arrows}, initial: {metric: ArkWx.METRICS[q.get("show")] ? q.get("show") : null, online: q.get("online") === "1" ? true : null, q: q.get("q") || ""},
+    onRender: function () { if (surf) surf.refresh(); renderList(); shell.renderLegend(); renderChips(); renderBar(); $("lv-count").textContent = wx.count + " of " + wx.points().length + " stations"; },
+    onSelect: function (id) { cardId = id; renderList(); showCard(id); },
+    onDetails: function (pt) { wx.select(pt.id); }});
+  wx.group.addTo(map);
+  $("wm-opts").innerHTML = wx.controlsHtml(false); wx.bind($("wm-opts"));
+  $("wm-filter").innerHTML = '<div class="lv-row"><span style="color:var(--dim);font-size:.82rem" id="wm-unit"></span><input type="number" data-wx="min" placeholder="Min" value="' + ArkWx.esc(wx.state.min) + '"><input type="number" data-wx="max" placeholder="Max" value="' + ArkWx.esc(wx.state.max) + '"></div><div class="dim" style="font-size:.78rem;margin-top:4px">Keeps only stations whose current value (the one chosen under Show) is in this range.</div>';
+  wx.bind($("wm-filter"));
+  $("m-display").innerHTML = wx.displayHtml(); wx.bind($("m-display"));
+  function unitNote() { var m = ArkWx.METRICS[wx.state.metric]; $("wm-unit").textContent = m.label + " (" + (ArkWx.conv(m.kind, 1, wx.units())[1] || "index") + ")"; }
+  $("wm-opts").addEventListener("input", unitNote); unitNote();
+  $("q").value = wx.state.q;
+  $("q").addEventListener("input", function () { wx.set("q", this.value, true); });
+  $("l-units").addEventListener("change", function () { units = this.value; ArkUnits.save(units); wx.setUnits(units); unitNote(); if (cardId) showCard(cardId); });
+
+  // ---- the filter chips, like the aircraft map's
+  function renderChips() {
+    var st = wx.state, m = ArkWx.METRICS[st.metric], c = [];
+    if (st.online) c.push(["online", "Reporting now"]);
+    if (st.min !== "" || st.max !== "") c.push(["range", m.label + " " + (st.min !== "" ? st.min : "") + " to " + (st.max !== "" ? st.max : "")]);
+    if (st.q) c.push(["q", "Search: " + st.q]);
+    $("lv-chips").innerHTML = c.map(function (x) { return '<span class="chip" data-c="' + x[0] + '">' + ArkWx.esc(x[1]) + "<b>×</b></span>"; }).join("") + (c.length > 1 ? '<span class="chip chipall" data-c="all">Clear all</span>' : "");
+    var n = c.filter(function (x) { return x[0] === "range"; }).length; document.querySelector('[data-fb="range"]').textContent = n ? "1" : "";
+  }
+  $("lv-chips").addEventListener("click", function (e) {
+    var el = e.target.closest(".chip"); if (!el) return; var k = el.getAttribute("data-c");
+    var clear = {online: function () { wx.set("online", false, true); document.querySelector('[data-wx=online]').checked = false; }, range: function () { wx.set("min", "", true); wx.set("max", "", true); document.querySelector('[data-wx=min]').value = ""; document.querySelector('[data-wx=max]').value = ""; }, q: function () { wx.set("q", "", true); $("q").value = ""; }};
+    if (k === "all") Object.keys(clear).forEach(function (x) { clear[x](); }); else clear[k]();
+  });
+
+  // ---- the list (sortable, click to go to a station)
+  var COLS = [["id", "Station"], ["val", "Value"], ["temp_f", "Temp"], ["wind_mph", "Wind"], ["hum", "Humidity"], ["rain_day_in", "Rain"], ["age", "Updated"]];
+  $("lv-tbl").querySelector("thead").innerHTML = "<tr>" + COLS.map(function (c) { return '<th data-k="' + c[0] + '">' + c[1] + "</th>"; }).join("") + "</tr>";
+  $("lv-tbl").querySelector("thead").addEventListener("click", function (e) { var k = e.target.getAttribute("data-k"); if (!k) return; if (sortKey === k) sortDir = -sortDir; else { sortKey = k; sortDir = k === "id" ? 1 : -1; } renderList(); });
+  function val(pt, k) { var m = ArkWx.METRICS[wx.state.metric]; return k === "id" ? pt.id : k === "val" ? (pt.r || {})[m.f] : k === "age" ? pt.age : (pt.r || {})[k]; }
+  function ago(s) { return s == null ? "-" : s < 90 ? s + " s" : s < 5400 ? Math.round(s / 60) + " min" : s < 172800 ? Math.round(s / 3600) + " h" : Math.round(s / 86400) + " d"; }
+  function renderList() {
+    var m = ArkWx.METRICS[wx.state.metric], rows = wx.visible().slice(), C = ArkWx.conv, u = wx.units();
+    rows.sort(function (a, b) { var x = val(a, sortKey), y = val(b, sortKey); if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1; return (x < y ? -1 : x > y ? 1 : 0) * sortDir; });
+    $("lv-tbl").querySelector("th[data-k=val]").textContent = m.label;
+    $("lv-tbl").querySelector("tbody").innerHTML = rows.map(function (p) {
+      var r = p.r || {}, v = C(m.kind, r[m.f], u);
+      return '<tr class="it' + (p.id === cardId ? " sel" : "") + '" data-id="' + ArkWx.esc(p.id) + '" style="' + (p.online ? "" : "opacity:.55") + '"><td>' + ArkWx.esc(p.id) + "</td><td>" + v[0] + " " + v[1] + "</td><td>" + C("temp", r.temp_f, u)[0] + "</td><td>" + C("speed", r.wind_mph, u)[0] + " " + ArkWx.compass(r.wind_dir) + "</td><td>" + C("pct", r.hum, u)[0] + "</td><td>" + C("rain", r.rain_day_in, u)[0] + "</td><td>" + ago(p.age) + "</td></tr>";
+    }).join("") || '<tr><td colspan="7" class="dim" style="text-align:left;padding:12px">No stations match.</td></tr>';
+  }
+  $("lv-tbl").querySelector("tbody").addEventListener("click", function (e) { var tr = e.target.closest("tr.it"); if (!tr) return; var id = tr.getAttribute("data-id"); wx.select(id); wx.open(id); });
+  // ---- the details card of the chosen station (the same folding sections as the aircraft card), with small 24 hour charts
+  function spark(vals, color) {
+    var v = vals.filter(function (x) { return x != null; }); if (v.length < 2) return '<div class="dim" style="font-size:.78rem">No history yet.</div>';
+    var lo = Math.min.apply(null, v), hi = Math.max.apply(null, v); if (hi === lo) { hi += 1; lo -= 1; }
+    var n = vals.length, d = "", last = false;
+    vals.forEach(function (x, i) { if (x == null) { last = false; return; } d += (last ? "L" : "M") + (i / (n - 1) * 200).toFixed(1) + "," + (52 - (x - lo) / (hi - lo) * 48).toFixed(1); last = true; });
+    return '<svg viewBox="0 0 200 56" preserveAspectRatio="none" style="width:100%;height:56px;display:block"><path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>';
+  }
+  function csec(icon, title, body, open) { return '<details class="csec"' + (open ? " open" : "") + '><summary><span class="ic">' + ArkWx.icon(icon) + "</span>" + title + "</summary>" + body + "</details>"; }
+  async function showCard(id) {
+    var pt = wx.points().filter(function (p) { return p.id === id; })[0], card = $("lv-card"); if (!pt) { card.style.display = "none"; $("lv").classList.remove("has-card"); return; }
+    var r = pt.r || {}, C = ArkWx.conv, u = wx.units();
+    function k(label, key, kind) { return r[key] != null ? "<div>" + label + "</div><div>" + C(kind, r[key], u).join(" ") + "</div>" : ""; }
+    var cond = pt.cond ? '<div style="display:flex;gap:10px;align-items:center;margin-top:8px">' + ArkWx.icon(pt.cond[0], "cond-" + pt.cond[0]).replace('<svg ', '<svg style="width:40px;height:40px" ') + "<div><b>" + ArkWx.esc(pt.cond[1]) + "</b></div></div>" : "";
+    var openNow = Array.prototype.map.call($("c-body").querySelectorAll("details.csec"), function (d) { return d.open; });   // keep the sections as the visitor left them when the card is refreshed
+    $("c-name").textContent = pt.id; if (window.ArkCall) ArkCall.tag($("c-name"), pt.src === "aprs" ? pt.id : "");   // an APRS station's id is its call sign
+    $("c-sub").textContent = (pt.name !== pt.id ? pt.name + " · " : "") + (pt.owner ? pt.owner + " · " : "") + (pt.approx ? "approximate position · " : "") + (pt.online ? "reporting" : "not reporting");
+    $("c-page").href = pt.href;
+    $("c-body").innerHTML = cond +
+      csec("temp", "Temperature", '<div class="k">' + k("Temperature", "temp_f", "temp") + (r.feels_f != null && r.temp_f != null && Math.abs(r.feels_f - r.temp_f) >= 2 ? k("Feels like", "feels_f", "temp") : "") + k("Humidity", "hum", "pct") + k("Dew point", "dew_f", "temp") + "</div>", true) +
+      csec("wind", "Wind and Pressure", '<div class="k">' + (r.wind_mph != null ? "<div>Wind</div><div>" + C("speed", r.wind_mph, u).join(" ") + " " + ArkWx.compass(r.wind_dir) + "</div>" : "") + k("Gust", "gust_mph", "speed") + k("Pressure", "press_in", "press") + "</div>", true) +
+      csec("rain", "Rain and Sun", '<div class="k">' + k("Rain today", "rain_day_in", "rain") + k("Rain rate", "rain_rate_in", "rate") + k("UV index", "uv", "uv") + k("Solar", "solar", "solar") + (r.lightning_n ? "<div>Lightning today</div><div>" + r.lightning_n + "</div>" : "") + "</div>", false) +
+      '<details class="csec" open><summary><span class="ic">' + ArkWx.icon("press") + '</span>Last 24 Hours</summary><div id="wm-sp" style="margin:8px 14px 4px"><span class="dim">Loading...</span></div></details>';
+    $("c-body").querySelectorAll("details.csec").forEach(function (d, i) { if (openNow[i] !== undefined) d.open = openNow[i]; });
+    card.style.display = "block"; $("lv").classList.add("has-card");
+    $("c-follow").onclick = function () { wx.open(id); };
+    $("c-close").onclick = function () { cardId = null; wx.select(null); card.style.display = "none"; $("lv").classList.remove("has-card"); renderList(); };
+    if (pt.src && pt.src !== "members") { $("wm-sp").innerHTML = '<span class="dim">' + (pt.src === "aprs" ? "APRS stations send the latest reading only; no history is kept here." : "Airport weather is the latest report; no history is kept here.") + "</span>"; return; }
+    try {
+      var d = await (await fetch("/api/weather/" + encodeURIComponent(id) + "/series.json?period=24h")).json();
+      if (cardId !== id) return;
+      var P = d.points || [], cv = function (kind, key) { return P.map(function (p) { return p[key] == null ? null : (kind === "temp" && u === "metric" ? (p[key] - 32) * 5 / 9 : kind === "speed" && u === "metric" ? p[key] * 1.609344 : p[key]); }); };
+      $("wm-sp").innerHTML = '<div class="dim" style="font-size:.74rem">Temperature</div>' + spark(cv("temp", "temp"), "#4fb3ff") + '<div class="dim" style="font-size:.74rem;margin-top:6px">Wind and gust</div>' + spark(cv("speed", "gust"), "#ff9f43") + spark(cv("speed", "wind"), "#3ee6a8");
+    } catch (e) {}
+  }
+
+  // ---- color bar
+  function fillBar(host, key, prefix) {
+    var m = ArkWx.METRICS[key], sc = m.scale, n = sc.length, stops = [], ticks = "", C = ArkWx.conv, u = wx.units();
+    sc.forEach(function (s, i) { stops.push(s[1] + " " + (i / n * 100).toFixed(1) + "% " + ((i + 1) / n * 100).toFixed(1) + "%"); if (i < n - 1) ticks += '<span style="left:' + ((i + 1) / n * 100).toFixed(1) + '%">' + C(m.kind, s[0], u)[0] + "</span>"; });
+    host.querySelector("[data-n]").textContent = prefix + m.label + (C(m.kind, 1, u)[1] ? " (" + C(m.kind, 1, u)[1] + ")" : "");
+    host.querySelector(".alt-bar").style.background = "linear-gradient(90deg," + stops.join(",") + ")"; host.querySelector(".alt-ticks").innerHTML = ticks;
+  }
+  function renderBar() {   // one bar for the labels and, when the heat map shows another reading, a second bar of its own
+    var h = heatKey(), hb = $("lv-altbar-heat"), lb = $("lv-altbar");
+    if (!hb) { lb.querySelector("#lv-altname").setAttribute("data-n", ""); hb = lb.cloneNode(true); hb.id = "lv-altbar-heat"; hb.removeAttribute("aria-label"); ["lv-altname", "lv-altgrad", "lv-alticks"].forEach(function (i) { hb.querySelector("#" + i).removeAttribute("id"); }); lb.parentNode.insertBefore(hb, lb.nextSibling); }
+    fillBar(lb, wx.state.metric, h ? "Labels: " : "");
+    hb.style.display = h ? "" : "none"; if (h) fillBar(hb, h, "Heat map: ");
+  }
+  window.wmDebug = function () { return {count: wx.count, points: wx.points().length, metric: wx.state.metric, markers: wx.group.getLayers().length, units: wx.units()}; };
+  surf = ArkWxSurface.create(map, {points: function () { return wx.visible(); }, metric: function () { return heatMetric || wx.state.metric; }, mode: surfMode});
+  function surfChange() { var h = $("wm-heat").checked, w = $("wm-wind").checked, m = h && w ? "both" : h ? "heat" : w ? "wind" : "off"; surf.setMode(m); ArkShell.pref("wm.surface", m); renderBar(); shell.renderLegend(); }
+  $("wm-heat").addEventListener("change", surfChange); $("wm-wind").addEventListener("change", surfChange);
+  $("wm-heatmetric").addEventListener("change", function () { heatMetric = this.value; ArkShell.pref("wm.heat", heatMetric); surf.refresh(); renderBar(); shell.renderLegend(); });
+  $("wm-src").addEventListener("change", function (e) {
+    var k = e.target.getAttribute("data-src"); if (!k) return; SRC[k] = e.target.checked; ArkShell.pref("wm.sources", JSON.stringify(SRC));
+    wx.load().then(function () { if (cardId && !wx.points().some(function (p) { return p.id === cardId; })) { cardId = null; $("lv-card").style.display = "none"; $("lv").classList.remove("has-card"); } });
+  });
+  wx.load().then(function () { map.invalidateSize(); var s = q.get("station"); if (s) { wx.select(s); wx.open(s); } });
+  // readings are fetched again every few seconds (Settings > Weather Stations), so the labels, the list and the open details card change as they arrive
+  setInterval(function () { if (document.hidden) return; wx.load().then(function () { if (cardId) showCard(cardId); }); }, Math.max(5, CFG.live) * 1000);
+})();
+</script>
+{% endblock %}

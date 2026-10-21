@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}SMTP{% endblock %}
+{% block content %}
+<h1><span>Admin</span> SMTP</h1>
+<div class="sub">The mail server the portal uses to send verification, password reset and alert emails. Leave SMTP Host blank to disable email.</div>
+{% include "partials/_admin_subnav.html" %}
+
+<details class="panel setsec" id="sec-email-smtp" open><summary><span class="role-name">Email (SMTP)</span></summary><form method="post" action="/admin/smtp/save" data-async>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  
+
+  <label for="host">SMTP Host</label>
+  <input type="text" id="host" name="host" value="{{ cfg.host }}" autocomplete="off" placeholder="smtp.example.com">
+  <div class="help">Use smtp.gmail.com for a Gmail account (with an App Password, not the account password), or any other SMTP relay.</div>
+
+  <label for="port">SMTP Port</label>
+  <input type="text" id="port" name="port" value="{{ cfg.port }}" inputmode="numeric" placeholder="587" style="max-width:140px">
+  <div class="help">Usually 587 for STARTTLS, 465 for SSL/TLS, or 25 for an unencrypted relay. It must match Connection Security below.</div>
+
+  <label for="security">Connection Security</label>
+  <select id="security" name="security">
+    <option value="starttls" {{ 'selected' if cfg.security == 'starttls' }}>STARTTLS (encrypted, usually port 587)</option>
+    <option value="ssl" {{ 'selected' if cfg.security == 'ssl' }}>SSL/TLS (encrypted, usually port 465)</option>
+    <option value="none" {{ 'selected' if cfg.security == 'none' }}>None (unencrypted, usually port 25)</option>
+  </select>
+  <div class="help">STARTTLS and SSL/TLS both encrypt the message and the login. None sends everything, including the password, as plain text; use it only for a trusted relay on your own network.</div>
+
+  <label class="check"><input type="checkbox" name="skip_cert" value="1" {{ 'checked' if cfg.skip_cert }}>
+    <span><b>Skip Certificate Check</b><br><span class="dim">Still encrypts the connection but does not verify the server's certificate. Needed for an internal server with a self-signed certificate. Anyone on your network could then impersonate the server, so use it only on a network you trust. Ignored when Connection Security is None.</span></span></label>
+
+  <label for="username">SMTP Username</label>
+  <input type="text" id="username" name="username" value="{{ cfg.username }}" autocomplete="off">
+  <div class="help">Usually the full email address of the mailbox, or the username for a transactional email service. Leave blank if the server needs no login.</div>
+
+  <label for="password">SMTP Password</label>
+  <input type="password" id="password" name="password" autocomplete="new-password"
+         placeholder="{{ 'Saved. Leave blank to keep it.' if password_saved else '' }}">
+  <div class="help">For Gmail, an App Password generated in Google Account settings (2-Step Verification must be on). It is stored encrypted and never shown again.</div>
+  {% if password_saved %}
+  <label class="check"><input type="checkbox" name="clear_password" value="1"><span>Remove the saved password</span></label>
+  {% endif %}
+
+  <label for="from">From Address</label>
+  <input type="text" id="from" name="from" value="{{ cfg['from'] }}" autocomplete="off" placeholder="portal@example.com">
+  <div class="help">The sender address on every outgoing email.</div>
+
+  <button class="btn" type="submit">Save SMTP Settings</button>
+</form></details>
+
+<details class="panel setsec" id="sec-send-a-test-email" open style="margin-top:16px"><summary><span class="role-name">Send a Test Email</span></summary><form method="post" action="/admin/smtp/test" data-async data-disable-while-sending>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  
+  <p class="dim" style="margin-top:0">Sends a short message using the settings as last saved, so you know the server accepts mail before the portal relies on it. Save any changes above first.</p>
+  <label for="recipient">Send Test To</label>
+  <input type="text" id="recipient" name="recipient" value="{{ current_user.email }}" autocomplete="off" inputmode="email">
+  <button class="btn" type="submit">Send Test Email</button>
+</form></details>
+{% endblock %}

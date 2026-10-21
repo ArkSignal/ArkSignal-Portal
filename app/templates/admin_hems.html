@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Air Ambulance{% endblock %}
+{% block content %}
+<h1><span>Admin</span> Air Ambulance</h1>
+<div class="sub">Which helicopters on the map are air ambulances. They are found from the aircraft database tar1090 already uses (owner names you choose in <a href="/admin/settings#sec-air-ambulance">Settings &gt; Air Ambulance</a>), plus the tail numbers you add below. The live map's Aircraft Type filter then offers Air ambulance.</div>
+{% include "partials/_admin_subnav.html" %}
+<div class="tiles" style="margin-bottom:14px">
+  <div class="panel tile"><div class="tv">{{ st.counts.total }}</div><div class="tl">Counted</div></div>
+  <div class="panel tile"><div class="tv">{{ st.counts.heli }} / {{ st.counts.fixed }}</div><div class="tl">Helicopters / Fixed Wing</div></div>
+  <div class="panel tile"><div class="tv">{{ st.counts.listed }}</div><div class="tl">From Your List</div></div>
+  <div class="panel tile"><div class="tv">{{ st.counts.excluded }}</div><div class="tl">Excluded</div></div>
+</div>
+<details class="panel setsec" id="sec-update-air-ambulance" open><summary><span class="role-name">Update From the Aircraft Database</span></summary><form method="post" action="/admin/air-ambulance/update" data-async data-async-target="#hemslist" data-confirm="Download the aircraft database (about 8 MB) and search it now?">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <p style="margin-top:0">Counts a helicopter when its type is on the helicopter list and its owner's name contains one of: <span class="mono" style="font-size:.78rem">{{ operators }}</span></p>
+  <p class="dim" style="margin:8px 0 0">{% if st.last %}Last updated {{ st.last | localtime }}: {{ st.summary }}.{% else %}Not updated yet.{% endif %} Source: tar1090-db, the aircraft database behind tar1090 (see the terms note in DATA_SOURCES_TERMS.md).</p>
+  <button class="btn" type="submit">Download and Update Now</button>
+</form></details>
+<details class="panel setsec" id="sec-add-tail-numbers" style="margin-top:10px"><summary><span class="role-name">Add Tail Numbers</span></summary><form method="post" action="/admin/air-ambulance/tails" data-async data-async-target="#hemslist">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <label for="hemstails">Tail numbers (registrations)</label>
+  <textarea id="hemstails" name="tails" rows="5" placeholder="N123AE&#10;N452MT" style="width:100%;font-family:'JetBrains Mono',monospace;background:var(--input-bg);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:8px"></textarea>
+  <label for="hemskind">These are</label>
+  <select id="hemskind" name="kind"><option value="heli">Helicopters</option><option value="fixed">Fixed-wing aircraft (airplanes)</option></select>
+  <label for="hemsnote">Note (optional)</label><input type="text" id="hemsnote" name="note" maxlength="200" placeholder="for example: from the state trauma system list">
+  <div class="help">For air ambulances owned by a leasing company or a name the owner words above do not catch. Each one is looked up in the aircraft database to find its hex code.</div>
+  <button class="btn" type="submit">Add</button>
+</form></details>
+<h2 style="font-size:.78rem;text-transform:uppercase;letter-spacing:.14em;color:var(--dim);margin:26px 0 12px;font-weight:600">The List</h2>
+<form class="tfilterbar" method="get"><input type="search" name="q" value="{{ q }}" placeholder="Search by tail number, hex, type or owner, then press Enter" aria-label="Search the list"><span class="dim">{{ total }} found{{ ', showing the first 300' if total > 300 }}</span></form>
+{% include "partials/_hems_list.html" %}
+{% endblock %}

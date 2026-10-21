@@ -1,0 +1,20 @@
+{% from "partials/_radiolist_form.html" import fields with context %}
+<div id="my-listings">
+  {% for kind, label, rows in (('net', 'Your Nets', nets), ('winlink', 'Your Winlink Gateways', gateways)) %}
+  <div class="panel" style="margin-bottom:14px;overflow-x:auto">
+    <h3 style="margin-top:0">{{ label }}</h3>
+    {% for e in rows %}
+    <details class="panel role" id="entry-{{ e.id }}" style="margin-bottom:8px"><summary><span class="role-name">{{ e.name }}</span>
+      <span class="tag {{ 'live' if e.status == 'approved' else 'off' }}" style="margin-left:8px">{{ statuses[e.status].lower() }}</span>
+      <span class="dim" style="font-size:.82rem;margin-left:8px">{{ e.area }}</span></summary>
+      <form method="post" action="/my/nets/{{ e.id }}/save" data-async data-async-target="#my-listings">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        {{ fields(kind, e, 'e' ~ e.id) }}
+        <button class="btn" type="submit">Save</button>
+      </form>
+      <form class="inline" method="post" action="/my/nets/{{ e.id }}/delete" data-async data-async-target="#my-listings" data-confirm="Remove {{ e.name }}?" style="margin-top:8px"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small warn" type="submit">Remove</button></form>
+    </details>
+    {% else %}<p class="dim" style="margin:0">You have not added any yet.</p>{% endfor %}
+  </div>
+  {% endfor %}
+</div>

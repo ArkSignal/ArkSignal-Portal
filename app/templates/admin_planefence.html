@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Planefence{% endblock %}
+{% block main_class %}wide{% endblock %}
+{% block content %}
+<style>iframe.pfcfg{width:100%;height:calc(100vh - 260px);min-height:520px;border:1px solid var(--line);border-radius:14px;background:#fff}</style>
+<h1><span>Admin</span> Planefence</h1>
+<div class="sub">Planefence and Plane-Alert configuration: the area watched, units, the Plane-Alert list, and notifications (Discord, Mastodon, MQTT and others). Changes take effect on its own; the webhook and access keys you enter stay on the hub.</div>
+{% include "partials/_admin_subnav.html" %}
+<p class="dim" style="margin:0 0 8px"><a href="/pf/" target="_blank" rel="noopener">Open the public Planefence page</a> &middot; <a href="/pf/?mode=pa" target="_blank" rel="noopener">Plane-Alert</a></p>
+<iframe class="pfcfg" src="/admin/planefence/ui/" title="Planefence configuration" loading="lazy"></iframe>
+{% endblock %}
