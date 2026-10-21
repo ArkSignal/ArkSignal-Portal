@@ -55,10 +55,10 @@ def save(**kw):
 
 ok, m, _ = save(feed_host="bad host!"); check("bad feed hostname rejected", not ok, m)
 ok, m, _ = save(feed_port="99999"); check("bad feed port rejected", not ok, m)
-ok, m, _ = save(feed_host="feed.example.org", feed_port="31004", mlat_enabled="1", mlat_port="31090", max_rules_per_user="25")
+ok, m, _ = save(feed_host="feed.arksignal.allisononline.org", feed_port="31004", mlat_enabled="1", mlat_port="31090", max_rules_per_user="25")
 check("save custom feed host and enable MLAT", ok, m)
 h = anon.get(B + "/feed/").text
-check("page uses the configured host/port and shows MLAT line", "adsb,feed.example.org,31004,beast_reduce_plus_out;" in h and "mlat,feed.example.org,31090" in h)
+check("page uses the configured host/port and shows MLAT line", "adsb,feed.arksignal.allisononline.org,31004,beast_reduce_plus_out;" in h and "mlat,feed.arksignal.allisononline.org,31090" in h)
 ok, m, _ = save(); check("restore defaults", ok, m)
-check("defaults restored on page", "mlat,feed.example.org" not in anon.get(B + "/feed/").text)
+check("defaults restored on page", "mlat,feed.arksignal.allisononline.org" not in anon.get(B + "/feed/").text)
 print("ALL PASS" if ok_all else "SOME FAILED")

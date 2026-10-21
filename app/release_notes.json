@@ -4,6 +4,15 @@
     "released": null,
     "title": "Coming in the next release",
     "added": [],
+    "improved": [],
+    "fixed": [],
+    "security": []
+  },
+  {
+    "version": "1.8.0",
+    "released": "2026-10-21T17:18:43",
+    "title": "The new address arksignal.net, finding members by call sign or email, claim a mesh node, mesh broker protection and Neighbor Info links, GOES viewer improvements, public source code",
+    "added": [],
     "improved": [
       "Friends, chats and messages: type a user name, a call sign or a whole email address to find a member (a list of matches appears as you type, several names with commas for groups and messages); the email address is never listed or shown, and each member can switch off being found by call sign or email on My Account > Friends",
       "Mesh: every node's page has a Claim This Node button for signed-in members (you get a code to put in the node's name), and says when a claim is waiting or the node is yours",
