@@ -63,7 +63,7 @@ jobs:
       - uses: actions/checkout@v7
       - name: Set image date tag
         id: vars
-        run: echo "date_tag=$(date -u +%Y.%m.%d)" >> "$GITHUB_OUTPUT"
+        run: echo "date_tag=$(date -u +%Y.%m.%d)" >> "$GITHUB_OUTPUT"; img="${{ matrix.image }}"; echo "short=${img#adsb-}" >> "$GITHUB_OUTPUT"
       - uses: docker/setup-qemu-action@v4
       - uses: docker/setup-buildx-action@v4
       - name: Log in to GHCR
@@ -86,8 +86,8 @@ jobs:
           push: true
           platforms: linux/amd64,linux/arm64
           tags: |
-            ghcr.io/arksignal/${{ matrix.image }}:latest
-            ghcr.io/arksignal/${{ matrix.image }}:${{ steps.vars.outputs.date_tag }}
+            ghcr.io/arksignal/arksignal-${{ steps.vars.outputs.short }}:latest
+            ghcr.io/arksignal/arksignal-${{ steps.vars.outputs.short }}:${{ steps.vars.outputs.date_tag }}
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.image }}:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.image }}:${{ steps.vars.outputs.date_tag }}
 
@@ -109,7 +109,7 @@ jobs:
 
       - name: Set image date tag
         id: vars
-        run: echo "date_tag=$(date -u +%Y.%m.%d)" >> "$GITHUB_OUTPUT"
+        run: echo "date_tag=$(date -u +%Y.%m.%d)" >> "$GITHUB_OUTPUT"; img="${{ matrix.image }}"; echo "short=${img#adsb-}" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-qemu-action@v4
       - uses: docker/setup-buildx-action@v4

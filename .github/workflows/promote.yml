@@ -66,7 +66,7 @@ jobs:
         run: |
           for img in adsb-grafana adsb-prometheus adsb-stack adsb-mlat adsb-planefence adsb-backup adsb-photon adsb-predict adsb-aprs adsb-acars adsb-mesh adsb-mesh-mqtt; do
             docker buildx imagetools create               -t ${{ secrets.DOCKERHUB_USERNAME }}/$img:stable -t ${{ secrets.DOCKERHUB_USERNAME }}/$img:v${{ inputs.version }}               ${{ secrets.DOCKERHUB_USERNAME }}/$img:latest
-            docker buildx imagetools create               -t ghcr.io/arksignal/$img:stable -t ghcr.io/arksignal/$img:v${{ inputs.version }}               ghcr.io/arksignal/$img:latest
+            docker buildx imagetools create               -t ghcr.io/arksignal/arksignal-${img#adsb-}:stable -t ghcr.io/arksignal/arksignal-${img#adsb-}:v${{ inputs.version }}               ghcr.io/arksignal/arksignal-${img#adsb-}:latest
           done
 
       - name: Re-tag Docker Hub latest -> stable + v${{ inputs.version }}
