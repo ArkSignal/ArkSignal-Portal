@@ -3,7 +3,7 @@
 # to the outside: the portal asks http://photon:2322 over the docker network and shows the answers to administrators (Admin > Hospitals address lookup).
 services:
   photon:
-    image: mallison01/adsb-photon:stable
+    image: ghcr.io/arksignal/arksignal-photon:stable
     labels:
       - com.centurylinklabs.watchtower.enable=true
     container_name: photon

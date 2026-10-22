@@ -1,11 +1,11 @@
 # Prometheus + Grafana for the hub: /opt/adsb/grafana/compose.yaml on the hub VM.
 # Prometheus scrapes the hub container (hub:9273 and hub:9274, enabled by PROMETHEUS_ENABLE=true on the hub).
 # Grafana is served by Nginx Proxy Manager at https://arksignal.net/grafana/ (see README.md).
-# Images: mallison01/adsb-prometheus and mallison01/adsb-grafana (config and dashboards are baked in, built from deploy/grafana by
+# Images: ghcr.io/arksignal/arksignal-prometheus and ghcr.io/arksignal/arksignal-grafana (config and dashboards are baked in, built from deploy/grafana by
 # GitHub Actions). Watchtower (see ../compose.yaml) updates both from the `stable` tag. Dashboard: Ultrafeeder Stats (grafana.com id 18398).
 services:
   prometheus:
-    image: mallison01/adsb-prometheus:stable
+    image: ghcr.io/arksignal/arksignal-prometheus:stable
     labels:
       - com.centurylinklabs.watchtower.enable=true
     container_name: prometheus
@@ -20,7 +20,7 @@ services:
       - proxy
 
   grafana:
-    image: mallison01/adsb-grafana:stable
+    image: ghcr.io/arksignal/arksignal-grafana:stable
     labels:
       - com.centurylinklabs.watchtower.enable=true
     container_name: grafana

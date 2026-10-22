@@ -27,7 +27,7 @@ r = adm.post(B + "/admin/updates/now", data={"csrf_token": tk}, headers={"X-Requ
 check("Update Now says plainly when the update service is not set up", r.status_code == 400 and "not set up" in r.json()["message"], r.text[:120])
 check("the Admin overview loads", adm.get(B + "/admin/").status_code == 200)
 st = adm.get(B + "/admin/settings").text
-check("update check settings exist", "Check for a New Portal Release Every" in st and "Docker Hub Repository to Check" in st)
+check("update check settings exist", "Check for a New Portal Release Every" in st and "Image Repository to Check" in st)
 check("the About page introduction is a setting", "About Page Introduction" in st)
 check("a visitor cannot run the check", anon.post(B + "/admin/updates/check").status_code in (302, 400, 401, 403))
 check("a visitor cannot open Updates", anon.get(B + "/admin/updates", allow_redirects=False).status_code in (302, 401, 403))

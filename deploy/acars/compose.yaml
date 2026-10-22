@@ -4,7 +4,7 @@
 # Settings > ACARS > ACARS Service Address at wherever it runs. The message history is a rolling few days that refills from the receivers, so it is NOT part of the off-site backup; the stations and the takedown list are in the portal's own backup.
 services:
   acars:
-    image: mallison01/adsb-acars:stable
+    image: ghcr.io/arksignal/arksignal-acars:stable
     labels:
       - com.centurylinklabs.watchtower.enable=true
     container_name: acars

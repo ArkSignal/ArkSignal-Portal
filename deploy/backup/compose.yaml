@@ -3,7 +3,7 @@
 # SSH host key, pinned on first use).
 services:
   adsb-backup:
-    image: mallison01/adsb-backup:stable
+    image: ghcr.io/arksignal/arksignal-backup:stable
     labels:
       - com.centurylinklabs.watchtower.enable=true
     container_name: adsb-backup

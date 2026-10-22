@@ -4,7 +4,7 @@
 # station coordinates: keep it private (the portal reads it read-only, only to report per-station MLAT health).
 services:
   adsb-mlat:
-    image: mallison01/adsb-mlat:stable
+    image: ghcr.io/arksignal/arksignal-mlat:stable
     labels:
       - com.centurylinklabs.watchtower.enable=true
     container_name: adsb-mlat

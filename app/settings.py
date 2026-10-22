@@ -493,7 +493,7 @@ DEFAULTS = {
     "account_delete_enabled": "1",
     "about_intro": "ArkSignal is Arkansas's open network for sky, weather and radio. It began as a statewide network of 1090 MHz aircraft receivers and is growing to cover weather stations, radiosondes, repeaters and mesh radio. Neighbors, pilots and hobbyists point a small antenna at the sky, share what they hear, and together we get a live picture of what is overhead, outdoors and on the air.",
     "contact_intro": "Questions, problems with your account, or want to add a station? Get in touch with one of the people below.",
-    "update_check_repo": "mallison01/adsb-portal",
+    "update_check_repo": "ghcr.io/arksignal/arksignal-portal",
     "update_check_hours": "24",
     "update_now_wait_seconds": "20",
     "trail_label_seconds": "45",

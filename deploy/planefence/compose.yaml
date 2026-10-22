@@ -4,7 +4,7 @@
 # on that configuration page; their keys stay in /opt/adsb/planefence/config on the hub.
 services:
   planefence:
-    image: mallison01/adsb-planefence:stable
+    image: ghcr.io/arksignal/arksignal-planefence:stable
     labels:
       - com.centurylinklabs.watchtower.enable=true
     container_name: planefence

@@ -4,7 +4,7 @@
 # The database holds only the latest positions, short trails and weather of public amateur stations, so it is NOT part of the off-site backup (it refills within minutes).
 services:
   aprs:
-    image: mallison01/adsb-aprs:stable
+    image: ghcr.io/arksignal/arksignal-aprs:stable
     labels:
       - com.centurylinklabs.watchtower.enable=true
     container_name: aprs

@@ -1,7 +1,7 @@
 services:
   portal-app:
     build: .
-    image: mallison01/adsb-portal:latest
+    image: ghcr.io/arksignal/arksignal-portal:latest
     container_name: adsb-portal
     restart: unless-stopped
     depends_on:

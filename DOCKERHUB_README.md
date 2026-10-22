@@ -22,7 +22,7 @@ Two containers: this image and PostgreSQL 17. The complete `compose.yaml` and `.
 ```yaml
 services:
   portal-app:
-    image: mallison01/adsb-portal:stable
+    image: ghcr.io/arksignal/arksignal-portal:stable   # the same image is also on Docker Hub as mallison01/adsb-portal:stable
     restart: unless-stopped
     init: true
     environment:

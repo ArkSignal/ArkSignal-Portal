@@ -1,12 +1,12 @@
 #!/bin/sh
 # One-time switch of the hub to automatic updates. Run on the hub VM as the user that runs docker (localadmin):
-#   docker run --rm --pull always mallison01/adsb-portal:stable cat /app/deploy/switch-to-auto-updates.sh | sh
+#   docker run --rm --pull always ghcr.io/arksignal/arksignal-portal:stable cat /app/deploy/switch-to-auto-updates.sh | sh
 # What it does: replaces the portal's and Grafana's compose files with the current ones (the old ones are kept as compose.yaml.bak-<time>),
 # adds a random WATCHTOWER_TOKEN to the portal's .env, and starts everything including Watchtower. Data folders are not touched.
 # Afterwards nothing needs copying by hand: Watchtower installs new stable releases every night at 4 a.m., or press Update Now on the
 # portal's Admin > Updates page. Safe to run again.
 set -eu
-IMG="${IMAGE:-mallison01/adsb-portal:stable}"
+IMG="${IMAGE:-ghcr.io/arksignal/arksignal-portal:stable}"
 P="${PORTAL_DIR:-/opt/adsb/portal}"
 G="${GRAFANA_DIR:-/opt/adsb/grafana}"
 ts=$(date +%Y%m%d-%H%M%S)

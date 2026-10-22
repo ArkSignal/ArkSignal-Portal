@@ -9,7 +9,7 @@
 # (and backup) and are sent to the broker again whenever the portal's Apply button or a restore runs.
 services:
   mesh:
-    image: mallison01/adsb-mesh:stable
+    image: ghcr.io/arksignal/arksignal-mesh:stable
     labels:
       - com.centurylinklabs.watchtower.enable=true
     container_name: mesh
@@ -27,7 +27,7 @@ services:
       - mesh_internal
 
   mesh-mqtt:
-    image: mallison01/adsb-mesh-mqtt:stable
+    image: ghcr.io/arksignal/arksignal-mesh-mqtt:stable
     labels:
       - com.centurylinklabs.watchtower.enable=true
     container_name: mesh-mqtt

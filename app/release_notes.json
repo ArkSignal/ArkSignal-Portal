@@ -9,6 +9,17 @@
     "security": []
   },
   {
+    "version": "1.8.1",
+    "released": "2026-10-21T22:02:56",
+    "title": "Updates now come from the GitHub Container Registry (ghcr.io/arksignal) as well as Docker Hub",
+    "added": [],
+    "improved": [
+      "Updates now come from the GitHub Container Registry (ghcr.io/arksignal/arksignal-*) as well as Docker Hub: the services' bundled compose files, the installer script and the update check use the new names, and the update check can read either registry (Settings > Scheduled Updates)"
+    ],
+    "fixed": [],
+    "security": []
+  },
+  {
     "version": "1.8.0",
     "released": "2026-10-21T17:18:43",
     "title": "The new address arksignal.net, finding members by call sign or email, claim a mesh node, mesh broker protection and Neighbor Info links, GOES viewer improvements, public source code",

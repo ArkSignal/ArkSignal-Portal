@@ -4,7 +4,7 @@
 services:
   portal-app:
     # Docker Hub, `stable` = the release you last promoted (see README, Releases). `latest` is every build, not necessarily tested.
-    image: mallison01/adsb-portal:stable
+    image: ghcr.io/arksignal/arksignal-portal:stable
     labels:
       - com.centurylinklabs.watchtower.enable=true
     container_name: adsb-portal

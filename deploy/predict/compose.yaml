@@ -4,7 +4,7 @@
 # The database holds only public archive data and forecasts (the archive import can rebuild it), so it is not part of the off-site backup.
 services:
   predict:
-    image: mallison01/adsb-predict:stable
+    image: ghcr.io/arksignal/arksignal-predict:stable
     labels:
       - com.centurylinklabs.watchtower.enable=true
     container_name: predict
