@@ -34,8 +34,8 @@
 #ws-chips .chip{cursor:pointer}
 #ws-charts svg{width:100%;height:auto;display:block}.wxcharts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 24px}.wxchart{min-width:0}.wxchart h3{margin:4px 0 2px;font-size:.95rem}@media(max-width:760px){.wxcharts{grid-template-columns:minmax(0,1fr)}}
 </style>
-<script src="/static/sondechart.js"></script>
-<script>
+<script nonce="{{ csp_nonce() }}" src="/static/sondechart.js"></script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   function $(id) { return document.getElementById(id); }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]; }); }

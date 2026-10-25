@@ -53,8 +53,8 @@
   <div id="ckfps"></div>
   <div id="ckmsg">Loading the 3D view...</div>
 </div>
-<script src="{{ c.lib }}/maplibre-gl.js" crossorigin="anonymous"></script>
-<script>
+<script nonce="{{ csp_nonce() }}" src="{{ c.lib }}/maplibre-gl.js" crossorigin="anonymous"></script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var HEX = {{ hex | tojson }}, C = {{ c | tojson }}, M = {{ m | tojson }};
   var $ = function (id) { return document.getElementById(id); };

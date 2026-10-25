@@ -123,7 +123,7 @@ def validate_rule(form, default_cooldown):
         return None, "Watching for any aircraft needs an area or an altitude range, otherwise every aircraft would alert."
     return {"name": name, "kind": kind, "value": value, "area_lat": lat, "area_lon": lon, "area_radius_nm": rad,
             "alt_min_ft": lo, "alt_max_ft": hi, "cooldown_minutes": cooldown,
-            "notify_email": bool(form.get("notify_email")), "notify_webhook": bool(form.get("notify_webhook"))}, None
+            "notify_email": bool(form.get("notify_email")), "notify_webhook": bool(form.get("notify_webhook")), "notify_push": bool(form.get("notify_push"))}, None
 
 
 # ---------------------------------------------------------------- evaluation loop
@@ -170,12 +170,13 @@ def run_tick(app, now=None, aircraft=None):
                         conn.execute("INSERT INTO alert_state (rule_id, hex, last_alert) VALUES (%s,%s,%s) "
                                      "ON CONFLICT (rule_id, hex) DO UPDATE SET last_alert=EXCLUDED.last_alert",
                                      (rule["id"], snap["hex"], now))
-                        conn.execute("INSERT INTO alert_events (rule_id, user_id, ts, hex, callsign, registration, type, alt_ft, lat, lon, squawk, email_state, webhook_state) "
-                                     "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                        conn.execute("INSERT INTO alert_events (rule_id, user_id, ts, hex, callsign, registration, type, alt_ft, lat, lon, squawk, email_state, webhook_state, push_state) "
+                                     "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
                                      (rule["id"], rule["user_id"], now, snap["hex"], snap["callsign"], snap["registration"],
                                       snap["type"], snap["alt"], snap["lat"], snap["lon"], snap["squawk"],
                                       "pending" if rule["notify_email"] else "none",
-                                      "pending" if rule["notify_webhook"] and rule["webhook_url"] else "none"))
+                                      "pending" if rule["notify_webhook"] and rule["webhook_url"] else "none",
+                                      "pending" if rule["notify_push"] else "none"))
                         new_events.append((rule, snap))
                 conn.execute("DELETE FROM alert_state WHERE last_alert < now() - interval '2 days'")
                 conn.commit()
@@ -295,9 +296,77 @@ def send_webhooks(app, now=None):
     return sent
 
 
-def prune(app):
-    """Old alert events follow the history retention setting."""
+def push_usage(conn, user_id):
+    """(notifications sent in the last hour, in the last 24 hours) for one user."""
+    r = conn.execute("SELECT COUNT(*) FILTER (WHERE ts > now() - interval '1 hour') AS hour, COUNT(*) AS day FROM alert_pushes WHERE user_id=%s AND ts > now() - interval '24 hours'", (user_id,)).fetchone()
+    return (r["hour"], r["day"]) if isinstance(r, dict) else (r[0], r[1])
+
+
+def push_text(rows, total=None):
+    """(title, body) for one alert notification: one match names it, several are counted."""
+    total = total or len(rows)
+
+    def what(r):
+        return (r["callsign"] or r["registration"] or r["hex"].upper()) + (f" ({r['type']})" if r["type"] else "") + (f" at {int(r['alt_ft']):,} ft" if r["alt_ft"] is not None else "")
+    if total == 1:
+        return "Aircraft alert: " + rows[0]["rule_name"], what(rows[0])
+    names = ", ".join(dict.fromkeys(r["rule_name"] for r in rows))[:80]
+    return f"{total} aircraft alerts", "; ".join(what(r) for r in rows[:3]) + (f"; and {total - 3} more" if total > 3 else "") + f" ({names})"
+
+
+def send_pushes(app, now=None):
+    """Notify each person's phones and computers of waiting matches, one combined notification per person, within the limits. Returns notifications sent."""
+    from . import webpush
+    sent = 0
     with app.app_context():
+        if not webpush.on():
+            return 0
+        per_hour, per_day, combine = cfg_int("alert_push_per_hour"), cfg_int("alert_push_per_day"), cfg_int("alert_push_combine_minutes")
+        with psycopg.connect(app.config["DATABASE_URL"], row_factory=dict_row) as conn:
+            conn.execute("UPDATE alert_events SET push_state='expired' WHERE push_state='pending' AND ts < now() - interval '24 hours'")
+            users = conn.execute("SELECT e.user_id, MIN(e.ts) AS first FROM alert_events e JOIN users u ON u.id = e.user_id WHERE e.push_state='pending' AND NOT u.disabled GROUP BY e.user_id").fetchall()
+            for u in users:
+                t = now or datetime.now(timezone.utc)
+                if (t - u["first"]).total_seconds() < combine * 60:
+                    continue
+                hour, day = push_usage(conn, u["user_id"])
+                if hour >= per_hour or day >= per_day:
+                    continue
+                from . import pushkinds
+                if not pushkinds.wants(u["user_id"], "aircraft"):   # the member (or the site) has aircraft notifications off: the matches stay on the Aircraft Alerts page
+                    conn.execute("UPDATE alert_events SET push_state='none' WHERE user_id=%s AND push_state='pending'", (u["user_id"],))
+                    continue
+                subs = conn.execute("SELECT * FROM push_subscriptions WHERE user_id=%s", (u["user_id"],)).fetchall()
+                rows = conn.execute("SELECT e.*, r.name AS rule_name FROM alert_events e JOIN alert_rules r ON r.id = e.rule_id WHERE e.user_id=%s AND e.push_state='pending' ORDER BY e.ts", (u["user_id"],)).fetchall()
+                ids = [r["id"] for r in rows]
+                if not subs:   # nowhere to send: the match stays on the Aircraft Alerts page and is not retried
+                    conn.execute("UPDATE alert_events SET push_state='failed' WHERE user_id=%s AND push_state='pending' AND id = ANY(%s)", (u["user_id"], ids))
+                    continue
+                title, body = push_text(rows[:3], len(rows))
+                oks = []
+                for s in subs:
+                    ok, status = webpush.send(s, {"title": title, "body": body, "url": "/my/alerts", "tag": "aircraft-alert"}, urgency="high")
+                    oks.append(ok)
+                    if ok:
+                        conn.execute("UPDATE push_subscriptions SET last_ok=now() WHERE id=%s", (s["id"],))
+                    elif status in (404, 410):   # the device turned notifications off or was removed
+                        conn.execute("DELETE FROM push_subscriptions WHERE id=%s", (s["id"],))
+                ok = any(oks)
+                conn.execute("INSERT INTO alert_pushes (user_id, events, ok) VALUES (%s,%s,%s)", (u["user_id"], len(rows), ok))
+                conn.execute("UPDATE alert_events SET push_state=%s WHERE user_id=%s AND push_state='pending' AND id = ANY(%s)", ("sent" if ok else "failed", u["user_id"], ids))
+                sent += 1 if ok else 0
+            conn.execute("DELETE FROM alert_pushes WHERE ts < now() - interval '3 days'")
+            conn.commit()
+    return sent
+
+
+def prune(app):
+    """Old alert events follow the history retention setting; the lists of what was sent (kept only to count a day's limit) go after three days."""
+    with app.app_context():
+        with psycopg.connect(app.config["DATABASE_URL"]) as conn:
+            for t in ("alert_emails", "alert_webhooks"):
+                conn.execute(f"DELETE FROM {t} WHERE ts < now() - interval '3 days'")
+            conn.commit()
         days = cfg_int("history_retention_days")
         if days <= 0:
             return
@@ -321,6 +390,7 @@ def start_alerts(app):
                         try:
                             send_digests(app)
                             send_webhooks(app)
+                            send_pushes(app)
                         finally:
                             lock_conn.execute("SELECT pg_advisory_unlock(727008)")
             except Exception:

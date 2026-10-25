@@ -29,7 +29,11 @@ NAME_RE = re.compile(r"^portal-backup-(\d{8})-(\d{6})-(manual|scheduled|pre-rest
 
 def backup_dir():
     d = os.environ.get("BACKUP_DIR", "/backups")
-    os.makedirs(d, exist_ok=True)
+    os.makedirs(d, mode=0o700, exist_ok=True)
+    try:
+        os.chmod(d, 0o700)   # a backup holds every table: only the portal's own user may list or read the folder
+    except OSError:
+        pass
     return d
 
 
@@ -45,7 +49,7 @@ def _encrypt_file(src, dst):
     """Encrypt a file in 1 MiB pieces (each its own Fernet token) so large backups need little memory."""
     from .vault import _fernet
     f = _fernet()
-    with open(src, "rb") as r, open(dst, "wb") as w:
+    with open(src, "rb") as r, os.fdopen(os.open(dst, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "wb") as w:
         w.write(MAGIC)
         while True:
             piece = r.read(CHUNK)
@@ -148,7 +152,7 @@ def create_backup(database_url, kind="manual"):
         manifest = {"format": FORMAT_VERSION, "created_at": now.isoformat(), "kind": kind,
                     "tables": tables, "row_counts": counts}
         try:
-            with tarfile.open(partial, "w:gz") as tar:
+            with os.fdopen(os.open(partial, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "wb") as raw, tarfile.open(fileobj=raw, mode="w:gz") as tar:   # private from the first byte, even before it is encrypted
                 data = json.dumps(manifest, indent=1).encode()
                 info = tarfile.TarInfo("manifest.json")
                 info.size = len(data)
@@ -162,9 +166,11 @@ def create_backup(database_url, kind="manual"):
                 os.remove(partial)
             else:
                 os.replace(partial, final)
+            os.chmod(final, 0o600)
         finally:
             if os.path.exists(partial):
                 os.remove(partial)
+    write_info(final, sum(counts.values()))
     return name, manifest
 
 
@@ -181,27 +187,93 @@ def read_manifest(path):
     return m
 
 
-def list_backups():
+def _info_path(p):
+    return p + ".info"
+
+
+_pending = []
+_scanner = None
+
+
+def _scan_pending():
+    global _scanner
+    while True:
+        try:
+            p = _pending.pop(0)
+        except IndexError:
+            _scanner = None
+            return
+        try:
+            _summary(p, True)
+        except OSError:
+            pass
+
+
+def _later(p):
+    """Count a backup's rows in the background (one at a time), so the page never waits for an archive to be opened."""
+    global _scanner
+    import threading
+    if p not in _pending:
+        _pending.append(p)
+    if _scanner is None:
+        _scanner = threading.Thread(target=_scan_pending, daemon=True)
+        _scanner.start()
+
+
+def _summary(p, scan=True):
+    """(rows, ok) for one backup, from the small `.info` file kept beside it while the backup's size and time still match. Reading the manifest means unpacking (and, when encrypted, decrypting) the whole archive,
+    so it is done once per file and remembered: listing the backups stays fast however big they grow."""
+    st = os.stat(p)
+    key = {"size": st.st_size, "mtime": st.st_mtime_ns}
+    try:
+        with open(_info_path(p), encoding="utf-8") as f:
+            c = json.load(f)
+        if c.get("size") == key["size"] and c.get("mtime") == key["mtime"]:
+            return c["rows"], c["ok"]
+    except (OSError, ValueError, KeyError):
+        pass
+    if not scan:
+        _later(p)
+        return None, True   # not counted yet: the page says so, and the count is there on the next visit
+    try:
+        rows, ok = sum(read_manifest(p).get("row_counts", {}).values()), True
+    except Exception:  # unreadable or corrupt file stays listed so it can be deleted
+        rows, ok = 0, False
+    write_info(p, rows, ok)
+    return rows, ok
+
+
+def write_info(p, rows, ok=True):
+    try:
+        st = os.stat(p)
+        tmp = _info_path(p) + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump({"size": st.st_size, "mtime": st.st_mtime_ns, "rows": rows, "ok": ok}, f)
+        os.replace(tmp, _info_path(p))
+    except OSError:
+        pass
+
+
+def list_backups(scan=True):
     out = []
     for name in sorted(os.listdir(backup_dir()), reverse=True):
         m = NAME_RE.match(name)
         if not m:
             continue
         p = os.path.join(backup_dir(), name)
-        try:
-            when = datetime.strptime(m.group(1) + m.group(2), "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
-            manifest = read_manifest(p)
-            rows = sum(manifest.get("row_counts", {}).values())
-            ok = True
-        except Exception:  # unreadable or corrupt file stays listed so it can be deleted
-            when = datetime.strptime(m.group(1) + m.group(2), "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
-            rows, ok = 0, False
+        when = datetime.strptime(m.group(1) + m.group(2), "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
+        rows, ok = _summary(p, scan)
         out.append({"name": name, "when": when, "kind": m.group(3), "size": os.path.getsize(p), "rows": rows, "ok": ok, "encrypted": is_encrypted(p)})
     return out
 
 
 def delete_backup(name):
-    os.remove(backup_path(name))
+    p = backup_path(name)
+    os.remove(p)
+    try:
+        os.remove(_info_path(p))
+    except OSError:
+        pass
 
 
 def apply_retention():

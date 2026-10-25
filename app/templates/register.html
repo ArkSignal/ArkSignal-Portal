@@ -17,6 +17,6 @@
   <input type="password" id="confirm" name="confirm" autocomplete="new-password" required>
   <button class="btn" type="submit">Create Account</button>
 </form>
-<script src="/static/pwcheck.js" defer></script>
+<script nonce="{{ csp_nonce() }}" src="/static/pwcheck.js" defer></script>
 </div>
 {% endblock %}

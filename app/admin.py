@@ -91,11 +91,13 @@ def user_action(user_id):
             d.rollback()
             return _users_response(False, "At least one enabled Super Admin account must remain.")
         d.commit()
+        nudge_matrix()
         audit("user.disable", target=target.username)
         return _users_response(True, f"{target.username} has been disabled.")
     if action == "enable":
         d.execute("UPDATE users SET disabled=FALSE WHERE id=%s", (target.id,))
         d.commit()
+        nudge_matrix()
         audit("user.enable", target=target.username)
         return _users_response(True, f"{target.username} has been enabled.")
     if action == "reset_2fa":
@@ -347,7 +349,7 @@ INT_RANGES = {"max_failed_attempts": ("Failed Sign-In Attempts", 3, 20), "lockou
 
 # The settings sub-nav: which tab each section sits under. A section not listed here lands under Other, so a new setting group is never lost.
 SETTING_TABS = [
-    ("General", ["General", "Display", "Units", "Themes", "Public Pages", "Contacts", "Service Status"]),
+    ("General", ["General", "Display", "Units", "Themes", "Public Pages", "Contacts", "Service Status", "Data Retention", "Shopping Links", "My Flights"]),
     ("Accounts and Security", ["Accounts", "Security"]),
     ("Map and Data", ["Map Defaults", "Map Areas", "Home Page and Live Map", "Map Tiles and Weather", "Flight History", "History", "Range Statistics"]),
     ("Facilities and Lookups", ["Hospitals", "Air Ambulance", "Interesting Aircraft", "Places and Search", "Address Finders", "Aircraft Lookups", "Weather Stations", "Radiosondes", "Prediction Service", "Repeaters", "APRS", "Routing", "Map Data", "Counties"]),
@@ -503,6 +505,13 @@ def settings_save():
             if s["kind"] == "dist" and (s["key"] not in f or raw.strip() == _units_show(cfg(s["key"]), s["extra"]["base"])):
                 new[s["key"]] = cfg(s["key"])   # not sent, or the shown number untouched: keep the stored value exactly (a stored 250 m must never be read back as 250 feet)
                 continue
+            if s["kind"] == "secret":   # never shown: left blank keeps what is saved, the box clears it
+                if f.get(s["key"] + "__clear"):
+                    new[s["key"]] = ""
+                    continue
+                if not raw.strip():
+                    new[s["key"]] = cfg(s["key"])
+                    continue
             clean, err = validate_spec(s["key"], s["kind"], s["label"], raw, s["extra"])
             if not err and s["key"] == "admin_allow_addresses" and clean != cfg(s["key"]):
                 from . import adminallow
@@ -513,7 +522,8 @@ def settings_save():
             if err:
                 return action_response(False, err, redirect_endpoint="admin.settings_page", redirect_kwargs=_back())
             new[s["key"]] = clean
-    changed = [f"{k}: {cfg(k)} -> {v}" for k, v in new.items() if cfg(k) != v]
+    from .settings import SEALED_SETTINGS
+    changed = [(f"{k}: changed" if k in SEALED_SETTINGS else f"{k}: {cfg(k)} -> {v}") for k, v in new.items() if cfg(k) != v]   # a secret's value never goes into the audit log
     for k, v in new.items():
         set_setting(k, v)
     if changed:
@@ -527,7 +537,7 @@ def settings_save():
 
 def _backups_context():
     from . import offsite
-    return {"backups": bk.list_backups(), "v": {k: cfg(k) for k in DEFAULTS},
+    return {"backups": bk.list_backups(scan=False), "v": {k: cfg(k) for k in DEFAULTS},
             "last_status": cfg_get("backup_last_status"), "last_run": bk.last_run(), **offsite.context()}
 
 
@@ -1539,3 +1549,9 @@ def updates_now():
         return action_response(False, f"The update service refused the request (error {e.code}). Check the update token in the portal's .env file.", redirect_endpoint="admin.updates")
     except (urllib.error.URLError, TimeoutError, ConnectionError, OSError):
         return action_response(True, "The update has started and the portal is restarting. Reload this page in a minute to see the new version.", redirect_endpoint="admin.updates")
+
+
+def nudge_matrix():
+    """Blocks, friendships and disabled accounts feed the Matrix server (ignore lists, who may start a chat, locked accounts): ask for a sync soon."""
+    from .matrix import nudge_if_on
+    nudge_if_on()

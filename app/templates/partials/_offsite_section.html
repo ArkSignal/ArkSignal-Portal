@@ -7,13 +7,25 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label class="check"><input type="checkbox" name="enabled" value="1" {{ 'checked' if offsite.cfg.enabled }}><span><b>Make off-site copies</b><br><span class="dim">Runs on the schedules below once the destination is saved and tested.</span></span></label>
     <label for="os-type">Destination Type</label>
-    <select id="os-type" name="type">{% for k, l in offsite.types.items() %}<option value="{{ k }}" {{ 'selected' if offsite.cfg.type == k }}>{{ l }}</option>{% endfor %}</select>
+    <select id="os-type" name="type">{% for k, l in offsite.types.items() %}<option value="{{ k }}" {{ 'selected' if offsite.shown == k }}>{{ l }}</option>{% endfor %}</select>
 
-    <div data-for="sftp smb s3 webdav">
-      <label for="os-host"><span data-for-label="webdav">Web Address</span><span data-for-label="s3">Endpoint Address (leave empty for Amazon S3)</span><span data-for-label="sftp smb">Host</span></label>
+
+    <div data-for="nas" class="panel" style="margin:10px 0">
+      <p style="margin:0 0 6px"><b>Setting up a NAS (a network storage box) as the off-site copy.</b> The menu names differ between makes; the steps are the same.</p>
+      <ol style="margin:0 0 6px 18px;padding:0">
+        <li>On the NAS, switch on its <b>SFTP</b> service (some call it SSH file transfer; leave the port at 22 or choose another one). Do not switch on plain FTP.</li>
+        <li>Make a user just for this, for example <span class="mono">arksignal-backup</span>, with a long password. Give it read/write on one shared folder (for example <span class="mono">backups</span>) and no access to any other folder, and allow it to use SFTP only.</li>
+        <li>Make the NAS reachable from this hub: put its address in <b>Host</b> below (a dynamic DNS name, or a VPN address if the hub and the NAS share a VPN). Over the internet, forward one router port to the NAS, let the NAS firewall accept that port only from the hub's public address, and switch on its automatic blocking of repeated failures. A VPN is safer than an open port.</li>
+        <li>Below, enter the host, the port (if not 22), the user and password, and as <b>Folder</b> the shared folder and a sub-folder, for example <span class="mono">backups/arksignal</span>. Choose a long <b>Encryption Passphrase</b> and keep a copy of it away from the hub: the files on the NAS are encrypted and cannot be read without it.</li>
+        <li>Save, then press <b>Test the Connection</b>. It writes, reads back and deletes a small file. When it works, tick <b>Make off-site copies</b> and save.</li>
+      </ol>
+      <p class="dim" style="margin:0;font-size:.85rem">You can use an SSH key instead of the password (add its public key to the user's <span class="mono">authorized_keys</span> on the NAS; some NAS boxes need the user's home folder switched on for that). The NAS needs no backup software of its own: the copies are ordinary files in the folder you chose.</p>
+    </div>
+    <div data-for="nas sftp smb s3 webdav">
+      <label for="os-host"><span data-for-label="webdav">Web Address</span><span data-for-label="s3">Endpoint Address (leave empty for Amazon S3)</span><span data-for-label="nas sftp smb">Host</span></label>
       <input type="text" id="os-host" name="host" value="{{ offsite.cfg.host }}" placeholder="backup.example.org" style="max-width:380px">
     </div>
-    <div data-for="sftp smb">
+    <div data-for="nas sftp smb">
       <label for="os-port">Port (optional)</label>
       <input type="text" id="os-port" name="port" value="{{ offsite.cfg.port }}" placeholder="22" style="max-width:110px">
     </div>
@@ -27,7 +39,7 @@
       <label for="os-ak">Access Key</label>
       <input type="text" id="os-ak" name="access_key" value="{{ offsite.cfg.access_key }}" autocomplete="off" style="max-width:300px">
     </div>
-    <div data-for="sftp smb webdav">
+    <div data-for="nas sftp smb webdav">
       <label for="os-user">User Name</label>
       <input type="text" id="os-user" name="user" value="{{ offsite.cfg.user }}" autocomplete="off" style="max-width:260px">
     </div>
@@ -35,9 +47,9 @@
     <input type="text" id="os-path" name="path" value="{{ offsite.cfg.path }}" placeholder="adsb-backups" style="max-width:300px">
     <div class="help"><span data-for-label="smb">For a share, start with the share name: <span class="mono">backups/adsb</span>.</span> The copies are written inside this folder, in <span class="mono">small</span> and <span class="mono">big</span> sub-folders.</div>
 
-    <label for="os-secret"><span data-for-label="s3">Secret Key</span><span data-for-label="sftp smb webdav">Password</span></label>
+    <label for="os-secret"><span data-for-label="s3">Secret Key</span><span data-for-label="nas sftp smb webdav">Password</span></label>
     <input type="password" id="os-secret" name="secret" autocomplete="new-password" placeholder="{{ 'saved: leave blank to keep it' if offsite.has_secret else '' }}" style="max-width:300px">
-    <div data-for="sftp">
+    <div data-for="nas sftp">
       <label for="os-key">SSH Private Key (optional, instead of a password)</label>
       <textarea id="os-key" name="key" rows="3" class="mono" placeholder="{{ 'saved: leave blank to keep it' if offsite.has_key else '-----BEGIN OPENSSH PRIVATE KEY-----' }}" style="max-width:520px"></textarea>
       {% if offsite.has_key %}<label class="check"><input type="checkbox" name="clear_key" value="1"><span>Remove the saved key</span></label>{% endif %}
@@ -87,7 +99,7 @@
   <div class="grp">Getting a Copy Back</div>
   <p class="dim" style="margin:0">The database part can be restored from this page like any backup once you have decrypted the small copy. To list, decrypt and unpack copies from the destination, run on the hub: <span class="mono">docker run --rm -it -v /opt/adsb:/opt/adsb mallison01/adsb-backup:stable restore</span>. It asks for the destination details and your passphrase; nothing else on the hub is touched until you copy files back yourself.</p>
 </div></details>
-<script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var sel = document.getElementById("os-type");
   function show() {

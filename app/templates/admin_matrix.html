@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Matrix Chat{% endblock %}
+{% block content %}
+<h1><span>Admin</span> Matrix Chat</h1>
+<div class="sub">The chat server (Matrix) that members reach with the Element app. Members sign in with their ArkSignal account: there are no separate Matrix passwords, and the site's two-factor sign-in and passkeys still apply.</div>
+{% include "partials/_admin_subnav.html" %}
+
+{% include "partials/_admin_matrix.html" %}
+
+{% call sec('setup', 'Setting It Up (Once)', False) %}
+  <ol style="margin-top:0">
+    <li><b>DNS:</b> a record for <span class="mono">{{ public_url.split('//')[-1] }}</span> and one for <span class="mono">{{ element_url.split('//')[-1] }}</span>, pointing where the site's other names point.</li>
+    <li><b>Nginx Proxy Manager, the Matrix address:</b> a proxy host for <span class="mono">{{ public_url.split('//')[-1] }}</span> that forwards to scheme <span class="mono">http</span>, host <span class="mono">matrix</span>, port <span class="mono">8008</span>, with Websockets Support and Block Common Exploits on, a Let's Encrypt certificate with Force SSL and HTTP/2, and this in its Advanced tab:
+      <pre class="mono" style="white-space:pre-wrap;margin:6px 0">client_max_body_size 50M;
+proxy_read_timeout 600s;
+proxy_send_timeout 600s;
+proxy_buffering off;</pre></li>
+    <li><b>Nginx Proxy Manager, the chat page:</b> a proxy host for <span class="mono">{{ element_url.split('//')[-1] }}</span> that forwards to scheme <span class="mono">http</span>, host <span class="mono">element</span>, port <span class="mono">8080</span>, with a certificate and Force SSL (Websockets Support is not needed). Nothing else: the site's own page shows it inside the Chat page.</li>
+    <li><b>The site's own address:</b> the Matrix apps look for <span class="mono">{{ server_name }}/.well-known/matrix/client</span> to find the server; the site answers that by itself once Matrix Chat is on. The router and firewall need nothing new (443 is already open for the proxy).</li>
+    <li>In <a href="/admin/settings">Settings</a> &gt; Matrix Chat check the server name and the two addresses (the sign-in return address is worked out from the Matrix address by itself: <span class="mono">{{ public_url }}/_synapse/client/oidc/callback</span>), then set <b>Matrix Chat</b> to On.</li>
+    <li>Press <b>Apply</b> above. The site makes a sign-in secret, gives it to the Matrix service together with the settings, and Synapse starts. Then press <b>Sync Now</b> to make the standing rooms.</li>
+  </ol>
+  <p class="help">The server name cannot be changed after people have used it, because it is part of every Matrix address. Moving members' old chats and messages over is not done: they stay where they are, closed, in the site's database.</p>
+{% endcall %}
+{% endblock %}

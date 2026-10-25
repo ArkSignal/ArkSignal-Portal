@@ -60,6 +60,8 @@ try:
     d.get(B + "/feeders/")
     d.find_element(By.ID, "nav-toggle").click(); time.sleep(0.3)
     check("menu drawer opens and lists the links", d.find_element(By.CSS_SELECTOR, "nav.open a.mapbtn").is_displayed())
+    r = d.execute_script("var ds=document.querySelectorAll('#mainnav details.navmenu:not(#prefs-menu)');ds.forEach(function(x){x.open=true});var n=document.getElementById('mainnav');var own=[].slice.call(n.querySelectorAll('.navdrop')).filter(function(x){return x.offsetParent&&getComputedStyle(x).overflowY!=='visible'}).length;return [own,n.scrollHeight>n.clientHeight]")
+    check("in the open menu the sheet scrolls and no drop-down is a scroller of its own (a long Aircraft list trapped the finger)", r[0] == 0, str(r))
     d.save_screenshot(os.path.join(SHOTS, "menu_open.png"))
 finally:
     d.quit()

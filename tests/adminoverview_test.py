@@ -19,7 +19,7 @@ hosp = psql("select count(*) from hospitals")
 check("the hospital count is the real one", f"{int(hosp):,}" in t, hosp)
 check("it shows the services behind the site, with their state", "Website and Accounts" in t and "Address Search (Photon)" in t and re.search(r'class="tag (live|off)"', t))
 check("it shows recent activity from the audit log", "Recent Activity" in t and re.search(r'<td class="mono">[a-z_.]+</td>', t) is not None)
-check("it has the grouped admin menu", 'class="subnav adminnav"' in t)
+check("it has the grouped admin menu", 'id="ad-side"' in t)
 # conditions that must raise an item, with a link to fix it
 psql("update users set locked_until = now() + interval '1 hour' where username='plain1'")
 fid = psql("select facility_id from hospitals where pos_check='' and facility_id not like 'imp-%' limit 1")

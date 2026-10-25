@@ -1,0 +1,24 @@
+{% extends "feed_base.html" %}
+{% from "partials/_feedsec.html" import sec, data_and_help with context %}
+{% block title %}How to Feed{% endblock %}
+{% block feed_body %}
+<h1>How to <span>Feed</span> the Network</h1>
+<div class="sub">{{ site_name }} is built from what its members receive: aircraft, weather stations, weather balloons, mesh radios and more. Pick what you have and follow its page. Everything starts the same way: <a href="/my/register">make an account</a> (or <a href="/my/login">sign in</a>), then connect your equipment with the address and key shown on the page. Not sure whether yours already works? <a href="/feed/check">Am I Feeding?</a></div>
+
+{% call sec('adsb', 'Aircraft (ADS-B)', True) %}
+  <div class="tiles" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr));margin:0">
+    <a class="panel tile" href="/feed/adsb" style="text-decoration:none"><div class="tv" style="font-size:1.1rem">ADS-B (1090 MHz)</div><div class="tl">An inexpensive receiver and an antenna, a small computer, and one line in your ultrafeeder. The part nearly everyone does.</div></a>
+    {% if mlat_enabled %}<a class="panel tile" href="/feed/mlat" style="text-decoration:none"><div class="tv" style="font-size:1.1rem">MLAT</div><div class="tl">Finds aircraft that do not broadcast a position. The same receiver and container as ADS-B, with your exact position.</div></a>{% endif %}
+    {% if uat_enabled %}<a class="panel tile" href="/feed/uat" style="text-decoration:none"><div class="tv" style="font-size:1.1rem">UAT (978 MHz)</div><div class="tl">The second datalink used by small aircraft in the United States. Needs its own radio; nothing extra to send.</div></a>{% endif %}
+  </div>
+{% endcall %}
+{% if others %}{% call sec('others', 'Everything Else (' ~ others | length ~ ')', True) %}
+  <div class="tiles" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr));margin:0">
+    {% for o in others %}<a class="panel tile" href="{{ o.href }}" style="text-decoration:none"><div class="tv" style="font-size:1.1rem">{{ o.name }}</div><div class="tl">{{ o.text }}</div></a>{% endfor %}
+  </div>
+{% endcall %}{% endif %}
+{% call sec('check', 'Check That It Works', False) %}
+  <p style="margin:0">When your equipment is connected, <a href="/feed/check">Am I Feeding?</a> shows what the network hears from your address, and your own pages under <a href="/my/">My Feeders</a> show each station as it comes online.</p>
+{% endcall %}
+{{ data_and_help('feed') }}
+{% endblock %}

@@ -1,0 +1,74 @@
+{% from "partials/_feedsec.html" import sec with context %}
+<div id="matrix-admin">
+{% call sec('status', 'Status', True) %}
+  <p style="margin-top:0">
+    {% if not on %}<span class="tag off">off</span> Matrix Chat is switched off in Settings.
+    {% elif not st.ok %}<span class="tag off">service not answering</span> {{ st.note }}
+    {% elif d.synapse_answering %}<span class="tag live">running</span> Synapse {{ d.synapse_version }} for {{ d.server_name }}.
+    {% elif d.applied %}<span class="tag off">starting or stopped</span> {{ d.error or 'Synapse is starting.' }}
+    {% else %}<span class="tag off">waiting for settings</span> The service is running; press Apply to give it its settings.{% endif %}</p>
+  <div class="k" style="display:grid;grid-template-columns:auto 1fr;gap:4px 14px;max-width:640px">
+    <div class="dim">Server name</div><div class="mono">{{ server_name or 'not set' }}</div>
+    <div class="dim">Matrix address</div><div class="mono">{{ public_url or 'not set' }}</div>
+    <div class="dim">Element address</div><div class="mono">{{ element_url or 'not set' }}</div>
+    <div class="dim">Sign-in client</div><div class="mono">{{ client_id }} <span class="dim">({{ 'secret made, sealed' if secret_made else 'secret not made yet' }})</span></div>
+    <div class="dim">This site's name for sign-in</div><div class="mono">{{ issuer }}</div>
+    <div class="dim">Other servers</div><div>{{ 'open to other Matrix servers' if federation else 'members only (closed)' }}</div>
+    {% if d.restarts is defined %}<div class="dim">Starts since the service began</div><div>{{ d.restarts }}</div>{% endif %}
+  </div>
+  {% if gaps %}<p class="help"><b>Still to fill in:</b> {{ gaps|join('; ') }}.</p>{% endif %}
+{% endcall %}
+{% call sec('apply', 'Apply', True) %}
+  <form method="post" action="/admin/matrix/apply" data-async data-async-target="#matrix-admin">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn" type="submit">Apply the Settings</button>
+    <button class="btn warn" type="submit" formaction="/admin/matrix/rotate" data-confirm="Make a new sign-in secret? The old one stops working at once; the new one is sent to the Matrix service.">Make a New Sign-In Secret</button>
+    <div class="help">Apply sends the settings and the sign-in secret to the Matrix service and starts Synapse again (a few seconds). The secret is never shown.</div>
+  </form>
+{% endcall %}
+{% call sec('keep', 'Standing Rooms and Keeping in Step', False) %}
+  <p style="margin-top:0">{% if counts %}<b>{{ counts.users }}</b> chat account{{ '' if counts.users == 1 else 's' }} and <b>{{ counts.rooms }}</b> room{{ '' if counts.rooms == 1 else 's' }} on the server. {% endif %}Who may start a room: <b>{{ 'everyone' if creating == 'everyone' else 'moderators only' }}</b>. Who may start a chat with whom: <b>{{ {'everyone': 'anyone with anyone', 'friends': 'friends only', 'moderators': 'moderators only'}[inviting] }}</b>.</p>
+  <p class="dim" style="margin:0 0 8px">Standing rooms (public, never encrypted so they can be moderated and bridged): {% for r in rooms %}<b>#{{ r.alias }}</b> {{ r.name }}{{ ', ' if not loop.last }}{% else %}none{% endfor %}.
+    {% if sync %}Last synced <time class="ts" datetime="{{ sync_iso }}" data-fmt="dt">{{ sync_iso }}</time>: {{ sync.locked }} locked, {{ sync.unlocked }} unlocked, {{ sync.ignored }} ignore lists, {{ sync.rooms }} rooms.{% if sync.errors %} <b>Trouble:</b> {{ sync.errors|join('; ') }}{% endif %}{% else %}Not synced yet.{% endif %}</p>
+  <form method="post" action="/admin/matrix/sync" data-async data-async-target="#matrix-admin"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small" type="submit">Sync Now</button>
+    <span class="help">The site does this by itself every few minutes and at once after a block, a friend, a disabled account or a lock. Blocks become each member's Matrix ignore list; disabled and locked accounts are signed out of chat; people holding Moderate Chat are moderators of the standing rooms.</span></form>
+{% endcall %}
+{% call sec('reports', 'Reports Waiting (' ~ reports | length ~ ')', True, True) %}
+  {% if reports_note %}<p class="dim" style="margin:0">{{ reports_note }}</p>{% endif %}
+  {% for r in reports %}
+  <div class="panel" style="margin:0 0 10px">
+    <div class="dim" style="font-size:.8rem">In <b>{{ r.room_name or r.room_id }}</b> &middot; written by <b>{{ r.sender_name }}</b> &middot; reported by {{ r.reporter_name }}{% if r.ts %} <time class="ts" datetime="{{ r.ts.isoformat() }}" data-fmt="dt">{{ r.ts }}</time>{% endif %}</div>
+    <div style="margin:6px 0">{{ r.reason or 'No reason was given.' }}</div>
+    <div class="dim" style="font-size:.8rem">Moderators cannot read an encrypted room: a report there names the message and the person, and the reason the reporter wrote. Removing it removes it for everyone.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+      <form class="inline" method="post" action="/admin/matrix/reports/{{ r.id }}/delete" data-async data-async-target="#matrix-admin" data-confirm="Remove this message from the room and close the report?"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small warn" type="submit">Remove the Message</button></form>
+      <form class="inline" method="post" action="/admin/matrix/reports/{{ r.id }}/dismiss" data-async data-async-target="#matrix-admin"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small" type="submit">Dismiss</button></form>
+    </div></div>
+  {% endfor %}
+  {% if not reports and not reports_note %}<p class="dim" style="margin:0">No reports are waiting.</p>{% endif %}
+{% endcall %}
+{% call sec('mirror', 'Discord Mirror of a Standing Room (' ~ mirrors | length ~ ')', False) %}
+  <p style="margin-top:0">Everything written in a standing room can also be sent, one way, to a Discord channel, so people who live in Discord see it. Make a webhook in the channel's settings (Integrations) and paste its address here. It is stored sealed and never shown again. Nothing flows from Discord back into the room.</p>
+  <form method="post" action="/admin/matrix/mirror" data-async data-async-target="#matrix-admin" data-reset class="tfilterbar" style="align-items:flex-end">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div><label for="mr-room">Room</label><select id="mr-room" name="alias">{% for r in rooms %}<option value="{{ r.alias }}">#{{ r.alias }} {{ r.name }}</option>{% endfor %}</select></div>
+    <div><label for="mr-url">Discord Webhook Address</label><input type="password" id="mr-url" name="webhook" autocomplete="off" maxlength="400" style="width:360px" required></div>
+    <button class="btn" type="submit">Save the Mirror</button>
+  </form>
+  {% if mirrors %}<table class="tbl"><tr><th>Room</th><th>Set by</th><th></th></tr>
+  {% for m in mirrors %}<tr><td>#{{ m.alias }}</td><td>{{ m.by_name }}</td><td><form class="inline" method="post" action="/admin/matrix/mirror/{{ m.alias }}/delete" data-async data-async-target="#matrix-admin" data-confirm="Stop sending #{{ m.alias }} to Discord?"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small warn" type="submit">Remove</button></form></td></tr>{% endfor %}</table>{% endif %}
+{% endcall %}
+{% call sec('locks', 'Locked Accounts (' ~ locks | length ~ ')', False) %}
+  <form method="post" action="/admin/matrix/lock" data-async data-async-target="#matrix-admin" data-reset class="tfilterbar" style="align-items:flex-end">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div><label for="lk-user">Member</label><input type="text" id="lk-user" name="username" data-memberpicker maxlength="120" style="width:220px" required></div>
+    <div><label for="lk-hours">For (hours, empty: until lifted)</label><input type="number" id="lk-hours" name="hours" min="1" max="8760" style="width:120px"></div>
+    <div><label for="lk-why">Reason</label><input type="text" id="lk-why" name="reason" maxlength="200" style="width:260px"></div>
+    <button class="btn" type="submit">Lock the Chat Account</button>
+  </form>
+  <p class="help">A locked member is signed out of chat everywhere and cannot sign in to it until the lock ends or you lift it. Their site account is not affected. Disabled site accounts are locked by themselves.</p>
+  {% if locks %}<table class="tbl"><tr><th>Member</th><th>Until</th><th>Reason</th><th>By</th><th></th></tr>
+  {% for l in locks %}<tr><td>{{ l.username }}</td><td>{% if l.until %}<time class="ts" datetime="{{ l.until.isoformat() }}" data-fmt="dt">{{ l.until }}</time>{% else %}until lifted{% endif %}</td><td>{{ l.reason or '-' }}</td><td>{{ l.by_name }}</td>
+    <td><form class="inline" method="post" action="/admin/matrix/unlock/{{ l.id }}" data-async data-async-target="#matrix-admin"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small" type="submit">Lift</button></form></td></tr>{% endfor %}</table>{% endif %}
+{% endcall %}
+</div>

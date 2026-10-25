@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Mesh Communities{% endblock %}
+{% block content %}
+<h1><span>Admin</span> Mesh Communities</h1>
+<div class="sub">A community is a named mesh with its own page and a team. You make one and name its Owner; the Owner (and the Managers they choose) run the page, the nodes and the team from the community page. You can always step in from there. <a href="/mesh/communities">Public list</a></div>
+{% include "partials/_admin_subnav.html" %}
+{% call sec('list', 'Communities (' ~ rows | length ~ ')', True, True) %}
+  {% if rows %}<table><thead><tr><th>Community</th><th>Owner</th><th>Team</th><th>Shown</th><th></th></tr></thead><tbody>
+  {% for c in rows %}<tr><td><a href="/mesh/c/{{ c.slug }}">{{ c.name }}</a> <span class="dim">/mesh/c/{{ c.slug }}</span></td><td>{{ c.owner or '-' }}</td><td>{{ c.team }}</td><td>{{ 'public' if c.published else 'hidden' }}</td><td>
+    <form class="inline" method="post" action="/admin/communities/{{ c.slug }}/publish"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small neutral" type="submit">{{ 'Hide' if c.published else 'Show' }}</button></form>
+    <form class="inline" method="post" action="/admin/communities/{{ c.slug }}/delete" data-confirm="Delete {{ c.name }} with its page, team, notices and node choices? Its broker logins stay with the members who made them."><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small warn" type="submit">Delete</button></form></td></tr>{% endfor %}</tbody></table>
+  {% else %}<p class="dim" style="margin:0">No community yet.</p>{% endif %}
+{% endcall %}
+{% if pending %}{% call sec('links', 'Links Waiting for Approval (' ~ pending | length ~ ')', True, True) %}
+  <p style="margin-top:0">Two communities agreed to share a channel through the broker. Approving lets the mesh service carry that channel's packets between them (still encrypted; the service never opens them).</p>
+  <table><thead><tr><th>Between</th><th>Channel</th><th>Hops</th><th>Per Minute</th><th></th></tr></thead><tbody>
+  {% for l in pending %}<tr><td>{{ l.a_name }} and {{ l.b_name }}</td><td>{{ l.channel }}</td><td>{{ l.hop_limit }}</td><td>{{ l.rate_per_min }}</td><td>
+    <form class="inline" method="post" action="/admin/communities/links/{{ l.id }}/approve"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small" type="submit">Approve</button></form>
+    <form class="inline" method="post" action="/admin/communities/links/{{ l.id }}/reject" data-confirm="Reject this link?"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small warn" type="submit">Reject</button></form></td></tr>{% endfor %}</tbody></table>
+{% endcall %}{% endif %}
+{% call sec('make', 'Make a Community', True) %}
+  <form method="post" action="/admin/communities/create" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div><label for="cn">Name</label><input type="text" id="cn" name="name" maxlength="60" required></div>
+    <div><label for="co">Owner (user name, call sign or whole email address; may be left empty)</label><input type="text" id="co" name="owner" style="min-width:260px"></div>
+    <button class="btn" type="submit">Make It</button></form>
+  <p class="dim" style="margin-bottom:0">Start the existing Arkansas meshes as pages an organizer can take over:</p>
+  <form method="post" action="/admin/communities/seed"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small neutral" type="submit">Add {{ seeds | map(attribute=0) | join(', ') }}</button></form>
+{% endcall %}
+{% endblock %}

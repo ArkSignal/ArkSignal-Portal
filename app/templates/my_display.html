@@ -2,9 +2,9 @@
 {% from "partials/_feedsec.html" import sec with context %}
 {% block title %}Display and Maps{% endblock %}
 {% block content %}
+{% with active = 'display' %}{% include "partials/_my_subnav.html" %}{% endwith %}
 <h1>My <span>Display and Maps</span></h1>
 <div class="sub">Everything the Display menu sets, in one place, kept with your account so it follows you to every device; your saved map views too.</div>
-{% with active = 'display' %}{% include "partials/_my_subnav.html" %}{% endwith %}
 <div style="max-width:760px">
 
 {% call sec('look', 'Look', True) %}
@@ -53,7 +53,7 @@
 
 </div>
 
-<script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var $ = function (id) { return document.getElementById(id); }, P = function () { return window.PREFS || {}; };
   function say(t) { $("d-note").textContent = t; setTimeout(function () { $("d-note").textContent = ""; }, 4000); }

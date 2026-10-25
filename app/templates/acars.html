@@ -36,8 +36,8 @@
   </tr>{% endfor %}</tbody></table>{% else %}<p class="dim" style="margin:0">No message matches{% if not note %} (nothing has arrived yet, or the filters are narrow){% endif %}.</p>{% endif %}
 </div>
 <p class="dim" style="font-size:.8rem">{{ credit }}. Want yours on it? <a href="/feed/acars">How to Feed ACARS</a>. An aircraft's owner who wants its messages left off can ask (<a href="/contact">Contact</a>).</p>
-{% if st and st.hourly | length > 2 %}<script src="/static/sondechart.js"></script>
-<script>
+{% if st and st.hourly | length > 2 %}<script nonce="{{ csp_nonce() }}" src="/static/sondechart.js"></script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var h = {{ st.hourly | tojson }};
   window.SondeCharts.bars(document.getElementById("ac-chart"), {data: h.map(function (r) { var d = new Date(r[0]); return {n: r[1], label: window.fmtTime ? window.fmtTime(d, "ts").replace(/:00 /, " ").replace(/:00$/, "") : String(d.getUTCHours()), tip: window.fmtTime ? window.fmtTime(d, "dt") : r[0]}; }), ylabel: "Messages", nfmt: function (n) { return n + (n === 1 ? " message" : " messages"); }});

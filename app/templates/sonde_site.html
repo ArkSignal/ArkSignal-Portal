@@ -22,9 +22,9 @@
 <div class="panel">{{ flight_table(rows, 'No flight from this site has been recorded yet.') }}
   <p style="margin:10px 0 0"><a href="/sondes/flights?site={{ s.site_id }}&amp;hours=0">All flights from this site</a></p></div>
 <p class="dim" style="font-size:.8rem">Launch sites: SondeHub, Creative Commons BY-SA 2.0.</p>
-<script src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script>
-<script src="/static/touchhit.js"></script>
-<script>
+<script nonce="{{ csp_nonce() }}" src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script><script nonce="{{ csp_nonce() }}" src="/static/safehtml.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/touchhit.js"></script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var map = L.map("smap").setView([{{ s.lat }}, {{ s.lon }}], 8);
   L.tileLayer({{ tile_url | tojson }}, {maxZoom: 19, attribution: {{ tile_attr | tojson }}}).addTo(map);

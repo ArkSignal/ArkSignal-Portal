@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Flight Statistics{% endblock %}
+{% block content %}
+{% with active = 'flightstats' %}{% include "partials/_my_subnav.html" %}{% endwith %}
+<h1><span>Flight</span> Statistics</h1>
+<div class="sub">What your diary adds up to. Only you can see it. <a class="btn small" href="/my/flights">Flights</a> <a class="btn small neutral" href="/my/flights/map">Map</a></div>
+<form method="get" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin:0 0 10px">
+  <div><label for="fy">Year</label><select id="fy" name="year"><option value="">All</option>{% for y in years %}<option value="{{ y }}" {{ 'selected' if y == year }}>{{ y }}</option>{% endfor %}</select></div>
+  <button class="btn small" type="submit">Show</button>{% if year %}<a class="btn small neutral" href="/my/flights/stats">Clear</a>{% endif %}
+</form>
+{% with shared = False %}{% include "partials/_my_stats_body.html" %}{% endwith %}
+{% endblock %}

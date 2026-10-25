@@ -3,23 +3,23 @@
 {% block title %}UAT | How to Feed{% endblock %}
 {% block feed_body %}
 <h1>Feed <span>UAT</span> (978 MHz)</h1>
-<div class="sub">The second ADS-B datalink, used only in the United States. It needs its own radio and antenna, but nothing extra is sent to the network: the 978 MHz aircraft travel through the same feed as your <a href="/feed/">ADS-B</a>.</div>
+<div class="sub">The second ADS-B datalink, used only in the United States. It needs its own radio and antenna, but nothing extra is sent to the network: the 978 MHz aircraft travel through the same feed as your <a href="/feed/adsb">ADS-B</a>.</div>
 
 {% call sec('the-short-version', 'The Short Version', True) %}
   <p style="margin:0 0 10px">With a second radio (serial number <span class="mono">00000978</span>) and a 978 MHz antenna, run the dump978 container next to your ultrafeeder and add this line to the <span class="mono">ULTRAFEEDER_CONFIG</span> (the line before it needs a semicolon):</p>
   <pre class="code">adsb,dump978,30978,uat_in</pre>
-  <p class="dim" style="margin:10px 0 0">There is no separate feed line for us: your 978 MHz aircraft go out through the line from the <a href="/feed/">ADS-B page</a>. Without a 978 MHz radio you lose nothing, because the network still shows UAT aircraft heard by the stations that have one.</p>
+  <p class="dim" style="margin:10px 0 0">There is no separate feed line for us: your 978 MHz aircraft go out through the line from the <a href="/feed/adsb">ADS-B page</a>. Without a 978 MHz radio you lose nothing, because the network still shows UAT aircraft heard by the stations that have one.</p>
 {% endcall %}
 
 {% call sec('how-it-works', 'How It Works', True) %}
   <p style="margin-top:0"><b>UAT</b> (Universal Access Transceiver) is the second ADS-B datalink, used only in the United States. Light general-aviation aircraft flying below 18,000 ft (18,000 ft is where airliners and most jets, which use 1090 MHz, take over) can choose either; many choose UAT because it also lets them receive weather and traffic information in the cockpit. In Arkansas that means many of the small planes you would otherwise never see.</p>
   <p>It is a different frequency, so <b>your 1090 MHz receiver cannot hear it</b>. A second radio tuned to 978 MHz feeds the <a href="https://github.com/sdr-enthusiasts/docker-dump978" target="_blank" rel="noopener">dump978</a> container, which decodes it and hands the result to your ultrafeeder. From there the aircraft are merged into your normal feed and appear on the map as UAT/ADS-R.</p>
-  <p style="margin-bottom:0">ADS-R is the same data rebroadcast by ground stations onto 1090 MHz; the map groups both as UAT / ADS-R. See the source table on the <a href="/feed/">ADS-B page</a>.</p>
+  <p style="margin-bottom:0">ADS-R is the same data rebroadcast by ground stations onto 1090 MHz; the map groups both as UAT / ADS-R. See the source table on the <a href="/feed/adsb">ADS-B page</a>.</p>
 {% endcall %}
 
 {% call sec('what-you-need', 'What You Need', True) %}
   <ul class="plain">
-    <li>A <b>working <a href="/feed/">ADS-B feed</a></b> with an ultrafeeder (or a decoder that can take a 978 MHz input).</li>
+    <li>A <b>working <a href="/feed/adsb">ADS-B feed</a></b> with an ultrafeeder (or a decoder that can take a 978 MHz input).</li>
     <li>A <b>second USB radio</b> (RTL-SDR dongles work), with its serial number set to <span class="mono">00000978</span> so the two radios can tell each other apart.</li>
     <li>A <b>978 MHz antenna</b>. A 1090 MHz antenna is the wrong length.</li>
     <li>The <b>dump978</b> container (a second service in your <span class="mono">compose.yaml</span>), on the same computer.</li>
@@ -84,7 +84,7 @@
   <p style="margin-top:0">UAT needs nothing extra. dump978 hands its data to the ultrafeeder on the same computer (port <span class="mono">30978</span>, local only), and your 978 MHz aircraft go out with the normal feed:</p>
   <table>
     <tr><th>What</th><th>Direction</th><th>Destination</th><th>Port</th></tr>
-    <tr><td>Feed (carries UAT too; see the <a href="/feed/">ADS-B page</a>)</td><td>outbound TCP</td><td class="mono">{{ feed_host }}</td><td class="mono">{{ feed_port }}</td></tr>
+    <tr><td>Feed (carries UAT too; see the <a href="/feed/adsb">ADS-B page</a>)</td><td>outbound TCP</td><td class="mono">{{ feed_host }}</td><td class="mono">{{ feed_port }}</td></tr>
   </table>
 {% endcall %}
 

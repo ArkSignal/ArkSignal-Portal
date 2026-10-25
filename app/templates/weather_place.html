@@ -17,7 +17,7 @@
 {% if q and not place %}<div class="panel" style="margin-top:14px"><p style="margin:0">Nothing was found for <b>{{ q }}</b>. Try a ZIP code, a city with its state (Conway, AR) or an airport code (KLIT).</p></div>{% endif %}
 {% if choices %}<p class="dim" style="margin:10px 0 0">Did you mean: {% for c in choices %}<a href="/weather/place?lat={{ '%.4f' % c.lat }}&amp;lon={{ '%.4f' % c.lon }}&amp;q={{ c.label | urlencode }}&amp;units={{ units }}">{{ c.label }}</a>{{ ', ' if not loop.last }}{% endfor %}</p>{% endif %}
 
-<script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var b = document.getElementById("pl-here"), n = document.getElementById("pl-hnote");
   function go(auto) {
@@ -81,10 +81,10 @@
   </table>
 </div></details>
 
-<script src="/static/labelfit.js"></script>
-<script src="/static/wxmap.js"></script>
-<script src="/static/sondechart.js"></script>
-<script>
+<script nonce="{{ csp_nonce() }}" src="/static/labelfit.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/wxmap.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/sondechart.js"></script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var P = {{ {"lat": place.lat, "lon": place.lon, "radius": radius, "units": units} | tojson }};
   var METRICS = [["temp_f", "Temperature", "temp", "temp"], ["hum", "Humidity", "pct", "drop"], ["press_in", "Pressure", "press", "press"], ["wind_mph", "Wind", "speed", "wind"], ["rain_day_in", "Rain So Far That Day", "rain", "rain"]];

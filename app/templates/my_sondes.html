@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% block title %}My Radiosonde Stations{% endblock %}
 {% block content %}
+{% with active = 'sondes' %}{% include "partials/_my_subnav.html" %}{% endwith %}
 <h1>My <span>Sonde Stations</span></h1>
 <div class="sub">Signed in as {{ current_user.username }}. Claim the radiosonde receiving stations you run (the ones that upload to SondeHub with auto_rx or similar) to choose how their location is shown and to see what they hear.</div>
 {% set add_mode = request.args.get('add') == '1' or request.args.get('callsign') %}
-{% with active = 'sondes' %}{% include "partials/_my_subnav.html" %}{% endwith %}
 {% if rows %}
 <div class="tiles" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))">
   {% for r in rows %}

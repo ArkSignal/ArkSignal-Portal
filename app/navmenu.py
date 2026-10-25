@@ -18,7 +18,8 @@ def groups(tools):
     mlat = cfg("mlat_enabled") == "1"
     uat = cfg("uat_enabled") == "1"
     H = lambda t: (t, None)   # a heading inside a flyout (no address): long flyouts are cut into labelled parts
-    tool_items = [(t["name"], "/view/" + t["slug"]) for t in tools if t["slug"] not in NETWORK_TOOLS + WEATHER_TOOLS + SONDE_TOOLS]
+    members_only = () if current_user.is_authenticated else ("planefence", "plane-alert")   # heavy: members only
+    tool_items = [(t["name"], "/view/" + t["slug"]) for t in tools if t["slug"] not in NETWORK_TOOLS + WEATHER_TOOLS + SONDE_TOOLS + members_only]
     feeder_tools = [x for x in tool_items if x[1] == "/view/network-feeders"]
     view_tools = [x for x in tool_items if x not in feeder_tools]
     air = [H("Tracking"), ("Aircraft Tracking", "/aircraft"), ("Live Map", "/live"), ("Flights", "/flight/"), ("Flight History", "/history/"), H("Views")] + view_tools
@@ -36,7 +37,7 @@ def groups(tools):
     net.append(("Service Status", "/status"))
     if cfg("api_enabled") == "1":
         net.append(("API", "/api/docs"))
-    feed = [("How to Feed", "/feed/")]
+    feed = [("How to Feed", "/feed/"), ("ADS-B", "/feed/adsb")]
     if mlat:
         feed.append(("MLAT", "/feed/mlat"))
     if uat:
@@ -82,12 +83,17 @@ def groups(tools):
            *([{"key": "sondes", "label": "Radiosondes", "home": "/sondes/", "items": [("Overview", "/sondes/"), ("Radiosonde Map", "/sondes/map"), ("Flights", "/sondes/flights"), ("Sonde Receiving Stations", "/sondes/stations/"), ("Radiosonde Statistics", "/sondes/statistics")] + [(DASH.get(t["slug"], t["name"]), "/view/" + t["slug"]) for t in tools if t["slug"] in SONDE_TOOLS] + [("My Sonde Stations", "/my/sondes")]}] if cfg("sonde_enabled") == "1" else []),
            *([{"key": "radio", "label": "Radio", "home": "/radio/", "items": radio}]),
            *([{"key": "ais", "label": "River Traffic", "home": "/ais/", "items": [("Overview", "/ais/"), ("River Traffic Map", "/ais/map"), ("My AIS Stations", "/my/ais")]}] if cfg("ais_enabled") == "1" else []),
-           *([{"key": "mesh", "label": "Mesh", "home": "/mesh/", "items": [("Overview", "/mesh/"), ("Mesh Map", "/mesh/map"), ("Mesh Nodes", "/mesh/nodes"), ("Mesh Health", "/mesh/health"), ("How to Join", "/feed/mesh"), ("My Mesh Nodes", "/my/mesh")]}] if cfg("mesh_enabled") == "1" else []),
-           *([{"key": "community", "label": "Community", "home": "/chat/" if cfg("chat_enabled") == "1" else ("/my/messages" if cfg("pm_enabled") == "1" else "/my/friends"),
-               "items": ([("Chat", "/chat/")] if cfg("chat_enabled") == "1" else []) + ([("Messages", "/my/messages")] if cfg("pm_enabled") == "1" else []) + ([("Friends", "/my/friends")] if cfg("friends_enabled") == "1" else [])}]
-             if current_user.is_authenticated and (cfg("chat_enabled") == "1" or cfg("pm_enabled") == "1" or cfg("friends_enabled") == "1") else []),
+           *([{"key": "mesh", "label": "Mesh", "home": "/mesh/", "items": [("Overview", "/mesh/"), ("Mesh Map", "/mesh/map"), ("Mesh Nodes", "/mesh/nodes"), *([("Communities", "/mesh/communities")] if cfg("mesh_communities_enabled") == "1" else []), ("Mesh Health", "/mesh/health"), ("Mesh Weather", "/mesh/weather"), ("Router Planning", "/mesh/planning"), ("How to Join", "/feed/mesh"), ("My Mesh Nodes", "/my/mesh")] + ([("Mesh Channels", "/my/mesh/channels")] if cfg("mesh_channels_enabled") == "1" else [])}] if cfg("mesh_enabled") == "1" else []),
+           *([{"key": "community", "label": "Community", "home": "/chat/" if cfg("chat_enabled") == "1" or cfg("matrix_enabled") == "1" else ("/my/messages" if cfg("pm_enabled") == "1" else "/my/friends"),
+               "items": ([("Chat", "/chat/")] if cfg("chat_enabled") == "1" or cfg("matrix_enabled") == "1" else []) + ([("Messages", "/my/messages")] if cfg("pm_enabled") == "1" and cfg("matrix_enabled") != "1" else []) + ([("Friends", "/my/friends")] if cfg("friends_enabled") == "1" else [])}]   # while Matrix is on, direct messages are in Chat too
+             if current_user.is_authenticated and (cfg("chat_enabled") == "1" or cfg("pm_enabled") == "1" or cfg("friends_enabled") == "1" or cfg("matrix_enabled") == "1") else []),
            {"key": "network", "label": "Network", "home": "/coverage", "items": net},
            {"key": "feed", "label": "Feed", "home": "/feed/", "items": feed}]
+    if not current_user.is_authenticated:   # the pages that need a sign-in (My ..., Mesh Channels) are not offered to guests
+        for g in out:
+            items = [it for it in g["items"] if not (it[1] or "").startswith("/my/")]
+            g["items"] = [it for i, it in enumerate(items) if it[1] or any(x[1] for x in items[i + 1:i + 2])]   # a heading with nothing under it goes too
+        out = [g for g in out if any(it[1] for it in g["items"])]
     path = request.path
     for g in out:
         g["active"] = any(path == href.rstrip("/") or path == href or (href not in ("/", "/aircraft", "/my/") and path.startswith(href.rstrip("/") + "/")) for _l, href in g["items"] if href)

@@ -298,7 +298,7 @@ def _build_map():
             rows.append(["To transmit", "A license is needed" if r["lic"] else "Receive only: no license needed"])
             rows.append(["What you need", r["need"]])
         feats.append({"type": "Feature", "geometry": {"type": "Point", "coordinates": [round(lo, 3), round(la, 3)]}, "properties": {
-            "KIND": kind, "size": 8, "event": e["name"], "headline": f"{h:,.0f} km up, over {abs(la):.0f}\u00b0{'N' if la >= 0 else 'S'} {abs(lo):.0f}\u00b0{'E' if lo >= 0 else 'W'}",
+            "norad": e["norad"], "KIND": kind, "size": 8, "event": e["name"], "headline": f"{h:,.0f} km up, over {abs(la):.0f}\u00b0{'N' if la >= 0 else 'S'} {abs(lo):.0f}\u00b0{'E' if lo >= 0 else 'W'}",
             "rows": rows, "link": f"/radio/satellites?sat={e['norad']}", "linkText": "Pass Times"}})
         if minutes > 0:
             line, last = [], lo
@@ -314,11 +314,11 @@ def _build_map():
                 last = x
                 line.append([round(x, 3), round(p[3], 3)])
             if len(line) > 1:
-                feats.append({"type": "Feature", "geometry": {"type": "LineString", "coordinates": line}, "properties": {"KIND": kind, "passive": True, "weight": 2, "lineOpacity": .75, "dash": "6 6"}})
+                feats.append({"type": "Feature", "geometry": {"type": "LineString", "coordinates": line}, "properties": {"norad": e["norad"], "KIND": kind, "passive": True, "weight": 2, "lineOpacity": .75, "dash": "6 6"}})
         if foot:
             ang = math.acos(R_EARTH / (R_EARTH + h))
             ring = [[round(q[1], 3), round(q[0], 3)] for q in (_dest(la, lo, math.radians(b * 7.5), ang) for b in range(0, 49))]
-            feats.append({"type": "Feature", "geometry": {"type": "Polygon", "coordinates": [ring]}, "properties": {"KIND": kind, "passive": True, "weight": 1, "fillOpacity": .05, "lineOpacity": .5}})
+            feats.append({"type": "Feature", "geometry": {"type": "Polygon", "coordinates": [ring]}, "properties": {"norad": e["norad"], "KIND": kind, "passive": True, "weight": 1, "fillOpacity": .05, "lineOpacity": .5}})
     return {"type": "FeatureCollection", "features": feats}
 
 
@@ -328,7 +328,11 @@ def api_map():
     import json as _json
     if cfg("satpass_enabled") != "1" or cfg("satmap_enabled") != "1":
         return Response('{"type":"FeatureCollection","features":[]}', mimetype="application/geo+json")
-    resp = Response(_json.dumps(map_geojson(), separators=(",", ":")), mimetype="application/geo+json")
+    data = map_geojson()
+    want = {x for x in (request.args.get("sat") or "").replace(" ", "").split(",") if x.isdigit()} | set(request.args.getlist("sat"))   # ?sat=25544,7530 shows only those satellites
+    if want:
+        data = {"type": "FeatureCollection", "features": [f for f in data["features"] if str(f["properties"].get("norad")) in want]}
+    resp = Response(_json.dumps(data, separators=(",", ":")), mimetype="application/geo+json")
     resp.headers["Cache-Control"] = "public, max-age=15"
     return resp
 
@@ -350,6 +354,56 @@ def _place():
         if choices:
             return choices[0]["lat"], choices[0]["lon"], choices[0]["label"], choices[1:4]
     return float(cfg("map_lat")), float(cfg("map_lon")), "the middle of this site's map", []
+
+
+@bp.route("/radio/satellites/map")
+def sat_map():
+    """The satellites on a map: the ones ticked on the Satellite Passes page and nothing else (every satellite when none were chosen)."""
+    if cfg("satpass_enabled") != "1":
+        abort(404)
+    from . import maplayers
+    els = elements()
+    want = {x for v in request.args.getlist("sat") for x in v.split(",") if x.strip().isdigit()}
+    known = {str(e["norad"]) for e in els}
+    chosen = sorted(want & known) if want else sorted(known)
+    # the place and choices of the passes page: the passes of the chosen satellites over that place in the look-ahead, as drawn paths with their times
+    lat, lon, label, _others = _place()
+    try:
+        hours = max(1, min(cfg_int("satpass_max_hours"), int(request.args.get("hours", cfg_int("satpass_hours")))))
+        min_el = max(0, min(80, int(request.args.get("min", cfg_int("satpass_min_elev")))))
+    except ValueError:
+        hours, min_el = cfg_int("satpass_hours"), cfg_int("satpass_min_elev")
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    obs = observer(lat, lon)
+    plist = []
+    for e in els:
+        if str(e["norad"]) not in chosen:
+            continue
+        try:
+            sat = satrec(e["line1"], e["line2"])
+            ps = passes(sat, obs, now, hours, min_el)
+        except Exception:
+            continue
+        for p in ps:
+            path, last, t = [], None, p["aos"]
+            while t <= p["los"] and len(path) < 80:
+                st = look(sat, obs, t)
+                if st is not None:
+                    x = st[4]
+                    if last is not None:
+                        while x - last > 180:
+                            x -= 360
+                        while x - last < -180:
+                            x += 360
+                    last = x
+                    path.append([round(st[3], 3), round(x, 3)])
+                t += timedelta(seconds=30)
+            if len(path) > 1:
+                plist.append({"norad": str(e["norad"]), "name": e["name"], "aos": p["aos"].isoformat(), "tca": p["tca"].isoformat(), "los": p["los"].isoformat(), "max_el": round(p["max_el"]), "az_aos": compass(p["az_aos"]), "az_los": compass(p["az_los"]), "path": path})
+    plist.sort(key=lambda x: x["aos"])
+    return render_template("satellites_map.html", layers=[c for c in maplayers.for_map() if c["is_base"]], chosen=chosen, total=len(known), place={"lat": lat, "lon": lon, "label": label}, hours=hours, min_el=min_el, pass_list=plist[:120], label_scale=cfg("live_label_scale"), label_bg=cfg("live_label_bg"),
+                           map_lat=cfg("map_lat"), map_lon=cfg("map_lon"), map_zoom=cfg("map_zoom"), wx_refresh=cfg_int("weather_refresh_minutes"), refresh=max(5, cfg_int("satmap_cache_seconds")),
+                           names={str(e["norad"]): e["name"] for e in els})
 
 
 @bp.route("/radio/satellites")

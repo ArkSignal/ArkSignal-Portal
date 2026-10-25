@@ -27,10 +27,10 @@
     </div></details>
 {% endcall %}
 {{ boot("/weather/map", "wm") }}
-<script src="/static/labelfit.js"></script>
-<script src="/static/wxmap.js"></script>
-<script src="/static/wxsurface.js"></script>
-<script>
+<script nonce="{{ csp_nonce() }}" src="/static/labelfit.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/wxmap.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/wxsurface.js"></script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var $ = function (id) { return document.getElementById(id); };
   var LAYERS = {{ layers | tojson }}, CFG = {{ {"units": wx_units, "metric": wx_metric, "arrows": wx_arrows, "refresh": wx_refresh, "live": wx_live, "labelScale": label_scale | int, "labelBg": label_bg, "lat": map_lat | float, "lon": map_lon | float, "zoom": map_zoom | int} | tojson }};

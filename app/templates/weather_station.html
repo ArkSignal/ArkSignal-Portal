@@ -58,7 +58,7 @@
   </table>
   {% if credit %}<p class="dim" style="margin:10px 0 0"><a href="{{ credit[1] }}" target="_blank" rel="noopener">{{ credit[0] }}</a></p>{% endif %}
 </div></details>
-<script>
+<script nonce="{{ csp_nonce() }}">
 // the current conditions update as readings arrive: the page asks for a fresh copy of the two parts that change (no reload, so charts, scroll and open sections stay as they are)
 (function () {
   var every = {{ live_seconds }} * 1000, busy = false;
@@ -79,5 +79,5 @@
   document.addEventListener("visibilitychange", function () { if (!document.hidden) tick(); });
 })();
 </script>
-<script src="/static/chartinspect.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/chartinspect.js"></script>
 {% endblock %}

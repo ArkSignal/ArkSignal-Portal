@@ -2,12 +2,12 @@
 {% from "partials/_alert_form.html" import rule_form with context %}
 {% block title %}Aircraft Alerts{% endblock %}
 {% block content %}
+{% with active = 'alerts' %}{% include "partials/_my_subnav.html" %}{% endwith %}
 <h1>Aircraft <span>Alerts</span></h1>
 <div class="sub">Build rules for the aircraft you care about. The portal checks live traffic from the hub every few seconds and records each match here{% if email_ready %}, and can email you{% else %}. Email alerts become available once an administrator sets up SMTP{% endif %}.</div>
 <div class="panel" style="margin-bottom:14px;padding:14px 18px"><b>Email limits.</b>
   <span class="dim">To keep this free service reliable, each person can receive at most <b>{{ limits.per_hour }}</b> alert email{{ '' if limits.per_hour == 1 else 's' }} per hour and <b>{{ limits.per_day }}</b> per day. Matches that happen within <b>{{ limits.combine }}</b> minute{{ '' if limits.combine == 1 else 's' }} of each other are combined into one email. Over the limit, matches wait for the next email that is allowed, and every match is always listed below.
   You have used {{ limits.hour }} of {{ limits.per_hour }} this hour and {{ limits.day }} of {{ limits.per_day }} today{% if limits.waiting %}; {{ limits.waiting }} match{{ '' if limits.waiting == 1 else 'es' }} waiting to be emailed{% endif %}.</span></div>
-{% with active = 'alerts' %}{% include "partials/_my_subnav.html" %}{% endwith %}
 <details class="panel setsec" id="sec-alert-webhook" style="margin-bottom:6px"><summary><span class="role-name">Alert Webhook</span>{% if webhook.webhook_url %}<span class="tag live">on</span>{% endif %}</summary><div class="secbody">
   <div class="help" style="margin-top:0">Get alerts in a chat or notification app without email. Paste the address the service gave you (a Discord or Slack incoming webhook, an ntfy topic address, or any service that accepts a JSON post), then tick "Also send to my webhook" on the alerts you want sent there. Leave the address empty to turn it off.</div>
   <form method="post" action="/my/alerts/webhook" data-async style="margin-top:10px">
@@ -27,7 +27,7 @@
   <div class="help">Examples: a specific aircraft by its ICAO hex code, every aircraft with callsign starting AAL, any military aircraft, any emergency squawk, or any aircraft below 3,000 feet within 20 nautical miles of a point.</div>
 </div></details>
 {% include "partials/_alerts_list.html" %}
-<script>
+<script nonce="{{ csp_nonce() }}">
 // Arriving from the live map: Watch This Aircraft fills in the new alert; a link to #rule-N opens that rule.
 (function () {
   var q = new URLSearchParams(location.search), k = document.getElementById("k-new");

@@ -64,7 +64,7 @@ a.card h3{margin:0 0 2px;font-size:1rem;font-weight:600}a.card p{margin:0;color:
 
 <div class="foot-note">Data from community receivers across Arkansas &middot; updates every {{ refresh }} seconds</div>
 
-<script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var M = {{ m | tojson }}, STATIONS = {{ points | tojson }}, REFRESH = {{ refresh }} * 1000;
   var el = function (id) { return document.getElementById(id); };

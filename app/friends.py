@@ -55,9 +55,26 @@ def page():
     incoming = [r for r in rows if r["status"] == "pending" and r["requested_by"] != me]
     sent = [r for r in rows if r["status"] == "pending" and r["requested_by"] == me]
     blocks = d.execute("SELECT u.username, u.display_name FROM pm_blocks b JOIN users u ON u.id = b.blocked_id WHERE b.blocker_id=%s ORDER BY lower(u.username)", (me,)).fetchall()
-    mine = d.execute("SELECT contact_policy, show_online, find_by_email, find_by_callsign FROM users WHERE id=%s", (me,)).fetchone()
+    mine = d.execute("SELECT contact_policy, show_online, find_by_email, find_by_callsign, push_friends FROM users WHERE id=%s", (me,)).fetchone()
     return render_template("friends.html", friends=friends, incoming=incoming, sent=sent, blocks=blocks, policy=mine["contact_policy"], show_online=mine["show_online"], find_by_email=mine["find_by_email"], find_by_callsign=mine["find_by_callsign"], policies=social.POLICIES,
-                           fmax=cfg_int("friends_max"), chat_on=cfg("chat_enabled") == "1", mail_on=cfg("pm_enabled") == "1", active="friends", name_of=name_of)
+                           fmax=cfg_int("friends_max"), chat_on=cfg("chat_enabled") == "1" or cfg("matrix_enabled") == "1", mail_on=cfg("pm_enabled") == "1" and cfg("matrix_enabled") != "1", active="friends", name_of=name_of)
+
+
+@bp.route("/my/community")
+@login_required
+def community_settings():
+    """My Account > Community Settings: who can contact you, being found, blocked members, and how chat, messages and friends work (the things themselves are in the Community section)."""
+    from . import matrix
+    if cfg("chat_enabled") != "1" and cfg("pm_enabled") != "1" and cfg("friends_enabled") != "1" and not matrix.replaces_builtin():
+        abort(404)
+    d = get_db()
+    me = current_user.id
+    mx = {"element_url": cfg("matrix_element_url").strip(), "server": cfg("matrix_server_name").strip(), "push_on": cfg("push_enabled") == "1", "calls": cfg("matrix_calls") == "1"} if matrix.replaces_builtin() else None
+    blocks = d.execute("SELECT u.username, u.display_name FROM pm_blocks b JOIN users u ON u.id = b.blocked_id WHERE b.blocker_id=%s ORDER BY lower(u.username)", (me,)).fetchall()
+    mine = d.execute("SELECT contact_policy, show_online, find_by_email, find_by_callsign, push_friends FROM users WHERE id=%s", (me,)).fetchone()
+    return render_template("my_community.html", push_friends=mine["push_friends"], blocks=blocks, policy=mine["contact_policy"], show_online=mine["show_online"], find_by_email=mine["find_by_email"], find_by_callsign=mine["find_by_callsign"], policies=social.POLICIES,
+                           chat_on=cfg("chat_enabled") == "1", mail_on=cfg("pm_enabled") == "1", friends_on=cfg("friends_enabled") == "1", keep_days=cfg_int("chat_keep_days"),
+                           mute=social.muted(me, "chat"), pm_mute=social.muted(me, "pm"), name_of=name_of, mx=mx, active="community")
 
 
 @bp.route("/my/friends/online.json")
@@ -93,6 +110,7 @@ def request_friend():
     if row is not None:   # they had asked me first: that is a yes
         d.execute("UPDATE friendships SET status='accepted', responded_at=now() WHERE user_a=%s AND user_b=%s", (a, b))
         d.commit()
+        nudge_matrix()
         audit("friend.accept", target=u["username"], detail="both asked")
         return _resp(True, f"You and {name_of(u)} are now friends.")
     if d.execute("SELECT COUNT(*) AS n FROM friendships WHERE requested_by=%s AND created_at > now() - interval '1 day'", (me,)).fetchone()["n"] >= cfg_int("friends_requests_per_day"):
@@ -100,7 +118,18 @@ def request_friend():
     d.execute("INSERT INTO friendships (user_a, user_b, status, requested_by) VALUES (%s,%s,'pending',%s)", (a, b, me))
     d.commit()
     audit("friend.request", target=u["username"])
+    _tell(u["id"], "Friend request", f"{_me()} would like to be your friend.", "/my/friends", "friend-request")
     return _resp(True, f"A friend request is sent to {name_of(u)}.")
+
+
+def _tell(user_id, title, body, url, tag):
+    """A notification to a member's phones and computers (if the site allows it and the member did not turn friend notices off)."""
+    if cfg("friends_push") != "1":
+        return
+    from . import pushkinds
+    row = get_db().execute("SELECT disabled FROM users WHERE id=%s", (user_id,)).fetchone()
+    if row and not row["disabled"]:
+        pushkinds.notify(user_id, "friends", title, body, url, tag)
 
 
 def _pending_from(name):
@@ -125,7 +154,9 @@ def accept(username):
     d = get_db()
     d.execute("UPDATE friendships SET status='accepted', responded_at=now() WHERE user_a=%s AND user_b=%s", (row["user_a"], row["user_b"]))
     d.commit()
+    nudge_matrix()
     audit("friend.accept", target=u["username"])
+    _tell(u["id"], "Friend request accepted", f"{_me()} accepted your friend request.", "/my/friends", "friend-accept")
     return _resp(True, f"You and {name_of(u)} are now friends.")
 
 
@@ -139,6 +170,7 @@ def decline(username):
     d = get_db()
     d.execute("DELETE FROM friendships WHERE user_a=%s AND user_b=%s", (row["user_a"], row["user_b"]))
     d.commit()
+    nudge_matrix()
     audit("friend.decline", target=u["username"])
     return _resp(True, "The request is declined. They are not told.")
 
@@ -153,6 +185,7 @@ def cancel(username):
     d = get_db()
     d.execute("DELETE FROM friendships WHERE user_a=%s AND user_b=%s", (row["user_a"], row["user_b"]))
     d.commit()
+    nudge_matrix()
     audit("friend.cancel", target=u["username"])
     return _resp(True, "The request is taken back.")
 
@@ -167,6 +200,7 @@ def remove(username):
     d = get_db()
     d.execute("DELETE FROM friendships WHERE user_a=%s AND user_b=%s", (row["user_a"], row["user_b"]))
     d.commit()
+    nudge_matrix()
     audit("friend.remove", target=u["username"])
     return _resp(True, f"{name_of(u)} is no longer your friend. They are not told.")
 
@@ -183,6 +217,7 @@ def block(username):
     a, b = social.pair(current_user.id, u["id"])
     d.execute("DELETE FROM friendships WHERE user_a=%s AND user_b=%s", (a, b))
     d.commit()
+    nudge_matrix()
     audit("friend.block", target=u["username"])
     return _resp(True, f"{name_of(u)} is blocked: they cannot chat, message or send you requests, and they are not told.")
 
@@ -196,6 +231,7 @@ def unblock(username):
     d = get_db()
     d.execute("DELETE FROM pm_blocks WHERE blocker_id=%s AND blocked_id=%s", (current_user.id, u["id"]))
     d.commit()
+    nudge_matrix()
     audit("friend.unblock", target=u["username"])
     return _resp(True, f"{name_of(u)} is unblocked.")
 
@@ -225,3 +261,14 @@ def prefs():
     d.commit()
     audit("friend.prefs", target=current_user.username, detail=f"contact {pol}, online shown {show}, found by email {fe}, by call sign {fc}")
     return _resp(True, "Saved.")
+
+
+def nudge_matrix():
+    """Blocks, friendships and disabled accounts feed the Matrix server (ignore lists, who may start a chat, locked accounts): ask for a sync soon."""
+    from .matrix import nudge_if_on
+    nudge_if_on()
+
+
+def _me():
+    r = get_db().execute("SELECT username, display_name FROM users WHERE id=%s", (current_user.id,)).fetchone()
+    return name_of(r)

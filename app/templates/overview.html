@@ -118,6 +118,12 @@ details.ovf .fb{padding:0 0 8px}   /* as tall as the map; a service block more s
     {% else %}<div><span class="numl">None over Arkansas right now{% if sonde.nws_24h %}; {{ sonde.nws_24h }} National Weather Service flight{{ '' if sonde.nws_24h == 1 else 's' }} in the last day{% endif %}</span></div>{% endif %}
     <p>Radiosondes and balloons tracked live: where they went up, how high, where they landed.</p>
   </a>{% endif %}
+  {% for c in svc_cards %}<a class="panel svcard" href="{{ c.href }}">
+    <h3><span class="ic"><svg viewBox="0 0 24 24">{{ c.icon | safe }}</svg></span>{{ c.title }}</h3>
+    {% if c.stat %}<div><span class="numl">{{ c.stat }}</span></div>{% endif %}
+    <p>{{ c.text }}</p>
+  </a>
+  {% endfor %}
   {% for t in nav_tools if t.slug in ('statistics', 'network-feeders') %}
   <a class="panel svcard" href="/view/{{ t.slug }}">
     <h3><span class="ic"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg></span>{{ t.name }}</h3>
@@ -139,9 +145,9 @@ details.ovf .fb{padding:0 0 8px}   /* as tall as the map; a service block more s
 </div>
 {% if coming %}<p class="dim" style="margin-top:12px">More are on the way: {{ coming[:-1] | join(", ") ~ (" and " if coming | length > 1 else "") ~ coming[-1] }}. A card appears here as each one is built; the <a href="/roadmap">Roadmap</a> shows what is coming.</p>{% endif %}
 
-<script src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script>
-<script src="/static/touchhit.js"></script>
-<script>
+<script nonce="{{ csp_nonce() }}" src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script><script nonce="{{ csp_nonce() }}" src="/static/safehtml.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/touchhit.js"></script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var AR = {{ ar | tojson }};   // the home page counts only Arkansas (Settings > Public Pages): the same test for the aircraft that the server applies to stations
   function arInside(lat, lon) {

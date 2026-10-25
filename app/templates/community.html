@@ -1,0 +1,382 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}{{ c.name }} | Mesh Communities{% endblock %}
+{% block content %}
+<style>.cm-logo{max-height:64px;max-width:160px;border-radius:10px;vertical-align:middle;margin-right:10px}.cm-post{border-top:1px solid var(--line);padding:10px 0}.cm-post:first-child{border-top:0}.cm-row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin:8px 0}.cm-row label{margin:0}.cm-pre{white-space:pre-wrap}</style>
+{% macro csrf() %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="s" value="{{ cur }}">{% endmacro %}
+<h1>{% if c.logo_url %}<img class="cm-logo" src="{{ c.logo_url }}" alt="" referrerpolicy="no-referrer">{% endif %}<span>{{ c.name }}</span></h1>
+<div class="sub">A mesh community: its page, its nodes and the people who run it. {% if not c.published %}<b>Hidden: only its team and administrators can see this page.</b> {% endif %}
+  {% if rank >= 1 %}You are {{ 'a site administrator' if rank == 9 else 'the ' ~ role_label[mine.role] if mine else 'on the team' }}.{% endif %}
+  <a href="/mesh/communities">All communities</a></div>
+{% include "partials/_community_side.html" %}
+
+{% if cur == 'overview' %}
+<div class="tiles" style="margin-bottom:14px">
+  <div class="panel tile"><div class="tv">{{ st.total }}</div><div class="tl">Nodes</div></div>
+  <div class="panel tile"><div class="tv">{{ st.hour }}</div><div class="tl">Heard in the last hour</div></div>
+  <div class="panel tile"><div class="tv">{{ st.day }}</div><div class="tl">Heard in the last day</div></div>
+  <div class="panel tile"><div class="tv">{{ st.routers }}</div><div class="tl">Routers and repeaters</div></div>
+</div>
+<p style="margin:0 0 14px">{% if current_user.is_authenticated %}<form class="inline" method="post" action="/mesh/c/{{ c.slug }}/{{ 'unfollow' if following else 'follow' }}">{{ csrf() }}<button class="btn small {{ 'neutral' if following }}" type="submit">{{ 'Following: Stop' if following else 'Follow This Community' }}</button></form>{% else %}<a href="/my/login?next=/mesh/c/{{ c.slug }}">Sign in</a> to follow this community.{% endif %}</p>
+{% if asking %}<div class="panel" style="margin:0 0 14px">
+  {% if my_request %}<b>Your request to join the team is waiting.</b> <form class="inline" method="post" action="/mesh/c/{{ c.slug }}/join-request/cancel">{{ csrf() }}<button class="btn small neutral" type="submit">Withdraw It</button></form>
+  {% else %}<form method="post" action="/mesh/c/{{ c.slug }}/join-request" class="cm-row">{{ csrf() }}<div><label for="jm">Ask to join this community's team (optional note)</label><input type="text" id="jm" name="message" maxlength="300" placeholder="Who you are and what you run" style="min-width:280px"></div><button class="btn small" type="submit">Ask to Join</button></form>{% endif %}
+</div>{% endif %}<p style="margin:0">
+  <span class="dim">{{ followers }} follower{{ '' if followers == 1 else 's' }}</span>
+  <a class="btn small neutral" href="/mesh/c/{{ c.slug }}/map">Map</a></p>
+{% call sec('about', 'About', True) %}
+  {% if c.about %}<p class="cm-pre" style="margin-top:0">{{ c.about }}</p>{% else %}<p class="dim" style="margin-top:0">This community has not written about itself yet.</p>{% endif %}
+  {% if c.website or links %}<p style="margin-bottom:0">{% if c.website %}<a href="{{ c.website }}" rel="noopener nofollow" target="_blank">Website</a>{% endif %}{% for l in links %}{{ ' &middot; '|safe if (c.website or not loop.first) }}<a href="{{ l.url }}" rel="noopener nofollow" target="_blank">{{ l.label }}</a>{% endfor %}</p>{% endif %}
+{% endcall %}
+{% if posts %}{% call sec('latest', 'Latest News and Events', True) %}
+  {% for p in posts[:3] %}<div class="cm-post"><b>{% if p.pinned %}&#128204; {% endif %}{{ p.title }}</b> <span class="tag {{ 'live' if p.kind == 'event' else 'off' }}">{{ p.kind }}</span>{% if p.event_at %} <span class="dim" style="font-size:.8rem"><time class="ts" datetime="{{ p.event_at.isoformat() }}" data-fmt="dt">{{ p.event_at.strftime('%Y-%m-%d %H:%M') }}</time></span>{% endif %}</div>{% endfor %}
+  <p style="margin:8px 0 0"><a href="/mesh/c/{{ c.slug }}/news">All news and events</a></p>
+{% endcall %}{% endif %}
+
+{% elif cur == 'join' %}
+{% call sec('join', 'How to Join', True) %}
+  {% if c.join_channel or c.join_preset or c.join_region or c.join_steps %}
+  <table><tbody>{% if c.join_channel %}<tr><th>Channel</th><td>{{ c.join_channel }}</td></tr>{% endif %}{% if c.join_preset %}<tr><th>Modem preset</th><td>{{ c.join_preset }}</td></tr>{% endif %}{% if c.join_region %}<tr><th>Region</th><td>{{ c.join_region }}</td></tr>{% endif %}</tbody></table>
+  {% if c.join_steps %}<p class="cm-pre" style="margin-bottom:0">{{ c.join_steps }}</p>{% endif %}
+  {% else %}<p class="dim" style="margin:0">This community has not listed how to join yet.</p>{% endif %}
+  <p style="margin-bottom:0">To send your node's data to this site's broker too, see <a href="/feed/mesh">Join the Mesh</a>. This community's gateways use their own topic on the broker, <span class="mono">{{ root }}</span>; ask the team for a login.</p>
+{% endcall %}
+
+{% elif cur == 'map' %}
+{% call sec('map', 'Map', True) %}
+  <div id="cm-map" class="cmmap"></div>
+  <div class="cm-key"><span><i style="background:#4fb3ff"></i>Nodes heard</span><span><i style="background:transparent;border:2px dashed #3ee6a8"></i>Placed by hand: active</span><span><i style="background:transparent;border:2px dashed #ffd24f"></i>Planned</span><span><i style="background:transparent;border:2px dashed #8a9bb3"></i>Offline</span><span><i style="background:rgba(255,140,66,.25);border:2px solid #ff8c42"></i>The area</span></div>
+  <p style="margin:10px 0 0"><a class="btn small neutral" href="/mesh/map?community={{ c.slug }}">Open in the Mesh Map</a></p>
+{% endcall %}
+{% include "partials/_community_map.html" %}
+<script nonce="{{ csp_nonce() }}">window.cmMap("cm-map", {{ mapdata | tojson }}, {});</script>
+
+{% elif cur == 'nodes' %}
+{% call sec('nodes', 'Nodes (' ~ nodes | length ~ ')', True, True) %}
+  <p class="dim" style="margin-top:0">The nodes inside this community's area, the nodes its team members claimed, and the ones its team added by hand.</p>
+  {% if nodes %}<table class="sortable"><thead><tr><th data-sort="text">Node</th><th data-sort="text">Role</th><th data-sort="text">Last Heard</th><th data-sort="num">Battery</th></tr></thead><tbody>
+  {% for n in nodes %}<tr><td><a href="/mesh/{{ n.slug }}">{{ n.long_name or n.short_name or n.id }}</a></td><td>{{ n.role_name or '-' }}</td><td><time class="ts" datetime="{{ n.last_seen }}" data-fmt="dt">{{ n.last_seen[:16].replace('T', ' ') }}</time></td><td data-v="{{ n.battery if n.battery is not none else -1 }}">{{ (n.battery ~ '%') if n.battery is not none else '-' }}</td></tr>{% endfor %}</tbody></table>
+  {% else %}<p class="dim" style="margin:0">No node counts as this community's yet.</p>{% endif %}
+  {% if pins %}<h3>Placed on the Map by Hand</h3><table><thead><tr><th>Name</th><th>Role</th><th>State</th></tr></thead><tbody>{% for p in pins %}<tr><td>{{ p.name }}</td><td>{{ p.role or '-' }}</td><td>{{ p.status }}</td></tr>{% endfor %}</tbody></table>{% endif %}
+{% endcall %}
+
+{% elif cur == 'channels' %}
+{% call sec('channels', 'Channels (' ~ channels | length ~ ')', True, True) %}
+  <p style="margin-top:0">The channels of this mesh. <b>Public</b> channels are open to anyone: their key is shared on purpose. <b>Team</b> channels are shown only to the team members whose role is high enough, and their key and QR code are shown to nobody else. In the Meshtastic app choose <b>Settings, Channels, the QR code button</b> and scan the code, or open the address on the phone: it <b>adds</b> the channel and keeps your own.</p>
+  {% for ch in channels %}
+  <div class="panel" style="margin-bottom:12px">
+    <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start">
+      <img src="/mesh/c/{{ c.slug }}/channels/{{ ch.id }}/qr.svg" alt="QR code to add the channel {{ ch.name }}" width="180" height="180" style="background:#fff;border-radius:8px;flex:0 0 auto">
+      <div style="flex:1 1 260px;min-width:0">
+        <h3 style="margin:0 0 4px">{{ ch.name }} <span class="tag {{ 'live' if ch.visibility == 'public' else 'off' }}">{{ 'public' if ch.visibility == 'public' else 'team: ' ~ role_label[ch.min_role] ~ ' and above' }}</span></h3>
+        {% if ch.note %}<p class="cm-pre" style="margin:0 0 6px">{{ ch.note }}</p>{% endif %}
+        <p class="dim" style="margin:0 0 6px;font-size:.85rem">{{ 'The default key (the same on every radio)' if ch.key_kind == 'default' else ch.key_bits ~ '-bit key made here' }} &middot; uplink {{ 'on' if ch.uplink else 'off' }} &middot; downlink {{ 'on' if ch.downlink else 'off' }} &middot; position {{ 'not shared' if ch.precision == 0 else ('exact' if ch.precision == 32 else ch.precision ~ ' bits') }}</p>
+        <p style="margin:0 0 6px"><a class="btn small" href="{{ ch.addr }}">Add to the Meshtastic App</a> <a class="btn small neutral" href="/mesh/c/{{ c.slug }}/channels/{{ ch.id }}/qr.svg?replace=1" title="A code that replaces all of a radio's channels with this one: only for a radio that is being set up" rel="nofollow">Code That Replaces All Channels</a></p>
+        <details><summary class="dim" style="cursor:pointer;font-size:.85rem">Show the key and the address</summary><p class="mono" style="word-break:break-all;font-size:.8rem;margin:6px 0 0">Key: {{ ch.key_b64 }}<br>{{ ch.addr }}</p></details>
+        {% if can('manage_channels') %}<details style="margin-top:8px"><summary style="cursor:pointer">Change or Remove</summary>
+          <form method="post" action="/mesh/c/{{ c.slug }}/channels/{{ ch.id }}/save">{{ csrf() }}
+            <div class="cm-row"><div><label for="v{{ ch.id }}">Who sees it</label><select id="v{{ ch.id }}" name="visibility"><option value="team" {{ 'selected' if ch.visibility == 'team' }}>The team, from the role chosen</option><option value="public" {{ 'selected' if ch.visibility == 'public' }}>Everyone (public)</option></select></div>
+            <div><label for="r{{ ch.id }}">From role</label><select id="r{{ ch.id }}" name="min_role">{% for k, l, r in roles %}<option value="{{ k }}" {{ 'selected' if k == ch.min_role }}>{{ l }}</option>{% endfor %}</select></div>
+            <div><label for="p{{ ch.id }}">Position shared</label><select id="p{{ ch.id }}" name="precision">{% for b in precisions %}<option value="{{ b }}" {{ 'selected' if b == ch.precision }}>{{ 'Not shared' if b == 0 else ('Exact' if b == 32 else b ~ ' bits (about ' ~ precision_km[b] ~ ' km)') }}</option>{% endfor %}</select></div></div>
+            <div class="cm-row"><label><input type="checkbox" name="uplink" value="1" {{ 'checked' if ch.uplink }}> Uplink to the broker</label><label><input type="checkbox" name="downlink" value="1" {{ 'checked' if ch.downlink }}> Downlink from the broker</label></div>
+            <label for="n{{ ch.id }}">Note</label><input type="text" id="n{{ ch.id }}" name="note" value="{{ ch.note }}" maxlength="300" style="width:100%;max-width:560px">
+            <p><button class="btn small" type="submit">Save</button></p></form>
+          {% if ch.key_kind != 'default' %}<form class="inline" method="post" action="/mesh/c/{{ c.slug }}/channels/{{ ch.id }}/rotate" data-confirm="Make a new key? Everyone has to scan the new QR code.">{{ csrf() }}<button class="btn small neutral" type="submit">New Key</button></form>{% endif %}
+          <form class="inline" method="post" action="/mesh/c/{{ c.slug }}/channels/{{ ch.id }}/delete" data-confirm="Remove the channel {{ ch.name }} from this page?">{{ csrf() }}<button class="btn small warn" type="submit">Remove</button></form></details>{% endif %}
+      </div>
+    </div>
+  </div>
+  {% else %}<p class="dim" style="margin:0">{{ 'No channel is listed yet.' if channel_total == 0 else "None of this community's channels is open to you." }}</p>{% endfor %}
+{% endcall %}
+{% if can('manage_channels') %}{% call sec('addchannel', 'List a Channel', False) %}
+  <form method="post" action="/mesh/c/{{ c.slug }}/channels/add">{{ csrf() }}
+    <div class="cm-row"><div><label for="cn">Name (up to 11 letters, digits, - or _)</label><input type="text" id="cn" name="name" maxlength="11" required></div>
+    <div><label for="ck">Key</label><select id="ck" name="key_kind"><option value="256">A new random 256-bit key (best)</option><option value="128">A new random 128-bit key</option><option value="default">The default key (open to everyone, like LongFast)</option></select></div>
+    <div><label for="cv">Who sees it</label><select id="cv" name="visibility"><option value="team">The team, from the role chosen</option><option value="public">Everyone (public)</option></select></div>
+    <div><label for="cr">From role</label><select id="cr" name="min_role">{% for k, l, r in roles %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></div></div>
+    <div class="cm-row"><div><label for="cp">Position shared</label><select id="cp" name="precision">{% for b in precisions %}<option value="{{ b }}">{{ 'Not shared' if b == 0 else ('Exact' if b == 32 else b ~ ' bits (about ' ~ precision_km[b] ~ ' km)') }}</option>{% endfor %}</select></div>
+    <label><input type="checkbox" name="uplink" value="1"> Uplink to the broker</label><label><input type="checkbox" name="downlink" value="1"> Downlink from the broker</label></div>
+    <label for="cnote">Note</label><input type="text" id="cnote" name="note" maxlength="300" style="width:100%;max-width:560px" placeholder="What the channel is for">
+    <p class="dim" style="font-size:.85rem">A community can list {{ max_channels }} channels. A channel with the default key is always public, because everyone's radio already has that key. Keys made here are kept sealed and shown only to the people the channel is open to.</p>
+    <p><button class="btn small" type="submit">List the Channel</button></p></form>
+{% endcall %}{% endif %}
+
+{% elif cur == 'health' %}
+{% call sec('health', 'Health and Statistics', True) %}
+  <table><tbody><tr><th>Nodes</th><td>{{ st.total }}, {{ st.hour }} heard in the last hour, {{ st.day }} in the last day</td></tr><tr><th>Routers and repeaters</th><td>{{ st.routers }}, {{ st.quiet | length }} quiet for {{ st.off_h }} hours or more</td></tr>
+    <tr><th>Low batteries</th><td>{{ st.low | length }} at {{ st.low_pct }}% or less</td></tr><tr><th>Average channel use</th><td>{{ (st.util ~ '%') if st.util is not none else 'not reported' }}</td></tr><tr><th>Packets seen from these nodes</th><td>{{ '{:,}'.format(st.packets) }}</td></tr></tbody></table>
+  {% if st.quiet %}<h3>Routers Gone Quiet</h3><p style="margin-top:0">{% for n in st.quiet %}<a href="/mesh/{{ n.slug }}">{{ n.long_name or n.short_name or n.id }}</a>{{ ', ' if not loop.last }}{% endfor %}</p>{% endif %}
+  {% if st.low %}<h3>Low Batteries</h3><p style="margin-top:0">{% for n in st.low %}<a href="/mesh/{{ n.slug }}">{{ n.long_name or n.short_name or n.id }}</a> ({{ n.battery }}%){{ ', ' if not loop.last }}{% endfor %}</p>{% endif %}
+  <p class="dim" style="margin-bottom:0">Each node's own page has its charts. Owners of nodes get the same alerts as everywhere on the site (My Mesh Nodes).</p>
+{% endcall %}
+
+{% elif cur == 'news' %}
+{% call sec('news', 'News and Events', True) %}
+  {% for p in posts %}<div class="cm-post"><b>{% if p.pinned %}&#128204; {% endif %}{{ p.title }}</b> <span class="tag {{ 'live' if p.kind == 'event' else 'off' }}">{{ p.kind }}</span>
+    <span class="dim" style="font-size:.8rem">{% if p.event_at %}<time class="ts" datetime="{{ p.event_at.isoformat() }}" data-fmt="dt">{{ p.event_at.strftime('%Y-%m-%d %H:%M') }}</time>{% else %}<time class="ts" datetime="{{ p.created_at.isoformat() }}" data-fmt="dt">{{ p.created_at.strftime('%Y-%m-%d %H:%M') }}</time>{% endif %}{% if p.username %} &middot; {{ p.display_name or p.username }}{% endif %}</span>
+    {% if p.body %}<div class="cm-pre">{{ p.body }}</div>{% endif %}
+    {% if can('post') %}<form class="inline" method="post" action="/mesh/c/{{ c.slug }}/posts/{{ p.id }}/pin">{{ csrf() }}<button class="btn small neutral" type="submit">{{ 'Unpin' if p.pinned else 'Pin' }}</button></form>
+      <form class="inline" method="post" action="/mesh/c/{{ c.slug }}/posts/{{ p.id }}/delete" data-confirm="Remove this notice?">{{ csrf() }}<button class="btn small warn" type="submit">Remove</button></form>{% endif %}</div>
+  {% else %}<p class="dim" style="margin:0">Nothing has been posted yet.</p>{% endfor %}
+{% endcall %}
+{% if can('post') %}{% call sec('post', 'Post a Notice or Event', False) %}
+  <form method="post" action="/mesh/c/{{ c.slug }}/posts/add">{{ csrf() }}
+    <div class="cm-row"><div><label for="pt">Title</label><input type="text" id="pt" name="title" maxlength="120" style="min-width:240px" required></div>
+    <div><label for="pk">Kind</label><select id="pk" name="kind"><option value="notice">Notice</option><option value="event">Event</option></select></div>
+    <div><label for="pe">Event Date and Time (UTC, events only)</label><input type="datetime-local" id="pe" name="event_at"></div></div>
+    <label for="pb">Text</label><textarea id="pb" name="body" rows="4" maxlength="4000" style="width:100%;max-width:640px"></textarea>
+    <p><button class="btn small" type="submit">Post</button></p></form>
+{% endcall %}{% endif %}
+
+{% elif cur == 'edit' %}
+{% call sec('edit', 'Edit the Page', True) %}
+  <form method="post" action="/mesh/c/{{ c.slug }}/page">{{ csrf() }}
+    <div class="cm-row"><div><label for="en">Name</label><input type="text" id="en" name="name" value="{{ c.name }}" maxlength="60" required></div>
+    <div><label for="ew">Website</label><input type="text" id="ew" name="website" value="{{ c.website }}" style="min-width:260px"></div>
+    <div><label for="el">Logo Address (https)</label><input type="text" id="el" name="logo_url" value="{{ c.logo_url }}" style="min-width:260px"></div></div>
+    <label for="ea">About</label><textarea id="ea" name="about" rows="5" maxlength="4000" style="width:100%;max-width:640px">{{ c.about }}</textarea>
+    <h3>How to Join</h3>
+    <div class="cm-row"><div><label for="jc">Channel</label><input type="text" id="jc" name="join_channel" value="{{ c.join_channel }}" maxlength="60"></div><div><label for="jp">Modem Preset</label><input type="text" id="jp" name="join_preset" value="{{ c.join_preset }}" maxlength="40"></div><div><label for="jr">Region</label><input type="text" id="jr" name="join_region" value="{{ c.join_region }}" maxlength="40"></div></div>
+    <label for="js">Steps</label><textarea id="js" name="join_steps" rows="4" maxlength="3000" style="width:100%;max-width:640px">{{ c.join_steps }}</textarea>
+    <p><button class="btn" type="submit">Save</button></p></form>
+{% endcall %}
+{% call sec('links', 'Links', True) %}
+  {% for l in links %}<div class="cm-row" style="margin:2px 0"><a href="{{ l.url }}" rel="noopener nofollow" target="_blank">{{ l.label }}</a><span class="dim">{{ l.url }}</span><form class="inline" method="post" action="/mesh/c/{{ c.slug }}/links/{{ l.id }}/delete">{{ csrf() }}<button class="btn small warn" type="submit">Remove</button></form></div>{% else %}<p class="dim" style="margin:0">No links yet.</p>{% endfor %}
+  <form method="post" action="/mesh/c/{{ c.slug }}/links/add" class="cm-row">{{ csrf() }}<div><label for="ln">Name</label><input type="text" id="ln" name="label" maxlength="60"></div><div><label for="lu">Address</label><input type="text" id="lu" name="url" style="min-width:260px" placeholder="https://"></div><button class="btn small" type="submit">Add Link</button></form>
+{% endcall %}
+
+{% elif cur == 'area' %}
+{% call sec('area', 'The Area', True) %}
+  <p style="margin-top:0">Draw the shape of the mesh: <b>click the map</b> to add a point (three or more make a shape), <b>drag a numbered point</b> to move it, <b>click the outline</b> to add a point between two others, and <b>right-click or long-press a point</b> (or use its Remove link below) to take it away. Nodes inside the shape count as this community's. You can change it whenever the mesh changes.</p>
+  <div id="cm-map" class="cmmap"></div>
+  <form method="post" action="/mesh/c/{{ c.slug }}/area" id="cm-areaform">{{ csrf() }}<input type="hidden" name="poly" id="cm-poly" value="">
+    <div class="cm-row"><button class="btn" type="submit">Save the Area</button><button class="btn neutral" type="button" id="cm-undo">Undo Last Point</button><button class="btn neutral" type="button" id="cm-clear">Clear All Points</button><span class="dim" id="cm-count" role="status"></span></div>
+  </form>
+  <div id="cm-pts" style="margin-top:6px"></div>
+  {% if c.south is not none and not c.area_poly %}<p class="dim" style="font-size:.85rem">This community still has the old rectangle (south {{ c.south }}, west {{ c.west }}, north {{ c.north }}, east {{ c.east }}); it is shown as four points you can change. Saving replaces it.</p>{% endif %}
+{% endcall %}
+{% include "partials/_community_map.html" %}
+<script nonce="{{ csp_nonce() }}">
+(function () {
+  var D = {{ mapdata | tojson }}, MAXP = {{ max_points }};
+  var pts = (D.poly || []).map(function (p) { return [p[0], p[1]]; });
+  var api = window.cmMap("cm-map", {nodes: D.nodes, pins: D.pins, poly: null}, {small: true, edit: true, onClick: function (ll) { if (pts.length >= MAXP) { alert("An area can have " + MAXP + " points at most."); return; } pts.push([ll.lat, ll.lng]); render(); }});
+  var map = api.map, shape = null, markers = [];
+  if (pts.length) map.fitBounds(pts, {padding: [30, 30], maxZoom: 12});
+  function nearestEdge(ll) {
+    var best = 0, bd = 1e18, n = pts.length, P = map.latLngToLayerPoint(ll);
+    for (var i = 0; i < n; i++) {
+      var a = map.latLngToLayerPoint(pts[i]), b = map.latLngToLayerPoint(pts[(i + 1) % n]), dx = b.x - a.x, dy = b.y - a.y, t = Math.max(0, Math.min(1, ((P.x - a.x) * dx + (P.y - a.y) * dy) / ((dx * dx + dy * dy) || 1))), x = a.x + t * dx, y = a.y + t * dy, d = (P.x - x) * (P.x - x) + (P.y - y) * (P.y - y);
+      if (d < bd) { bd = d; best = i; }
+    }
+    return best;
+  }
+  function drawShape() {
+    if (shape) map.removeLayer(shape); shape = null;
+    if (pts.length >= 3) {
+      shape = L.polygon(pts, {color: "#ff8c42", weight: 3, fillColor: "#ff8c42", fillOpacity: .12}).addTo(map);
+      shape.on("click", function (e) { L.DomEvent.stopPropagation(e); if (pts.length >= MAXP) return; pts.splice(nearestEdge(e.latlng) + 1, 0, [e.latlng.lat, e.latlng.lng]); render(); });
+    } else if (pts.length) { shape = L.polyline(pts, {color: "#ff8c42", weight: 3, dashArray: "6 6", interactive: false}).addTo(map); }
+  }
+  function render() {
+    markers.forEach(function (m) { map.removeLayer(m); }); markers = [];
+    pts.forEach(function (p, i) {
+      var m = L.marker(p, {draggable: true, icon: L.divIcon({className: "cm-vtx", html: "<span>" + (i + 1) + "</span>", iconSize: [22, 22]})}).addTo(map);
+      m.on("drag", function (e) { pts[i] = [e.latlng.lat, e.latlng.lng]; drawShape(); });
+      m.on("dragend", function () { sync(); });
+      m.on("contextmenu", function () { pts.splice(i, 1); render(); });
+      markers.push(m);
+    });
+    drawShape(); sync();
+  }
+  function sync() {
+    document.getElementById("cm-poly").value = JSON.stringify(pts.map(function (p) { return [Math.round(p[0] * 1e5) / 1e5, Math.round(p[1] * 1e5) / 1e5]; }));
+    document.getElementById("cm-count").textContent = pts.length === 0 ? "No area: saving clears it." : pts.length < 3 ? pts.length + " of at least 3 points" : pts.length + " points";
+    var box = document.getElementById("cm-pts");
+    box.innerHTML = pts.map(function (p, i) { return '<span class="tag" style="margin:2px 4px 2px 0">' + (i + 1) + ": " + p[0].toFixed(4) + ", " + p[1].toFixed(4) + ' <a href="#" data-i="' + i + '" aria-label="Remove point ' + (i + 1) + '">Remove</a></span>'; }).join("");
+    Array.prototype.forEach.call(box.querySelectorAll("a[data-i]"), function (a) { a.addEventListener("click", function (e) { e.preventDefault(); pts.splice(parseInt(a.getAttribute("data-i"), 10), 1); render(); }); });
+  }
+  document.getElementById("cm-undo").addEventListener("click", function () { pts.pop(); render(); });
+  document.getElementById("cm-clear").addEventListener("click", function () { if (!pts.length || confirm("Remove every point of the area?")) { pts = []; render(); } });
+  document.getElementById("cm-areaform").addEventListener("submit", function (e) { if (pts.length > 0 && pts.length < 3) { e.preventDefault(); alert("An area needs at least three points."); } });
+  render();
+})();
+</script>
+
+{% elif cur == 'pick' %}
+{% call sec('placed', 'Nodes on the Map', True) %}
+  <p style="margin-top:0">Put a node on this community's map by hand: a node that reports no position, a planned node, or any node the team knows about. <b>Click the map</b> to choose its place (or type the numbers), name it, and save. Click a placed node to change it. A node you give an ID that the mesh hears without a position takes this place on the map.</p>
+  <div id="cm-map" class="cmmap"></div>
+  <form method="post" action="/mesh/c/{{ c.slug }}/pins/save" id="cm-pinform">{{ csrf() }}<input type="hidden" name="id" id="pn-id" value="">
+    <div class="cm-row"><div><label for="pn-name">Name</label><input type="text" id="pn-name" name="name" maxlength="60" required></div><div><label for="pn-role">Role</label><input type="text" id="pn-role" name="role" maxlength="30" placeholder="Router, Client..." style="width:150px"></div>
+    <div><label for="pn-status">State</label><select id="pn-status" name="status"><option value="active">Active</option><option value="planned">Planned</option><option value="offline">Offline</option></select></div>
+    <div><label for="pn-key">Node ID (optional)</label><input type="text" id="pn-key" name="node_key" placeholder="!a1b2c3d4" style="width:140px"></div></div>
+    <div class="cm-row"><div><label for="pn-lat">Latitude</label><input type="text" id="pn-lat" name="lat" style="width:130px"></div><div><label for="pn-lon">Longitude</label><input type="text" id="pn-lon" name="lon" style="width:130px"></div><div><label for="pn-notes">Notes</label><input type="text" id="pn-notes" name="notes" maxlength="300" style="min-width:240px"></div></div>
+    <div class="cm-row"><button class="btn" type="submit">Save This Node</button><button class="btn neutral" type="button" id="pn-new">New</button></div></form>
+  {% if pins %}<table><thead><tr><th>Name</th><th>State</th><th>Place</th><th></th></tr></thead><tbody>{% for p in pins %}<tr><td>{{ p.name }}{% if p.node_key %} <span class="dim mono">{{ p.node_key }}</span>{% endif %}</td><td>{{ p.status }}</td><td class="mono">{{ '%.4f' % p.lat }}, {{ '%.4f' % p.lon }}</td>
+    <td><form class="inline" method="post" action="/mesh/c/{{ c.slug }}/pins/{{ p.id }}/delete" data-confirm="Take {{ p.name }} off the map?">{{ csrf() }}<button class="btn small warn" type="submit">Remove</button></form></td></tr>{% endfor %}</tbody></table>{% endif %}
+{% endcall %}
+{% call sec('pick', 'Which Nodes Count', True) %}
+  <p style="margin-top:0">By the usual rules a node counts when it is inside the area, or a team member claimed it. Add a node by hand, or take one off that does not belong.</p>
+  <form method="post" action="/mesh/c/{{ c.slug }}/nodes/add" class="cm-row">{{ csrf() }}<div><label for="nn">Node ID</label><input type="text" id="nn" name="node" placeholder="!a1b2c3d4"></div><div><label for="nm">What to do</label><select id="nm" name="mode"><option value="include">Add it</option><option value="exclude">Take it off</option></select></div><button class="btn small" type="submit">Save</button></form>
+  {% if picks %}<table><thead><tr><th>Node</th><th>Chosen</th><th></th></tr></thead><tbody>{% for p in picks %}<tr><td class="mono">{{ p.node_key }}</td><td>{{ 'added by hand' if p.mode == 'include' else 'taken off' }}</td><td><form class="inline" method="post" action="/mesh/c/{{ c.slug }}/nodes/remove">{{ csrf() }}<input type="hidden" name="node" value="{{ p.node_key }}"><button class="btn small neutral" type="submit">Clear</button></form></td></tr>{% endfor %}</tbody></table>{% endif %}
+{% endcall %}
+{% include "partials/_community_map.html" %}
+<script nonce="{{ csp_nonce() }}">
+(function () {
+  var D = {{ mapdata | tojson }}, tmp = null;
+  function $(i) { return document.getElementById(i); }
+  function fill(p) { $("pn-id").value = p.id || ""; $("pn-name").value = p.name || ""; $("pn-role").value = p.role || ""; $("pn-status").value = p.status || "active"; $("pn-notes").value = p.notes || ""; $("pn-key").value = p.node_key || ""; $("pn-lat").value = p.lat != null ? (+p.lat).toFixed(5) : ""; $("pn-lon").value = p.lon != null ? (+p.lon).toFixed(5) : ""; }
+  var api = window.cmMap("cm-map", D, {small: true,
+    onClick: function (ll) { $("pn-lat").value = ll.lat.toFixed(5); $("pn-lon").value = ll.lng.toFixed(5); if (tmp) api.map.removeLayer(tmp); tmp = L.circleMarker(ll, {radius: 9, color: "#fff", weight: 2, fillColor: "#ff8c42", fillOpacity: .9}).addTo(api.map); },
+    onPin: function (p) { fill(p); }});
+  $("pn-new").addEventListener("click", function () { fill({}); if (tmp) { api.map.removeLayer(tmp); tmp = null; } });
+})();
+</script>
+
+{% elif cur == 'team' %}
+{% call sec('team', 'The Team (' ~ team | length ~ ')', True, True) %}
+  <table><thead><tr><th>Member</th><th>Role</th><th></th></tr></thead><tbody>
+  {% for m in team %}<tr><td>{{ m.display_name or m.username }} <span class="dim">@{{ m.username }}{% if m.callsign %} &middot; {{ m.callsign }}{% endif %}</span></td>
+    <td>{% if can('manage_members') and rank_map[m.role] <= rank %}<form class="inline" method="post" action="/mesh/c/{{ c.slug }}/members/{{ m.user_id }}/role">{{ csrf() }}<select name="role" aria-label="Role of {{ m.username }}">{% for k, l, r in roles %}{% if r <= rank and (k != 'owner' or rank >= 5) %}<option value="{{ k }}" {{ 'selected' if k == m.role }}>{{ l }}</option>{% endif %}{% endfor %}</select> <button class="btn small" type="submit">Change</button></form>{% else %}{{ role_label[m.role] }}{% endif %}</td>
+    <td>{% if (can('manage_members') and rank_map[m.role] <= rank) or (current_user.is_authenticated and m.user_id == current_user.id) %}<form class="inline" method="post" action="/mesh/c/{{ c.slug }}/members/{{ m.user_id }}/remove" data-confirm="{{ 'Leave the team?' if current_user.is_authenticated and m.user_id == current_user.id else 'Remove ' ~ m.username ~ ' from the team?' }}">{{ csrf() }}<button class="btn small warn" type="submit">{{ 'Leave' if current_user.is_authenticated and m.user_id == current_user.id else 'Remove' }}</button></form>{% endif %}</td></tr>
+  {% else %}<tr><td colspan="3" class="dim">No one is on the team yet.</td></tr>{% endfor %}</tbody></table>
+{% endcall %}
+{% if requests %}{% call sec('requests', 'Requests to Join (' ~ requests | length ~ ')', True, True) %}
+  <table><thead><tr><th>Member</th><th>Note</th><th></th></tr></thead><tbody>
+  {% for r in requests %}<tr><td>{{ r.display_name or r.username }} <span class="dim">@{{ r.username }}{% if r.callsign %} &middot; {{ r.callsign }}{% endif %}</span></td><td>{{ r.message or '-' }}</td>
+    <td><form class="inline" method="post" action="/mesh/c/{{ c.slug }}/join-requests/{{ r.id }}/approve">{{ csrf() }}<select name="role" aria-label="Role for {{ r.username }}">{% for k, l, rr in roles %}{% if rr <= rank and (k != 'owner' or rank >= 5) %}<option value="{{ k }}" {{ 'selected' if k == 'viewer' }}>{{ l }}</option>{% endif %}{% endfor %}</select> <button class="btn small" type="submit">Approve</button></form>
+      <form class="inline" method="post" action="/mesh/c/{{ c.slug }}/join-requests/{{ r.id }}/decline" data-confirm="Decline this request?">{{ csrf() }}<button class="btn small warn" type="submit">Decline</button></form></td></tr>{% endfor %}</tbody></table>
+{% endcall %}{% endif %}
+{% call sec('roles', 'What Each Role Can Do', False, True) %}
+  <table><thead><tr><th>What</th>{% for k, l, r in roles %}<th>{{ l }}</th>{% endfor %}</tr></thead><tbody>{% for p, t in perm_text.items() %}<tr><td>{{ t }}</td>{% for k, l, r in roles %}<td>{{ 'yes' if p in role_perms[k] else '-' }}</td>{% endfor %}</tr>{% endfor %}</tbody></table>
+{% endcall %}
+{% if can('manage_members') %}{% call sec('add', 'Add a Member', True) %}
+  <form method="post" action="/mesh/c/{{ c.slug }}/members/add" class="cm-row">{{ csrf() }}<div><label for="mw">User name, call sign or whole email address</label><input type="text" id="mw" name="who" style="min-width:260px" required></div>
+    <div><label for="mr">Role</label><select id="mr" name="role">{% for k, l, r in roles %}{% if r <= rank and (k != 'owner' or rank >= 5) %}<option value="{{ k }}" {{ 'selected' if k == 'viewer' }}>{{ l }}</option>{% endif %}{% endfor %}</select></div><button class="btn small" type="submit">Add</button></form>
+{% endcall %}
+{% call sec('invite', 'Invite Someone Who Has No Account Yet', False, True) %}
+  <form method="post" action="/mesh/c/{{ c.slug }}/invites/add" class="cm-row">{{ csrf() }}<div><label for="ie">Email (optional: sent if the site can send email)</label><input type="text" id="ie" name="email" style="min-width:260px"></div>
+    <div><label for="ir">Role</label><select id="ir" name="role">{% for k, l, r in roles %}{% if r <= rank and (k != 'owner' or rank >= 5) %}<option value="{{ k }}" {{ 'selected' if k == 'viewer' }}>{{ l }}</option>{% endif %}{% endfor %}</select></div><button class="btn small" type="submit">Make Invitation Link</button></form>
+  {% if invites %}<table><thead><tr><th>Role</th><th>For</th><th>Expires</th><th></th></tr></thead><tbody>{% for i in invites %}<tr><td>{{ role_label[i.role] }}</td><td>{{ i.email or '-' }}</td><td><time class="ts" datetime="{{ i.expires_at.isoformat() }}" data-fmt="dt">{{ i.expires_at.strftime('%Y-%m-%d %H:%M') }}</time></td><td><form class="inline" method="post" action="/mesh/c/{{ c.slug }}/invites/{{ i.id }}/cancel">{{ csrf() }}<button class="btn small warn" type="submit">Cancel</button></form></td></tr>{% endfor %}</tbody></table>{% endif %}
+{% endcall %}{% endif %}
+
+{% elif cur == 'logins' %}
+{% call sec('logins', 'Broker Logins for the Gateways (' ~ logins | length ~ ' of ' ~ login_limit ~ ')', True, True) %}
+  <p style="margin-top:0">A gateway node sends what it hears to this site's broker with its own login. These logins can publish to the mesh topics and read nothing. The password is shown once, when the login is made or changed. The site's administrators set the rate rules and loop guards.</p>
+  {% if logins %}<table><thead><tr><th>Login</th><th>Label</th><th>Kind</th><th>State</th><th></th></tr></thead><tbody>
+  {% for a in logins %}<tr><td class="mono">{{ a.username }}</td><td>{{ a.label }}</td><td>{{ 'uplink and downlink' if a.link == 'down' else 'uplink only' }}</td><td>{{ 'off' if a.disabled else 'on' }}</td><td>
+    <form class="inline" method="post" action="/mesh/c/{{ c.slug }}/logins/{{ a.id }}/password" data-confirm="Make a new password? The gateway stops connecting until it is given the new one.">{{ csrf() }}<button class="btn small neutral" type="submit">New Password</button></form>
+    <form class="inline" method="post" action="/mesh/c/{{ c.slug }}/logins/{{ a.id }}/{{ 'enable' if a.disabled else 'disable' }}">{{ csrf() }}<button class="btn small neutral" type="submit">{{ 'Switch On' if a.disabled else 'Switch Off' }}</button></form>
+    <form class="inline" method="post" action="/mesh/c/{{ c.slug }}/logins/{{ a.id }}/delete" data-confirm="Delete this login? The gateway is refused at once.">{{ csrf() }}<button class="btn small warn" type="submit">Delete</button></form></td></tr>{% endfor %}</tbody></table>{% else %}<p class="dim">No logins yet.</p>{% endif %}
+  <form method="post" action="/mesh/c/{{ c.slug }}/logins/add" class="cm-row">{{ csrf() }}<div><label for="gl">Label (for example the node's name)</label><input type="text" id="gl" name="label" maxlength="60"></div>
+    <div><label for="gk">Kind</label><select id="gk" name="link"><option value="up">Uplink only (sends what it hears)</option><option value="down">Uplink and downlink (also carries the community's channel to a remote place)</option></select></div><button class="btn small" type="submit">Make a Login</button></form>
+{% endcall %}
+{% call sec('connect', 'How to Connect a Gateway', True) %}
+  <p style="margin-top:0">This community has <b>its own topic on the broker</b>: <span class="mono">{{ connect.root }}</span>. Its logins can write there and nowhere else, so what your gateways send is kept apart from everyone else's, and a node heard there counts as this community's. In the Meshtastic app open <b>Settings, Radio Configuration, Module Configuration, MQTT</b> on the gateway node and set:</p>
+  <table><tbody>
+    <tr><th>MQTT enabled</th><td>On</td></tr>
+    <tr><th>Address</th><td class="mono">{{ connect.host }}{% if connect.port %}:{{ connect.port }}{% endif %}</td></tr>
+    <tr><th>Username and password</th><td>One of the logins above (the password is shown once when it is made)</td></tr>
+    <tr><th>TLS enabled</th><td>{{ 'On (this port uses TLS)' if connect.tls else 'Off for a plain port; On when the port is 8883' }}</td></tr>
+    <tr><th>Root topic</th><td class="mono">{{ connect.root }}</td></tr>
+    <tr><th>Map reporting</th><td>On if the node should appear on the maps (it sends its name, role and a position at the precision its owner chooses)</td></tr>
+    <tr><th>Proxy to client</th><td>On only when the node has no Wi-Fi of its own and uses the phone's connection</td></tr>
+  </tbody></table>
+  <p>On the <b>channel</b> you want shared (Settings, Channels, the channel, <b>Uplink enabled</b>) turn <b>Uplink</b> on. Turn <b>Downlink</b> on only for a channel that must be carried to a remote place, and only on a node that has a downlink login: it then sends out over the radio what other gateways of this community uplinked, so use it with a low hop limit and never on a channel two of your gateways already reach each other on.</p>
+  <ul class="plain"><li><b>Uplink only</b> logins write to this community's topic and are sent nothing back.</li><li><b>Uplink and downlink</b> logins also read this community's topic, and only that one.</li><li>The firmware does not send a packet it got from the broker back to the broker, which is what keeps two gateways from looping; the site's own loop guards and rate rules are set by the administrators.</li><li>Encrypted packets are never read or kept by this site, whatever the node sends.</li></ul>
+{% endcall %}
+
+{% elif cur == 'share' %}
+{% call sec('share', 'Sharing with the Public Maps', True) %}
+  <p style="margin-top:0">A node can send to one MQTT server only, and your gateways send to this community's own topic. These two choices let what they send reach more places as well. Both are off until a Manager or the Owner turns them on, and either can be turned off again at any time.</p>
+  <form method="post" action="/mesh/c/{{ c.slug }}/share">{{ csrf() }}
+    <p><label style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" name="feed_site_map" value="1" {{ 'checked' if c.feed_site_map }}><span><b>Show this community's nodes on ArkSignal's public mesh map and lists</b><br><span class="dim">Without this, the nodes appear on this community's pages only.</span></span></label></p>
+    <p><label style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" name="feed_public" value="1" {{ 'checked' if c.feed_public }} {{ 'disabled' if not fwd.on }}><span><b>Also forward what the gateways send to the public Meshtastic server</b><br><span class="dim">{% if fwd.on %}The packets go to mqtt.meshtastic.org under {{ fwd.root }}, so the nodes show on the public Meshtastic maps too. The public server's own rules are applied first: only default-key channels it lists, only the port numbers it allows, and positions no more exact than {{ fwd.bits }} bits. Private channels are never forwarded.{% else %}The site's administrators have not switched forwarding on (Settings, Mesh Nodes).{% endif %}</span></span></label></p>
+    <button class="btn small" type="submit">Save</button>
+  </form>
+{% endcall %}
+
+{% elif cur == 'alerts' and ac is defined %}
+{% call sec('alerts', 'Alert and Weather Channel', True) %}
+  <p style="margin-top:0">Carry weather warnings and the weather out over this community's mesh. Pick one of your channels. The site writes short messages on it: <b>National Weather Service warnings</b> that cover your area, as they appear, and a <b>weather summary</b> from the public weather stations inside your area every {{ ac.hours }} hours. Only a node with <b>downlink</b> turned on for that channel, logged in with this community's downlink login, puts them on the air; everyone else just sees them if they are on the channel. A message is at most 200 characters.</p>
+  {% if not ac.site_on %}<p class="dim"><b>The site administrator has not turned the alert channel on yet</b> (Settings > Mesh Nodes), so nothing is sent.</p>{% endif %}
+  <form method="post" action="/mesh/c/{{ c.slug }}/alerts">{{ csrf() }}
+    <p><label style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" name="alert_enabled" value="1" {{ 'checked' if c.alert_enabled }}><span><b>Send messages on the alert channel</b><br><span class="dim">Off until you turn it on. At most {{ ac.cap }} messages in 24 hours, at least {{ ac.gap }} seconds apart.</span></span></label></p>
+    <div class="cm-row"><div><label for="alch">Channel</label><select id="alch" name="channel"><option value="">Choose a channel</option>{% for ch in ac.channels %}<option value="{{ ch.id }}" {{ 'selected' if c.alert_channel_id == ch.id }}>{{ ch.name }}{{ '' if ch.downlink else ' (downlink is off)' }}</option>{% endfor %}</select></div></div>
+    {% if not ac.channels %}<p class="dim">This community has no channel yet. Make one under Channels first.</p>{% endif %}
+    <p><label style="display:flex;gap:8px"><input type="checkbox" name="alert_nws" value="1" {{ 'checked' if c.alert_nws }}><span>Weather Service warnings for the area ({{ ac.codes }})</span></label></p>
+    <p><label style="display:flex;gap:8px"><input type="checkbox" name="alert_weather" value="1" {{ 'checked' if c.alert_weather }}><span>A weather summary from the weather stations in the area{% if ac.hours == 0 %} <span class="dim">(the site sends none right now)</span>{% endif %}</span></label></p>
+    <button class="btn small" type="submit">Save</button>
+  </form>
+  <form method="post" action="/mesh/c/{{ c.slug }}/alerts/test" style="margin-top:10px">{{ csrf() }}<button class="btn small neutral" type="submit" {{ 'disabled' if not ac.site_on or not c.alert_channel_id }}>Send a Test Message</button> <span class="dim" style="font-size:.85rem">Counts toward the daily limit. It goes to <span class="mono">{{ ac.root }}&lt;channel&gt;/</span>.</span></form>
+{% endcall %}
+{% call sec('alertlog', 'What Went Out (' ~ ac.sent_day ~ ' in the last 24 hours)', True, True) %}
+  {% if ac.log %}<table><thead><tr><th>When</th><th>Kind</th><th>Message</th><th>Result</th></tr></thead><tbody>
+  {% for l in ac.log %}<tr><td><time class="ts" datetime="{{ l.ts.isoformat() }}" data-fmt="dt">{{ l.ts.strftime('%Y-%m-%d %H:%M') }}</time></td><td>{{ {'nws': 'Warning', 'weather': 'Weather', 'test': 'Test'}.get(l.kind, l.kind) }}</td><td>{{ l.text }}</td><td>{% if l.ok %}Sent{% else %}<span class="dim">{{ l.detail or 'Not sent' }}</span>{% endif %}</td></tr>{% endfor %}</tbody></table>
+  {% else %}<p class="dim" style="margin:0">Nothing has been sent yet.</p>{% endif %}
+{% endcall %}
+
+{% elif cur == 'links' and ml is defined %}
+{% call sec('links', 'Linked Areas', True, True) %}
+  <p style="margin-top:0">Two areas with no radio path between them can share one channel through the broker: the site carries each packet heard on the channel on one community's topic to the other's, exactly as it arrived (still encrypted; the site never opens it). Both communities need a channel with <b>the same name and the same key</b>, and a node on the far side needs downlink on for it. A packet is carried once, never with more hops than the link allows, and no faster than the link's limit. A Manager on each side agrees{% if ml.approval %}, then a site administrator approves{% endif %}. Either side can pause or remove a link at any time. A link carries everything on its channel (the site cannot tell a text from a position without the key).</p>
+  {% if not ml.site_on %}<p class="dim"><b>The site administrator has not turned linking on yet</b> (Settings > Mesh Nodes), so no link carries anything.</p>{% endif %}
+  {% if ml.rows %}<table><thead><tr><th>With</th><th>Channel</th><th>State</th><th>Carried</th><th></th></tr></thead><tbody>
+  {% for l in ml.rows %}<tr><td>{{ l.other_name }}<br><span class="dim" style="font-size:.8rem">{{ 'you proposed' if l.i_proposed else 'they proposed' }}; {{ l.hop_limit }} hops, {{ l.rate_per_min }} a minute</span></td><td>{{ l.channel }}{% if l.keys is not none %}<br><span class="dim" style="font-size:.8rem">{{ 'same key on both' if l.keys else 'keys differ' }}</span>{% endif %}</td>
+    <td>{{ l.text }}{% if l.state == 'active' and l.keys is false %}<br><span class="dim" style="font-size:.8rem">The far side cannot read these until both channels have the same key.</span>{% endif %}</td>
+    <td style="font-size:.85rem">{% if l.state == 'active' %}Out {{ l.out }}, in {{ l.inn }}<br><span class="dim">duplicates {{ l.dup }}, limited {{ l.limited }}, errors {{ l.errors }}</span>{% if l.last_error %}<br><span class="dim">{{ l.last_error }}</span>{% endif %}{% else %}-{% endif %}</td>
+    <td>{% if l.state == 'proposed' and not l.i_proposed %}<form class="inline" method="post" action="/mesh/c/{{ c.slug }}/links/{{ l.id }}/accept">{{ csrf() }}<label style="display:block;font-size:.8rem"><input type="checkbox" name="adopt" value="1"> If my channel's key differs, give it theirs (my members scan its code again)</label><button class="btn small" type="submit">Accept</button></form>
+      <form class="inline" method="post" action="/mesh/c/{{ c.slug }}/links/{{ l.id }}/decline">{{ csrf() }}<button class="btn small neutral" type="submit">Decline</button></form>
+      {% elif l.state == 'proposed' %}<form class="inline" method="post" action="/mesh/c/{{ c.slug }}/links/{{ l.id }}/cancel">{{ csrf() }}<button class="btn small neutral" type="submit">Take Back</button></form>
+      {% elif l.state == 'active' %}<form class="inline" method="post" action="/mesh/c/{{ c.slug }}/links/{{ l.id }}/{{ 'resume' if l.paused else 'pause' }}">{{ csrf() }}<button class="btn small neutral" type="submit">{{ 'Resume' if l.paused else 'Pause' }}</button></form>{% endif %}
+      {% if l.state != 'proposed' or l.i_proposed %}<form class="inline" method="post" action="/mesh/c/{{ c.slug }}/links/{{ l.id }}/remove" data-confirm="Remove this link?">{{ csrf() }}<button class="btn small warn" type="submit">Remove</button></form>{% endif %}</td></tr>{% endfor %}</tbody></table>
+  {% else %}<p class="dim">No links yet.</p>{% endif %}
+{% endcall %}
+{% call sec('linknew', 'Propose a Link', True) %}
+  {% if ml.channels and ml.others %}<form method="post" action="/mesh/c/{{ c.slug }}/links/propose" class="cm-row" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">{{ csrf() }}
+    <div><label for="ln-o">Link with</label><select id="ln-o" name="other">{% for o in ml.others %}<option value="{{ o.slug }}">{{ o.name }}</option>{% endfor %}</select></div>
+    <div><label for="ln-c">Your channel to share</label><select id="ln-c" name="channel">{% for ch in ml.channels %}<option>{{ ch.name }}</option>{% endfor %}</select></div>
+    <div><label for="ln-h">Hops left on the far side</label><input id="ln-h" name="hops" type="number" min="0" max="{{ ml.max_hops }}" value="{{ ml.default_hops }}" style="width:80px"></div>
+    <div><label for="ln-r">Most packets a minute</label><input id="ln-r" name="rate" type="number" min="1" max="{{ ml.max_rate }}" value="{{ ml.max_rate }}" style="width:90px"></div>
+    <button class="btn small" type="submit">Propose</button></form>
+  <p class="dim" style="font-size:.85rem;margin-bottom:0">The other community needs a channel with the same name. You can be part of {{ ml.limit }} links.</p>
+  {% else %}<p class="dim" style="margin:0">You need a channel of your own (under Channels) and another published community to link with.</p>{% endif %}
+{% endcall %}
+
+{% elif cur == 'remote' and bridge is defined %}
+{% call sec('remote', 'Remote Administration', True, True) %}
+  <p style="margin-top:0">Change a node's settings from here without its admin key ever coming to this site. A small program on the group's own computer, next to a gateway node, asks this page for the commands that are ready and does them over the radio; the key stays with it.
+  Reading a node's settings goes straight through. Anything that changes a node (a new name, role or channel name, a reboot) waits for a Manager or the Owner to approve it. A command that is not taken within {{ bridge.expire_hours }} hours is dropped. Everything is in the audit log.</p>
+  <h3>Bridges</h3>
+  {% if bridge.bridges %}<table><thead><tr><th>Name</th><th>Last Asked</th><th>Program</th><th></th></tr></thead><tbody>
+  {% for b in bridge.bridges %}<tr><td>{{ b.name }}</td><td>{% if b.last_seen %}<time class="ts" datetime="{{ b.last_seen.isoformat() }}" data-fmt="dt">{{ b.last_seen.strftime('%Y-%m-%d %H:%M') }}</time>{% else %}<span class="dim">never</span>{% endif %}</td><td>{{ b.version or '-' }}</td>
+    <td>{% if can('manage_bridges') %}<form class="inline" method="post" action="/mesh/c/{{ c.slug }}/bridges/{{ b.id }}/token" data-confirm="Make a new token? The program stops working until it is given the new one.">{{ csrf() }}<button class="btn small neutral" type="submit">New Token</button></form>
+      <form class="inline" method="post" action="/mesh/c/{{ c.slug }}/bridges/{{ b.id }}/delete" data-confirm="Remove this bridge and its commands?">{{ csrf() }}<button class="btn small warn" type="submit">Remove</button></form>{% endif %}</td></tr>{% endfor %}</tbody></table>
+  {% else %}<p class="dim" style="margin-top:0">No bridge yet.</p>{% endif %}
+  {% if can('manage_bridges') %}<form method="post" action="/mesh/c/{{ c.slug }}/bridges/add" class="cm-row">{{ csrf() }}<div><label for="bn">Name (for example where it runs)</label><input type="text" id="bn" name="name" maxlength="60"></div><button class="btn small" type="submit">Make a Bridge</button></form>
+  <p class="dim" style="font-size:.85rem">The program is <span class="mono">tools/admin_bridge/arksignal_admin_bridge.py</span> in the project; it asks <span class="mono">{{ bridge.poll_url }}</span> with the bridge's token.</p>{% endif %}
+{% endcall %}
+{% if can('queue_commands') and bridge.bridges %}{% call sec('queue', 'Queue a Command', True) %}
+  <form method="post" action="/mesh/c/{{ c.slug }}/commands/add">{{ csrf() }}
+    <div class="cm-row"><div><label for="qb">Bridge</label><select id="qb" name="bridge">{% for b in bridge.bridges %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}</select></div>
+    <div><label for="qn">Node</label><select id="qn" name="node">{% for n in nodes if n.network != 'meshcore' %}<option value="{{ n.id }}">{{ n.long_name or n.short_name or n.id }} ({{ n.id }})</option>{% endfor %}</select></div>
+    <div><label for="qk">Command</label><select id="qk" name="kind">{% for k, v in bridge.commands.items() %}<option value="{{ k }}">{{ v[0] }}{{ ' (needs approval)' if v[1] }}</option>{% endfor %}</select></div></div>
+    <div class="cm-row"><div><label for="q1">Long name (rename)</label><input type="text" id="q1" name="long_name" maxlength="39"></div><div><label for="q2">Short name (rename)</label><input type="text" id="q2" name="short_name" maxlength="4" style="width:90px"></div>
+    <div><label for="q3">Role (set the role)</label><select id="q3" name="role">{% for r in bridge.role_enum %}<option>{{ r }}</option>{% endfor %}</select></div>
+    <div><label for="q4">Channel number (rename a channel)</label><input type="text" id="q4" name="index" value="0" style="width:80px"></div><div><label for="q5">Channel name</label><input type="text" id="q5" name="name" maxlength="11" style="width:130px"></div>
+    <div><label for="q6">Seconds (reboot)</label><input type="text" id="q6" name="seconds" value="10" style="width:80px"></div></div>
+    <p class="dim" style="font-size:.85rem">Only the boxes for the chosen command are used. A node must be one of the community's nodes.</p>
+    <button class="btn small" type="submit">Queue It</button></form>
+{% endcall %}{% endif %}
+{% call sec('commands', 'Commands', True, True) %}
+  {% if bridge.cmds %}<table><thead><tr><th>When</th><th>Who</th><th>Node</th><th>What</th><th>State</th><th>Result</th><th></th></tr></thead><tbody>
+  {% for m in bridge.cmds %}<tr><td><time class="ts" datetime="{{ m.requested_at.isoformat() }}" data-fmt="dt">{{ m.requested_at.strftime('%Y-%m-%d %H:%M') }}</time></td><td>{{ m.who or '-' }}</td><td class="mono">{{ m.node_key }}</td><td>{{ m.text }}</td>
+    <td><span class="tag {{ 'live' if m.state in ('done', 'approved', 'sent') else 'off' }}">{{ m.state }}</span>{% if m.approver and m.risky %}<br><span class="dim" style="font-size:.8rem">by {{ m.approver }}</span>{% endif %}</td><td class="cm-pre" style="font-size:.8rem;max-width:280px">{{ m.result[:300] }}</td>
+    <td>{% if m.state == 'pending' and can('approve_commands') %}<form class="inline" method="post" action="/mesh/c/{{ c.slug }}/commands/{{ m.id }}/approve">{{ csrf() }}<button class="btn small" type="submit">Approve</button></form>
+      <form class="inline" method="post" action="/mesh/c/{{ c.slug }}/commands/{{ m.id }}/reject">{{ csrf() }}<button class="btn small warn" type="submit">Reject</button></form>{% endif %}
+      {% if m.state in ('pending', 'approved') and can('queue_commands') %}<form class="inline" method="post" action="/mesh/c/{{ c.slug }}/commands/{{ m.id }}/cancel">{{ csrf() }}<button class="btn small neutral" type="submit">Cancel</button></form>{% endif %}</td></tr>{% endfor %}</tbody></table>
+  {% else %}<p class="dim" style="margin:0">No command yet.</p>{% endif %}
+{% endcall %}
+{% endif %}
+<p class="dim" style="font-size:.8rem">{{ credit }}.</p>
+{% endblock %}

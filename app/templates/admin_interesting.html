@@ -38,7 +38,7 @@
 </form></details>
 <h2 style="font-size:.78rem;text-transform:uppercase;letter-spacing:.14em;color:var(--dim);margin:26px 0 12px;font-weight:600">The List</h2>
 <form class="tfilterbar" method="get"><input type="search" name="q" value="{{ q }}" placeholder="Search by hex, registration, type, owner or note, then press Enter" aria-label="Search the list">
-  {% if st.categories %}<select name="category" aria-label="Category" onchange="this.form.submit()"><option value="">All categories</option>{% for k, n in st.categories %}<option value="{{ k }}" {{ 'selected' if k == category }}>{{ k }} ({{ n }})</option>{% endfor %}</select>{% endif %}
+  {% if st.categories %}<select name="category" aria-label="Category" data-submit-on-change><option value="">All categories</option>{% for k, n in st.categories %}<option value="{{ k }}" {{ 'selected' if k == category }}>{{ k }} ({{ n }})</option>{% endfor %}</select>{% endif %}
   <span class="dim">{{ total }} found{{ ', showing the first 300' if total > 300 }}</span></form>
 {% include "partials/_interesting_list.html" %}
 {% endblock %}

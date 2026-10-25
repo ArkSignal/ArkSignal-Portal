@@ -62,7 +62,7 @@
   <p style="margin-top:0">The usual route is the <a href="https://github.com/sdr-enthusiasts/docker-acarshub" target="_blank" rel="noopener">SDR Enthusiasts ACARS stack</a>: one container per decoder, an <span class="mono">acars_router</span> that collects their output, and (here) the ArkSignal bridge as one more destination.</p>
   <h3 style="margin:14px 0 6px;font-size:1rem">New station (Docker)</h3>
   <ol class="plain">
-    <li>Install a Linux operating system and Docker as for the <a href="/feed/">ADS-B feeder</a>.</li>
+    <li>Install a Linux operating system and Docker as for the <a href="/feed/adsb">ADS-B feeder</a>.</li>
     <li>Add your station on <a href="/my/acars">My ACARS Stations</a> and copy its <b>upload address</b> (it ends in your token).</li>
     <li>Download the bridge next to your compose file: <span class="mono copyable">curl -O {{ bridge }}</span></li>
     <li>Create <span class="mono">/opt/adsb/acars/compose.yaml</span> with the example below, replacing the values in capitals.</li>

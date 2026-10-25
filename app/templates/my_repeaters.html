@@ -3,9 +3,9 @@
 {% from "partials/_feedsec.html" import sec with context %}
 {% block title %}My Repeaters{% endblock %}
 {% block content %}
+{% include "partials/_my_subnav.html" %}
 <h1>{% if is_new %}My <span>Repeaters</span>{% else %}Edit <span>{{ f.callsign or 'Repeater' }} {{ rp_mhz(f.freq_hz) }}</span>{% endif %}</h1>
 <div class="sub">{% if is_new %}Repeaters you submitted or look after. Add one that is missing: an editor checks it before it appears. For a listing that is wrong, open it and use Report a Problem.{% else %}Changes are saved with a history of who changed what.{% endif %}</div>
-{% include "partials/_my_subnav.html" %}
 {% if banner %}<div class="panel" style="border-color:var(--acc2);margin-bottom:14px"><b>{{ banner }}</b></div>{% endif %}
 {% if is_new and rows %}
 {% call sec('mine', 'Your Repeaters', True, True) %}<table><thead><tr><th>Output (MHz)</th><th>Call sign</th><th>City</th><th>State</th><th></th></tr></thead><tbody>

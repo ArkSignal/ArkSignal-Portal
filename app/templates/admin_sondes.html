@@ -22,7 +22,7 @@
     </div>
   </div>
 </details>
-<script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var sum = document.getElementById("hi-sum"), body = document.getElementById("hi-body");
   function esc(t) { var d = document.createElement("div"); d.textContent = t == null ? "" : t; return d.innerHTML; }
@@ -48,7 +48,7 @@
     </div>
   </div>
 </details>
-<script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var sum = document.getElementById("pr-sum"), body = document.getElementById("pr-body");
   function esc(t) { var d = document.createElement("div"); d.textContent = t == null ? "" : t; return d.innerHTML; }
@@ -90,8 +90,8 @@
   </div>
   <div class="help">The station may be one not heard yet. A station that belongs to someone else is taken over. Starting a claim gives the member a code to put in the station's antenna description (or you approve it below); giving it now makes it theirs at once, and then the privacy and listing choices apply (a claim offers the member those once it completes). The member can then manage it from My Radiosonde Stations, and you can open it from the lists below with Manage. Recorded in the audit log.</div>
   <button class="btn" type="submit">Assign</button>
-</form><script src="/static/memberpicker.js"></script>
-<script>(function(){var m=document.getElementById("as-mode"),o=document.getElementById("as-owned");function s(){o.style.display=m.value==="assign"?"":"none";o.querySelectorAll("input,select").forEach(function(i){i.disabled=m.value!=="assign";});}m.addEventListener("change",s);s();})();</script></details>
+</form><script nonce="{{ csp_nonce() }}" src="/static/memberpicker.js"></script>
+<script nonce="{{ csp_nonce() }}">(function(){var m=document.getElementById("as-mode"),o=document.getElementById("as-owned");function s(){o.style.display=m.value==="assign"?"":"none";o.querySelectorAll("input,select").forEach(function(i){i.disabled=m.value!=="assign";});}m.addEventListener("change",s);s();})();</script></details>
 
 {% call sec('waiting', 'Claims Waiting', True, True) %}<table>
   <tr><th>Station</th><th>Member</th><th>Profile Call Sign</th><th>Code</th><th>Heard</th><th></th></tr>
@@ -126,7 +126,7 @@
   {% for r in stations %}<tr>
     <td class="mono">{{ r.callsign }}</td><td>{{ r.software }} <span class="dim">{{ r.version }}</span></td><td>{{ 'hidden (mobile)' if r.mobile and r.privacy != 'exact' else r.privacy }}</td>
     <td class="dim">{{ r.last_seen | localtime("%b %-d %H:%M") if r.last_seen else 'never' }}</td>
-    <td style="white-space:nowrap"><a class="btn small" href="#sec-assign" onclick="document.getElementById('as-call').value='{{ r.callsign | e }}';document.getElementById('as-user').focus();">Assign</a>
+    <td style="white-space:nowrap"><a class="btn small" href="#sec-assign" data-fill-id="as-call" data-fill-value="{{ r.callsign }}" data-focus-id="as-user">Assign</a>
       <form method="post" action="/admin/sondes/{{ r.id }}/{{ 'enable' if r.disabled else 'disable' }}" data-async style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small" type="submit">{{ 'Show' if r.disabled else 'Hide' }}</button></form></td></tr>
   {% else %}<tr><td colspan="5" class="dim">No station has been heard yet.</td></tr>{% endfor %}
 </table>

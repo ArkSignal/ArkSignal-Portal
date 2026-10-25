@@ -21,14 +21,14 @@
     </div></details>
 {% endcall %}
 {{ boot("/mesh/map", "mm") }}
-<script src="/static/touchhit.js"></script>
-<script src="/static/colocate.js?v=mesh2"></script>
-<script src="/static/labelfit.js"></script>
-<script>
+<script nonce="{{ csp_nonce() }}" src="/static/touchhit.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/colocate.js?v=mesh2"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/labelfit.js"></script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var S = ArkShell, $ = S.$, esc = S.esc;
   var q = new URLSearchParams(location.search);
-  var map = L.map("lvmap", {zoomControl: false, zoomSnap: 0.25, preferCanvas: false}).setView([parseFloat(q.get("lat")) || {{ map_lat | float }}, parseFloat(q.get("lon")) || {{ map_lon | float }}], parseFloat(q.get("zoom")) || 7);
+  var map = L.map("lvmap", {zoomControl: false, zoomSnap: 0.25, preferCanvas: false}).setView([parseFloat(q.get("lat")) || {{ map_lat | float }}, parseFloat(q.get("lon")) || {{ map_lon | float }}], parseFloat(q.get("zoom")) || 7); window.arkMap = map;
   L.control.zoom({position: "bottomright"}).addTo(map);
   var state = {q: q.get("q") || "", role: "", network: "", hours: 168, routers: false, links: true, sortKey: "last_seen", sortDir: -1};
   var shell = S.start({map: map, layers: {{ layers | tojson }}, key: "mm", url: "/mesh/map", cfg: {tile: {{ tile_url | tojson }}, attr: {{ tile_attr | tojson }}, labelScale: {{ label_scale | int }}, labelBg: {{ label_bg | tojson }}, wxRefresh: {{ wx_refresh | int }}},
@@ -91,7 +91,7 @@
       var m = L.circleMarker([n.lat, n.lon], {radius: rad, color: n.id === cardId ? "#fff" : color(n), weight: n.id === cardId ? 3 : 2, fillColor: color(n), fillOpacity: fresh ? .75 : .2}).addTo(group);
       m.bindTooltip("<b>" + esc(n.long_name || n.short_name || n.id) + "</b> " + esc(n.role_name || "") + " · " + ago(n.last_seen), {className: "lv-tip"});
       m.on("click", function () { select(n.id, false); });
-      Colocate.track(map, "mesh", m, n.lat, n.lon);
+      Colocate.track(map, "mesh", m, n.lat, n.lon, n.long_name || n.short_name || n.id);
       marks[n.id] = m;
     });
     lastVis = vis; renderLabels(vis); renderList(vis); renderChips();
@@ -181,9 +181,11 @@
   $("mm-links").addEventListener("change", function () { state.links = this.checked; if (!this.checked) linkG.clearLayers(); else if (cardId) select(cardId, false); });
   $("mm-labels").addEventListener("change", function () { LABM = this.value; S.pref("mm.labels", this.value); renderLabels(lastVis); });
   $("mm-dot").addEventListener("change", function () { dotScale = parseInt(this.value, 10); S.pref("mm.dot", this.value); render(); });
-  fetch("/api/mesh/nodes.json").then(function (r) { return r.json(); }).then(function (d) {
+  fetch("/api/mesh/nodes.json" + (q.get("community") ? "?community=" + encodeURIComponent(q.get("community")) : "")).then(function (r) { return r.json(); }).then(function (d) {
     nodes = (d.nodes || []).filter(function (n) { return n.lat != null; });
-    if (!(q.get("lat") && q.get("lon")) && !q.get("zoom")) { var AR = {{ map_area("mesh_map_area") | tojson }}; if (AR) map.fitBounds([[AR[0], AR[1]], [AR[2], AR[3]]], {padding: [10, 10]}); }
+    if (d.area) { var shape = L.polygon(d.area, {color: "#ff8c42", weight: 2, fillColor: "#ff8c42", fillOpacity: .06, dashArray: "6 6", interactive: false}).addTo(map); }
+    if (d.area && !(q.get("lat") && q.get("lon")) && !q.get("zoom")) { map.fitBounds(shape.getBounds(), {padding: [10, 10]}); }
+    else if (!(q.get("lat") && q.get("lon")) && !q.get("zoom")) { var AR = {{ map_area("mesh_map_area") | tojson }}; if (AR) map.fitBounds([[AR[0], AR[1]], [AR[2], AR[3]]], {padding: [10, 10]}); }
     render();
     if (q.get("node")) { var want = q.get("node").replace("!", ""), hit = nodes.filter(function (x) { return x.slug === want; })[0]; if (hit) select(hit.id, true); }
   }).catch(function () { $("lv-count").textContent = "Could not load the nodes."; });

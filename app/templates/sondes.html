@@ -23,7 +23,7 @@
 
 {% call sec('forecast', 'Next Launch Forecast', True) %}
   <div id="fc-body" class="dim">Loading the forecast...</div>
-  <script>
+  <script nonce="{{ csp_nonce() }}">
   (function () {
     var body = document.getElementById("fc-body"), sec = body.closest("details, .panel");
     function esc(t) { var d = document.createElement("div"); d.textContent = t == null ? "" : t; return d.innerHTML; }

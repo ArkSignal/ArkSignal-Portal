@@ -1,8 +1,8 @@
 {% extends "feed_base.html" %}
 {% from "partials/_feedsec.html" import sec, data_and_help, after with context %}
-{% block title %}How to Feed{% endblock %}
+{% block title %}Feed ADS-B{% endblock %}
 {% block feed_body %}
-<h1>How to <span>Feed</span> the Network</h1>
+<h1>Feed <span>ADS-B</span> to the Network</h1>
 <div class="sub">Share your ADS-B receiver with {{ site_name }}. If you already run an ultrafeeder, it takes one line. This page covers ADS-B (1090 MHz), the part everyone does.{% if mlat_enabled %} Most stations also send <a href="/feed/mlat">MLAT</a>, which uses the same receiver and the same container.{% endif %}{% if uat_enabled %} A second radio can add <a href="/feed/uat">UAT (978 MHz)</a>.{% endif %}</div>
 
 {% call sec('the-short-version', 'The Short Version', True) %}
@@ -141,7 +141,7 @@
 {% endcall %}
 
 {{ data_and_help('adsb') }}
-<script>
+<script nonce="{{ csp_nonce() }}">
 // Links made before the Feed section was split into pages: #sec-mlat, #sec-uat and #sec-am-i-feeding now live on their own pages.
 (function () { var m = {"#sec-mlat": "/feed/mlat", "#sec-uat": "/feed/uat", "#sec-am-i-feeding": "/feed/check"}; if (m[location.hash]) location.replace(m[location.hash]); })();
 </script>

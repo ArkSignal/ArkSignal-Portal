@@ -51,10 +51,10 @@
   </tbody></table>
 {% endcall %}
 {% endif %}
-<script src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script>
-<script src="/static/touchhit.js"></script>
-<script src="/static/sondeicons.js"></script>
-<script>
+<script nonce="{{ csp_nonce() }}" src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script><script nonce="{{ csp_nonce() }}" src="/static/safehtml.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/touchhit.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/sondeicons.js"></script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var pts = {{ points | tojson }};
   var map = L.map("feedermap").setView([{{ map_lat }}, {{ map_lon }}], {{ map_zoom }});

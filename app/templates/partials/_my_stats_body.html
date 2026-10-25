@@ -1,0 +1,32 @@
+{# The statistics boards of a diary: used by the member's own page and by a shared diary. Needs the stats context (s, airports, ...) and `shared`. #}
+{% from "partials/_feedsec.html" import sec with context %}
+{% macro board(title, items, label=None) %}
+  <div class="panel" style="padding:12px 14px;min-width:230px;flex:1"><h3 style="margin:0 0 6px;font-size:1rem">{{ title }}</h3>
+  {% if items %}<table>{% for k, n in items %}<tr><td>{{ k }}{% if label and label.get(k) %} <span class="dim" style="font-size:.8rem">{{ label[k] }}</span>{% endif %}</td><td style="text-align:right"><b>{{ n }}</b></td></tr>{% endfor %}</table>{% else %}<p class="dim" style="margin:0">None yet.</p>{% endif %}</div>
+{% endmacro %}
+{% macro trio(title, rows, what) %}
+  <div class="panel" style="padding:12px 14px;min-width:230px;flex:1"><h3 style="margin:0 0 6px;font-size:1rem">{{ title }}</h3>
+  {% if rows %}<table>{% for r in rows %}<tr><td><b>{{ r.from_code }} - {{ r.to_code }}</b> <span class="dim" style="font-size:.8rem">{{ r.when.strftime('%Y-%m-%d') if r.when }}</span></td><td style="text-align:right">{% if what == 'time' %}{{ hm(r.der.air if r.der.air is not none else r.der.total) }}{% else %}{{ dist(r.distance_km) }}{% endif %}</td></tr>{% endfor %}</table>{% else %}<p class="dim" style="margin:0">None yet.</p>{% endif %}</div>
+{% endmacro %}
+{% if total %}
+<div class="tiles" style="margin-bottom:14px">
+  <div class="panel tile"><div class="tv">{{ s.flights }}</div><div class="tl">Flights</div></div>
+  <div class="panel tile"><div class="tv">{{ dist(s.km) }}</div><div class="tl">Flown</div></div>
+  <div class="panel tile"><div class="tv">{{ hm(s.minutes) }}</div><div class="tl">Time in the air</div></div>
+  <div class="panel tile"><div class="tv">{{ dist(avg_km) }}</div><div class="tl">Average Flight</div></div>
+  <div class="panel tile"><div class="tv">{{ earth }}</div><div class="tl">Times Around the Earth</div></div>
+  <div class="panel tile"><div class="tv">{{ moon }}</div><div class="tl">Trips to the Moon</div></div>
+</div>
+{% call sec('statstop', 'Most Visited', True, True) %}
+  <div style="display:flex;gap:12px;flex-wrap:wrap">{{ board('Airports (' ~ s.airports ~ ')', airports, labels) }}{{ board('Routes', routes) }}{{ board('Airlines (' ~ s.airlines ~ ')', airlines) }}{{ board('Aircraft Types', types) }}{{ board('Countries', countries) }}</div>
+{% endcall %}
+{% call sec('statrecords', 'Longest and Shortest', True, True) %}
+  <div style="display:flex;gap:12px;flex-wrap:wrap">{{ trio('Longest by Distance', longest, 'km') }}{{ trio('Shortest by Distance', shortest, 'km') }}{{ trio('Longest in the Air', longest_time, 'time') }}</div>
+{% endcall %}
+{% if classes or reasons %}{% call sec('statpeople', 'People on Board', True, True) %}
+  <div style="display:flex;gap:12px;flex-wrap:wrap">{{ board('By Class', classes) }}{{ board('By Reason', reasons) }}</div>
+{% endcall %}{% endif %}
+{% if by_year | length > 1 %}{% call sec('statyears', 'By Year', True, True) %}
+  <table><thead><tr><th>Year</th><th>Flights</th><th>Flown</th></tr></thead><tbody>{% for y, v in by_year %}<tr><td>{{ y }}</td><td>{{ v.flights }}</td><td>{{ dist(v.km) }}</td></tr>{% endfor %}</tbody></table>
+{% endcall %}{% endif %}
+{% else %}<p class="dim">Nothing to count yet.{% if not shared %} <a href="/my/flights/new">Add a flight</a>.{% endif %}</p>{% endif %}

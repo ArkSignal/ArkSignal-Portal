@@ -41,12 +41,13 @@ check("a person with no admin permission sees only the overview", [g for g, _ in
 
 adm = sess("marty", PW)
 page = adm.get(B + "/admin/hospitals").text
-nav_html = re.search(r'<div class="subnav adminnav".*?<!-- /adminnav -->', page, re.S)
+NAVRE = r'<div class="my-side adminside" id="ad-side".*?</script>'
+nav_html = re.search(NAVRE, page, re.S)
 check("the admin page shows the grouped menu", nav_html is not None)
-check("it is not a <nav> element (the site styles those as the sticky main menu, which put the main menu's dropdowns underneath it)", "<nav" not in nav_html.group(0))
-check("the group you are in is marked, and only that one", re.findall(r'<div class="ag has-active"><span class="agl">([^<]+)</span>', nav_html.group(0)) == ["Map and Data"], re.findall(r'class="ag[^"]*"><span class="agl">([^<]+)', nav_html.group(0)))
+check("it is not a <nav> element (the site styles those as the sticky main menu and hides their children on a phone)", "<nav" not in nav_html.group(0) and 'role="navigation"' in nav_html.group(0))
+check("the group you are in is marked, and only that one", re.findall(r'<div class="my-side-group has-current expanded">\s*<button[^>]*><span>([^<]+)</span>', nav_html.group(0)) == ["Map and Data"], re.findall(r'class="my-side-group[^"]*">\s*<button[^>]*><span>([^<]+)', nav_html.group(0)))
 html = nav_html.group(0)
-shown_groups = re.findall(r'<span class="agl">([^<]+)</span>', html)
+shown_groups = re.findall(r'class="my-side-head"[^>]*><span>([^<]+)</span>', html)
 check("the groups appear in the fixed order", shown_groups == ORDER, shown_groups)
 shown_links = re.findall(r'<a class="[^"]*" href="([^"]+)"', html)
 expect = [h for _g, items in nav.GROUPS for _k, _l, h, _p in items]
@@ -58,8 +59,10 @@ for href in expect:
     if r.status_code != 200:
         bad.append((href, r.status_code))
 check("every address in the menu opens", not bad, bad)
-same = {re.findall(r'<span class="agl">([^<]+)</span>', re.search(r'<div class="subnav adminnav".*?<!-- /adminnav -->', adm.get(B + h).text, re.S).group(0)).__str__() for h in ("/admin/users", "/admin/settings", "/admin/status", "/admin/interesting", "/admin/data-updates/")}
+same = {str(re.findall(r'class="my-side-head"[^>]*><span>([^<]+)</span>', re.search(NAVRE, adm.get(B + h).text, re.S).group(0))) for h in ("/admin/users", "/admin/settings", "/admin/status", "/admin/interesting", "/admin/data-updates/")}
 check("the menu is the same on every admin page", len(same) == 1, same)
+full = adm.get(B + "/admin/users").text
+check("the page's title comes before the menu (it runs across the top)", full.index("<h1") < full.index('id="ad-side"') < full.index("<table") if "<table" in full else full.index("<h1") < full.index('id="ad-side"'))
 
 # the main menu's dropdowns open on top of the admin menu, not underneath it
 try:
@@ -72,19 +75,25 @@ try:
         for c in adm.cookies:
             d.add_cookie({"name": c.name, "value": c.value, "path": "/"})
         d.get(B + "/admin/hospitals"); time.sleep(1.5)
+        pos = d.execute_script("var m = document.getElementById('ad-side'), h = document.querySelector('main > h1'); var rm = m.getBoundingClientRect(), rh = h.getBoundingClientRect(); return {menuLeft: Math.round(rm.left), menuTop: Math.round(rm.top), titleBottom: Math.round(rh.bottom), titleWidth: Math.round(rh.width), mainLeft: Math.round(document.querySelector('main').getBoundingClientRect().left), sticky: getComputedStyle(m).position, openGroups: document.querySelectorAll('#ad-side .my-side-items:not([hidden])').length}")
+        check("on a wide screen the menu is a column down the left side, under the title, and stays in view as the page scrolls", pos["menuLeft"] < 100 and pos["menuTop"] >= pos["titleBottom"] - 2 and pos["sticky"] == "sticky", pos)
+        check("only the group of the current page is open", pos["openGroups"] == 1, pos)
+        act_ = d.execute_script("var a = document.querySelector('#ad-side a.active'); var c = getComputedStyle(a); return {href: a.getAttribute('href'), border: c.borderTopColor, text: c.color}")
+        check("the page you are on is highlighted in the accent color", act_["href"] == "/admin/hospitals" and act_["border"] == act_["text"], act_)
+        d.execute_script("document.querySelector('#ad-side a[href=\"/admin/places\"]').click()"); time.sleep(2)
+        now = d.execute_script("return {url: location.pathname, title: document.querySelector('main > h1').textContent, active: document.querySelector('#ad-side a.active').getAttribute('href'), n: document.querySelectorAll('#ad-side').length}")
+        check("clicking another admin page swaps the page in place: new address, new title, the menu marks the new page, one menu only", now["url"] == "/admin/places" and "Places" in now["title"] and now["active"] == "/admin/places" and now["n"] == 1, now)
+        d.back(); time.sleep(2)
+        check("the back button returns to the earlier page", d.execute_script("return location.pathname") == "/admin/hospitals" and "Hospitals" in d.execute_script("return document.querySelector('main > h1').textContent"))
+        d.set_window_size(412, 900); time.sleep(1)
+        ph = d.execute_script("var b = document.getElementById('ad-side-btn'), l = document.getElementById('ad-side-list'); var r = b.getBoundingClientRect(); var before = getComputedStyle(l).display; b.click(); return {btn: getComputedStyle(b).display, tall: Math.round(r.height), words: b.textContent.trim(), listBefore: before, listAfter: getComputedStyle(l).display, noscroll: document.documentElement.scrollWidth <= window.innerWidth}")
+        check("on a phone the menu is one button naming the current page that opens the list, and the page does not scroll sideways", ph["btn"] == "flex" and ph["tall"] >= 44 and "Hospitals" in ph["words"] and ph["listBefore"] == "none" and ph["listAfter"] == "block" and ph["noscroll"], ph)
+        d.set_window_size(1500, 900); time.sleep(1)
+        d.get(B + "/admin/hospitals"); time.sleep(1.5)
         d.execute_script("document.querySelectorAll('details.navmenu')[0].open = true"); time.sleep(.5)
-        top = d.execute_script("""var dd = document.querySelector('details.navmenu[open] .navdrop'); var r = dd.getBoundingClientRect(); var items = dd.querySelectorAll('a'); var last = items[1].getBoundingClientRect();   /* a tall flyout scrolls inside itself: test the second link, which is always in view */
-            var hit = document.elementFromPoint(last.left + 10, last.top + last.height / 2); return {inside: dd.contains(hit), bottom: Math.round(r.bottom), adminTop: Math.round(document.querySelector('.adminnav').getBoundingClientRect().top)}""")
-        check("the Aircraft dropdown reaches into the admin menu's area and is still on top of it", top["bottom"] > top["adminTop"] and top["inside"], top)
-        pop = d.execute_script("""var dd = document.querySelector('details.navmenu[open] .navdrop'), cs = getComputedStyle(dd), bs = getComputedStyle(document.body);
-            return {bg: cs.backgroundColor, page: bs.backgroundColor, shadow: cs.boxShadow, top: cs.borderTopWidth, dimmed: getComputedStyle(document.querySelector('main > h1')).opacity}""")
-        check("the open dropdown stands out: its own lighter surface, a shadow, an accent edge, and the page behind it steps back", pop["bg"] != pop["page"] and pop["shadow"] != "none" and pop["top"] == "3px" and float(pop["dimmed"]) < 0.6, pop)
-        look = d.execute_script("""var l = document.querySelector('.adminnav .agi a:not(.active)'), a = document.querySelector('.adminnav .agi a.active'); var cl = getComputedStyle(l), ca = getComputedStyle(a);
-            return {text: cl.color, border: cl.borderTopColor, width: cl.borderTopWidth, activeText: ca.color, activeBorder: ca.borderTopColor}""")
-        check("every link is outlined in the grey of its own text, so the links are separated", look["border"] == look["text"] and look["width"] == "1px", look)
-        check("the page you are on keeps its green outline", look["activeBorder"] == look["activeText"] and look["activeBorder"] != look["border"], look)
-        pos = d.execute_script("return getComputedStyle(document.querySelector('.adminnav')).position")
-        check("the admin menu is an ordinary part of the page, not a second sticky bar", pos == "static" or pos == "relative", pos)
+        top = d.execute_script("""var dd = document.querySelector('details.navmenu[open] .navdrop'); var items = dd.querySelectorAll('a'); var last = items[1].getBoundingClientRect();
+            var hit = document.elementFromPoint(last.left + 10, last.top + last.height / 2); return {inside: dd.contains(hit)}""")
+        check("the main menu's dropdown opens on top of the admin page", top["inside"], top)
     finally:
         d.quit()
 except ImportError:

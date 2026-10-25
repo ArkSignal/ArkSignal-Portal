@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block title %}My Mesh Nodes{% endblock %}
 {% block content %}
+{% with active = 'mesh' %}{% include "partials/_my_subnav.html" %}{% endwith %}
 <h1>My <span>Mesh Nodes</span></h1>
 <div class="sub">Signed in as {{ current_user.username }}. A mesh login is a private username and password for your Meshtastic or MeshCore node (or the computer beside it) to send what it hears to this site. Each login is its own: switching one off never touches another.</div>
-{% with active = 'mesh' %}{% include "partials/_my_subnav.html" %}{% endwith %}
 {% if not conn.open %}<div class="panel" style="border-color:var(--acc2);margin-bottom:14px">The community broker is not open to nodes yet, so a login cannot be used today. You can make yours now and it will be ready.</div>{% endif %}
 {% if rows %}
 <div class="tiles" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))">
@@ -38,6 +38,25 @@
   <form method="post" action="/my/mesh/claim" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:10px"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div><label for="cl-node">Node ID (!a1b2c3d4) or MeshCore public key</label><input type="text" id="cl-node" name="node" maxlength="80" required style="width:340px" placeholder="!a1b2c3d4"></div>
     <button class="btn" type="submit" style="margin:0 0 2px">Claim This Node</button></form>
+</div></details>
+<details class="panel setsec" id="sec-node-alerts" {{ 'open' if na.events and not na.events[0].seen }} style="margin-top:14px"><summary><span class="role-name">Node Alerts{% if na.events %} ({{ na.events | length }} recent){% endif %}</span></summary><div class="secbody">
+  {% if not na.on %}<p class="dim" style="margin-top:0">Node alerts are switched off by the site's administrator.</p>{% else %}
+  <p style="margin-top:0">Hear when one of <b>your</b> nodes needs attention: a node you claimed above, or one named on one of your mesh logins. A router or repeater counts as gone quiet when it has not been heard for {{ na.off_h }} hours, and any of your nodes counts as low when its battery is {{ na.low }}% or less. You are told when the trouble starts, again now and then while it lasts, and once when it clears.</p>
+  <form method="post" action="/my/mesh/alerts/save" data-async style="display:flex;flex-direction:column;gap:6px;align-items:flex-start"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" name="quiet" value="1" {{ 'checked' if na.prefs.quiet }}> A router of mine goes quiet</label>
+    <label style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" name="battery" value="1" {{ 'checked' if na.prefs.battery }}> A battery is low</label>
+    <label style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" name="recovered" value="1" {{ 'checked' if na.prefs.recovered }}> Tell me when it is fine again</label>
+    <label style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" name="by_email" value="1" {{ 'checked' if na.prefs.by_email }}><span>Send an email{% if not na.smtp %} <span class="dim">(email is not set up on this site yet; alerts still appear in the list below)</span>{% endif %}</span></label>
+    <label style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" name="by_webhook" value="1" {{ 'checked' if na.prefs.by_webhook }}><span>Send to my webhook{% if not na.webhook %} <span class="dim">(add one under <a href="/my/alerts">Aircraft Alerts</a> first)</span>{% endif %}</span></label>
+    <label style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" name="by_push" value="1" {{ 'checked' if na.prefs.by_push }}><span>Notify my phone or computer <span class="dim">(turn notifications on first at My Account &gt; Community Settings)</span></span></label>
+    <button class="btn small" type="submit">Save</button></form>
+  <div class="grp">Recent Alerts</div>
+  {% if na.events %}<div style="overflow-x:auto"><table><thead><tr><th>When</th><th>Node</th><th>What</th><th>Sent</th></tr></thead><tbody>
+  {% for e in na.events %}<tr{% if not e.seen %} style="font-weight:600"{% endif %}><td><time class="ts" datetime="{{ e.ts.isoformat() }}" data-fmt="dt">{{ e.ts }}</time></td>
+    <td><a href="/mesh/{{ e.node_key | replace('!', '') | replace('mc:', 'mc-') }}">{{ e.node_name }}</a></td>
+    <td>{% if e.kind.startswith('back_') %}Back: {{ na.kinds[e.kind[5:]] }}{% else %}{{ na.kinds[e.kind] }}{% endif %}, {{ e.detail }}</td>
+    <td class="dim">{% set ways = [] %}{% if e.email_state == 'sent' %}{% set _ = ways.append('email') %}{% endif %}{% if e.webhook_state == 'sent' %}{% set _ = ways.append('webhook') %}{% endif %}{% if e.push_state == 'sent' %}{% set _ = ways.append('phone') %}{% endif %}{{ ways | join(', ') or 'list only' }}</td></tr>{% endfor %}
+  </tbody></table></div>{% else %}<p class="dim" style="margin:0">Nothing yet. Nodes you own are checked every few minutes.</p>{% endif %}{% endif %}
 </div></details>
 <p class="dim">How to set up a node is on <a href="/feed/mesh">How to Feed the Mesh Map</a>.</p>
 {% endblock %}

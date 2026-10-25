@@ -2,9 +2,9 @@
 {% from "partials/_feedsec.html" import sec with context %}
 {% block title %}Two-Factor{% endblock %}
 {% block content %}
+{% with active = 'twofactor' %}{% include "partials/_my_subnav.html" %}{% endwith %}
 <h1>My <span>Two-Factor</span> Sign-In</h1>
 <div class="sub">Protect your account with a code from an authenticator app, in addition to your password.</div>
-{% with active = 'twofactor' %}{% include "partials/_my_subnav.html" %}{% endwith %}
 {% if new_codes %}
 {% call sec('codes', 'Your Recovery Codes', True) %}
   <b>Save these now</b>
@@ -44,8 +44,8 @@
     <button class="btn" type="submit">Turn On Two-Factor</button>
   </form>
 {% endcall %}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" crossorigin="anonymous"></script>
-<script>try { new QRCode(document.getElementById("qr"), {text: {{ otpauth | tojson }}, width: 180, height: 180}); } catch (e) { document.getElementById("qr").style.display = "none"; }</script>
+<script nonce="{{ csp_nonce() }}" src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" crossorigin="anonymous"></script>
+<script nonce="{{ csp_nonce() }}">try { new QRCode(document.getElementById("qr"), {text: {{ otpauth | tojson }}, width: 180, height: 180}); } catch (e) { document.getElementById("qr").style.display = "none"; }</script>
 {% else %}
 {% call sec('start', 'Set Up Two-Factor', True) %}
   {% if required %}<div class="flash error">This site requires administrators to use two-factor sign-in. Set it up now to continue.</div>{% endif %}

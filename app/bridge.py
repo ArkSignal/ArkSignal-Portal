@@ -119,8 +119,22 @@ def _send_aprs(app, link_id, call, remote, text, msgno):
 def forward(conv_id, sender_id, body):
     """Called after a chat message is stored: send it out through the conversation's links when it was written by the member who made the link. Returns a short note for the sender when something was not
     sent (so the chat can say so), or ''."""
+    links = get_db().execute("SELECT * FROM bridge_links WHERE conv_id=%s AND enabled AND created_by=%s", (conv_id, sender_id)).fetchall()
+    return _forward(links, sender_id, body)
+
+
+def forward_room(room_id, sender_id, body):
+    """The same for a Matrix room: a text message the member who made the link wrote in the room goes out over the link."""
+    links = get_db().execute("SELECT * FROM bridge_links WHERE room_id=%s AND enabled AND created_by=%s", (room_id, sender_id)).fetchall()
+    note = _forward(links, sender_id, body)
+    if note and links:
+        from . import matrix
+        matrix.post_to_room(room_id, note)   # the room is told why a message did not go out
+    return note
+
+
+def _forward(links, sender_id, body):
     d = get_db()
-    links = d.execute("SELECT * FROM bridge_links WHERE conv_id=%s AND enabled AND created_by=%s", (conv_id, sender_id)).fetchall()
     notes = []
     for l in links:
         if not enabled(l["kind"]) or not opted_in(sender_id, l["kind"]):
@@ -160,9 +174,20 @@ def deliver(link, source, text, remote_id):
     if not text:
         return False
     rid = (remote_id or "")[:60] or secrets.token_hex(6)
+    if link["room_id"]:   # a Matrix room: the bridge bot says it, once per remote message number
+        if d.execute("INSERT INTO bridge_seen (link_id, remote_id) VALUES (%s,%s) ON CONFLICT DO NOTHING RETURNING 1", (link["id"], source + ":" + rid)).fetchone() is None:
+            d.commit()
+            return False
+        d.execute("DELETE FROM bridge_seen WHERE at < now() - interval '2 days'")
+        d.commit()
+        from . import matrix
+        ok = matrix.post_to_room(link["room_id"], f"{link['kind'].upper()} {source}: {text}")
+        _log(link["id"], "in", ok, f"message from {source}" if ok else "the Matrix server did not take the message")
+        audit("bridge.receive", target=source, detail=f"{link['kind']} message into room {link['room_name'] or link['room_id']}", actor_name="bridge")
+        return ok
     if d.execute("SELECT 1 FROM conv_messages WHERE conv_id=%s AND remote_id=%s", (link["conv_id"], link["kind"] + ":" + source + ":" + rid)).fetchone():
         return False
-    mid = d.execute("INSERT INTO conv_messages (conv_id, user_id, body, remote_from, remote_id) VALUES (%s,%s,%s,%s,%s) RETURNING id", (link["conv_id"], link["created_by"], text, source, link["kind"] + ":" + source + ":" + rid)).fetchone()["id"]
+    mid = d.execute("INSERT INTO conv_messages (conv_id, user_id, body, remote_from, remote_id) VALUES (%s,%s,%s,%s,%s) RETURNING id", (link["conv_id"], link["created_by"], __import__("app.vault", fromlist=["seal"]).seal(text), source, link["kind"] + ":" + source + ":" + rid)).fetchone()["id"]
     d.execute("UPDATE convs SET last_at=now() WHERE id=%s", (link["conv_id"],))
     d.execute("UPDATE conv_members SET hidden=FALSE WHERE conv_id=%s", (link["conv_id"],))
     d.commit()
@@ -263,7 +288,8 @@ def start_listener(app):
 # ------------------------------------------------------------------ the member's page
 
 def _on():
-    if cfg("chat_enabled") != "1" or not (enabled("aprs") or enabled("mesh")):
+    from . import matrix
+    if not (cfg("chat_enabled") == "1" or matrix.replaces_builtin()) or not (enabled("aprs") or enabled("mesh")):
         abort(404)
 
 
@@ -277,13 +303,22 @@ def page():
     _on()
     d = get_db()
     me = current_user.id
-    links = d.execute("SELECT l.*, COALESCE(NULLIF(c.name, ''), 'Chat #' || c.id) AS title FROM bridge_links l JOIN convs c ON c.id = l.conv_id WHERE l.created_by=%s ORDER BY l.id", (me,)).fetchall()
-    convs = d.execute("SELECT c.id, c.kind, c.name, (SELECT string_agg(COALESCE(NULLIF(u.display_name, ''), u.username), ', ') FROM conv_members m2 JOIN users u ON u.id = m2.user_id WHERE m2.conv_id = c.id AND m2.user_id <> %s) AS others "
+    from . import matrix
+    in_matrix = matrix.replaces_builtin()
+    rooms, rooms_note = [], ""
+    if in_matrix:
+        links = d.execute("SELECT l.*, COALESCE(NULLIF(l.room_name, ''), l.room_id) AS title FROM bridge_links l WHERE l.created_by=%s AND l.room_id IS NOT NULL ORDER BY l.id", (me,)).fetchall()
+        ok, got = matrix.rooms_of(current_user.username)
+        rooms, rooms_note = (got, "") if ok else ([], got)
+        convs = []
+    else:
+        links = d.execute("SELECT l.*, COALESCE(NULLIF(c.name, ''), 'Chat #' || c.id) AS title FROM bridge_links l JOIN convs c ON c.id = l.conv_id WHERE l.created_by=%s ORDER BY l.id", (me,)).fetchall()
+    convs = [] if in_matrix else d.execute("SELECT c.id, c.kind, c.name, (SELECT string_agg(COALESCE(NULLIF(u.display_name, ''), u.username), ', ') FROM conv_members m2 JOIN users u ON u.id = m2.user_id WHERE m2.conv_id = c.id AND m2.user_id <> %s) AS others "
                       "FROM conv_members m JOIN convs c ON c.id = m.conv_id WHERE m.user_id=%s ORDER BY c.last_at DESC LIMIT 100", (me, me)).fetchall()
     u = d.execute("SELECT bridge_aprs_ok, bridge_mesh_ok, callsign FROM users WHERE id=%s", (me,)).fetchone()
     from .bridge_verify import member_context, required as verify_required
     return render_template("bridges.html", ham=member_context(me), verify_required=verify_required(), links=links, convs=convs, aprs_on=enabled("aprs"), mesh_on=enabled("mesh"), aprs_ok=u["bridge_aprs_ok"], mesh_ok=u["bridge_mesh_ok"], call=my_call(me), profile_call=u["callsign"] or "",
-                           max_links=cfg_int("bridge_links_per_member"), per_hour=cfg_int("bridge_aprs_rate_per_hour"), max_text=cfg_int("bridge_aprs_max_text"), kinds=KINDS, active="bridges")
+                           max_links=cfg_int("bridge_links_per_member"), per_hour=cfg_int("bridge_aprs_rate_per_hour"), max_text=cfg_int("bridge_aprs_max_text"), kinds=KINDS, in_matrix=in_matrix, rooms=rooms, rooms_note=rooms_note, active="bridges")
 
 
 @bp.route("/my/bridges/optin", methods=["POST"])
@@ -322,9 +357,22 @@ def add():
         return _json(False, "That bridge is not switched on.")
     if not opted_in(me, kind):
         return _json(False, "Switch the bridge on for your account first.")
-    cid = request.form.get("conv_id", "")
-    if not cid.isdigit() or not d.execute("SELECT 1 FROM conv_members WHERE conv_id=%s AND user_id=%s", (int(cid), me)).fetchone():
-        return _json(False, "Choose one of your chats.")
+    from . import matrix
+    room_id, room_name = "", ""
+    if matrix.replaces_builtin():
+        room_id = request.form.get("room_id", "")
+        ok, got = matrix.rooms_of(current_user.username)
+        mine = {r["room_id"]: r for r in got} if ok else {}
+        if room_id not in mine:
+            return _json(False, "Choose one of your rooms." if ok else got)
+        if mine[room_id]["encrypted"]:
+            return _json(False, "That room is end-to-end encrypted, so the bridge could not read it. Use a room that is not encrypted (a room made as public, or with encryption left off).")
+        room_name = mine[room_id]["name"][:120]
+        cid = ""
+    else:
+        cid = request.form.get("conv_id", "")
+        if not cid.isdigit() or not d.execute("SELECT 1 FROM conv_members WHERE conv_id=%s AND user_id=%s", (int(cid), me)).fetchone():
+            return _json(False, "Choose one of your chats.")
     remote = (request.form.get("remote") or "").strip()
     if kind == "aprs":
         remote = _norm_call(remote)
@@ -339,6 +387,16 @@ def add():
         remote = "!" + m.group(1).lower()
     if d.execute("SELECT COUNT(*) AS n FROM bridge_links WHERE created_by=%s", (me,)).fetchone()["n"] >= cfg_int("bridge_links_per_member"):
         return _json(False, f"You can have {cfg_int('bridge_links_per_member')} links at most.")
+    if room_id:
+        if d.execute("SELECT 1 FROM bridge_links WHERE room_id=%s AND kind=%s AND remote=%s", (room_id, kind, remote)).fetchone():
+            return _json(False, "That room is already linked to it.")
+        joined, why = matrix.bridge_join(room_id, current_user.username)
+        if not joined:
+            return _json(False, "The bridge could not join the room: " + why)
+        d.execute("INSERT INTO bridge_links (conv_id, room_id, room_name, kind, remote, created_by) VALUES (NULL,%s,%s,%s,%s,%s)", (room_id, room_name, kind, remote, me))
+        d.commit()
+        audit("bridge.link", target=remote, detail=f"{kind} link to room {room_name}")
+        return _json(True, "Linked. The bridge joined the room; it says nothing there until the radio side answers.")
     if d.execute("SELECT 1 FROM bridge_links WHERE conv_id=%s AND kind=%s AND remote=%s", (int(cid), kind, remote)).fetchone():
         return _json(False, "That chat is already linked to it.")
     d.execute("INSERT INTO bridge_links (conv_id, kind, remote, created_by) VALUES (%s,%s,%s,%s)", (int(cid), kind, remote, me))
@@ -377,7 +435,10 @@ def delete(lid):
     d = get_db()
     d.execute("DELETE FROM bridge_links WHERE id=%s", (lid,))
     d.commit()
-    audit("bridge.unlink", target=l["remote"], detail=f"{l['kind']} link to chat #{l['conv_id']}")
+    if l["room_id"] and not d.execute("SELECT 1 FROM bridge_links WHERE room_id=%s", (l["room_id"],)).fetchone() and not d.execute("SELECT 1 FROM matrix_mirrors WHERE room_id=%s", (l["room_id"],)).fetchone():
+        from . import matrix
+        matrix.bridge_leave(l["room_id"])   # nothing else needs the bot there
+    audit("bridge.unlink", target=l["remote"], detail=f"{l['kind']} link to " + (f"room {l['room_name']}" if l["room_id"] else f"chat #{l['conv_id']}"))
     return _json(True, "Removed.")
 
 

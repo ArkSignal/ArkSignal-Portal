@@ -15,7 +15,10 @@ from .settings import get_setting
 
 
 def policy(key):
-    p = get_setting("access_" + key, "everyone")
+    own = key in features.MEMBERS_ONLY   # a feature that belongs to each signed-in member is never open to visitors
+    p = get_setting("access_" + key, "members" if own else "everyone")
+    if own:
+        return p if p == "roles" else "members"
     return p if p in ("everyone", "members", "roles") else "everyone"
 
 
@@ -24,6 +27,9 @@ def allowed(key, user=None):
     p = policy(key)
     if p == "everyone":
         return True
+    u0 = user if user is not None else current_user
+    if getattr(u0, "is_authenticated", False) and getattr(u0, "is_super_admin", False):
+        return True   # the Super Admin role overrides every one of these settings
     cache = None
     if user is None and has_request_context():
         cache = g.setdefault("_access", {})

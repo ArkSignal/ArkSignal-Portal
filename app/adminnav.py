@@ -13,6 +13,7 @@ GROUPS = [
         ("signins", "Sign-Ins", "/admin/signins", "view_history"),
         ("audit", "Audit Log", "/admin/audit", "view_history"),
         ("chat", "Chat and Messages", "/admin/chat", "moderate_chat"),
+        ("matrix", "Matrix Chat", "/admin/matrix", "moderate_chat"),
         ("bridges", "Radio Bridges", "/admin/bridges", "moderate_chat"),
     ]),
     ("Aircraft and Feeders", [
@@ -35,6 +36,7 @@ GROUPS = [
         ("aprs", "APRS", "/admin/aprs", "manage_map_data"),
         ("ais", "River Traffic", "/admin/ais", "manage_feeders"),
         ("mesh", "Mesh Nodes", "/admin/mesh", "manage_map_data"),
+        ("communities", "Mesh Communities", "/admin/communities", "manage_map_data"),
         ("nets", "Nets", "/admin/nets", "moderate_repeaters"),
         ("winlink", "Winlink Gateways", "/admin/winlink", "moderate_repeaters"),
         ("satimages", "Satellite Images", "/admin/sat-images", "manage_satimages"),
@@ -66,6 +68,7 @@ GROUPS = [
         ("smtp", "SMTP", "/admin/smtp", "manage_settings"),
         ("status", "Status", "/admin/status", "manage_settings"),
         ("usage", "Usage", "/admin/usage", "manage_settings"),
+        ("retention", "Data Retention", "/admin/retention", "manage_settings"),
         ("roadmap", "Full Roadmap", "/admin/roadmap", "manage_settings"),
     ]),
 ]

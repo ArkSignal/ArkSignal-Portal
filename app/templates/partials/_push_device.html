@@ -1,0 +1,29 @@
+{# The notification switch of this device (turn on, turn off, send a test): used by Community Settings and by Notifications. `element_url` adds the note about Element's own pop-ups. #}
+  <div class="panel" style="margin:12px 0 0" id="push-box">
+    <b>Notifications on this device</b>
+    <p class="dim" style="margin:6px 0">A notification on this phone or computer even when the site is closed. You choose which kinds you get on the <a href="/my/notifications">Notifications</a> page; for chat you choose in Element, room by room. In an encrypted chat the notification says there is a new message but never shows the words.</p>
+    <p style="margin:6px 0"><span id="push-state" class="tag off">checking...</span> <span id="push-note" class="dim" role="status"></span></p>
+    <button class="btn" type="button" id="push-on" style="display:none">Turn On Notifications</button>
+    <button class="btn neutral" type="button" id="push-off" style="display:none">Turn Off</button>
+    <button class="btn neutral" type="button" id="push-test" style="display:none">Send a Test</button>
+    {% if element_url %}<p class="help">While the chat page is open, Element shows its own pop-up notices for the room you are not looking at: allow them once in <a href="{{ element_url }}" target="_blank" rel="noopener">its own window</a> (a browser only asks from a page that is not inside another page).</p>{% endif %}
+  </div>
+  <script nonce="{{ csp_nonce() }}" src="/static/push.js"></script>
+  <script nonce="{{ csp_nonce() }}">
+  (function () {
+    ArkPush.init({ csrf: "{{ csrf_token() }}" });
+    var st = document.getElementById("push-state"), nt = document.getElementById("push-note"), on = document.getElementById("push-on"), off = document.getElementById("push-off"), ts = document.getElementById("push-test");
+    function show() {
+      ArkPush.status().then(function (s) {
+        var m = { on: ["on", "live", "Notifications are on for this device."], off: ["off", "off", "Notifications are off for this device."], denied: ["blocked", "off", "This browser is blocking notifications for the site: allow them in the browser's site settings."], unsupported: ["not available", "off", "This browser cannot show notifications from a closed page. The Element app on a phone can."] }[s.state];
+        st.textContent = m[0]; st.className = "tag " + m[1]; nt.textContent = m[2];
+        on.style.display = s.state === "off" ? "" : "none"; off.style.display = s.state === "on" ? "" : "none"; ts.style.display = s.state === "on" ? "" : "none";
+      });
+    }
+    function run(p) { return p.then(function (r) { nt.textContent = r.message || ""; return r; }).then(show); }
+    on.addEventListener("click", function () { run(ArkPush.enable()); });
+    off.addEventListener("click", function () { run(ArkPush.disable()); });
+    ts.addEventListener("click", function () { run(ArkPush.test()); });
+    show();
+  })();
+  </script>

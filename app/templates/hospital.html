@@ -30,9 +30,9 @@
 {% if h.lat is not none %}<div class="panel" style="padding:0;overflow:hidden;margin-top:14px"><div id="hmap" style="height:{{ 560 }}px"></div>
     {% if osrm_on %}<div style="padding:8px 12px;font-size:.82rem;display:flex;gap:12px;flex-wrap:wrap;align-items:center;border-top:1px solid var(--line)"><label style="margin:0"><input type="checkbox" id="h-rings" checked> Drive-time rings</label><span id="h-ringnote" class="dim"></span></div>{% endif %}</div>{% endif %}
 {% if h.lat is not none %}
-<script src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script>
-<script src="/static/touchhit.js"></script>
-<script>
+<script nonce="{{ csp_nonce() }}" src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script><script nonce="{{ csp_nonce() }}" src="/static/safehtml.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/touchhit.js"></script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var map = L.map("hmap").setView([{{ h.lat }}, {{ h.lon }}], {{ 11 if h.pos_source == 'zip' else 15 }});
   L.tileLayer({{ tile_url | tojson }}, {maxZoom: 19, attribution: {{ tile_attr | tojson }}}).addTo(map);

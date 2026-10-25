@@ -20,7 +20,7 @@
   {% if groups %}<div><label for="rp-group">Linked system</label><select id="rp-group" name="group"><option value="">Any</option>{% for g in groups %}<option value="{{ g.id }}" {{ 'selected' if args.get('group') == g.id | string }}>{{ g.name }} ({{ g.n }})</option>{% endfor %}</select></div>{% endif %}
   <button class="btn small" type="submit" style="margin:0 0 2px">Search</button>
   <a class="btn small neutral" href="/repeaters/map" style="margin:0 0 2px">Repeater Map</a>
-  <a class="btn small neutral" href="/repeaters/export" style="margin:0 0 2px">Code Plug Export</a>
+  {% if current_user.is_authenticated %}<a class="btn small neutral" href="/repeaters/export" style="margin:0 0 2px">Code Plug Export</a>{% endif %}
   {% if current_user.is_authenticated %}<a class="btn small neutral" href="/my/repeaters" style="margin:0 0 2px">Add a Repeater</a>{% endif %}
 </form>
 <div class="panel">

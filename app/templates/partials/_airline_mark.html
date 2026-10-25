@@ -4,7 +4,7 @@
 .lv-logo.plate{background:rgba(255,255,255,.94);padding:2px}
 .lv-badge{display:inline-block;padding:1px 6px;margin-right:6px;border-radius:6px;color:#fff;font:700 .78em 'JetBrains Mono',monospace;letter-spacing:.04em;line-height:1.3;vertical-align:middle}
 </style>
-<script>
+<script nonce="{{ csp_nonce() }}">
 // One place that decides what mark an aircraft gets: the airline's logo (from the portal's logo service), the emblem of its
 // armed service when it is military, or a coloured letter badge. Pages call ADSB_MARK.html(aircraft) and set ADSB_MARK.onchange
 // to redraw when a logo turns out to be missing or dark.

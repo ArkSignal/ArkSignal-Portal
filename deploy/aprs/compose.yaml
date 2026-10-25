@@ -14,6 +14,7 @@ services:
       aprs-db:
         condition: service_healthy
     environment:
+      SERVICE_TOKEN: "${SERVICE_TOKEN:-}"   # the stack's shared secret between the portal and its services (see app/servicecall.py)
       DATABASE_URL: "postgresql://aprs:${APRS_DB_PASSWORD:-aprs}@aprs-db:5432/aprs"
     networks:
       - proxy

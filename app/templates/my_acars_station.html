@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% block title %}{{ r.station_id }}{% endblock %}
 {% block content %}
+{% with active = 'acars' %}{% include "partials/_my_subnav.html" %}{% endwith %}
 <h1>My <span>ACARS Station</span> {{ r.station_id }}</h1>
 <div class="sub">{% if r.disabled %}switched off by an administrator{% elif online %}reporting{% else %}no recent message{% endif %}{% if r.last_report %}, last message {{ r.last_report | localtime("%b %-d %H:%M") }}{% endif %} &middot; {{ r.messages }} messages sent</div>
 {% if managing %}<div class="panel" style="border-color:var(--acc2);margin-bottom:14px"><b>You are managing {{ managing }}'s station as an administrator.</b> Everything here works as it does for them; it is written in the audit log under your name. <a href="/admin/acars">Back to Admin &gt; ACARS</a></div>{% endif %}
-{% with active = 'acars' %}{% include "partials/_my_subnav.html" %}{% endwith %}
 <p style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><a href="/my/acars">&larr; My ACARS Stations</a>{% if r.public %}<a class="btn small" href="/acars/stations/{{ r.station_id }}">Public Page</a>{% endif %}</p>
 
 <details class="panel setsec" id="sec-upload-address" open><summary><span class="role-name">Upload Address</span></summary><div class="secbody">

@@ -1,13 +1,98 @@
-<div class="subnav adminnav" role="navigation" aria-label="Admin sections">
-  {% for group, items in admin_nav(current_user) %}
-  <div class="ag{{ ' has-active' if items | selectattr(0, 'equalto', active) | list }}"><span class="agl">{{ group }}</span>
-    <div class="agi">{% for key, label, href in items %}<a class="{{ 'active' if active == key }}" href="{{ href }}"{% if active == key %} aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}</div>
+{# Admin menu: the same left side menu as My Account (the classes and the phone drop-down are shared). Its groups are an accordion: the group holding the current page is open, one open at a time. Every admin page includes it with `active` set to its own key; the page's title and line come before it and run across the top. #}
+{% set here = namespace(label='') %}
+{% for group, items in admin_nav(current_user) %}{% for key, label, href in items %}{% if key == active %}{% set here.label = label %}{% endif %}{% endfor %}{% endfor %}
+<div class="my-side adminside" id="ad-side" role="navigation" aria-label="Admin sections">
+  <button type="button" class="my-side-btn" id="ad-side-btn" aria-expanded="false" aria-controls="ad-side-list"><span>Admin{% if here.label %}: <b>{{ here.label }}</b>{% endif %}</span><span class="my-side-caret" aria-hidden="true">&#9662;</span></button>
+  <div class="my-side-list" id="ad-side-list">
+    {% for group, items in admin_nav(current_user) %}
+    {% set has = namespace(current=false) %}
+    {% for key, label, href in items %}{% if key == active %}{% set has.current = true %}{% endif %}{% endfor %}
+    <div class="my-side-group{{ ' has-current expanded' if has.current }}">
+      <button type="button" class="my-side-head" id="ad-h{{ loop.index }}" aria-expanded="{{ 'true' if has.current else 'false' }}" aria-controls="ad-g{{ loop.index }}"><span>{{ group }}</span><span class="my-side-caret" aria-hidden="true">&#9662;</span></button>
+      <div class="my-side-items" id="ad-g{{ loop.index }}"{{ '' if has.current else ' hidden' }}>
+        {% for key, label, href in items %}<a class="{{ 'active' if active == key }}" href="{{ href }}"{% if active == key %} aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}
+      </div>
+    </div>
+    {% endfor %}
   </div>
-  {% endfor %}
-</div><!-- /adminnav -->
+</div>
+<script nonce="{{ csp_nonce() }}">
+(function () {
+  var b = document.getElementById("ad-side-btn"), n = document.getElementById("ad-side");
+  if (!b || !n || n.dataset.ready) return; n.dataset.ready = "1";
+  b.addEventListener("click", function () { var o = n.classList.toggle("open"); b.setAttribute("aria-expanded", o ? "true" : "false"); });
+  var heads = Array.prototype.slice.call(n.querySelectorAll(".my-side-head"));
+  function openOnly(h) {
+    heads.forEach(function (x) { x.setAttribute("aria-expanded", "false"); document.getElementById(x.getAttribute("aria-controls")).hidden = true; x.parentNode.classList.remove("expanded"); });   // one group open at a time
+    if (h) { h.setAttribute("aria-expanded", "true"); document.getElementById(h.getAttribute("aria-controls")).hidden = false; h.parentNode.classList.add("expanded"); }
+  }
+  heads.forEach(function (h) { h.addEventListener("click", function () { openOnly(h.getAttribute("aria-expanded") === "true" ? null : h); }); });
+  // Moving between admin pages swaps the title, the line and everything beside the menu, and updates the menu in place (its scroll stays); any trouble falls back to an ordinary page load.
+  if (window.__adSideNav) return; window.__adSideNav = true;
+  function chain(root) {   // from the page's title to the end of the content; the to-top button and the footer are left out
+    var el = root.querySelector(":scope > h1"), out = [];
+    if (!el) return null;
+    while (el && el.id !== "to-top" && el.tagName !== "FOOTER") { out.push(el); el = el.nextElementSibling; }
+    return { nodes: out, stop: el };
+  }
+  function runScripts(c) {
+    Array.prototype.forEach.call(c.tagName === "SCRIPT" ? [c] : c.querySelectorAll("script"), function (sc) {
+      var n2 = document.createElement("script"); Array.prototype.forEach.call(sc.attributes, function (a) { n2.setAttribute(a.name, a.value); }); n2.text = sc.text; sc.parentNode.replaceChild(n2, sc);
+    });
+  }
+  function swap(doc) {
+    var main = document.querySelector("main"), nmain = doc.querySelector("main"), mine = document.getElementById("ad-side"), theirs = doc.getElementById("ad-side");
+    if (!main || !nmain || !mine || !theirs) return false;
+    var old = chain(main), fresh = chain(nmain);
+    if (!old || !fresh || old.nodes.indexOf(mine) < 0 || fresh.nodes.indexOf(theirs) < 0) return false;
+    var links = {}; Array.prototype.forEach.call(theirs.querySelectorAll(".my-side-items a"), function (a) { links[a.getAttribute("href")] = a; });
+    Array.prototype.forEach.call(mine.querySelectorAll(".my-side-items a"), function (a) {
+      var t = links[a.getAttribute("href")], on = !!(t && t.classList.contains("active")); a.classList.toggle("active", on);
+      if (on) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+    });
+    var tg = theirs.querySelectorAll(".my-side-group"), cur = null;
+    Array.prototype.forEach.call(mine.querySelectorAll(".my-side-group"), function (g, i) {
+      var is = !!(tg[i] && tg[i].classList.contains("has-current")); g.classList.toggle("has-current", is); if (is) cur = g.querySelector(".my-side-head");
+    });
+    openOnly(cur);
+    mine.querySelector(".my-side-btn > span").innerHTML = theirs.querySelector(".my-side-btn > span").innerHTML;
+    mine.classList.remove("open"); b.setAttribute("aria-expanded", "false");
+    var iM = old.nodes.indexOf(mine), jM = fresh.nodes.indexOf(theirs);
+    old.nodes.forEach(function (x, i) { if (i !== iM) x.remove(); });
+    fresh.nodes.forEach(function (x, j) {
+      if (j === jM) return;
+      var c = document.importNode(x, true);
+      main.insertBefore(c, j < jM ? mine : old.stop);
+      runScripts(c);
+    });
+    return true;
+  }
+  function go(url, push) {
+    fetch(url, { credentials: "same-origin", headers: { "X-Requested-With": "fetch" } }).then(function (r) {
+      if (!r.ok || r.redirected && r.url.indexOf("/admin/") < 0) throw new Error("no");
+      return r.text();
+    }).then(function (html) {
+      var doc = new DOMParser().parseFromString(html, "text/html");
+      if (!swap(doc)) throw new Error("shape");
+      document.title = doc.title;
+      if (push) history.pushState({ adSide: 1 }, "", url);
+      window.scrollTo(0, 0);
+    }).catch(function () { location.href = url; });
+  }
+  document.addEventListener("click", function (e) {
+    var a = e.target.closest && e.target.closest(".adminside .my-side-items a");
+    if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || a.target) return;
+    var u = new URL(a.href, location.href);
+    if (u.origin !== location.origin || u.pathname.indexOf("/admin/") !== 0) return;
+    e.preventDefault(); go(u.pathname + u.search, true);
+  });
+  window.addEventListener("popstate", function () { if (document.getElementById("ad-side")) go(location.pathname + location.search, false); });
+  history.replaceState({ adSide: 1 }, "", location.href);
+})();
+</script>
 {% if current_user.has_permission('manage_settings') %}<div class="adminfind" style="position:relative;margin:0 0 12px"><input type="search" id="adminfind" placeholder="Find any setting on the site (for example retention, rings, email, map)" aria-label="Find a setting" autocomplete="off" style="width:100%;max-width:520px">
   <div id="adminfind-box" role="listbox" style="display:none;position:absolute;z-index:40;left:0;top:100%;margin-top:4px;max-width:min(640px,100%);width:100%;max-height:60vh;overflow:auto;background:var(--card-bg);border:1px solid var(--line);border-radius:12px"></div></div>
-<script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var inp = document.getElementById("adminfind"), box = document.getElementById("adminfind-box"); if (!inp || inp.dataset.ready) return; inp.dataset.ready = "1";
   var timer, seq = 0;
@@ -27,7 +112,7 @@
 })();
 </script>{% endif %}
 
-<script>
+<script nonce="{{ csp_nonce() }}">
 // Long admin pages are split into tabs: every element with data-tab-title belongs to the tab of that name (several elements may share one); data-tab-default marks the tab opened first; a link such as #tab-claims opens a tab.
 function arkAdminTabs() {
   var els = Array.prototype.slice.call(document.querySelectorAll("[data-tab-title]")); if (!els.length) return;
@@ -49,14 +134,15 @@ function arkAdminTabs() {
 }
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", arkAdminTabs); else arkAdminTabs();
 </script>
-<script>
+<script nonce="{{ csp_nonce() }}">
 // every admin section starts collapsed (only the one a link points at with #section stays open, and one holding an error message)
-document.addEventListener("DOMContentLoaded", function () {
+function arkAdminCollapse() {
   var h = (location.hash || "").slice(1);
   document.querySelectorAll("details[open]").forEach(function (d) {
-    if (d.closest(".adminnav")) return;
+    if (d.closest(".adminside")) return;
     if ((h && (d.id === h || (document.getElementById(h) && d.contains(document.getElementById(h))))) || d.querySelector(".flash.error, .field-error")) return;
     d.removeAttribute("open");
   });
-});
+}
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", arkAdminCollapse); else arkAdminCollapse();
 </script>

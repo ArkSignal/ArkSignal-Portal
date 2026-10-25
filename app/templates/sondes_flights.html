@@ -27,6 +27,7 @@
 {% endif %}
 <div class="panel">
   <p style="margin-top:0" class="dim">{{ total }} flight{{ '' if total == 1 else 's' }}</p>
+  {% if rows %}<p style="margin:0 0 8px"><a class="btn small neutral" href="/sondes/map?replay={{ rows[:12] | map(attribute='serial') | join(',') }}" rel="nofollow">Replay These Flights Together</a> <span class="dim" style="font-size:.8rem">Plays the recorded positions of the {{ [rows | length, 12] | min }} flight{{ '' if rows | length == 1 else 's' }} at the top of this list on the map.</span></p>{% endif %}
   {{ flight_table(rows, 'No flight matches.') }}
   {% if pages > 1 %}<p style="display:flex;gap:10px;align-items:center;margin-bottom:0">
     {% set qs = args.to_dict() %}{% if page > 1 %}{% set _ = qs.update({'page': page - 1}) %}<a href="/sondes/flights?{{ qs | urlencode }}">&larr; Newer</a>{% endif %}

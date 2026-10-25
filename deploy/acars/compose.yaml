@@ -14,6 +14,7 @@ services:
       acars-db:
         condition: service_healthy
     environment:
+      SERVICE_TOKEN: "${SERVICE_TOKEN:-}"   # the stack's shared secret between the portal and its services (see app/servicecall.py)
       DATABASE_URL: "postgresql://acars:${ACARS_DB_PASSWORD:-acars}@acars-db:5432/acars"
     networks:
       - proxy

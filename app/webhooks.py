@@ -41,9 +41,11 @@ def _reject_private(host, port):
         infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
     except OSError:
         return "That address could not be found. Check it for typing mistakes."
+    from . import safenet
     for info in infos:
-        ip = ipaddress.ip_address(info[4][0])
-        if not ip.is_global:
+        try:
+            safenet.check_ip(info[4][0])
+        except safenet.Blocked:
             return "That address points inside a private network, which the portal will not contact."
     return None
 
@@ -72,7 +74,8 @@ def send(url, kind, text, matches, site):
     body, headers = build(kind, text, matches, site)
     headers["User-Agent"] = cfg("lookup_user_agent")
     req = urllib.request.Request(clean, data=body, headers=headers, method="POST")
-    opener = urllib.request.build_opener(_NoRedirect)
+    from . import safenet
+    opener = safenet.opener(cfg("webhook_allow_private") == "1")   # connects only to the address it just checked (a name that changes its answer gets nothing), follows no redirect
     try:
         with opener.open(req, timeout=cfg_int("webhook_timeout_seconds")) as r:
             return (200 <= r.status < 300), f"The service answered {r.status}."

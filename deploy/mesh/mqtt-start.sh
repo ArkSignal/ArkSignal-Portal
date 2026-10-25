@@ -9,6 +9,9 @@
 # copied to certs/, and again after every renewal (checked every few hours): a renewal reloads the broker, the first certificate restarts it so the TLS listener opens. Certificates put in certs/ by hand keep working.
 # /mosquitto/config is a volume (/opt/adsb/mesh/mqtt on the host): admin.pass (the control login the mesh service reads), dynsec.json (the logins and roles), certs/.
 C=/mosquitto/config
+# The folder itself must belong to mosquitto: the plugin saves the logins by writing dynsec.json.new beside dynsec.json and renaming it. A folder made by Docker on the host (a bind mount) belongs to root,
+# and then every save failed ("Error saving Dynamic security plugin config ... Permission denied"): logins made while the broker ran were lost at the next restart (an update, a crash) and nodes were refused (NOT_AUTHORIZED) until Apply sent them again.
+chown mosquitto:mosquitto "$C" 2> /dev/null
 mkdir -p "$C/certs"
 if [ ! -s "$C/admin.pass" ]; then
   head -c 48 /dev/urandom | base64 | tr -d '/+=\n' | head -c 32 > "$C/admin.pass"

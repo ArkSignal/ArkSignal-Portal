@@ -51,7 +51,7 @@ def browse(width, height, label, paths):
               var secs=Array.from(document.querySelectorAll('main > details.setsec, main > form.panel, main > #updates-panel')).filter(function(e){return e.offsetParent!==null}).map(function(e){return Math.round(e.getBoundingClientRect().width)});
               return {main: Math.round(mr.width), inner: Math.round(inner), secs: secs, over: document.documentElement.scrollWidth - document.documentElement.clientWidth}""")
             if width >= 1500:
-                check(f"{label} {p}: the admin area uses the window ({info['main']} of {width}) and every section is {info['inner']} wide", info["main"] >= width * 0.95 and all(abs(w - info["inner"]) <= 2 for w in info["secs"]) and info["secs"], info)
+                check(f"{label} {p}: the admin area uses the window ({info['main']} of {width}) and every section fills the space beside the menu ({info['inner'] - 258} wide)", info["main"] >= width * 0.95 and all(abs(w - (info["inner"] - 258)) <= 4 for w in info["secs"]) and info["secs"], info)
             else:
                 check(f"{label} {p}: nothing scrolls sideways", info["over"] <= 1, info)
     finally:

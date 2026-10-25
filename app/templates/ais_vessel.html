@@ -33,8 +33,8 @@
 {% endcall %}
 <p class="dim" style="font-size:.8rem">{{ credit }}. The owner of a vessel can ask for it to be hidden (<a href="/contact">Contact</a>).</p>
 <link rel="stylesheet" href="{{ leaflet_base }}/leaflet.css" crossorigin="anonymous">
-<script src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script>
-<script>
+<script nonce="{{ csp_nonce() }}" src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script><script nonce="{{ csp_nonce() }}" src="/static/safehtml.js"></script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var el = document.getElementById("v-map"); if (!el || !window.L) return;
   var map = L.map(el, {zoomControl: true}).setView([{{ (v.lat if v.lat is not none else map_lat) | float }}, {{ (v.lon if v.lon is not none else map_lon) | float }}], {{ 11 if v.lat is not none else 6 }});

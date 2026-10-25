@@ -2,6 +2,7 @@
 decoded fields), drones appear on the list, the map data, the layer and their own pages, the area, the operator-location rule and the takedown list are kept to, and every shared page lists the service."""
 import importlib.util, json, os, re, struct, subprocess, time, requests
 exec(open("roles_test.py", encoding="utf-8").read().split("ok_all=True")[0])
+MEM = sess("plain1", "plainpassword1")   # Planefence, the code plug exports, downloads and the My ... pages are for signed-in members
 ok_all = True
 def check(n, c, x=""):
     global ok_all
@@ -57,7 +58,7 @@ adm = sess("marty", PW); me = sess("plain1", "plainpassword1"); other = sess("cl
 
 g = anon.get(B + "/drones/")
 check("Drones is public and says nothing has been heard yet", g.status_code == 200 and "Remote ID" in g.text and "none has been heard yet" in g.text and "Search and Filters" in g.text)
-check("the main menu has a Drones group with the overview, the map, How to Feed and My Remote ID Stations", all(x in anon.get(B + "/").text for x in ('href="/drones/"', 'href="/drones/map"', 'href="/feed/drones"', 'href="/my/drones"')))
+check("the main menu has a Drones group with the overview, the map, How to Feed and My Remote ID Stations", all(x in MEM.get(B + "/").text for x in ('href="/drones/"', 'href="/drones/map"', 'href="/feed/drones"', 'href="/my/drones"')))
 check("My Remote ID Stations needs a sign-in and My Account has the tab", anon.get(B + "/my/drones", allow_redirects=False).status_code in (302, 401, 403) and 'href="/my/drones"' in me.get(B + "/my/").text)
 t = token(me, "/my/drones")
 r = me.post(B + "/my/drones/add", data={"csrf_token": t, "name": "Backyard receiver", "place": "Conway", "public": "1", "notes": "ESP32-S3"}, headers=AJAX)

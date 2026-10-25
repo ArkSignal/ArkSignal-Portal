@@ -12,6 +12,7 @@ COPY deploy/predict/compose.yaml /stacks/predict/compose.yaml
 COPY deploy/aprs/compose.yaml /stacks/aprs/compose.yaml
 COPY deploy/acars/compose.yaml /stacks/acars/compose.yaml
 COPY deploy/mesh/compose.yaml /stacks/mesh/compose.yaml
+COPY deploy/matrix/compose.yaml /stacks/matrix/compose.yaml
 COPY deploy/hub/compose.yaml /stacks/hub/compose.yaml
 COPY deploy/stack/stacks.json /stacks/stacks.json
 COPY deploy/stack/stackd.py /stackd.py

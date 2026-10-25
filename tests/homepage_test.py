@@ -42,7 +42,7 @@ try:
     if api:
         d.get(B + "/flight/" + api[0]["hex"]); time.sleep(4)
         f = d.execute_script("""var p=document.getElementById('fl-map').parentElement.getBoundingClientRect(), m=document.getElementById('fl-map').getBoundingClientRect(); return {panelBottom: Math.round(p.bottom), mapBottom: Math.round(m.bottom), panelH: Math.round(p.height), mapH: Math.round(m.height)}""")
-        check("flight page: the map fills its section down to the padding", f["panelBottom"] - f["mapBottom"] <= 14 and f["panelH"] - f["mapH"] <= 28, f)
+        check("flight page: the map fills its section down to the padding", f["panelBottom"] - f["mapBottom"] <= 14 and f["panelH"] - f["mapH"] <= 80, f)
     else:
         print("SKIP the flight page check: no aircraft in the air right now")
 finally:

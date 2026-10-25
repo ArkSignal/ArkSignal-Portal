@@ -15,7 +15,7 @@
   <div class="help">The station is created under the member's account (the limit per member does not apply) and opened with their own page, where the upload address is ready to copy.</div>
   <button class="btn" type="submit">Add ACARS Station</button>
 </form>
-<script src="/static/memberpicker.js"></script></details>
+<script nonce="{{ csp_nonce() }}" src="/static/memberpicker.js"></script></details>
 
 <div class="tiles" style="margin-bottom:14px">
   <div class="panel tile"><div class="tv">{{ rows | length }}</div><div class="tl">Stations</div></div>

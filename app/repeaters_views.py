@@ -197,6 +197,7 @@ def _plug_opts():
 
 
 @bp.route("/repeaters/export")
+@login_required
 def plug_export():
     """Pick repeaters by band, mode, place and status and download them as a radio's channel list (DM32), a CHIRP file or an RT Systems style file."""
     _on()
@@ -210,6 +211,7 @@ def plug_export():
 
 
 @bp.route("/repeaters/export/<name>")
+@login_required
 def plug_download(name):
     _on()
     from flask import Response
@@ -330,7 +332,7 @@ def _my_rows():
 @login_required
 def mine():
     _on()
-    return render_template("my_repeaters.html", rows=_my_rows(), kinds=rp.KINDS, statuses=rp.STATUSES, modes=rp.MODES, f={}, banner="", target=None, action="/my/repeaters/new", is_new=True)
+    return render_template("my_repeaters.html", active="repeaters", rows=_my_rows(), kinds=rp.KINDS, statuses=rp.STATUSES, modes=rp.MODES, f={}, banner="", target=None, action="/my/repeaters/new", is_new=True)
 
 
 def _can_edit(r):
@@ -383,7 +385,7 @@ def edit(rid):
         audit("repeater.edit", target=str(rid), detail=("for " + (r["owner_name"] or "") if r["owner_id"] != current_user.id else ""))
         return action_response(True, "Saved.", redirect_endpoint="repeaters.edit", redirect_kwargs={"rid": rid})
     banner = f"You are editing this repeater as an administrator; it is looked after by {r['owner_name']}." if r["owner_id"] and r["owner_id"] != current_user.id else ""
-    return render_template("my_repeaters.html", rows=[], kinds=rp.KINDS, statuses=rp.STATUSES, modes=rp.MODES, f=dict(r, tgtext=__import__("app.repeater_digital", fromlist=["x"]).talkgroups_text(rid)), banner=banner, target=r, action=f"/my/repeaters/{rid}", is_new=False, history=rp.history(rid))
+    return render_template("my_repeaters.html", active="repeaters", rows=[], kinds=rp.KINDS, statuses=rp.STATUSES, modes=rp.MODES, f=dict(r, tgtext=__import__("app.repeater_digital", fromlist=["x"]).talkgroups_text(rid)), banner=banner, target=r, action=f"/my/repeaters/{rid}", is_new=False, history=rp.history(rid))
 
 
 # ------------------------------------------------------------------ administrators

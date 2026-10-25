@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% block title %}{{ r.sid or 'My Weather Station' }}{% endblock %}
 {% block content %}
+{% with active = 'weather' %}{% include "partials/_my_subnav.html" %}{% endwith %}
 <h1>My <span>Weather Station</span> {{ r.sid or '' }}</h1>
 <div class="sub">{{ kinds[r.kind] }} &middot; {% if r.disabled %}switched off by an administrator{% elif online %}reporting{% else %}no recent report{% endif %}{% if r.last_report %}, last report {{ r.last_report | localtime("%b %-d %H:%M") }}{% endif %}</div>
-{% with admin_back = '/admin/weather' %}{% if managing %}<div class="panel" style="border-color:var(--acc2);margin-bottom:14px"><b>You are managing {{ managing }}'s station as an administrator.</b> Everything here works as it does for the owner and is recorded in the audit log under your name. <a href="{{ admin_back }}">Back to the admin list</a></div>{% endif %}
-{% endwith %}{% with active = 'weather' %}{% include "partials/_my_subnav.html" %}{% endwith %}
+{% with admin_back = '/admin/weather' %}{% if managing %}<div class="panel" style="border-color:var(--acc2);margin-bottom:14px"><b>You are managing {{ managing }}'s station as an administrator.</b> Everything here works as it does for the owner and is recorded in the audit log under your name. <a href="{{ admin_back }}">Back to the admin list</a></div>{% endif %}{% endwith %}
 <p style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><a href="/my/weather">&larr; My Weather Stations</a>{% if r.public and r.sid %}<a class="btn small" href="/weather/{{ r.sid }}">Public Page</a>{% endif %}</p>
 
 {% if r.last_error %}<div class="panel" style="border-color:var(--acc2)"><b>The last attempt to read your account failed:</b> <span class="mono">{{ r.last_error }}</span></div>{% endif %}

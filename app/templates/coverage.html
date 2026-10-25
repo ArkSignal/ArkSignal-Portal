@@ -11,9 +11,9 @@
     </div></details>
 {% endcall %}
 {{ boot("/coverage", "cv") }}
-<script src="/static/sondeicons.js"></script>
-<script src="/static/areafilter.js?v={{ app_version }}"></script>
-<script>
+<script nonce="{{ csp_nonce() }}" src="/static/sondeicons.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/areafilter.js?v={{ app_version }}"></script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var S = ArkShell, q = new URLSearchParams(location.search);
   var map = L.map("lvmap", {zoomControl: false, zoomSnap: 0.25}).setView([parseFloat(q.get("lat")) || {{ map_lat | float }}, parseFloat(q.get("lon")) || {{ map_lon | float }}], parseFloat(q.get("zoom")) || {{ map_zoom | int }});

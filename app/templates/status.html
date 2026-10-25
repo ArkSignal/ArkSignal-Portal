@@ -18,7 +18,7 @@
   </table>
 </div>
 {% if not admin %}<p class="dim" style="margin-top:10px;font-size:.85rem">Seeing a problem that is not listed here? Use the <a href="/contact">contact page</a>.</p>{% endif %}
-<script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var ADMIN = {{ 'true' if admin else 'false' }}, url = ADMIN ? "/admin/status/data.json" : "/api/status.json", tries = 0;
   function $(i) { return document.getElementById(i); }

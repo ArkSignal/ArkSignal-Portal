@@ -56,9 +56,9 @@
 </div>
 
 {% if loc %}
-<script src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script>
-<script src="/static/touchhit.js"></script>
-<script>
+<script nonce="{{ csp_nonce() }}" src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script><script nonce="{{ csp_nonce() }}" src="/static/safehtml.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/touchhit.js"></script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var map = L.map("stationmap").setView([{{ loc[0] }}, {{ loc[1] }}], {{ 10 if approx else 13 }});
   L.tileLayer({{ tile_url | tojson }}, {maxZoom: 19, attribution: {{ tile_attr | tojson }}}).addTo(map);

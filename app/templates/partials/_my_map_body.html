@@ -1,0 +1,71 @@
+{# The route map of a diary: used by the member's own Flight Map and by a shared diary. Needs data, summary, shared, fbase (the address a flight's page starts with). #}
+{% from "partials/_feedsec.html" import sec with context %}
+<link rel="stylesheet" href="{{ leaflet_base }}/leaflet.css" crossorigin="anonymous">
+<style>
+#flmap{height:520px;border-radius:14px;overflow:hidden;background:var(--map-bg)}@media(max-width:700px){ #flmap{height:380px}}.leaflet-container{background:var(--map-bg);font:inherit}.leaflet-tile-pane{filter:var(--map-filter)}</style>
+{% call sec('flightmap', 'Routes (' ~ data.routes | length ~ ') and Airports (' ~ data.airports | length ~ ')', True, True) %}
+  {% if data.routes %}<div id="flmap"></div>
+  <p class="dim" style="font-size:.85rem;margin:8px 0 0">{{ summary.flights }} flight{{ '' if summary.flights == 1 else 's' }}, {{ dist(summary.km) }} flown. A flight with a recorded track is drawn along its real path, colored by height (low is blue, high is orange); the others are the straight great-circle path, and thicker lines are routes you flew more often.</p>
+  {% else %}<p class="dim" style="margin:0">Nothing to show yet.{% if not shared %} <a href="/my/flights/new">Add a flight</a> and its route appears here.{% endif %}</p>{% endif %}
+{% endcall %}
+{% if data.routes %}
+<script nonce="{{ csp_nonce() }}" src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script><script nonce="{{ csp_nonce() }}" src="/static/safehtml.js"></script>
+<script nonce="{{ csp_nonce() }}" type="application/json" id="fldata">{{ data | tojson }}</script>
+<script nonce="{{ csp_nonce() }}">
+(function () {
+  var box = document.getElementById("flmap");
+  try {
+  if (typeof L === "undefined") throw new Error("the map library did not load (" + {{ leaflet_base | tojson }} + ")");
+  var D = JSON.parse(document.getElementById("fldata").textContent);
+  function esc(t) { return String(t == null ? "" : t).replace(/[&<>"]/g, function (c) { return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]; }); }
+  var FB = {{ fbase | tojson }};
+  var map = L.map("flmap").setView([{{ map_lat | float }}, {{ map_lon | float }}], 4);
+  L.tileLayer({{ tile_url | tojson }}, {maxZoom: 19, attribution: {{ tile_attr | tojson }}}).addTo(map);
+  var R = Math.PI / 180;
+  function arc(a, b, lat1, lon1, lat2, lon2) {   // points along the great circle, drawn the short way round
+    var p1 = lat1 * R, l1 = lon1 * R, p2 = lat2 * R, l2 = lon2 * R;
+    var d = 2 * Math.asin(Math.sqrt(Math.pow(Math.sin((p2 - p1) / 2), 2) + Math.cos(p1) * Math.cos(p2) * Math.pow(Math.sin((l2 - l1) / 2), 2)));
+    var pts = [], n = Math.max(2, Math.min(64, Math.ceil(d * 20)));
+    if (d === 0) return [[lat1, lon1], [lat2, lon2]];
+    for (var i = 0; i <= n; i++) {
+      var f = i / n, A = Math.sin((1 - f) * d) / Math.sin(d), B = Math.sin(f * d) / Math.sin(d);
+      var x = A * Math.cos(p1) * Math.cos(l1) + B * Math.cos(p2) * Math.cos(l2), y = A * Math.cos(p1) * Math.sin(l1) + B * Math.cos(p2) * Math.sin(l2), z = A * Math.sin(p1) + B * Math.sin(p2);
+      pts.push([Math.atan2(z, Math.sqrt(x * x + y * y)) / R, Math.atan2(y, x) / R]);
+    }
+    for (var j = 1; j < pts.length; j++) { while (pts[j][1] - pts[j - 1][1] > 180) pts[j][1] -= 360; while (pts[j][1] - pts[j - 1][1] < -180) pts[j][1] += 360; }
+    return pts;
+  }
+  function flightLinks(fs) {   // each flight is a link to its own page with every detail
+    var h = fs.slice().sort(function (x, y) { return x.date < y.date ? 1 : -1; }).slice(0, 12).map(function (f) { return '<a href="' + FB + f.id + '">' + esc(f.date) + " " + esc(f.from) + " to " + esc(f.to) + (f.no ? " " + esc(f.no) : "") + "</a>"; }).join("<br>");
+    return h + (fs.length > 12 ? "<br>and " + (fs.length - 12) + " more on <a href=\"{{ fbase.rsplit('/',2)[0] if shared else '/my/flights' }}\">{{ 'the list' if shared else 'My Flights' }}</a>" : "");
+  }
+  var bounds = [], most = 1;
+  D.airports.forEach(function (a) { most = Math.max(most, a.count); });
+  var tracked = {}, hi = 1;
+  (D.tracks || []).forEach(function (t) { tracked[t.id] = t; t.pts.forEach(function (x) { hi = Math.max(hi, x[2] || 0); }); });
+  function col(a) { var k = Math.min(1, Math.max(0, (a || 0) / hi)); return "hsl(" + Math.round(210 - 170 * k) + ",90%," + Math.round(60 - 8 * k) + "%)"; }
+  D.routes.forEach(function (r) {
+    var flown = r.flights.filter(function (f) { return tracked[f.id]; }).length;
+    var allTracked = flown === r.flights.length;
+    var line = L.polyline(arc(r.a, r.b, r.alat, r.alon, r.blat, r.blon), {color: "#ff8c42", weight: Math.min(2 + r.count, 8), opacity: allTracked ? .25 : .7, dashArray: flown ? "4 6" : null}).addTo(map);
+    line.bindPopup("<b>" + esc(r.a) + " - " + esc(r.b) + "</b><br>" + r.count + " flight" + (r.count == 1 ? "" : "s") + ", last " + esc(r.last) + "<br>" + flightLinks(r.flights));
+  });
+  (D.tracks || []).forEach(function (t) {   // the real recorded path, colored by height like the flight page
+    var f = null;
+    D.routes.forEach(function (r) { r.flights.forEach(function (x) { if (x.id === t.id) f = x; }); });
+    for (var i = 1; i < t.pts.length; i++) {
+      var seg = L.polyline([[t.pts[i - 1][0], t.pts[i - 1][1]], [t.pts[i][0], t.pts[i][1]]], {color: col(t.pts[i][2]), weight: 3, opacity: .9}).addTo(map);
+      if (f) seg.bindPopup("<b>" + esc(f.from) + " to " + esc(f.to) + "</b> " + esc(f.date) + "<br><a href=\"" + FB + f.id + "\">Open this flight</a>");
+    }
+  });
+  D.airports.forEach(function (a) {
+    var m = L.circleMarker([a.lat, a.lon], {radius: 5 + 9 * a.count / most, color: "#3ee6a8", weight: 2, fillColor: "#3ee6a8", fillOpacity: .5}).addTo(map);
+    m.bindPopup("<b>" + esc(a.code) + "</b> " + esc(a.name) + "<br>" + esc(a.city) + "<br>" + a.count + " flight" + (a.count == 1 ? "" : "s") + "<br>" + flightLinks(a.flights));
+    bounds.push([a.lat, a.lon]);
+  });
+  if (bounds.length) map.fitBounds(bounds, {padding: [30, 30], maxZoom: 8});
+  window.flMap = map;
+  } catch (e) { box.textContent = "The map could not be drawn: " + e.message; box.style.padding = "16px"; }
+})();
+</script>
+{% endif %}

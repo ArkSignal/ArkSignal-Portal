@@ -64,9 +64,19 @@ def mesh_map():
 @bp.route("/api/mesh/nodes.json")
 def api_nodes():
     _on()
-    rows = ms.nodes_cached("", "", 168, True)
+    slug = request.args.get("community", "")
+    area = None
+    if slug:
+        from . import communities as cm
+        c = cm.get(slug) if cfg("mesh_communities_enabled") == "1" else None
+        if c is None or (not c["published"] and cm.rank_of(c) == 0):
+            abort(404)
+        rows = [n for n in cm.community_nodes(c) if n.get("lat") is not None]
+        area = cm.polygon_of(c)
+    else:
+        rows = ms.nodes_cached("", "", 168, True)
     keep = ("id", "slug", "network", "long_name", "short_name", "lat", "lon", "role", "role_name", "hardware", "firmware", "last_seen", "battery", "precision_bits")
-    return jsonify({"nodes": [{k: r.get(k) for k in keep} for r in rows], "credit": ms.CREDIT})
+    return jsonify({"nodes": [{k: r.get(k) for k in keep} for r in rows], "area": area, "credit": ms.CREDIT})
 
 
 @bp.route("/api/mesh/links.json")
@@ -97,6 +107,70 @@ def api_node(nid):
     return jsonify(d)
 
 
+def _node_charts(nid, period):
+    """[(title, svg, caption, legend)] for the readings a node reported: only the charts that have data, in the site's own chart style and the Display menu's units."""
+    from datetime import datetime
+    from . import weather as wx
+    rows = ms.history(nid, int(wx.PERIODS[period][1].total_seconds() // 3600))
+    if not rows:
+        return []
+    pts = [dict(r, t=datetime.fromisoformat(r["t"].replace("Z", "+00:00"))) for r in rows]
+    units = wx.units_for(request.args.get("units") if request.args.get("units") in ("imperial", "metric") else None)
+    imp = units != "metric"
+    ident = lambda v: v
+    ts = sorted(p["t"].timestamp() for p in pts)
+    gaps = sorted(b - a for a, b in zip(ts, ts[1:]) if b > a)
+    spacing = gaps[len(gaps) // 2] if gaps else None   # how often this node reports
+    have = lambda *ks: any(p.get(k) is not None for p in pts for k in ks)
+    out = []
+
+    def add(title, lines, convert, unit, caption, zero=False, bars=False):
+        if have(*[k for k, _c, _l in lines]):
+            out.append((title, wx.chart_svg(pts, lines, period, convert, unit=unit, zero=zero, bars=bars, spacing=spacing), caption, [(c, l) for _k, c, l in lines] if len(lines) > 1 else []))
+    add("Battery", [("battery", "var(--acc)", "Battery")], ident, "%", "Battery level (%); a node on external power reports 101", zero=True)
+    add("Voltage", [("voltage", "var(--acc2)", "Voltage")], ident, "V", "Battery or supply voltage (V)")
+    add("Channel Use", [("channel_util", "#ff9f43", "Channel use"), ("air_util", "var(--acc)", "Airtime used by this node")], ident, "%", "How busy the radio channel is around the node, and how much of it this node used (%)", zero=True)
+    add("Temperature", [("temp_c", "var(--acc2)", "Temperature")], ident if not imp else (lambda v: v * 9 / 5 + 32), "°F" if imp else "°C", "Temperature (" + ("°F" if imp else "°C") + ")")
+    add("Humidity", [("humidity", "#6fb3ff", "Humidity")], ident, "%", "Relative humidity (%)", zero=True)
+    add("Pressure", [("pressure_hpa", "#c79bff", "Pressure")], (lambda v: v * 0.02953) if imp else ident, "inHg" if imp else "hPa", "Barometric pressure (" + ("inHg" if imp else "hPa") + ")")
+    add("Wind", [("gust_ms", "#ff9f43", "Gust"), ("wind_ms", "var(--acc)", "Wind")], (lambda v: v * 2.236936) if imp else (lambda v: v * 3.6), "mph" if imp else "km/h", "Wind and gust (" + ("mph" if imp else "km/h") + ")", zero=True)
+    add("Rain", [("rain_1h_mm", "#4fb3ff", "Rain in the last hour")], (lambda v: v / 25.4) if imp else ident, "in" if imp else "mm", "Rain in the last hour (" + ("in" if imp else "mm") + ")", zero=True, bars=True)
+    add("Light", [("lux", "#ffd24f", "Light")], ident, "lux", "Light level (lux)", zero=True)
+    add("Air Quality", [("iaq", "#3ee6a8", "Air quality index")], ident, "", "Indoor air quality index (lower is cleaner)", zero=True)
+    return out
+
+
+@bp.route("/api/mesh/<nid>/history.json")
+def api_history(nid):
+    _on()
+    if not ID_RE.match(nid) or nid.startswith("mc-"):
+        abort(404)
+    hours = max(1, min(request.args.get("hours", 24, type=int), 24 * 365))
+    rows = ms.history("!" + nid.lstrip("!"), hours)
+    if rows is None:
+        abort(404)
+    return jsonify({"hours": hours, "rows": rows, "credit": ms.CREDIT})
+
+
+@bp.route("/mesh/planning")
+def planning():
+    _on()
+    p = ms.plan()
+    if p is not None:
+        hid = {h["node_key"] for h in ms.hidden()}
+        for s in p["suggestions"]:
+            s["nodes"] = [n for n in s["nodes"] if n["id"] not in hid]
+    return render_template("mesh_planning.html", p=p, credit=ms.CREDIT)
+
+
+@bp.route("/mesh/weather")
+def mesh_weather():
+    _on()
+    from . import weather as wx
+    units = wx.units_for(request.args.get("units") if request.args.get("units") in ("imperial", "metric") else None)
+    return render_template("mesh_weather.html", rows=ms.weather(), imp=units != "metric", units=units, credit=ms.CREDIT)
+
+
 @bp.route("/mesh/<nid>")
 def node_page(nid):
     _on()
@@ -107,7 +181,12 @@ def node_page(nid):
         abort(404)
     hid = {h["node_key"] for h in ms.hidden()}
     nb = [x for x in d.get("neighbors", []) if x["id"] not in hid] if cfg("mesh_links_show") == "1" else []
-    return render_template("mesh_node.html", n=d["node"], heard=d["heard_by"], gateway_for=d["gateway_for"], neighbors=nb, owners=ms.owners_of_node(nid), credit=ms.CREDIT, colors=ms.ROLE_COLORS, my_claim=_my_claim(nid))
+    from . import weather as wx
+    period = request.args.get("period", "24h")
+    if period not in wx.PERIODS:
+        period = "24h"
+    charts = [] if nid.startswith("mc-") else _node_charts("!" + nid.lstrip("!"), period)
+    return render_template("mesh_node.html", charts=charts, keep_days=cfg_int("mesh_history_keep_days"), period=period, periods=wx.PERIODS, n=d["node"], heard=d["heard_by"], gateway_for=d["gateway_for"], neighbors=nb, owners=ms.owners_of_node(nid), credit=ms.CREDIT, colors=ms.ROLE_COLORS, my_claim=_my_claim(nid))
 
 
 def _my_claim(nid):
@@ -132,7 +211,12 @@ def feed_mesh():
 @bp.route("/admin/mesh")
 @permission_required("manage_map_data")
 def admin():
-    return render_template("admin_mesh.html", claims=ms.all_claims(), slug=ms.claim_slug, active="mesh", st=ms.stats(), hidden=ms.hidden(), url=cfg("mesh_url"), enabled=ms.enabled(), accounts=ms.all_accounts(), conn=_connect())
+    from . import mesh_alerts as ma
+    oa = get_db().execute("SELECT COUNT(*) FILTER (WHERE ts > now() - interval '24 hours') AS day, COUNT(*) FILTER (WHERE ts > now() - interval '7 days') AS week, COUNT(*) FILTER (WHERE email_state='pending' OR webhook_state='pending' OR push_state='pending') AS waiting, "
+                          "COUNT(*) FILTER (WHERE email_state='failed' OR webhook_state='failed' OR push_state='failed') AS failed, COUNT(DISTINCT user_id) AS people FROM mesh_alert_events").fetchone()
+    from .mesh_channels import admin_rows as channel_rows
+    from .meshrelease import status as _rel
+    return render_template("admin_mesh.html", rel=_rel(), channels=channel_rows(), oa=oa, oa_on=ma.on(), oa_open=get_db().execute("SELECT COUNT(*) AS n FROM mesh_alert_state").fetchone()["n"], claims=ms.all_claims(), slug=ms.claim_slug, active="mesh", st=ms.stats(), hidden=ms.hidden(), url=cfg("mesh_url"), enabled=ms.enabled(), accounts=ms.all_accounts(), conn=_connect())
 
 
 @bp.route("/admin/mesh/apply", methods=["POST"])
@@ -204,7 +288,15 @@ def my_mesh():
     rows = ms.accounts_of(current_user.id)
     lim = cfg_int("mesh_max_per_user")
     ms.check_claims(current_user.id)   # a claim whose node now carries its code completes by itself
-    return render_template("my_mesh.html", claims=ms.claims_of(current_user.id), slug=ms.claim_slug, rows=rows, full=len(rows) >= lim, limit=lim, add_open=request.args.get("add") == "1" or not rows, conn=_connect())
+    from . import mesh_alerts as ma
+    d = get_db()
+    alerts = d.execute("SELECT * FROM mesh_alert_events WHERE user_id=%s ORDER BY ts DESC LIMIT 25", (current_user.id,)).fetchall()
+    d.execute("UPDATE mesh_alert_events SET seen=TRUE WHERE user_id=%s AND NOT seen", (current_user.id,))
+    d.commit()
+    from .mailer import smtp_configured
+    hook = d.execute("SELECT webhook_url FROM users WHERE id=%s", (current_user.id,)).fetchone()
+    na = dict(on=ma.on(), prefs=ma.prefs_of(current_user.id), events=alerts, kinds=ma.KINDS, smtp=smtp_configured(), webhook=bool(hook and hook["webhook_url"]), off_h=cfg_int("mesh_offline_hours"), low=cfg_int("mesh_low_battery_pct"))
+    return render_template("my_mesh.html", na=na, claims=ms.claims_of(current_user.id), slug=ms.claim_slug, rows=rows, full=len(rows) >= lim, limit=lim, add_open=request.args.get("add") == "1" or not rows, conn=_connect())
 
 
 @bp.route("/my/mesh/add", methods=["POST"])

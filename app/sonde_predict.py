@@ -35,7 +35,7 @@ def call(path, method="GET", body=None, timeout=10):
         return False, "The prediction service is switched off in Settings."
     url = cfg("predict_url").rstrip("/") + path
     data = json.dumps(body).encode() if body is not None else None
-    req = urllib.request.Request(url, data=data, method=method, headers={"User-Agent": cfg("lookup_user_agent"), "Content-Type": "application/json"})
+    req = urllib.request.Request(url, data=data, method=method, headers=dict({"User-Agent": cfg("lookup_user_agent"), "Content-Type": "application/json"}, **__import__("app.servicecall", fromlist=["headers"]).headers()))
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             return True, json.loads(r.read(20_000_000).decode("utf-8"))

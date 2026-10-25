@@ -226,6 +226,10 @@ def _mesh_attention():
         return [("warn", "The mesh service is not answering, so mesh nodes are not shown. Check that the mesh container is running.", "/admin/mesh", "Mesh")]
     if not st["data"]["feed"]["connected"]:
         return [("warn", "The mesh service is not connected to its MQTT broker" + (": " + st["data"]["feed"]["error"] if st["data"]["feed"]["error"] else "") + ".", "/admin/mesh", "Mesh")]
+    from . import meshrelease
+    r = meshrelease.status()
+    if r["pending_review"]:
+        return [("info", f"Meshtastic published protobufs {r['pb']} (the decoders were last reviewed against {r['reviewed']}). Review them and mark them reviewed.", "/admin/mesh#sec-releases", "Review")]
     return []
 
 
@@ -234,6 +238,26 @@ def _mesh_layers():
     pts = [{"id": r["id"], "name": (r.get("long_name") or r.get("short_name") or r["id"]) + " (" + (r.get("role_name") or "node") + ")", "lat": r["lat"], "lon": r["lon"], "online": True, "approx": bool(r.get("precision_bits") and r["precision_bits"] < 24), "href": "/mesh/" + r["id"][1:]}
            for r in mesh.nodes_cached("", "", 24, True) if r.get("lat") is not None and _inside(r)]
     return [{"key": "mesh", "label": "Mesh Nodes", "color": "#ff8c42", "points": pts}] if pts else []
+
+
+def _matrix_tiles():
+    from . import matrix
+    st = matrix.status()
+    d = st["data"] or {}
+    return [("Matrix chat server", ("running" if d.get("synapse_answering") else "not running") if st["ok"] else "not answering", "/admin/matrix", "matrix")]
+
+
+def _matrix_attention():
+    from . import matrix
+    st = matrix.status()
+    if not st["ok"]:
+        return [("warn", "The Matrix service is not answering, so chat on Matrix is not available. Check that the matrix container is running.", "/admin/matrix", "Matrix")]
+    d = st["data"] or {}
+    if not d.get("applied"):
+        return [("info", "The Matrix service is running but has not been given its settings yet. Open Admin > Matrix Chat and press Apply.", "/admin/matrix", "Matrix")]
+    if not d.get("synapse_answering"):
+        return [("warn", "The Matrix server (Synapse) is not answering" + (": " + d["error"] if d.get("error") else "") + ".", "/admin/matrix", "Matrix")]
+    return []
 
 
 def _acars_now():
@@ -432,6 +456,9 @@ SERVICES = [
     {"key": "chat", "label": "Chat and Messages", "enabled": lambda: cfg("chat_enabled") == "1" or cfg("pm_enabled") == "1" or cfg("friends_enabled") == "1", "permission": "moderate_chat", "status_key": None,
      "about": ("/chat/", "Chat, Messages and Friends", "live chats between two or more members, email-style private messages and friends lists, with moderators, mutes and reports."),
      "admin_tiles": _chat_tiles, "admin_attention": _chat_attention},
+    {"key": "matrix", "label": "Matrix Chat", "enabled": _on("matrix_enabled"), "permission": "moderate_chat", "status_key": "matrix",
+     "about": ("/admin/matrix", "Matrix Chat", "end-to-end encrypted chat and direct messages on a Matrix server of our own, used with the Element app or in the site, and signed in with your ArkSignal account."),
+     "admin_tiles": _matrix_tiles, "admin_attention": _matrix_attention},
     {"key": "nets", "label": "Nets and Winlink Gateways", "enabled": _on("radiolists_enabled"), "permission": "moderate_repeaters", "status_key": None,
      "about": ("/radio/nets", "Nets and Winlink Gateways", "amateur radio nets with the time of the next one in your own time zone, and Winlink gateways with how far each is from you, kept by the network's members."),
      "admin_tiles": _nets_tiles, "admin_attention": _nets_attention},
@@ -452,6 +479,55 @@ def enabled():
         except Exception:
             get_db().rollback()
     return out
+
+
+# the services that already have their own hand-made card on the home page, and the one that is for administrators only
+_OWN_CARD = {"weather", "sondes"}
+_NO_CARD = {"matrix"}
+# a small picture for each card (24 x 24, drawn with lines); a service without one gets the dot
+_ICONS = {
+    "repeaters": '<path d="M12 12v9"/><path d="M8 21h8"/><circle cx="12" cy="10" r="2"/><path d="M7.5 5.5a6.5 6.5 0 0 0 0 9M16.5 5.5a6.5 6.5 0 0 1 0 9"/>',
+    "mesh": '<circle cx="5" cy="6" r="2"/><circle cx="19" cy="7" r="2"/><circle cx="12" cy="18" r="2"/><path d="M7 6.5l10 .5M6 8l5 8M18 9l-5 7"/>',
+    "acars": '<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/>',
+    "aprs": '<circle cx="12" cy="12" r="2"/><path d="M6.3 6.3a8 8 0 0 0 0 11.4M17.7 6.3a8 8 0 0 1 0 11.4"/>',
+    "ais": '<path d="M3 15l2 4h14l2-4z"/><path d="M12 15V5l5 6h-5"/>',
+    "drones": '<circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><path d="M8 8l8 8M16 8l-8 8"/>',
+    "satellites": '<rect x="9" y="9" width="6" height="6" transform="rotate(45 12 12)"/><path d="M4 4l4 4M16 16l4 4M5 14l5 5M14 5l5 5"/>',
+    "chat": '<path d="M4 5h16v11H9l-5 4z"/>',
+    "nets": '<circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/>',
+    "counties": '<path d="M4 6l5-2 6 2 5-2v14l-5 2-6-2-5 2z"/><path d="M9 4v14M15 6v14"/>',
+    "trauma": '<path d="M12 4v16M4 12h16"/>',
+}
+
+
+def home_cards(signed_in=False):
+    """[{key, title, href, stat, text, icon}]: one card for each enabled service that has no hand-made card of its own, for the Services section of the home page (the title, address and words come from the
+    service's About entry, the one line of numbers from its Right Now block). Chat is offered only to someone signed in."""
+    now = {}
+    try:
+        for n in collect("home_now"):
+            now[n.get("key")] = n
+    except Exception:
+        pass
+    cards = []
+    for s in enabled():
+        if s["key"] in _OWN_CARD or s["key"] in _NO_CARD or not s.get("about"):
+            continue
+        href, title, text = s["about"]
+        if s["key"] == "chat":   # members only, and the address of whichever of chats, messages and friends is on and open to this person
+            from . import access
+            if not signed_in:
+                continue
+            pick = next((a for flag, a, feature in (("chat_enabled", "/chat/", "chat"), ("pm_enabled", "/my/messages", "messages"), ("friends_enabled", "/my/friends", "friends")) if cfg(flag) == "1" and access.allowed(feature)), None)
+            if pick is None:
+                continue
+            href = pick
+        text = text[0].upper() + text[1:] if text else ""
+        if len(text) > 150:
+            text = text[:150].rsplit(" ", 1)[0].rstrip(",;:") + "..."
+        n = now.get(s["key"]) or now.get({"satellites": "sat"}.get(s["key"], "")) or {}
+        cards.append({"key": s["key"], "title": title, "href": href, "stat": n.get("summary", ""), "text": text, "icon": _ICONS.get(s["key"], '<circle cx="12" cy="12" r="3"/>')})
+    return cards
 
 
 def collect(hook):

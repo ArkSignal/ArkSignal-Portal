@@ -4,7 +4,7 @@
   <thead><tr><th>Balloon</th><th>Type</th><th>Source</th><th>Launch Site</th><th>Highest</th><th>Status</th><th>Last Heard</th></tr></thead>
   <tbody>
   {% for r in rows %}<tr>
-    <td><a class="mono" href="/sondes/{{ r.serial }}">{{ r.serial }}</a></td>
+    <td><a class="mono" href="/sondes/{{ r.serial }}">{{ r.serial }}</a> <a href="/sondes/map?replay={{ r.serial }}" title="Replay this flight on the map" style="font-size:.8rem" rel="nofollow">Replay</a></td>
     <td>{{ r.type }}</td>
     <td>{% if r.agency %}<span class="tag admin">{{ r.agency }}</span>{% elif r.kind == 'amateur' %}<span class="tag">Amateur</span>{% else %}<span class="dim">Other</span>{% endif %}</td>
     <td>{% if r.site_name %}<a href="/sondes/sites/{{ r.site_id }}">{{ r.site_name }}</a>{% else %}<span class="dim">-</span>{% endif %}</td>

@@ -11,9 +11,8 @@
 .dotl{display:inline-block;width:10px;height:10px;border-radius:50%;background:#7a7f8a;flex:none}
 .dotl.on{background:#38c172}
 </style>
-<h1>My <span>Friends</span></h1>
-<div class="sub">Friends are the members you chose. You can see which of them are online and start a <a href="/chat/">chat</a> or write a <a href="/my/messages">message</a> in one click. Nobody is told when you decline a request, remove a friend or block a member.</div>
-{% include "partials/_my_subnav.html" %}
+<h1><span>Friends</span></h1>
+<div class="sub">Friends are the members you chose. You can see which of them are online and start a <a href="/chat/">chat</a>{% if not matrix_on %} or write a <a href="/my/messages">message</a>{% endif %} in one click. Nobody is told when you decline a request, remove a friend or block a member.</div>
 
 {% if incoming %}{% call sec('requests', 'Requests for You (' ~ incoming | length ~ ')', True) %}
   {% for r in incoming %}<div class="fr-row"><span class="fr-name">{{ name_of(r) }}</span><span class="dim" style="font-size:.8rem">@{{ r.username }}</span>
@@ -23,7 +22,7 @@
 
 {% call sec('friends', 'Friends (' ~ friends | length ~ ' of up to ' ~ fmax ~ ')', True) %}
   {% for f in friends %}<div class="fr-row"><span class="dotl{{ ' on' if f.online }}" title="{{ 'Online' if f.online else 'Offline' }}"></span><span class="fr-name">{{ name_of(f) }}</span><span class="dim" style="font-size:.8rem">@{{ f.username }}{% if f.online %} &middot; online{% endif %}</span>
-    <span class="fr-acts">{% if chat_on %}<a class="btn small" href="#" data-chat="{{ f.username }}">Chat</a>{% endif %}{% if mail_on %}<a class="btn small neutral" href="/my/messages/compose?to={{ f.username }}">Message</a>{% endif %}
+    <span class="fr-acts">{% if chat_on %}{% if matrix_on %}<a class="btn small" href="/chat/?dm={{ f.username }}">Chat</a>{% else %}<a class="btn small" href="#" data-chat="{{ f.username }}">Chat</a>{% endif %}{% endif %}{% if mail_on %}<a class="btn small neutral" href="/my/messages/compose?to={{ f.username }}">Message</a>{% endif %}
     <button class="btn small neutral" type="button" data-act="/my/friends/{{ f.username }}/remove" data-confirm="Remove {{ f.username }} from your friends?">Remove</button>
     <button class="btn small neutral" type="button" data-act="/my/friends/{{ f.username }}/block" data-confirm="Block {{ f.username }}?">Block</button></span></div>
   {% else %}<p class="dim" style="margin:0">No friends yet. Find a member below and send a request.</p>{% endfor %}
@@ -39,24 +38,8 @@
   {% for r in sent %}<div class="fr-row"><span class="fr-name">{{ name_of(r) }}</span><span class="dim" style="font-size:.8rem">waiting for an answer</span><span class="fr-acts"><button class="btn small neutral" type="button" data-act="/my/friends/{{ r.username }}/cancel">Take Back</button></span></div>{% endfor %}{% endif %}
 {% endcall %}
 
-{% call sec('privacy', 'Who Can Contact Me', False) %}
-  <form id="fr-prefs">
-    <label for="fr-pol">Chats, messages and friend requests</label>
-    <select id="fr-pol" name="contact_policy" style="max-width:320px">{% for k, t in policies %}<option value="{{ k }}" {{ 'selected' if k == policy }}>{{ t }}</option>{% endfor %}</select>
-    <p class="help">Friends only: a member who is not your friend can only send you a friend request. Nobody new: not even requests (friends can still write). Moderators can always reach you about a report.</p>
-    <label class="check"><input type="checkbox" name="show_online" value="1" {{ 'checked' if show_online }}><span>Show my friends and chat partners when I am online</span></label>
-    <p class="help" style="margin:10px 0 4px"><b>Being found:</b> members find you by your user name and display name. You can also let them find you by:</p>
-    <label class="check"><input type="checkbox" name="find_by_callsign" value="1" {{ 'checked' if find_by_callsign }}><span>My call sign</span></label>
-    <label class="check"><input type="checkbox" name="find_by_email" value="1" {{ 'checked' if find_by_email }}><span>My email address (only when someone types all of it; it is never shown to anyone)</span></label>
-    <button class="btn" type="submit">Save</button> <span id="fr-pnote" class="dim" role="status"></span>
-  </form>
-{% endcall %}
-
-{% call sec('blocked', 'Blocked Members (' ~ blocks | length ~ ')', False) %}
-  {% for b in blocks %}<div class="fr-row"><span class="fr-name">{{ name_of(b) }}</span><span class="dim" style="font-size:.8rem">@{{ b.username }}</span><span class="fr-acts"><button class="btn small neutral" type="button" data-act="/my/friends/{{ b.username }}/unblock">Unblock</button></span></div>
-  {% else %}<p class="dim" style="margin:0">You have not blocked anyone. A blocked member cannot chat with you, message you or send requests, and is not told.</p>{% endfor %}
-{% endcall %}
-<script>
+<p class="dim" style="margin:14px 0 0">Who can contact you, who found you and the members you blocked are settings: they are in <a href="/my/community">My Account &gt; Community Settings</a>.</p>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var csrf = "{{ csrf_token() }}";
   function post(url, data) { var f = new FormData(); f.append("csrf_token", csrf); Object.keys(data || {}).forEach(function (k) { f.append(k, data[k]); }); return fetch(url, { method: "POST", body: f, credentials: "same-origin" }).then(function (r) { return r.json(); }); }
@@ -71,10 +54,6 @@
   });
   document.getElementById("fr-find").addEventListener("submit", function (e) {
     e.preventDefault(); post("/my/friends/request", { to: this.to.value }).then(function (d) { document.getElementById("fr-note").textContent = d.message || ""; if (d.ok) setTimeout(function () { location.reload(); }, 1200); });
-  });
-  document.getElementById("fr-prefs").addEventListener("submit", function (e) {
-    e.preventDefault(); var f = this, data = { contact_policy: f.contact_policy.value }; if (f.show_online.checked) data.show_online = "1"; if (f.find_by_callsign.checked) data.find_by_callsign = "1"; if (f.find_by_email.checked) data.find_by_email = "1";
-    post("/my/friends/prefs", data).then(function (d) { document.getElementById("fr-pnote").textContent = d.message || ""; });
   });
   function dots() {
     if (document.hidden) return;

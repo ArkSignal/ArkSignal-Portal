@@ -30,13 +30,13 @@
   <table class="sortable" id="rs-tbl"><thead><tr><th data-sort="text">Flight</th><th data-sort="text">Type</th><th data-sort="text">Source</th><th data-sort="text">Launch site</th><th data-sort="num">Launched</th><th data-sort="num">Burst</th><th data-sort="num">Flight time</th><th data-sort="num">Heard by</th><th data-sort="text">Status</th></tr></thead><tbody></tbody></table>
   <div class="dim" style="font-size:.78rem" id="rs-more"></div></div>
 {% include "partials/_sondecredit.html" %}
-<script src="/static/sondechart.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/sondechart.js"></script>
 <style>
 .rsx-filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}.rsx-filters label{display:flex;gap:6px;align-items:center;margin:4px 0;font-size:.9rem}
 .rsx-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}#rs-chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 6px}#rs-chips .chip{cursor:pointer}
 .rsx-two svg{width:100%;height:auto;display:block}
 </style>
-<script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   function $(id) { return document.getElementById(id); }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]; }); }

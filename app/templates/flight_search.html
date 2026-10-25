@@ -2,16 +2,18 @@
 {% block title %}Flight Search{% endblock %}
 {% block content %}
 {% include "partials/_airline_mark.html" %}
+<script nonce="{{ csp_nonce() }}" src="/static/flightextra.js?v={{ app_version }}"></script>
 <h1>Flight <span>Search</span></h1>
 <div class="sub">Find a flight that is in the air now and open its progress page: route, distance flown and to go, track and charts. Looking for a flight from earlier? Use <a href="/history/">Flight History</a>.</div>
-<form class="panel" id="fs-form" onsubmit="return false">
+<form class="panel" id="fs-form" data-no-submit>
   <label for="fs-q">Callsign, flight number, registration, aircraft type or hex code</label>
   <input type="text" id="fs-q" autocomplete="off" autofocus placeholder="for example AAL2242, N525US, B738 or A2E57E" maxlength="20" value="{{ q }}">
   <div class="help">Airline callsigns use the airline's three letters (American is AAL, Delta is DAL, Southwest is SWA). Only aircraft the network is hearing right now are listed. If you know an aircraft's six-character hex code you can open its last known track even when it is not in the air.</div>
 </form>
 <div class="panel" id="fs-results" style="margin-top:14px;overflow-x:auto"><p class="dim" style="margin:0">Loading aircraft...</p></div>
+<p class="dim" style="font-size:.8rem;margin:6px 4px 0">Airline, aircraft and route details come from <a href="https://www.adsbdb.com/" rel="noopener nofollow" target="_blank">adsbdb</a> and <a href="https://adsb.im/" rel="noopener nofollow" target="_blank">adsb.im</a>; a route is the one the flight number usually flies.</p>
 
-<script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var sk = "flight", sd = 1, all = [], box = document.getElementById("fs-results"), q = document.getElementById("fs-q");
   var esc = function (v) { return String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;"); };
@@ -23,8 +25,9 @@
     var html = "";
     if (rows.length) {
       var th = function (k, l) { return "<th data-k=\"" + k + "\" style=\"cursor:pointer;white-space:nowrap\" aria-sort=\"" + (sk === k ? (sd > 0 ? "ascending" : "descending") : "none") + "\">" + l + (sk === k ? (sd > 0 ? " &#9650;" : " &#9660;") : "") + "</th>"; };
-      html = "<table><tr><th></th>" + th("flight", "Flight") + th("reg", "Registration") + th("type", "Type") + th("alt", "Altitude") + th("speed", "Speed") + "<th></th></tr>" + rows.map(function (a) {
-        return "<tr><td style=\"width:34px\">" + ADSB_MARK.html(a) + "</td><td class=\"mono\"><b>" + esc(a.flight || "-") + "</b></td><td>" + esc(a.r || "") + "</td><td>" + esc(a.t || "") + " <span class=\"dim\">" + esc(a.tl || "") + "</span></td><td>" +
+      html = "<table><tr><th></th>" + th("flight", "Flight") + th("reg", "Registration") + "<th>Airline</th>" + th("type", "Type") + "<th>Route</th>" + th("alt", "Altitude") + th("speed", "Speed") + "<th></th></tr>" + rows.map(function (a) {
+        var hist = function (v) { return "/history/?q=" + encodeURIComponent(v) + "&duration=8760"; }, fl = (a.flight || "").trim();
+        return "<tr data-x data-hex=\"" + esc(a.hex) + "\" data-cs=\"" + esc(fl) + "\" data-lat=\"" + (a.lat != null ? a.lat : "") + "\" data-lon=\"" + (a.lon != null ? a.lon : "") + "\"><td style=\"width:34px\">" + ADSB_MARK.html(a) + "</td><td class=\"mono\"><b>" + (fl ? "<a href=\"" + hist(fl) + "\" title=\"Every logged flight with this flight number\">" + esc(fl) + "</a>" : "-") + "</b></td><td>" + (a.r ? "<a href=\"" + hist(a.r) + "\" title=\"Every logged flight of this aircraft\">" + esc(a.r) + "</a>" : "") + "</td><td class=\"x-airline\"></td><td>" + esc(a.t || "") + " <span class=\"dim x-model\">" + esc(a.tl || "") + "</span></td><td class=\"x-route\"></td><td>" +
           (a.gnd ? "On ground" : a.alt != null ? ArkUnits.avia.alt(a.alt) : "") + "</td><td>" + (a.gs != null ? ArkUnits.avia.spd(a.gs) : "") +
           "</td><td><a class=\"btn small\" style=\"margin:0\" href=\"/flight/" + esc(a.hex) + "\">Flight Progress</a></td></tr>";
       }).join("") + "</table>";
@@ -34,6 +37,7 @@
     if (/^[0-9a-f]{6}$/.test(hex) && !all.some(function (a) { return a.hex === hex; }))
       html += "<p style=\"margin:12px 0 0\">Not in the air now, but you can <a href=\"/flight/" + hex + "\">open the last known track for " + hex.toUpperCase() + "</a>.</p>";
     box.innerHTML = html;
+    if (window.ArkFlightExtra) ArkFlightExtra.fill(box);
   }
   async function load() { try { all = (await (await fetch("/api/aircraft.json", {cache: "no-store"})).json()).aircraft || []; } catch (e) { all = []; } render(); }
   ADSB_MARK.onchange = render;

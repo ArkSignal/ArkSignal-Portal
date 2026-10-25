@@ -92,6 +92,7 @@ class User(UserMixin):
         d.execute("UPDATE users SET password_hash=%s, must_change_password=%s, password_changed_at=now(), "
                   "failed_attempts=0, locked_until=NULL WHERE id=%s",
                   (generate_password_hash(pw), must_change, self.id))
+        d.execute("UPDATE user_sessions SET ended=TRUE WHERE user_id=%s", (self.id,))   # a new password ends every sign-in of the account (whoever changed it keeps nothing: the caller starts a new one)
         d.commit()
 
     # ---- lookups ----

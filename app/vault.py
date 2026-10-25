@@ -62,4 +62,20 @@ def encrypt_existing(conn):
             k = r["k"] if isinstance(r, dict) else r[0]
             conn.execute(f"UPDATE {table} SET {col}=%s WHERE {key}=%s", (seal(v), k))
             n += 1
+    # private message text: sealed at rest (the old email-style messages, the old direct and group chats and the old private threads)
+    for table, cols in (("conv_messages", ("body",)), ("pm_messages", ("body",)), ("mail_messages", ("subject", "body")), ("chat_rooms", ("discord_webhook",)), ("my_flights", ("notes",)), ("my_flight_pax", ("name",))):
+        for col in cols:
+            while True:
+                rows = conn.execute(f"SELECT id AS k, {col} AS v FROM {table} WHERE {col} <> '' AND {col} NOT LIKE %s LIMIT 500", (PREFIX + "%",)).fetchall()
+                if not rows:
+                    break
+                for r in rows:
+                    conn.execute(f"UPDATE {table} SET {col}=%s WHERE id=%s", (seal(r["v"] if isinstance(r, dict) else r[1]), r["k"] if isinstance(r, dict) else r[0]))
+                    n += 1
+    from .settings import SEALED_SETTINGS
+    for key in sorted(SEALED_SETTINGS):   # settings that hold a secret (Settings pages): sealed in place
+        r = conn.execute("SELECT value FROM settings WHERE key=%s AND value <> '' AND value NOT LIKE %s", (key, PREFIX + "%")).fetchone()
+        if r is not None:
+            conn.execute("UPDATE settings SET value=%s WHERE key=%s", (seal(r["value"] if isinstance(r, dict) else r[0]), key))
+            n += 1
     return n

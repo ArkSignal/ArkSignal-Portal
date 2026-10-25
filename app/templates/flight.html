@@ -29,9 +29,10 @@
 
 <div class="fl-head">
   <div><h1 style="margin-bottom:2px" id="fl-title">Flight <span>Progress</span></h1><div class="sub" id="fl-sub" style="margin:0">Loading...</div></div>
-  <div class="dim" style="font-size:.85rem"><span id="fl-status"></span> &middot; <a href="/live?icao={{ hex }}&amp;only=1">Show on the live map</a></div>
+  <div class="dim" style="font-size:.85rem"><span id="fl-status"></span> &middot; <a href="/live?icao={{ hex }}&amp;only=1">Show on the live map</a> &middot; <a id="fl-replay" href="/live?icao={{ hex }}&amp;only=1" rel="nofollow" hidden title="Play this flight back on the live map">Replay on the Big Map</a></div>
 </div>
 
+{% if export.on %}<div class="dim" style="font-size:.85rem;margin-top:8px">{% if export.signed_in %}Download this track: {% for f, l in (('csv', 'CSV'), ('gpx', 'GPX'), ('kml', 'KML'), ('geojson', 'GeoJSON')) %}<a href="/flight/{{ hex }}/track.{{ f }}{{ '?at=' ~ request.args.get('at') if request.args.get('at') }}" rel="nofollow">{{ l }}</a>{{ ' &middot; '|safe if not loop.last }}{% endfor %}{% else %}<a href="/my/login?next=/flight/{{ hex }}">Sign in</a> to download this track.{% endif %}</div>{% endif %}
 <div class="panel fl-route" style="margin-top:14px">
   <div class="fl-end"><div class="code" id="o-code">-</div><div class="city" id="o-city"></div><div class="name" id="o-name"></div></div>
   <div>
@@ -44,7 +45,7 @@
 <div class="dim" id="fl-note" style="font-size:.78rem;margin:6px 4px 0"></div>
 
 <div class="fl-grid">
-  <div class="panel" style="padding:10px;display:flex"><div id="fl-map"></div></div>
+  <div class="panel" style="padding:10px;display:flex;flex-direction:column;gap:8px"><div id="fl-rbar" class="dim" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:.85rem"><button class="btn small" type="button" id="fl-rplay" disabled>Replay</button><button class="btn small neutral" type="button" id="fl-rstop" hidden>Stop Replay</button><label style="margin:0">Speed <select id="fl-rspeed" style="width:auto"><option value="10">10x</option><option value="30">30x</option><option value="60" selected>60x</option><option value="120">120x</option><option value="300">300x</option></select></label><input type="range" id="fl-rslide" min="0" max="1000" value="0" style="flex:1 1 160px;min-width:120px" aria-label="Time of the flight" hidden><span id="fl-rtime" class="mono"></span></div><div id="fl-map"></div></div>
   <div style="display:flex;flex-direction:column;gap:14px">
     <div class="panel"><div class="fl-photo" id="fl-photo"></div><div class="fl-kv" id="fl-ident"></div></div>
     <div class="panel"><div class="fl-kv" id="fl-now"></div></div>
@@ -55,14 +56,14 @@
   <div class="panel"><div class="grp" style="margin-top:0">Ground Speed</div><svg class="fl-chart" id="ch-spd"></svg></div>
 </div>
 
-<script src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script>
-<script src="/static/touchhit.js"></script>
-<script>
+<script nonce="{{ csp_nonce() }}" src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script><script nonce="{{ csp_nonce() }}" src="/static/safehtml.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/touchhit.js"></script>
+<script nonce="{{ csp_nonce() }}">
 // the classic map's icon file (served by the hub through /api/markers.js) expects these globals; none are used for drawing here
 var halloween = false, atcStyle = false, squareMania = false, usp = {has: function () { return false; }, getInt: function () { return null; }};
 </script>
-<script src="/api/markers.js"></script>
-<script>
+<script nonce="{{ csp_nonce() }}" src="/api/markers.js"></script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var HEX = {{ hex | tojson }}, M = {{ m | tojson }};
   var $ = function (id) { return document.getElementById(id); };
@@ -71,7 +72,7 @@ var halloween = false, atcStyle = false, squareMania = false, usp = {has: functi
   if (window.ResizeObserver) new ResizeObserver(function () { map.invalidateSize(); }).observe(document.getElementById("fl-map"));
   L.tileLayer(M.tile, {maxZoom: 19, attribution: M.attr}).addTo(map);
   var layer = L.layerGroup().addTo(map), fitted = false;
-  var live = null, trace = null, info = null, infoFor = "";
+  var live = null, trace = null, info = null, infoFor = "", replaying = false;
 
   function nm(p, q) {   // great-circle distance, nautical miles
     var r = Math.PI / 180, x = Math.sin((q[0] - p[0]) * r / 2) ** 2 + Math.cos(p[0] * r) * Math.cos(q[0] * r) * Math.sin((q[1] - p[1]) * r / 2) ** 2;
@@ -90,7 +91,8 @@ var halloween = false, atcStyle = false, squareMania = false, usp = {has: functi
     return out;
   }
   function dur(sec) { sec = Math.max(0, Math.round(sec)); var h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60); return (h ? h + " h " : "") + m + " min"; }
-  function kv(el, rows) { el.innerHTML = rows.filter(function (r) { return r[1] != null && r[1] !== ""; }).map(function (r) { return "<div>" + r[0] + "</div><div>" + esc(r[1]) + "</div>"; }).join(""); }
+  function kv(el, rows) { el.innerHTML = rows.filter(function (r) { return r[1] != null && r[1] !== ""; }).map(function (r) { return "<div>" + r[0] + "</div><div>" + (r[2] ? '<a href="' + esc(r[2]) + '" title="Every logged flight">' + esc(r[1]) + "</a>" : esc(r[1])) + "</div>"; }).join(""); }
+  function hist(q) { return "/history/?q=" + encodeURIComponent(q) + "&duration=8760"; }   // every flight the site logged for a registration or a flight number
 
   function chart(svg, pts, idx, unit, color) {
     var w = svg.clientWidth || 400, h = 150, L0 = 40, R0 = 8, T0 = 8, B0 = 22;
@@ -143,6 +145,7 @@ var halloween = false, atcStyle = false, squareMania = false, usp = {has: functi
     $("fl-title").innerHTML = (a ? ADSB_MARK.html(a) : "") + esc(title) + " <span>Progress</span>";
     document.title = title + " - Flight Progress";
     $("fl-sub").textContent = [a && a.r, (a && (a.desc || a.tl)) || (info && info.aircraft && info.aircraft.type), info && info.route && info.route.airline].filter(Boolean).join(" · ") || HEX.toUpperCase();
+    var rp = $("fl-replay"), rs = pts.length ? pts[0][0] : (AT ? Number(AT) : Date.now() / 1000 - 3600); rp.href = "/live?icao=" + HEX + "&only=1&replay=" + Math.max(0, Math.floor(rs) - 120) + "&replaySpeed=20"; rp.hidden = false;
     $("fl-status").textContent = a ? "Tracked live" : (last ? "Not heard now · last position " + window.fmtTime(new Date(last[0] * 1000), "dts") : "No data yet");
 
     // route
@@ -171,7 +174,8 @@ var halloween = false, atcStyle = false, squareMania = false, usp = {has: functi
 
     // aircraft and live values
     var db = (info && info.aircraft) || {};
-    kv($("fl-ident"), [["Registration", (a && a.r) || db.registration], ["Make and model", a ? ((a.year ? a.year + " " : "") + (a.desc || a.tl || "")).trim() : [db.manufacturer, db.type].filter(Boolean).join(" ")],
+    var reg = (a && a.r) || db.registration, fno = (a && a.flight ? a.flight.trim() : "") || (info && info.callsign) || "";
+    kv($("fl-ident"), [["Registration", reg, reg ? hist(reg) : null], ["Flight", fno, fno ? hist(fno) : null], ["Make and model", a ? ((a.year ? a.year + " " : "") + (a.desc || a.tl || "")).trim() : [db.manufacturer, db.type].filter(Boolean).join(" ")],
       ["Type", a && a.t], ["Owner", db.registered_owner], ["Operator", a && a.op], ["Hex", HEX.toUpperCase()], ["Squawk", a && a.squawk]]);
     kv($("fl-now"), a ? [["Altitude", a.gnd ? "On ground" : a.alt != null ? ArkUnits.avia.alt(a.alt) : null], ["Ground speed", a.gs != null ? ArkUnits.avia.spd(a.gs) : null],
       ["Heading", a.track != null ? Math.round(a.track) + "°" : null], ["Vertical rate", a.vr != null ? ArkUnits.avia.vspd(a.vr) : null],
@@ -185,11 +189,12 @@ var halloween = false, atcStyle = false, squareMania = false, usp = {has: functi
     if (pts.length > 1) { L.polyline(pts.map(function (p) { return [p[1], p[2]]; }), {color: "#3ee6a8", weight: 3}).addTo(layer); bounds = bounds.concat(pts.map(function (p) { return [p[1], p[2]]; })); }
     if (pos && dest) { L.polyline(arc(pos, dest, 40), {color: "#4fb3ff", weight: 2, dashArray: "6 8"}).addTo(layer); }
     [[o, "#4fb3ff"], [d, "#4fb3ff"]].forEach(function (x) { if (x[0] && x[0].lat != null) { L.circleMarker([x[0].lat, x[0].lon], {radius: 6, color: x[1], fillColor: x[1], fillOpacity: .8}).bindTooltip(esc(x[0].iata || x[0].icao), {permanent: true, direction: "top", className: "lv-tip"}).addTo(layer); bounds.push([x[0].lat, x[0].lon]); } });
-    if (pos) {
+    if (pos && !replaying) {
       var rot = (a && a.track) || (last && last[5]) || 0;
       L.marker(pos, {icon: planeIcon(a, rot, last)}).addTo(layer);
       bounds.push(pos);
     }
+    $("fl-rplay").disabled = pts.length < 2 && !replaying;
     if (bounds.length && !fitted) { map.fitBounds(bounds, {padding: [30, 30], maxZoom: 9}); fitted = true; }
     chart($("ch-alt"), pts, 3, "ft", "#4fb3ff");
     chart($("ch-spd"), pts, 4, "kt", "#3ee6a8");
@@ -211,6 +216,48 @@ var halloween = false, atcStyle = false, squareMania = false, usp = {has: functi
     var pos = a && a.lat != null ? "&lat=" + a.lat + "&lon=" + a.lon : "";
     try { info = await (await fetch("/api/aircraft-info/" + HEX + ".json?reg=" + encodeURIComponent(a && a.r || "") + "&make=" + encodeURIComponent((a && (a.desc || a.tl) || "").split(" ")[0]) + "&callsign=" + encodeURIComponent(cs) + pos)).json(); info.callsign = cs; } catch (e) {}
   }
+  // ---- Replay on this map: the aircraft flies along the recorded track with its own icon, a trail behind it, and a slider over the time of the flight
+  var R = {rl: L.layerGroup().addTo(map), T: 0, T0: 0, T1: 0, playing: false, last: 0, pts: [], marker: null, trail: null, idx: -1};
+  function rpts() { return trace && trace.points ? trace.points.slice(trace.leg, trace.end || undefined) : []; }
+  function rat(T) {
+    var p = R.pts, n = p.length;
+    if (T <= p[0][0]) return {i: 0, lat: p[0][1], lon: p[0][2], alt: p[0][3], rot: p[0][5] || 0};
+    if (T >= p[n - 1][0]) return {i: n - 1, lat: p[n - 1][1], lon: p[n - 1][2], alt: p[n - 1][3], rot: p[n - 1][5] || 0};
+    var lo = 0, hi = n - 1; while (hi - lo > 1) { var mid = (lo + hi) >> 1; if (p[mid][0] <= T) lo = mid; else hi = mid; }
+    var k = (T - p[lo][0]) / ((p[hi][0] - p[lo][0]) || 1);
+    return {i: lo, lat: p[lo][1] + (p[hi][1] - p[lo][1]) * k, lon: p[lo][2] + (p[hi][2] - p[lo][2]) * k, alt: p[lo][3], rot: p[lo][5] != null ? p[lo][5] : (p[hi][5] || 0)};
+  }
+  function rdraw() {
+    var s = rat(R.T), ac = {t: (live && live.t) || (trace && trace.type) || (info && info.aircraft && info.aircraft.icao_type) || null, cat: live && live.cat, alt: s.alt, track: s.rot, mil: live && live.mil};
+    var ic = planeIcon(ac, s.rot, [0, 0, 0, s.alt]);
+    if (!R.marker) R.marker = L.marker([s.lat, s.lon], {icon: ic, zIndexOffset: 800}).addTo(R.rl); else { R.marker.setLatLng([s.lat, s.lon]); R.marker.setIcon(ic); }
+    if (s.i !== R.idx) { R.idx = s.i; var line = []; for (var i = 0; i <= s.i; i++) line.push([R.pts[i][1], R.pts[i][2]]); line.push([s.lat, s.lon]); if (!R.trail) R.trail = L.polyline(line, {color: "#ffb454", weight: 4}).addTo(R.rl); else R.trail.setLatLngs(line); }
+    else if (R.trail) { var ls = R.trail.getLatLngs(); ls[ls.length - 1] = L.latLng(s.lat, s.lon); R.trail.setLatLngs(ls); }
+    $("fl-rtime").textContent = window.fmtTime ? window.fmtTime(new Date(R.T * 1000), "ts") + " · " + (s.alt != null ? ArkUnits.avia.alt(s.alt) : "") : "";
+    $("fl-rslide").value = String(Math.round((R.T - R.T0) / ((R.T1 - R.T0) || 1) * 1000));
+    var ll = L.latLng(s.lat, s.lon); if (!map.getBounds().pad(-0.2).contains(ll)) map.panTo(ll, {animate: false});
+  }
+  function rtick(now) {
+    if (!R.playing) return;
+    var dt = R.last ? (now - R.last) / 1000 : 0; R.last = now;
+    R.T = Math.min(R.T1, R.T + dt * (parseFloat($("fl-rspeed").value) || 60)); rdraw();
+    if (R.T >= R.T1) { R.playing = false; $("fl-rplay").textContent = "Replay Again"; return; }
+    requestAnimationFrame(rtick);
+  }
+  function rstart() {
+    R.pts = rpts(); if (R.pts.length < 2) return;
+    replaying = true; R.T0 = R.pts[0][0]; R.T1 = R.pts[R.pts.length - 1][0]; if (R.T >= R.T1 || R.T < R.T0) R.T = R.T0;
+    $("fl-rslide").hidden = false; $("fl-rstop").hidden = false; R.idx = -1; render(); rdraw();
+    R.playing = true; R.last = 0; $("fl-rplay").textContent = "Pause"; requestAnimationFrame(rtick);
+  }
+  $("fl-rplay").addEventListener("click", function () {
+    if (R.playing) { R.playing = false; this.textContent = "Play"; }
+    else if (replaying) { if (R.T >= R.T1) R.T = R.T0; R.playing = true; R.last = 0; this.textContent = "Pause"; requestAnimationFrame(rtick); }
+    else rstart();
+  });
+  $("fl-rstop").addEventListener("click", function () { R.playing = false; replaying = false; R.rl.clearLayers(); R.marker = R.trail = null; R.T = 0; $("fl-rslide").hidden = true; this.hidden = true; $("fl-rtime").textContent = ""; $("fl-rplay").textContent = "Replay"; render(); });
+  $("fl-rslide").addEventListener("input", function () { R.T = R.T0 + (+this.value) / 1000 * (R.T1 - R.T0); rdraw(); });
+  window.flReplay = {state: function () { return {replaying: replaying, playing: R.playing, T: R.T, T0: R.T0, T1: R.T1, hasMarker: !!R.marker, trail: R.trail ? R.trail.getLatLngs().length : 0}; }, seek: function (f) { if (!replaying) rstart(); R.playing = false; R.T = R.T0 + f * (R.T1 - R.T0); rdraw(); }};
   async function cycle() { await getLive(); await Promise.all([getTrace(), getInfo()]); render(); }
   cycle(); setInterval(cycle, Math.max(5, M.refresh * 2) * 1000);
   document.addEventListener("adsb-prefs", render);

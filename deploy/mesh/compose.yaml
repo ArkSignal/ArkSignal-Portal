@@ -19,6 +19,7 @@ services:
       mesh-db:
         condition: service_healthy
     environment:
+      SERVICE_TOKEN: "${SERVICE_TOKEN:-}"   # the stack's shared secret between the portal and its services (see app/servicecall.py)
       DATABASE_URL: "postgresql://mesh:${MESH_DB_PASSWORD:-mesh}@mesh-db:5432/mesh"
     volumes:
       - /opt/adsb/mesh/mqtt:/broker:ro      # the broker's control password (admin.pass): how the service makes and removes members' logins

@@ -99,7 +99,7 @@
 {% else %}<div class="panel dim">No hospitals to show.</div>{% endfor %}
 </div>
 
-<script>
+<script nonce="{{ csp_nonce() }}">
 // Address lookup: ask the finders, list the candidates, show them on a small map, Use This Position stores one (a data-async form per candidate).
 (function () {
   var leafletReady = null;

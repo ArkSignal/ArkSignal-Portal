@@ -29,7 +29,7 @@
       <div class="swl" style="font-size:.7rem;line-height:1.25;margin-top:4px;color:var(--dim)">{{ r.time[11:13] }}-{{ '%02d' % ((r.time[11:13] | int + 3) % 24) }}<br>{{ r.time[5:10] }}</div></div>{% endfor %}
   </div></div>
   <div class="help">Each bar is three hours; the number is the K index for that period. Under each bar: the time range and date in UTC, then your own time. Oldest on the left. Green is quiet (below 3), yellow active (3), orange unsettled (4), red a storm (5 or more).</div>
-  <script>
+  <script nonce="{{ csp_nonce() }}">
   (function () {
     var MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"], prev = "";
     document.querySelectorAll("#sw-kpbars .swk").forEach(function (c) {

@@ -4,7 +4,7 @@
   {% if r %}<input type="hidden" name="id" value="{{ r.id }}">{% endif %}
   <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
     <div><label for="k-{{ uid }}">Watch For</label>
-      <select id="k-{{ uid }}" name="kind" data-needs="{{ needs_value | join(',') }}" onchange="(function(s){var v=document.getElementById('v-{{ uid }}');var on=s.dataset.needs.split(',').indexOf(s.value)>=0;v.disabled=!on;v.parentNode.style.opacity=on?1:.4;})(this)">
+      <select id="k-{{ uid }}" name="kind" data-needs="{{ needs_value | join(',') }}" data-toggle-target="v-{{ uid }}">
         {% for k, label in kinds.items() %}<option value="{{ k }}" {{ 'selected' if r and r.kind == k }}>{{ label }}</option>{% endfor %}
       </select></div>
     <div style="{{ '' if not r or r.kind in needs_value else 'opacity:.4' }}"><label for="v-{{ uid }}">Value</label>
@@ -24,6 +24,7 @@
     <div><label for="cd-{{ uid }}">Repeat No Sooner Than (Minutes)</label><input type="text" id="cd-{{ uid }}" name="cooldown_minutes" value="{{ r.cooldown_minutes if r else default_cooldown }}" style="width:110px"></div>
     <label class="check" style="margin:0 0 6px"><input type="checkbox" name="notify_email" value="1" {{ 'checked' if r and r.notify_email }}><span>Also email me</span></label>
     <label class="check" style="margin:0 0 6px"><input type="checkbox" name="notify_webhook" value="1" {{ 'checked' if r and r.notify_webhook }}><span>Also send to my webhook</span></label>
+    <label class="check" style="margin:0 0 6px"><input type="checkbox" name="notify_push" value="1" {{ 'checked' if r and r.notify_push }}><span>Also notify my phone or computer</span></label>
     <button class="btn small" type="submit" style="margin:0 0 4px">{{ 'Save Alert' if r else 'Add Alert' }}</button>
   </div>
 </form>

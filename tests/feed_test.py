@@ -10,7 +10,7 @@ def check(name, cond, extra=""):
 
 
 anon = requests.Session()
-h = anon.get(B + "/feed/").text
+h = anon.get(B + "/feed/adsb").text
 check("feed page loads with the feed line", "adsb,feed.arksignal.allisononline.org,30004,beast_reduce_plus_out;" in h)
 check("MLAT line hidden while MLAT is off", "mlat,feed.arksignal.allisononline.org" not in h)
 for url in ("github.com/sdr-enthusiasts/docker-adsb-ultrafeeder", "rtl-sdr.com", "airspy.com", "flightaware.com/adsb/prostick", "raspberrypi.com/software",
@@ -57,8 +57,8 @@ ok, m, _ = save(feed_host="bad host!"); check("bad feed hostname rejected", not 
 ok, m, _ = save(feed_port="99999"); check("bad feed port rejected", not ok, m)
 ok, m, _ = save(feed_host="feed.arksignal.allisononline.org", feed_port="31004", mlat_enabled="1", mlat_port="31090", max_rules_per_user="25")
 check("save custom feed host and enable MLAT", ok, m)
-h = anon.get(B + "/feed/").text
+h = anon.get(B + "/feed/adsb").text
 check("page uses the configured host/port and shows MLAT line", "adsb,feed.arksignal.allisononline.org,31004,beast_reduce_plus_out;" in h and "mlat,feed.arksignal.allisononline.org,31090" in h)
 ok, m, _ = save(); check("restore defaults", ok, m)
-check("defaults restored on page", "mlat,feed.arksignal.allisononline.org" not in anon.get(B + "/feed/").text)
+check("defaults restored on page", "mlat,feed.arksignal.allisononline.org" not in anon.get(B + "/feed/adsb").text)
 print("ALL PASS" if ok_all else "SOME FAILED")

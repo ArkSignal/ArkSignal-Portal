@@ -1,0 +1,82 @@
+# Matrix service: /opt/adsb/matrix/compose.yaml on the hub VM, applied by the stack updater (adsb-stack) like every other service.
+# matrix runs Synapse (the Matrix homeserver) for the chat; members sign in with their ArkSignal account (the portal is the sign-in provider), so there are no Matrix passwords and no registration.
+# Port 8008 (Synapse) is what the proxy (Nginx Proxy Manager) publishes at the Matrix address (matrix.arksignal.net); port 8483 (the settings channel from the portal) stays on the internal network.
+# element is Element Web (the chat page): the proxy publishes its port 8080 at chat.arksignal.net, and the site shows it inside its own Chat page. Its configuration is fetched from the portal.
+# Its own Postgres database (matrix-db, /opt/adsb/matrix/db) holds the rooms and messages (end-to-end encrypted ones are unreadable there); media (pictures, files, voice notes) are in /opt/adsb/matrix/data.
+# In the off-site backup: matrix-dump makes a consistent dump of the database every few hours (/opt/adsb/matrix/dumps/matrix.dump, only the newest kept: the backup service keeps the older ones off-site), the small copy takes the dump and the
+# small files in data/ (the server's signing key, which makes this server who it is, and its secrets), and the big copy takes the media (pictures, files, voice notes). To restore: put the files back and run
+# `pg_restore --clean -d matrix` from the dump inside matrix-db, then start the stack.
+services:
+  matrix:
+    image: ghcr.io/arksignal/arksignal-matrix:stable
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
+    container_name: matrix
+    restart: unless-stopped
+    init: true
+    depends_on:
+      matrix-db:
+        condition: service_healthy
+    environment:
+      SERVICE_TOKEN: "${SERVICE_TOKEN:-}"   # the stack's shared secret between the portal and its services (see app/servicecall.py)
+      MATRIX_DB_HOST: matrix-db
+      MATRIX_DB_PASSWORD: "${MATRIX_DB_PASSWORD:-matrix}"
+    volumes:
+      - /opt/adsb/matrix/data:/data
+    networks:
+      - proxy
+      - matrix_internal
+
+  element:
+    image: ghcr.io/arksignal/arksignal-element:stable
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
+    container_name: element
+    restart: unless-stopped
+    environment:
+      CONFIG_URL: "http://adsb-portal:8430/matrix/element-config.json"      # the portal makes Element's configuration (address, brand, theme, what is off)
+      MATRIX_BASE_URL: "${MATRIX_BASE_URL:-https://matrix.arksignal.net}"
+      MATRIX_SERVER_NAME: "${MATRIX_SERVER_NAME:-arksignal.net}"
+      FRAME_ANCESTORS: "${ELEMENT_FRAME_ANCESTORS:-'self' https://arksignal.net https://*.arksignal.net}"
+    networks:
+      - proxy
+
+  matrix-dump:
+    image: postgres:17-alpine
+    container_name: matrix-dump
+    restart: unless-stopped
+    depends_on:
+      matrix-db:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: "${MATRIX_DB_PASSWORD:-matrix}"
+      DUMP_SECONDS: "${MATRIX_DUMP_SECONDS:-14400}"
+    volumes:
+      - /opt/adsb/matrix/dumps:/dumps
+    command: ["sh", "-c", "while true; do pg_dump -h matrix-db -U matrix -Fc matrix > /dumps/matrix.dump.tmp && mv /dumps/matrix.dump.tmp /dumps/matrix.dump; sleep $${DUMP_SECONDS}; done"]
+    networks:
+      - matrix_internal
+
+  matrix-db:
+    image: postgres:17-alpine
+    container_name: matrix-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: matrix
+      POSTGRES_PASSWORD: "${MATRIX_DB_PASSWORD:-matrix}"
+      POSTGRES_DB: matrix
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    volumes:
+      - /opt/adsb/matrix/db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U matrix -d matrix"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - matrix_internal
+
+networks:
+  proxy:
+    external: true
+  matrix_internal:

@@ -1,0 +1,31 @@
+{# Community menu: the same left side menu as Admin and My Account (a drop-down on a phone). Needs `menu` ([(group, [(key, label)])]), `cur` (the page being shown) and `c`. #}
+{% set here = namespace(label='') %}
+{% for group, items in menu %}{% for key, label in items %}{% if key == cur %}{% set here.label = label %}{% endif %}{% endfor %}{% endfor %}
+<div class="my-side communityside" id="cm-side" role="navigation" aria-label="{{ c.name }}">
+  <button type="button" class="my-side-btn" id="cm-side-btn" aria-expanded="false" aria-controls="cm-side-list"><span>{{ c.name }}{% if here.label %}: <b>{{ here.label }}</b>{% endif %}</span><span class="my-side-caret" aria-hidden="true">&#9662;</span></button>
+  <div class="my-side-list" id="cm-side-list">
+    {% for group, items in menu %}
+    {% set has = namespace(current=false) %}
+    {% for key, label in items %}{% if key == cur %}{% set has.current = true %}{% endif %}{% endfor %}
+    <div class="my-side-group{{ ' has-current expanded' if has.current }}">
+      <button type="button" class="my-side-head" id="cm-h{{ loop.index }}" aria-expanded="{{ 'true' if has.current else 'false' }}" aria-controls="cm-g{{ loop.index }}"><span>{{ group }}</span><span class="my-side-caret" aria-hidden="true">&#9662;</span></button>
+      <div class="my-side-items" id="cm-g{{ loop.index }}"{{ '' if has.current else ' hidden' }}>
+        {% for key, label in items %}<a class="{{ 'active' if cur == key }}" href="/mesh/c/{{ c.slug }}{{ '' if key == 'overview' else '/' ~ key }}"{% if cur == key %} aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+<script nonce="{{ csp_nonce() }}">
+(function () {
+  var b = document.getElementById("cm-side-btn"), n = document.getElementById("cm-side");
+  if (!b || !n || n.dataset.ready) return; n.dataset.ready = "1";
+  b.addEventListener("click", function () { var o = n.classList.toggle("open"); b.setAttribute("aria-expanded", o ? "true" : "false"); });
+  var heads = Array.prototype.slice.call(n.querySelectorAll(".my-side-head"));
+  function openOnly(h) {
+    heads.forEach(function (x) { x.setAttribute("aria-expanded", "false"); document.getElementById(x.getAttribute("aria-controls")).hidden = true; x.parentNode.classList.remove("expanded"); });
+    if (h) { h.setAttribute("aria-expanded", "true"); document.getElementById(h.getAttribute("aria-controls")).hidden = false; h.parentNode.classList.add("expanded"); }
+  }
+  heads.forEach(function (h) { h.addEventListener("click", function () { openOnly(h.getAttribute("aria-expanded") === "true" ? null : h); }); });
+})();
+</script>

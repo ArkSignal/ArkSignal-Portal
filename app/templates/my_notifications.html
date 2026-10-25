@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Notifications{% endblock %}
+{% block content %}
+{% with active = 'notifications' %}{% include "partials/_my_subnav.html" %}{% endwith %}
+<h1>Notifications</h1>
+<div class="sub">Choose which alerts reach your phone or computer, even when the site is closed. Every kind has its own switch.</div>
+{% call sec('device', 'This Device', True) %}
+  {% if push_on %}{% include "partials/_push_device.html" %}
+  <p class="dim" style="font-size:.85rem;margin-bottom:0">Turn notifications on for each phone or computer you want them on. The switches below apply to all of your devices.</p>
+  {% else %}<p style="margin:0">The site has notifications switched off.</p>{% endif %}
+{% endcall %}
+<form method="post" action="/my/notifications/save" id="np-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="sats_sent" value="1">
+  {% for g in groups %}{% set items = rows | selectattr('group', 'equalto', g) | list %}{% if items %}
+  {% call sec('np-' ~ loop.index, g, True) %}
+    {% for r in items %}<label class="check" style="align-items:flex-start;margin:0 0 10px"><input type="checkbox" name="kind_{{ r.key }}" value="1" {{ 'checked' if r.on }} {{ 'disabled' if not r.offered }}><span><b>{{ r.label }}</b>{% if not r.offered %} <span class="tag off">not offered by this site</span>{% endif %}<br><span class="dim" style="font-size:.9rem">{{ r.text }}</span></span></label>{% endfor %}
+    {% if g == 'Weather and Hazards' %}<p class="dim" style="font-size:.85rem;margin:0">These use your places, below. Earthquakes smaller than magnitude {{ min_mag }} never send one.</p>{% endif %}
+    {% if g == 'Space and Radio' %}<p class="dim" style="font-size:.85rem;margin:0">Reminders use your places and the satellites you tick, below. Follow a balloon with Follow This Balloon on its page.</p>{% endif %}
+  {% endcall %}
+  {% endif %}{% endfor %}
+  {% call sec('np-sats', 'Satellites for Reminders', False) %}
+    {% if sats %}<p class="dim" style="margin-top:0">A reminder about {{ lead }} minutes before a ticked satellite rises over one of your places, when it will climb at least {{ min_elev }} degrees. Switch on Satellite Pass Reminders above.</p>
+    <div style="display:flex;gap:6px 18px;flex-wrap:wrap">{% for s in sats %}<label class="check"><input type="checkbox" name="sat" value="{{ s.norad }}" {{ 'checked' if s.on }}><span>{{ s.name }}</span></label>{% endfor %}</div>
+    {% else %}<p class="dim" style="margin:0">The site has no satellites loaded, or satellite passes are off.</p>{% endif %}
+  {% endcall %}
+  <button class="btn" type="submit">Save</button>
+</form>
+{% if quiet.on %}{% call sec('np-quiet', 'Quiet Hours', False) %}
+  <p style="margin-top:0" class="dim">Hold notifications back between these hours (the site's own time). A notification that comes in during that time is not sent later.</p>
+  <form method="post" action="/my/notifications/quiet" class="cm-row" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div><label for="q-s">From</label><select id="q-s" name="start"><option value="-1" {{ 'selected' if quiet.start < 0 }}>No quiet hours</option>{% for h in range(24) %}<option value="{{ h }}" {{ 'selected' if quiet.start == h }}>{{ '%d:00' % h }}</option>{% endfor %}</select></div>
+    <div><label for="q-e">Until</label><select id="q-e" name="end"><option value="-1" {{ 'selected' if quiet.end < 0 }}>-</option>{% for h in range(24) %}<option value="{{ h }}" {{ 'selected' if quiet.end == h }}>{{ '%d:00' % h }}</option>{% endfor %}</select></div>
+    <label class="check"><input type="checkbox" name="urgent" value="1" {{ 'checked' if quiet.urgent }}><span>Still send urgent warnings (weather warnings, earthquakes, administrator items)</span></label>
+    <button class="btn small" type="submit">Save</button></form>
+{% endcall %}{% endif %}
+{% call sec('np-places', 'My Places (' ~ places | length ~ ')', True) %}
+  <p class="dim" style="margin-top:0">Weather, earthquake, river and satellite notifications are about places you name here, each with a distance around it. You can keep {{ max_places }} places.</p>
+  {% for p in places %}<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:6px 0;border-bottom:1px solid color-mix(in srgb, var(--line) 50%, transparent)"><b>{{ p.name }}</b><span class="dim" style="font-size:.85rem">{{ '%.4f' % p.lat }}, {{ '%.4f' % p.lon }}, {{ p.radius_km | round | int }} km around</span>
+    <form class="inline" method="post" action="/my/notifications/places/{{ p.id }}/remove" data-confirm="Remove {{ p.name }}?" style="margin-left:auto"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small warn" type="submit">Remove</button></form></div>{% endfor %}
+  <form method="post" action="/my/notifications/places/add" class="cm-row" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-top:12px" id="np-add">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div><label for="pl-name">Name</label><input id="pl-name" name="name" maxlength="40" required placeholder="Home" style="width:140px"></div>
+    <div><label for="pl-lat">Latitude</label><input id="pl-lat" name="lat" required inputmode="decimal" placeholder="34.75" style="width:110px"></div>
+    <div><label for="pl-lon">Longitude</label><input id="pl-lon" name="lon" required inputmode="decimal" placeholder="-92.29" style="width:110px"></div>
+    <div><label for="pl-rad">Distance (km)</label><input id="pl-rad" name="radius" type="number" min="1" max="{{ max_radius }}" value="25" style="width:90px"></div>
+    <button class="btn small" type="submit">Add Place</button> <button class="btn small neutral" type="button" id="pl-here">Use My Location</button>
+  </form>
+  <script nonce="{{ csp_nonce() }}">
+  (function () {
+    var b = document.getElementById("pl-here");
+    if (!b) return;
+    if (!navigator.geolocation) { b.style.display = "none"; return; }
+    b.addEventListener("click", function () {
+      navigator.geolocation.getCurrentPosition(function (p) {
+        document.getElementById("pl-lat").value = p.coords.latitude.toFixed(4); document.getElementById("pl-lon").value = p.coords.longitude.toFixed(4);
+      }, function () { b.textContent = "Location Not Allowed"; });
+    });
+  })();
+  </script>
+{% endcall %}
+{% call sec('np-follows', 'Balloons I Follow (' ~ follows | length ~ ')', False) %}
+  {% for f in follows %}<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:6px 0"><a href="/sondes/{{ f.serial }}"><b>{{ f.serial }}</b></a><span class="dim" style="font-size:.85rem">{{ f.type or '' }}{% if f.status %} &middot; {{ f.status }}{% endif %}</span>
+    <form class="inline" method="post" action="/my/notifications/balloons/{{ f.serial }}/unfollow" style="margin-left:auto"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small neutral" type="submit">Stop Following</button></form></div>
+  {% else %}<p class="dim" style="margin:0">None yet. Open a balloon on the <a href="/sondes/flights">Flights list</a> and choose Follow This Balloon.</p>{% endfor %}
+{% endcall %}
+{% endblock %}

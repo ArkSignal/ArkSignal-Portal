@@ -5,12 +5,12 @@
 {% macro shell(search_ph, search_label, list_title, page_label, weather_btn=True, search_attrs="", legbtn_extra="", head_extra="", display_top="", labels_extra="", display_extra="", display_bottom="", layers_extra="", left_extra="", card_head_buttons="", card_actions="", card_extra="", list_actions="", list_extra="", alt_label="Color scale", alt_name="", map_type="") -%}
 <link rel="stylesheet" href="{{ leaflet_base }}/leaflet.css" crossorigin="anonymous">
 <link rel="stylesheet" href="/static/mapshell.css?v={{ app_version }}">
-<script src="/static/maphost.js?v={{ app_version }}"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/maphost.js?v={{ app_version }}"></script>
 <div id="lv">
   <div id="lvmap"></div>
   <div id="lv-left">
   <div class="lv-panel" id="lv-tools">
-    <div class="lv-head">{% if map_type %}<select id="lv-maptype" aria-label="Map type: which kind of map this is" title="Switch the kind of map; the view stays where it is">{% for k, l, h in map_types %}<option value="{{ h }}" {{ 'selected' if k == map_type }}>{{ l }}</option>{% endfor %}</select>{% endif %}<input type="text" id="q" placeholder="{{ search_ph }}" aria-label="{{ search_label }}" {{ search_attrs | safe }}>
+    <div class="lv-head">{% if map_type %}<select id="lv-maptype" aria-label="Map type: which kind of map this is" title="Switch the kind of map; the view stays where it is">{% for k, l, h in map_types() %}<option value="{{ h }}" {{ 'selected' if k == map_type }}>{{ l }}</option>{% endfor %}</select>{% endif %}<input type="text" id="q" placeholder="{{ search_ph }}" aria-label="{{ search_label }}" {{ search_attrs | safe }}>
       {% if weather_btn %}<button class="btn small neutral" type="button" id="lv-wxbtn" style="margin:0">Weather</button>{% endif %}
       <button class="btn small neutral" type="button" id="lv-filtbtn" style="margin:0">Layers &amp; Filters</button>
       <button class="btn small neutral" type="button" id="lv-legbtn" aria-expanded="false" aria-controls="lv-legend" style="margin:0">Legend{{ legbtn_extra | safe }}</button></div>
@@ -70,7 +70,7 @@
     <div id="lv-rows"><table id="lv-tbl"><thead></thead><tbody></tbody></table></div>
   </div>
 </div>
-<script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   // sections tagged for other map types only are hidden here (Settings > Map Tiles and Weather > Map Sections By Map Type)
   {% if map_type %}{{ map_sections_off(map_type) | tojson }}.forEach(function (k) { var e = document.querySelector('details.fsec[data-k="' + k + '"]'); if (e) e.style.display = "none"; });{% endif %}
@@ -107,20 +107,20 @@
 {# The script every map page shares: label size/background choices, the Layers panel (static/maplayers.js), Filters and Legend buttons, list show/hide, the share link, reset. The page gives
    its own map object and a few hooks: returns the AL (ArkLayers) object so the page can sync it. #}
 {% macro boot(url, storekey) -%}
-<script src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script>
-<script src="/static/touchhit.js"></script>
-<script src="/static/colocate.js"></script>
-<script src="/static/maplayers.js"></script>
-<script src="/static/drivetimes.js?v={{ app_version }}"></script>
-<script src="/static/mylocation.js?v={{ app_version }}"></script>
-<script src="/static/countyoutline.js?v={{ app_version }}"></script>
-<script src="/static/mapfold.js?v={{ app_version }}"></script>
-<script src="/static/mapfull.js?v={{ app_version }}" data-ark-rerun></script>
-<script src="/static/mapfit.js?v={{ app_version }}" data-ark-rerun></script>
-<script src="/static/mapfs.js?v={{ app_version }}" data-ark-rerun></script>
-<script src="/static/mapheadfold.js?v={{ app_version }}" data-ark-rerun></script>
-<script src="/static/unitsel.js?v={{ app_version }}" data-ark-rerun></script>
-<script>
+<script nonce="{{ csp_nonce() }}" src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script><script nonce="{{ csp_nonce() }}" src="/static/safehtml.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/touchhit.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/colocate.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/maplayers.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/drivetimes.js?v={{ app_version }}"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/mylocation.js?v={{ app_version }}"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/countyoutline.js?v={{ app_version }}"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/mapfold.js?v={{ app_version }}"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/mapfull.js?v={{ app_version }}" data-ark-rerun></script>
+<script nonce="{{ csp_nonce() }}" src="/static/mapfit.js?v={{ app_version }}" data-ark-rerun></script>
+<script nonce="{{ csp_nonce() }}" src="/static/mapfs.js?v={{ app_version }}" data-ark-rerun></script>
+<script nonce="{{ csp_nonce() }}" src="/static/mapheadfold.js?v={{ app_version }}" data-ark-rerun></script>
+<script nonce="{{ csp_nonce() }}" src="/static/unitsel.js?v={{ app_version }}" data-ark-rerun></script>
+<script nonce="{{ csp_nonce() }}">
 window.ArkShell = (function () {
   var $ = function (id) { return document.getElementById(id); };
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]; }); }
@@ -177,6 +177,6 @@ window.ArkShell = (function () {
   }};
 })();
 </script>
-<script src="/static/mapsearch.js?v={{ app_version }}" data-ark-rerun></script>
-<script src="/static/mapviews.js?v={{ app_version }}" data-ark-rerun></script>
+<script nonce="{{ csp_nonce() }}" src="/static/mapsearch.js?v={{ app_version }}" data-ark-rerun></script>
+<script nonce="{{ csp_nonce() }}" src="/static/mapviews.js?v={{ app_version }}" data-ark-rerun></script>
 {%- endmacro %}

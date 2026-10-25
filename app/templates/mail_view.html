@@ -4,7 +4,6 @@
 {% block content %}
 <h1><span>Message</span></h1>
 <div class="sub"><a href="/my/messages?folder={{ folder if folder in ('inbox','sent','drafts','archive','trash') else 'inbox' }}">Back to {{ dict(folders).get(folder, 'Messages') }}</a></div>
-{% include "partials/_my_subnav.html" %}
 {% include "partials/_mailnav.html" %}
 {% call sec('message', m.subject or '(no subject)', True) %}
   <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
@@ -21,12 +20,12 @@
     <span id="mv-note" class="dim" role="status" style="align-self:center"></span>
   </div>
   {% for t in thread %}<div class="panel" style="margin:0 0 10px;{{ 'border-color:var(--acc)' if t.id == m.id }}">
-    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:baseline"><b>{{ 'You' if t.sender_id == current_user.id else t.sender_name }}</b><span class="dim" style="font-size:.8rem">to {{ t.draft_to }}</span>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:baseline"><b>{% if t.sender_id == current_user.id %}You{% else %}<a href="/members/{{ t.sender_user }}" style="color:inherit">{{ t.sender_name }}</a>{% endif %}</b>{% if ham_call(t.sender_id) %}<span class="tag live" title="Verified Amateur">&#10003; {{ ham_call(t.sender_id) }}</span>{% endif %}<span class="dim" style="font-size:.8rem">to {{ t.draft_to }}</span>
       <time class="ts dim" style="margin-left:auto;font-size:.78rem" datetime="{{ t.sent_at.isoformat() }}" data-fmt="dt">{{ t.sent_at }}</time></div>
     {% if thread | length > 1 %}<div class="dim" style="font-size:.84rem">{{ t.subject }}</div>{% endif %}
     <div style="white-space:pre-wrap;word-break:break-word;margin-top:6px">{{ t.body }}</div></div>{% endfor %}
 {% endcall %}
-<script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var csrf = "{{ csrf_token() }}", note = document.getElementById("mv-note");
   function post(url, data) { var f = new FormData(); f.append("csrf_token", csrf); Object.keys(data || {}).forEach(function (k) { f.append(k, data[k]); }); return fetch(url, { method: "POST", body: f, credentials: "same-origin" }).then(function (r) { return r.json(); }); }

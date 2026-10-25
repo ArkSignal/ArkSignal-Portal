@@ -13,7 +13,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from flask import Blueprint, jsonify, make_response, request
+from flask import Blueprint, current_app, jsonify, make_response, request
 
 from .db import get_db
 from .settings import cfg, cfg_int
@@ -302,5 +302,91 @@ def aircraft_info(hex_):
                 lat = lon = 0
             out["route"] = _route(callsign, lat, lon)
     resp = jsonify(out)
+    resp.headers["Cache-Control"] = "private, max-age=300"
+    return resp
+
+
+# ------------------------------------------------------------------ more about a flight, for the lists (Flights, Flight History) and My Flights
+
+def airline_info(code):
+    """{name, icao, iata, country} for an airline's two- or three-letter code (the aircraft database answers to either), or None."""
+    code = (code or "").strip().upper()
+    if cfg("lookups_enabled") != "1" or not re.fullmatch(r"[A-Z0-9]{2,3}", code):
+        return None
+    def load():
+        try:
+            d = _http(cfg("aircraft_db_url").rstrip("/") + "/airline/" + code)
+            rows = (d or {}).get("response")
+            if isinstance(rows, list) and rows:
+                r = rows[0]
+                return {"name": r.get("name") or "", "icao": (r.get("icao") or "").upper(), "iata": (r.get("iata") or "").upper(), "country": r.get("country") or ""}
+        except Exception:
+            pass
+        return None
+    return _cached("airlineinfo", code, load)
+
+
+def aircraft_by_reg(reg):
+    """What the aircraft database knows of an aircraft by its registration: {type, icao_type, manufacturer, registration, registered_owner, ...}, or None."""
+    reg = re.sub(r"[^A-Z0-9-]", "", (reg or "").upper())
+    if cfg("lookups_enabled") != "1" or len(reg) < 3:
+        return None
+    def load():
+        try:
+            d = _http(cfg("aircraft_db_url").rstrip("/") + "/aircraft/" + reg)
+        except Exception:
+            return None
+        a = ((d or {}).get("response") or {}).get("aircraft")
+        if not isinstance(a, dict):
+            return None
+        keep = ("type", "icao_type", "manufacturer", "registration", "registered_owner", "registered_owner_country_name", "mode_s")
+        return {k: a.get(k) for k in keep if a.get(k)}
+    return _cached("aircraftreg", reg, load)
+
+
+def route_for(callsign, lat=0, lon=0):
+    return _route(callsign, lat, lon) if cfg("lookups_enabled") == "1" and re.fullmatch(r"[A-Z]{3}[0-9][A-Z0-9]{0,4}", callsign or "") else None
+
+
+def flight_info(hex_, callsign, lat=None, lon=None):
+    """One flight, for a list row: {airline, model, owner, route: {from, to, plausible}} (every part optional)."""
+    out = {}
+    ac = _aircraft(hex_) if re.fullmatch(r"[0-9a-f]{6}", hex_ or "") else None
+    if ac:
+        out["model"] = " ".join(x for x in (ac.get("manufacturer"), ac.get("type")) if x)
+        out["owner"] = ac.get("registered_owner") or ""
+    cs = (callsign or "").strip().upper()
+    r = route_for(cs, lat or 0, lon or 0)
+    if r and len(r.get("airports") or []) >= 2:
+        a, b = r["airports"][0], r["airports"][-1]
+        out["route"] = {"from": {"code": a.get("iata") or a.get("icao"), "city": a.get("city")}, "to": {"code": b.get("iata") or b.get("icao"), "city": b.get("city")}, "plausible": r.get("plausible"), "source": r.get("source")}
+        out["airline"] = r.get("airline") or ""
+    if not out.get("airline") and re.fullmatch(r"[A-Z]{3}[0-9][A-Z0-9]{0,4}", cs):
+        al = airline_info(cs[:3])
+        out["airline"] = al["name"] if al else ""
+    return out
+
+
+@bp.route("/api/flight-extra.json")
+def flight_extra():
+    """Airline, make and model, owner and route for up to 40 flights at once (items=hex:callsign:lat:lon,...): what the Flights and Flight History lists fill in after they show."""
+    from concurrent.futures import ThreadPoolExecutor
+    items = []
+    for part in (request.args.get("items") or "").split(",")[:40]:
+        f = (part.split(":") + ["", "", ""])[:4]
+        if re.fullmatch(r"[0-9a-f]{6}", f[0].lower()):
+            try:
+                items.append((f[0].lower(), f[1], float(f[2]) if f[2] else None, float(f[3]) if f[3] else None))
+            except ValueError:
+                items.append((f[0].lower(), f[1], None, None))
+    if cfg("lookups_enabled") != "1" or not items:
+        return jsonify({})
+    app = current_app._get_current_object()
+    def run(it):
+        with app.app_context():
+            return flight_info(*it)
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        got = list(pool.map(run, items))
+    resp = jsonify({it[0]: g for it, g in zip(items, got)})
     resp.headers["Cache-Control"] = "private, max-age=300"
     return resp

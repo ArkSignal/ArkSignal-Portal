@@ -9,7 +9,7 @@
       <td>{{ b.when | localtime("%Y-%m-%d %H:%M:%S") }}</td>
       <td><span class="tag {{ 'off' if not b.ok }}">{{ b.kind if b.ok else 'unreadable' }}</span>{% if b.encrypted %} <span class="tag live" title="Encrypted with this site's SECRET_KEY">encrypted</span>{% endif %}</td>
       <td class="dim">{{ b.size | filesize }}</td>
-      <td class="dim">{{ b.rows }}</td>
+      <td class="dim">{{ b.rows if b.rows is not none else "counting..." }}</td>
       <td>
         <a class="btn small" href="/admin/backups/{{ b.name }}/download">Download</a>
         {% if b.ok %}

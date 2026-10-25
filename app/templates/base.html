@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 {%- set _t = self.title() | trim -%}
 <title>{{ (_t ~ ' | ' ~ site_name) if _t else site_name }}</title>
+<meta name="description" content="{% block meta_description %}{{ seo.description if seo else '' }}{% endblock %}">
+{% if seo %}{% if seo.noindex %}<meta name="robots" content="noindex, nofollow">{% else %}<link rel="canonical" href="{{ seo.canonical }}">
+<meta property="og:site_name" content="{{ site_name }}"><meta property="og:type" content="website"><meta property="og:title" content="{{ (_t ~ ' | ' ~ site_name) if _t else site_name }}"><meta property="og:url" content="{{ seo.canonical }}">
+<meta property="og:description" content="{{ seo.description }}"><meta property="og:image" content="{{ seo.canonical.split('/', 3)[0] ~ '//' ~ seo.canonical.split('/', 3)[2] }}/apple-touch-icon.png"><meta name="twitter:card" content="summary">{% endif %}
+{% if seo.google %}<meta name="google-site-verification" content="{{ seo.google }}">{% endif %}{% if seo.bing %}<meta name="msvalidate.01" content="{{ seo.bing }}">{% endif %}{% endif %}
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
 <link rel="icon" href="/favicon.ico" sizes="any">
@@ -14,11 +19,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
-<script src="/static/arkunits.js"></script>
-<script src="/static/callsign.js" defer></script>
-<script>window.ARK_THEMES = {{ ark_themes | tojson }};</script>
-<script src="/static/themes.js?v={{ app_version }}"></script>
-<script>
+<script nonce="{{ csp_nonce() }}" src="/static/arkunits.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/inlineactions.js" defer></script>
+<script nonce="{{ csp_nonce() }}" src="/static/callsign.js" defer></script>
+<script nonce="{{ csp_nonce() }}">window.ARK_THEMES = {{ ark_themes | tojson }};</script>
+<script nonce="{{ csp_nonce() }}" src="/static/themes.js?v={{ app_version }}"></script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var p = {};
   try { p = JSON.parse(localStorage.getItem("adsb.prefs") || "{}"); } catch (e) {}
@@ -104,6 +110,36 @@ a{color:var(--acc2)}
 .subnav a.active{color:var(--acc);border-color:var(--acc);background:rgba(62,230,168,.08)}
 .subnav .sn-label{align-self:center;color:var(--dim);font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;padding:0 6px 0 2px;min-width:92px}
 .subnav .sn-break{flex-basis:100%;height:0}
+/* My Account: a left side menu beside the page on a wide screen (every page of My Account includes partials/_my_subnav.html); on a phone it is one drop-down button like the section bar */
+.my-side{margin:0 0 18px}
+main:has(.acct-head)>h1:not(.acct-head){font-size:1.55rem;margin:4px 0 8px}   /* the page header stays "My Account"; each page names itself under it, beside the menu */
+.my-side-btn{display:none}
+.my-side-group{margin:0 0 8px}
+.my-side-head{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--input-bg);color:var(--text);font:inherit;font-weight:700;cursor:pointer;text-align:left;touch-action:manipulation}
+.my-side-head:hover,.my-side-head:focus-visible{border-color:var(--acc)}
+.my-side-group.has-current>.my-side-head{border-color:var(--acc);color:var(--acc)}
+.my-side-caret{transition:transform .15s}
+.my-side-group.expanded>.my-side-head .my-side-caret{transform:rotate(180deg)}
+.my-side-items{margin:4px 0 0 10px;padding-left:8px;border-left:2px solid var(--line)}
+.my-side-items[hidden]{display:none}
+.my-side-list a{display:flex;align-items:center;gap:8px;justify-content:space-between;color:var(--dim);text-decoration:none;padding:7px 12px;border-radius:10px;border:1px solid transparent}
+.my-side-list a:hover{color:var(--text);border-color:var(--line)}
+.my-side-list a.active{color:var(--acc);border-color:var(--acc);background:rgba(62,230,168,.08)}
+@media (min-width:901px){
+  main:has(.my-side){display:grid;grid-template-columns:230px minmax(0,1fr);column-gap:28px;grid-auto-rows:auto;align-content:start}
+  main:has(.my-side)>*{grid-column:2}
+  main:has(.my-side)>:has(~ .my-side){grid-column:1 / -1}   /* the top bar, banners, the title and its line run across the whole width; the menu starts under them */
+  main:has(.my-side)>.my-side{grid-column:1;grid-row:span 80;align-self:start;position:sticky;top:12px;max-height:calc(100dvh - 24px);overflow-y:auto;overscroll-behavior:contain;margin:6px 0 0;padding-right:4px}
+  main:has(.my-side)>footer{grid-column:1 / -1;align-self:end}
+}
+@media (max-width:900px){
+  .my-side{position:relative}
+  .my-side-btn{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;box-sizing:border-box;min-height:44px;padding:0 14px;border:1px solid var(--line);border-radius:12px;background:var(--input-bg);color:var(--text);font:inherit;cursor:pointer;touch-action:manipulation}
+  .my-side.open>.my-side-btn .my-side-caret{transform:rotate(180deg)}
+  .my-side-list{display:none;margin-top:6px;border:1px solid var(--line);border-radius:12px;background:var(--pop-bg);padding:8px 6px;max-height:calc(100dvh - 160px);overflow-y:auto;overscroll-behavior:contain}
+  .my-side.open .my-side-list{display:block}
+  .my-side-list a{min-height:44px;padding:10px 14px}
+}
 /* the admin menu: groups with a small label, always in the order defined in app/adminnav.py */
 .adminnav{gap:12px;align-items:stretch;margin-top:14px;padding-bottom:0;border-bottom:0}
 .adminnav .ag{display:flex;flex-direction:column;gap:6px;padding:8px 10px 10px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.025)}
@@ -250,7 +286,7 @@ html.nav-lock #to-top{display:none}
   nav.open{position:fixed;inset:0;margin:0;z-index:3500;background:var(--bg);max-height:none;overflow-y:auto;overscroll-behavior:contain;align-content:flex-start;padding-bottom:40px}   /* the open menu is a full-screen sheet */
   nav.open a,nav.open button,nav.open details.navmenu>summary{display:block;width:100%;text-align:left;padding:12px 14px;border-radius:10px;min-height:44px}
   nav.open details.navmenu{width:100%}
-  nav.open .navdrop{position:static;border:0;border-left:2px solid var(--line);border-radius:0;box-shadow:none;background:transparent;padding:0 0 6px 6px;margin:0 0 4px 16px;min-width:0}
+  nav.open .navdrop{max-height:none;overflow:visible;overscroll-behavior:auto;position:static;border:0;border-left:2px solid var(--line);border-radius:0;box-shadow:none;background:transparent;padding:0 0 6px 6px;margin:0 0 4px 16px;min-width:0}
   nav.open .navdrop a{padding:12px 14px;min-height:44px;display:flex;align-items:center}
   nav.open details.navmenu>summary{font-weight:600;color:var(--text)}
   nav.open details.navmenu[open]>summary{color:var(--acc)}
@@ -348,7 +384,7 @@ html.nav-lock #to-top{display:none}
 }
 @media (max-width:420px){h1{font-size:1.5rem}.panel{padding:14px}}
 </style>
-<script>(function () {
+<script nonce="{{ csp_nonce() }}">(function () {
   var h = document.documentElement, q = location.search;
   if (!/[?&]kiosk=1(&|$)/.test(q)) return;
   h.classList.add("kiosk"); if (/[?&]kidle=1(&|$)/.test(q)) h.classList.add("kidle");
@@ -372,7 +408,7 @@ html.kiosk main.wide #lv{border-radius:0}
 /* a kiosk is a display, not the site: the site's top bar, its sub bars and the footer are never shown in it (the map controls hide after a time with no input and come back with any) */
 html.kiosk #mainnav, html.kiosk .subnav, html.kiosk .subbar, html.kiosk nav.sub, html.kiosk footer{display:none!important}
 html.kiosk main{padding-top:0!important}</style>
-<script>(function () { function w() { document.documentElement.style.setProperty("--vw", document.documentElement.clientWidth + "px"); } w(); addEventListener("resize", w); if (window.ResizeObserver) new ResizeObserver(w).observe(document.documentElement); })();</script>
+<script nonce="{{ csp_nonce() }}">(function () { function w() { document.documentElement.style.setProperty("--vw", document.documentElement.clientWidth + "px"); } w(); addEventListener("resize", w); if (window.ResizeObserver) new ResizeObserver(w).observe(document.documentElement); })();</script>
 </head>
 <body>
 {% if false %}{% block title %}{% endblock %}{% endif %}
@@ -409,13 +445,13 @@ html.kiosk main{padding-top:0!important}</style>
     </div>
   </details>
   {% if current_user.is_authenticated %}
-    {% if chat_on or pm_on or friends_on %}<script src="/static/chatbadge.js?v={{ app_version }}" data-seconds="{{ 30 }}" defer></script>{% endif %}
+    {% if chat_on or pm_on or friends_on %}<script nonce="{{ csp_nonce() }}" src="/static/chatbadge.js?v={{ app_version }}" data-seconds="{{ 30 }}" defer></script>{% endif %}
     {% if current_user.has_admin_access %}<a href="/admin/">Admin</a>{% endif %}
     <a href="/my/alerts" id="nav-alerts" style="{{ '' if alerts_unseen else 'display:none' }}" class="alertbadge">Alerts <b id="nav-alerts-n">{{ alerts_unseen }}</b></a>
     {% set me_n = (chat_unread or 0) + (pm_unread or 0) + (friend_requests or 0) %}
     <details class="navmenu" id="me-menu"><summary>{{ current_user.label }} <span class="msgbadge" id="nb-me" style="{{ '' if me_n else 'display:none' }}" title="New chats, messages or friend requests">{{ me_n }}</span></summary>
       <div class="navdrop" style="left:auto;right:0">
-        <a href="/my/">My Account</a>
+        <a href="/my/account">My Account</a>
         {% if chat_on %}<a href="/chat/">Chat <span class="msgbadge" id="nb-chat" style="{{ '' if chat_unread else 'display:none' }}">{{ chat_unread }}</span></a>{% endif %}
         {% if pm_on %}<a href="/my/messages">Messages <span class="msgbadge" id="nb-mail" style="{{ '' if pm_unread else 'display:none' }}">{{ pm_unread }}</span></a>{% endif %}
         {% if friends_on %}<a href="/my/friends">Friends <span class="msgbadge" data-badge="friends" style="{{ '' if friend_requests else 'display:none' }}">{{ friend_requests }}</span></a>{% endif %}
@@ -441,7 +477,7 @@ html.kiosk main{padding-top:0!important}</style>
 {% block content %}{% endblock %}
 <button type="button" id="to-top" aria-label="Back to the top of the page" title="Back to the top">&#9650;</button>
 <footer>{{ site_name }} &middot; <a href="/about">About</a> &middot; <a href="/status">Status</a> &middot; <a href="/release-notes">Release Notes</a> &middot; <a href="/roadmap">Roadmap</a>{% if support_on %} &middot; <a href="/support">Support</a>{% endif %} &middot; <a href="/contact">Contact</a>{% if current_user.is_authenticated and current_user.has_admin_access and app_version != 'unreleased' %} &middot; v{{ app_version }}{% endif %}</footer>
-<script>
+<script nonce="{{ csp_nonce() }}">
 // Copy buttons: every code block and every value marked .copyable gets one.
 (function () {
   function copy(text, btn) {
@@ -458,7 +494,7 @@ html.kiosk main{padding-top:0!important}</style>
   });
 })();
 </script>
-<script>
+<script nonce="{{ csp_nonce() }}">
 // Automatic sign-out after inactivity: warn first, and let the person stay signed in.
 {% if current_user.is_authenticated and idle_seconds %}(function () {
   var IDLE = {{ idle_seconds }}, WARN = Math.min({{ idle_warning }}, IDLE), last = Date.now(), pinged = Date.now(), bar = null;
@@ -685,7 +721,7 @@ document.addEventListener("keydown", function (e) {
   matchMedia("(prefers-color-scheme: light)").addEventListener("change", function () { if (P.theme === "auto") applyTheme(); });
 })();
 </script>
-<script>
+<script nonce="{{ csp_nonce() }}">
 // A plain form that carries data-confirm asks first (the in-page ones below ask for themselves).
 document.addEventListener("submit", function (e) {
   var f = e.target;

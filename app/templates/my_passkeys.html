@@ -2,9 +2,9 @@
 {% from "partials/_feedsec.html" import sec with context %}
 {% block title %}Passkeys{% endblock %}
 {% block content %}
+{% with active = 'passkeys' %}{% include "partials/_my_subnav.html" %}{% endwith %}
 <h1>My <span>Passkeys</span></h1>
 <div class="sub">Sign in with your fingerprint, face, screen lock or a security key instead of typing a password. A passkey cannot be guessed, phished or reused on another site, and it checks that it is you, so it takes the place of the password and the two-factor code together.</div>
-{% with active = 'passkeys' %}{% include "partials/_my_subnav.html" %}{% endwith %}
 
 {% call sec('add', 'Add a Passkey', True) %}
   <label for="pk-name">Name (so you can tell them apart)</label>
@@ -26,5 +26,5 @@
     <li>Passkeys need a secure (https) connection and a current browser.</li>
   </ul>
 {% endcall %}
-<script src="/static/passkeys.js?v={{ app_version }}"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/passkeys.js?v={{ app_version }}"></script>
 {% endblock %}

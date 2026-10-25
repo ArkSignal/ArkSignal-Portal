@@ -7,7 +7,7 @@
   <div class="panel tile"><div class="tv">{{ h.total }}</div><div class="tl">Nodes heard in the last {{ h.days }} days</div></div>
   <div class="panel tile"><div class="tv">{{ h.active }}</div><div class="tl">Heard in the last 24 hours</div></div>
   <div class="panel tile"><div class="tv">{{ h.routers }}</div><div class="tl">Routers and repeaters ({{ h.routers_quiet | length }} quiet)</div></div>
-  <div class="panel tile"><div class="tv">{{ h.newest_fw or '-' }}</div><div class="tl">Newest Meshtastic firmware seen</div></div>
+  <div class="panel tile"><div class="tv">{{ h.newest_fw or '-' }}</div><div class="tl">Newest Meshtastic firmware seen{% if h.project_fw %} (the project's newest: {{ h.project_fw }}){% endif %}</div></div>
 </div>
 {% macro nodetable(rows, empty, label='', key='', fmt='') %}
   {% if rows %}<table class="sortable"><thead><tr><th data-sort="text">Node</th><th data-sort="text">Network</th>{% if label %}<th data-sort="text">{{ label }}</th>{% endif %}<th data-sort="text">Last Heard</th></tr></thead><tbody>

@@ -1,0 +1,34 @@
+{# The community's map: nodes, the area, and nodes placed by hand. window.cmMap(elementId, data, options) -> {map}. options: edit (the area can be drawn), onClick(latlng), onPin(pin). #}
+<link rel="stylesheet" href="{{ leaflet_base }}/leaflet.css" crossorigin="anonymous">
+<style>.cmmap{height:480px;border-radius:14px;overflow:hidden;background:var(--map-bg)}@media(max-width:700px){.cmmap{height:360px}}.leaflet-container{background:var(--map-bg);font:inherit}.leaflet-tile-pane{filter:var(--map-filter)}
+.cm-vtx span{display:flex;width:22px;height:22px;border-radius:50%;background:#ff8c42;color:#111;font:700 11px/22px 'JetBrains Mono',monospace;align-items:center;justify-content:center;border:2px solid #fff;box-sizing:border-box;cursor:grab}
+.cm-key{display:flex;gap:14px;flex-wrap:wrap;font-size:.8rem;color:var(--dim);margin:8px 0 0}.cm-key i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:middle}</style>
+<script nonce="{{ csp_nonce() }}" src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script><script nonce="{{ csp_nonce() }}" src="/static/safehtml.js"></script>
+<script nonce="{{ csp_nonce() }}">
+(function () {
+  var TILE = {{ tile_url | tojson }}, ATTR = {{ tile_attr | tojson }}, DEF = [{{ map_lat | float }}, {{ map_lon | float }}, 7];
+  var PINC = {active: "#3ee6a8", planned: "#ffd24f", offline: "#8a9bb3"};
+  function esc(t) { return String(t == null ? "" : t).replace(/[&<>"]/g, function (c) { return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]; }); }
+  window.cmMap = function (id, D, o) {
+    o = o || {};
+    var map = L.map(id).setView([DEF[0], DEF[1]], DEF[2]);
+    L.tileLayer(TILE, {maxZoom: 19, attribution: ATTR}).addTo(map);
+    var bounds = [];
+    (D.nodes || []).forEach(function (n) {
+      var m = L.circleMarker([n.lat, n.lon], {radius: o.small ? 4 : 7, color: n.color, weight: 2, fillColor: n.color, fillOpacity: .55, dashArray: n.placed ? "3 3" : null, interactive: !(o.edit || o.onClick)}).addTo(map);   // while drawing or placing, a click on a node must still reach the map
+      m.bindPopup('<b><a href="/mesh/' + esc(n.slug) + '">' + esc(n.name) + '</a></b><br>' + esc(n.role) + (n.placed ? "<br>placed by hand" : ""));
+      bounds.push([n.lat, n.lon]);
+    });
+    (D.pins || []).forEach(function (p) {
+      var m = L.circleMarker([p.lat, p.lon], {radius: 9, color: PINC[p.status] || "#3ee6a8", weight: 3, fillColor: "#000", fillOpacity: .3, dashArray: "4 3"}).addTo(map);
+      m.bindPopup("<b>" + esc(p.name) + "</b><br>" + esc(p.role) + " &middot; " + esc(p.status) + (p.notes ? "<br>" + esc(p.notes) : ""));
+      bounds.push([p.lat, p.lon]);
+      if (o.onPin) m.on("click", function () { o.onPin(p); });
+    });
+    if (D.poly && !o.edit) { L.polygon(D.poly, {color: "#ff8c42", weight: 2, fillColor: "#ff8c42", fillOpacity: .08, interactive: false}).addTo(map); D.poly.forEach(function (p) { bounds.push(p); }); }
+    if (bounds.length) map.fitBounds(bounds, {padding: [20, 20], maxZoom: 12});
+    if (o.onClick) map.on("click", function (e) { o.onClick(e.latlng); });
+    return {map: map, esc: esc};
+  };
+})();
+</script>

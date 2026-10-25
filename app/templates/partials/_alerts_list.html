@@ -6,7 +6,7 @@
   <summary>
     <span class="role-name">{{ r.name }}</span>
     {% if r.enabled %}<span class="tag live">on</span>{% else %}<span class="tag off">off</span>{% endif %}
-    {% if r.notify_email %}<span class="tag">email</span>{% endif %}{% if r.notify_webhook %}<span class="tag">webhook</span>{% endif %}
+    {% if r.notify_email %}<span class="tag">email</span>{% endif %}{% if r.notify_webhook %}<span class="tag">webhook</span>{% endif %}{% if r.notify_push %}<span class="tag">phone</span>{% endif %}
     <span class="dim role-sum">{{ kinds[r.kind] }}{% if r.value %}: {{ r.value }}{% endif %} &middot; {{ r.event_count }} match{{ '' if r.event_count == 1 else 'es' }}</span>
   </summary>
   <div style="padding:0 22px 22px">

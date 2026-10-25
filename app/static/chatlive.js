@@ -42,7 +42,7 @@
   function render(m) {
     if (msgsEl.querySelector('[data-id="' + m.id + '"]')) return;
     var row = el("div", "bub " + (m.mine ? "mine" : "theirs")); row.setAttribute("data-id", m.id); row.setAttribute("data-mine", m.mine ? "1" : "0");
-    if (!m.mine) row.appendChild(el("div", "who", m.name + (m.via ? " (via " + m.via + ")" : "")));
+    if (!m.mine) row.appendChild(el("div", "who", m.name + (m.ham ? " ✓ " + m.ham : "") + (m.via ? " (via " + m.via + ")" : "")));
     row.appendChild(el("div", "cbody", m.body));
     var meta = el("div", "meta"); meta.appendChild(el("time", "dim", when(m.at)));
     if (m.del_url) { var del = el("button", "linkbtn", "Delete"); del.type = "button"; del.addEventListener("click", function () { if (confirm("Delete this message for everyone?")) post(m.del_url).then(function () { row.remove(); }); }); meta.appendChild(del); }

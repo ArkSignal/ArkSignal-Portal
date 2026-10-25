@@ -27,7 +27,9 @@ def post(s, path, **data):
 
 check("friends need a sign-in", anon.get(B + "/my/friends", allow_redirects=False).status_code in (302, 401, 403))
 pg = me.get(B + "/my/friends")
-check("a member sees the friends page with its sections", pg.status_code == 200 and all(x in pg.text for x in ("Friends (0", "Find a Member", "Who Can Contact Me", "Blocked Members")))
+check("a member sees the friends page with its sections", pg.status_code == 200 and all(x in pg.text for x in ("Friends (0", "Find a Member", "Community Settings")) and "Who Can Contact Me" not in pg.text and 'id="my-side"' not in pg.text)
+cs = me.get(B + "/my/community")
+check("who can contact me and the blocked members are settings: they are on My Account > Community Settings, with the account menu", cs.status_code == 200 and all(x in cs.text for x in ("Who Can Contact Me", "Blocked Members", 'id="my-side"', "How Chat, Messages and Friends Work")))
 check("the menus list Friends", 'href="/my/friends"' in me.get(B + "/").text and 'href="/my/friends"' in pg.text)
 check("a name that does not exist and yourself are refused plainly", "No member" in post(me, "/my/friends/request", to="nobodyatall").json()["message"] and "yourself" in post(me, "/my/friends/request", to="plain1").json()["message"])
 r = post(me, "/my/friends/request", to="claimer1").json()
@@ -82,7 +84,7 @@ post(me, "/my/friends/request", to="claimer1"); post(other, "/my/friends/plain1/
 r = post(other, "/my/friends/plain1/block").json()
 check("blocking ends the friendship and is private", r["ok"] and psql("select count(*) from friendships") == "0" and psql("select count(*) from pm_blocks") == "1")
 check("the blocked member cannot send a request or start a chat, with a plain message that does not say they are blocked", "cannot contact" in post(me, "/my/friends/request", to="claimer1").json()["message"] and not post(me, "/chat/new", to="claimer1").json()["ok"])
-check("the blocker's page lists the block and can lift it", "claimer1" not in other.get(B + "/my/friends").text.split("Blocked Members")[0] and "plain1" in other.get(B + "/my/friends").text.split("Blocked Members")[1])
+check("the blocker's page lists the block and can lift it", "claimer1" not in other.get(B + "/my/community").text.split("Blocked Members")[0] and "plain1" in other.get(B + "/my/community").text.split("Blocked Members")[1])
 post(other, "/my/friends/plain1/unblock")
 check("unblocking works", psql("select count(*) from pm_blocks") == "0" and post(me, "/my/friends/request", to="claimer1").json()["ok"])
 wipe()
@@ -101,7 +103,7 @@ unset("friends_max"); wipe()
 au = adm.get(B + "/admin/audit").text
 check("every friends action is in the audit log", all(x in au for x in ("friend.request", "friend.accept", "friend.decline", "friend.cancel", "friend.remove", "friend.block", "friend.unblock", "friend.prefs")))
 st = adm.get(B + "/admin/settings").text
-check("its settings are in Admin > Settings, with Feature Access", all(x in st for x in ("Friends Lists", "Friends: Most Friends per Member", "Friends: Requests a Member Can Send per Day", "Who Can See Friends Lists")))
+check("its settings are in Admin > Settings, with Feature Access", all(x in st for x in ("Friends Lists", "Friends: Most Friends per Member", "Friends: Requests a Member Can Send per Day", "Who Can Use Friends Lists")))
 setting("access_friends", "roles")
 check("limited to roles, a member without the permission sees none of it", me.get(B + "/my/friends").status_code == 404 and adm.get(B + "/my/friends").status_code == 200)
 unset("access_friends")

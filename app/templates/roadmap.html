@@ -28,7 +28,7 @@
 <p class="dim" style="margin-top:14px;font-size:.82rem">
   {% if meta.source == 'github' %}Live from the project repository, fetched {{ fetched | localtime }}.{% else %}Showing the list built into this release{% if meta.error %} (the live copy could not be reached: {{ meta.error }}){% endif %}.{% endif %}
   {% if updated %} List dated {{ updated }}.{% endif %}</p>
-<script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var chips = document.querySelectorAll("#rm-areas [data-area]");
   chips.forEach(function (c) {

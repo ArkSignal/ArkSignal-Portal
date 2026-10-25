@@ -41,6 +41,12 @@ def build(user):
     upd = read_state()
     if upd.get("update_available"):
         flag("info", f"A new portal release is available ({upd.get('latest_stable_version')}, running {upd.get('current_version')}).", "/admin/updates", "Updates")
+    if len(os.environ.get("SECRET_KEY", "")) < 32:
+        flag("warn", "The SECRET_KEY in the server's .env is shorter than 32 characters. It protects every sealed secret and every sign-in; use a long random one (for example the output of openssl rand -hex 32; changing it signs everyone out and makes the sealed secrets unreadable, so plan it).", "/admin/updates", "How")
+    if cfg("backup_encrypt") != "1":
+        flag("warn", "Backups are not encrypted (Settings > Backups > Encrypt Backups). A backup holds every table, including password hashes; turn encryption on.", "/admin/backups", "Backups")
+    if not os.environ.get("SERVICE_TOKEN"):
+        flag("info", "The stack's services (mesh, ACARS, APRS, predictions, Matrix helper) answer any request on their internal network. Set SERVICE_TOKEN in the server's .env (openssl rand -hex 32) and restart the stack to make them require it.", "/admin/updates", "How")
     if os.environ.get("ADMIN_PASSWORD"):
         flag("warn", "The first administrator's password is still in the server's .env file; remove that line.", "/admin/updates", "How")
     chk = hp.check_counts()

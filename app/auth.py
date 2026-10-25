@@ -38,6 +38,21 @@ def dashboard():
     return render_template("my.html", feeders=stations.my_feeders(current_user.id), candidates=stations.claim_candidates(ip), ip=ip, paste_days=cfg_int("claim_paste_days"))
 
 
+_DUMMY = []
+
+
+def _spend_hash_time(password):
+    """Do the same work a real password check does, so an unknown name, a disabled account and a locked one take as long to answer as a wrong password (the answer must not tell which accounts exist)."""
+    from werkzeug.security import check_password_hash, generate_password_hash
+    if not _DUMMY:
+        import secrets
+        _DUMMY.append(generate_password_hash(secrets.token_urlsafe(24)))
+    check_password_hash(_DUMMY[0], password[:1024])
+
+
+GENERIC_FAIL = "Incorrect username or password. After several wrong tries an account is locked for a few minutes."
+
+
 @bp.route("/login", methods=["GET", "POST"])
 def login():
     if current_user.is_authenticated:
@@ -51,23 +66,29 @@ def login():
             time.sleep(0.5)
             flash("Too many failed sign-in attempts from your address. Please wait a few minutes and try again.", "error")
             return render_template("login.html"), 429
+        if len(password) > 1024:   # no real password is this long; the hash is not made to chew on it
+            password = ""
         if user is None:
+            _spend_hash_time(password)
             time.sleep(0.5)
             # an unknown name may be a password typed into the wrong box: keep only a masked trace of it
             log_login(username if cfg("log_unknown_usernames") == "exact" else ((username[:2] + "\u2022" * min(max(len(username) - 2, 0), 6)) if username else ""), ip, False, "unknown username")
-            flash("Incorrect username or password.", "error")
+            flash(GENERIC_FAIL, "error")
         elif user.disabled:
+            _spend_hash_time(password)
+            time.sleep(0.5)
             log_login(username, ip, False, "disabled account")
-            flash("This account is disabled.", "error")
+            flash(GENERIC_FAIL, "error")
         elif user.is_locked():
+            _spend_hash_time(password)
+            time.sleep(0.5)
             log_login(username, ip, False, "locked account")
-            flash("Too many failed attempts. Try again in a few minutes.", "error")
+            flash(GENERIC_FAIL, "error")
         elif not user.check_password(password):
             time.sleep(0.5)
-            locked = user.register_failure()
+            user.register_failure()
             log_login(username, ip, False, "wrong password")
-            flash(f"Too many failed attempts. Account locked for {cfg_int('lockout_minutes')} minutes." if locked
-                  else "Incorrect username or password.", "error")
+            flash(GENERIC_FAIL, "error")
         elif user.row.get("totp_enabled"):
             # the password is right; the second step proves it is really them
             session.clear()
@@ -75,6 +96,7 @@ def login():
             return redirect(url_for("auth.login_2fa"))
         else:
             user.register_success()
+            session.clear()   # a new session at sign-in: nothing a visitor had before it carries over
             new_address = user.has_admin_access and not get_db().execute(
                 "SELECT 1 FROM login_events WHERE username=%s AND ip=%s AND success AND ts > now() - interval '90 days' LIMIT 1", (user.username, ip)).fetchone()
             log_login(username, ip, True)
@@ -130,7 +152,7 @@ def login_2fa():
             d.execute("UPDATE users SET totp_last=%s WHERE id=%s", (step, user.id))
         d.commit()
         nxt = pend.get("next", "")
-        session.pop("pending_2fa", None)
+        session.clear()
         user.register_success()
         log_login(user.username, ip, True, "two-factor recovery code" if used_recovery else "")
         login_user(user, remember=False)
@@ -207,7 +229,8 @@ def change_password():
         elif new != confirm:
             flash("Passwords do not match.", "error")
         else:
-            current_user.set_password(new, must_change=False)
+            current_user.set_password(new, must_change=False)   # every other sign-in of this account ends
+            security.new_session(current_user.id)               # this one carries on, as a new tracked sign-in
             audit("user.password_change", target=current_user.username)
             flash("Password updated.", "success")
             return redirect(url_for("auth.dashboard"))
@@ -247,7 +270,8 @@ def forgot_email():
     accounts.note_attempt(ip, login, "email", bool(user))
     if user is not None and not user.disabled:
         token = accounts.make_token(user.id)
-        link = request.host_url.rstrip("/") + url_for("auth.reset", token=token)
+        from .seo import base_url
+        link = base_url() + url_for("auth.reset", token=token)   # the site's own address (Settings), not whatever Host header the request carried
         site = cfg("site_name")
         send_mail(user.email, f"{site}: reset your password",
                   f"Someone asked to reset the password for the account {user.username} on {site}.\n\n"

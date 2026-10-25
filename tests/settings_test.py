@@ -40,7 +40,9 @@ s=requests.Session()
 for i in range(3):
     t=re.search(r'name="csrf_token" value="([^"]+)"', s.get(B+"/my/login").text).group(1)
     h=s.post(B+"/my/login", data={"csrf_token":t,"username":"locktest1","password":"wrongwrongwrong"}).text
-check("lockout after 3 attempts per setting", "locked for 1 minutes" in h, re.findall(r'class="flash[^<]*',h))
+t=re.search(r'name="csrf_token" value="([^"]+)"', s.get(B+"/my/login").text).group(1)
+h2=s.post(B+"/my/login", data={"csrf_token":t,"username":"locktest1","password":"lockpassword1"}).text
+check("lockout after 3 attempts per setting (the right password is then refused too, with the same plain answer that never says whether the account exists)", "Incorrect username or password" in h and "Incorrect username or password" in h2 and "Sign Out" not in h2, re.findall(r'class="flash[^<]*',h2))
 # last sign-in in UTC now; restore defaults
 ok,m,_=save(); check("restore defaults", ok, m)
 audit=adm.get(B+"/admin/settings").text

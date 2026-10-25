@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Chat{% endblock %}
+{% block content %}
+<style>
+.mx-frame{display:block;width:100%;height:calc(100dvh - 250px);min-height:520px;border:1px solid var(--line);border-radius:14px;background:var(--input-bg)}
+.mx-tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:0 0 10px}
+@media (max-width:900px){.mx-frame{height:calc(100dvh - 190px);min-height:420px}}
+</style>
+<h1><span>Chat</span> and Messages</h1>
+<div class="sub">Direct messages, group chats and rooms, end-to-end encrypted. You are signed in with your {{ brand_name }}{{ brand_accent }} account.</div>
+<div class="mx-tools">
+  <a class="btn small" href="{{ element_url }}" target="_blank" rel="noopener">Open in Its Own Window</a>
+  <a class="btn small" href="/my/community">Chat Settings</a>
+  {% if push_on %}<a class="btn small" href="/my/community#push-box">Notifications</a>{% endif %}
+  <span class="dim" style="font-size:.84rem">The Element phone app works with the same account: sign in with <span class="mono">{{ matrix_server }}</span>.</span>
+</div>
+{% if ready %}
+<iframe id="mx-frame" class="mx-frame" src="{{ frame_src }}" title="Chat" allow="camera; microphone; clipboard-read; clipboard-write; display-capture; autoplay; fullscreen; notifications" referrerpolicy="origin"></iframe>
+{% else %}
+<div class="panel"><b>Chat is not available right now.</b> {{ why }}</div>
+{% endif %}
+{% endblock %}

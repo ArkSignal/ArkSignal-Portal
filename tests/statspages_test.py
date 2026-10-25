@@ -1,6 +1,7 @@
 """The Weather Statistics and Radiosonde Statistics pages: the menus, the filters on the page, the data files, the settings, and the in-container checks (stats_unit.py)."""
 import subprocess, requests
 exec(open("roles_test.py", encoding="utf-8").read().split("ok_all=True")[0])
+MEM = sess("plain1", "plainpassword1")   # Planefence, the code plug exports, downloads and the My ... pages are for signed-in members
 ok_all = True
 def check(name, cond, extra=""):
     global ok_all
@@ -13,7 +14,7 @@ w = requests.get(B + "/weather/statistics")
 check("Weather Statistics is a public page with source, reading, period and area filters", w.status_code == 200 and all(x in w.text for x in ('data-src="members"', 'data-src="aprs"', 'data-src="airport"', 'id="ws-metric"', 'id="ws-period"', 'id="ws-area"', 'id="ws-tbl"')))
 s = requests.get(B + "/sondes/statistics")
 check("Radiosonde Statistics has dates, kinds, status and a search for a flight, station or site", s.status_code == 200 and all(x in s.text for x in ('id="rs-from"', 'data-src="nws"', 'id="rs-status"', 'id="rs-find"', 'id="rs-tbl"')))
-nav = requests.get(B + "/").text
+nav = MEM.get(B + "/").text
 check("both are in their menus, and the receiving stations are the sonde stations", "/weather/statistics" in nav and "/sondes/statistics" in nav and "My Sonde Stations" in nav)
 j = requests.get(B + "/api/weather/stats.json", params={"sources": "members,aprs,airport", "metric": "temp_f", "period": "24h"}).json()
 check("the weather data file has the series and the stations", all(k in j for k in ("series", "stations", "selected", "label")))

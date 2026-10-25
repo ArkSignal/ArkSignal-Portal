@@ -2,6 +2,7 @@
 the map data, the layer and their own pages, the area and the takedown list are kept to, and every shared page lists the service and its How to Feed page."""
 import importlib.util, json, os, re, subprocess, time, requests
 exec(open("roles_test.py", encoding="utf-8").read().split("ok_all=True")[0])
+MEM = sess("plain1", "plainpassword1")   # Planefence, the code plug exports, downloads and the My ... pages are for signed-in members
 ok_all = True
 def check(n, c, x=""):
     global ok_all
@@ -81,7 +82,7 @@ adm = sess("marty", PW); me = sess("plain1", "plainpassword1"); other = sess("cl
 
 g = anon.get(B + "/ais/")
 check("River Traffic is public and says nothing has been heard yet", g.status_code == 200 and "River Traffic" in g.text and "none has been heard yet" in g.text and "Search and Filters" in g.text)
-check("the main menu has a River Traffic group with the overview, the map, How to Feed and My AIS Stations", all(x in anon.get(B + "/").text for x in ('href="/ais/"', 'href="/ais/map"', 'href="/feed/ais"', 'href="/my/ais"')))
+check("the main menu has a River Traffic group with the overview, the map, How to Feed and My AIS Stations", all(x in MEM.get(B + "/").text for x in ('href="/ais/"', 'href="/ais/map"', 'href="/feed/ais"', 'href="/my/ais"')))
 check("My AIS Stations needs a sign-in and My Account has the tab", anon.get(B + "/my/ais", allow_redirects=False).status_code in (302, 401, 403) and 'href="/my/ais"' in me.get(B + "/my/").text)
 t = token(me, "/my/ais")
 r = me.post(B + "/my/ais/add", data={"csrf_token": t, "name": "Pine Bluff river station", "place": "Arkansas River", "public": "1", "notes": "rtl_ais"}, headers=AJAX)

@@ -146,9 +146,9 @@ act(adm, "/admin/settings/save", "/admin/settings", **dict(base, live_icon_scale
 c = sess("claimer1", "claimpassword1")
 for url, tab, label in [("/my/", "/my/", "My Feeders"), ("/my/claim", "/my/", "My Feeders"), ("/my/alerts", "/my/alerts", "Aircraft Alerts"), ("/my/profile", "/my/profile", "Profile"), ("/my/password", "/my/password", "Password")]:
     h = c.get(B + url).text
-    tabs = re.findall(r'<div class="subnav">(.*?)</div>', h, re.S)
-    check(f"{url} shows the My-area tab bar with {label} active", tabs and f'<a class="active" href="{tab}">{label}</a>' in tabs[0] and tabs[0].count("<a ") >= 10, tabs[:1])   # the claim and add forms are on the same page as each list, not tabs of their own
+    menu = h.split('id="my-side-list"')[1].split("</script>")[0] if 'id="my-side-list"' in h else ""
+    check(f"{url} shows the My Account side menu with {label} marked", f'<a class="active" href="{tab}" aria-current="page">{label}</a>' in menu and menu.count("<a ") >= 10, menu[:200])   # the claim and add forms are on the same page as each list, not entries of their own
 check("My Feeders has the Claim a Feeder form on the same page", "Claim a Feeder" in c.get(B + "/my/").text and "Claim by UUID" in c.get(B + "/my/").text)
-check("station page keeps My Feeders active in the tab bar", re.search(r'<a class="active" href="/my/">My Feeders</a>', c.get(B + "/my/feeders/pubaaaa1-0000-4000-8000-000000000001").text) is not None)
+check("station page keeps My Feeders marked in the account menu", re.search(r'<a class="active" href="/my/"(?: aria-current="page")?>My Feeders</a>', c.get(B + "/my/feeders/pubaaaa1-0000-4000-8000-000000000001").text) is not None)
 check("no leftover back-link buttons on My pages", "&larr; My Feeders" not in c.get(B + "/my/profile").text and "&larr; My Feeders" not in c.get(B + "/my/claim").text)
 print("ALL PASS" if ok_all else "SOME FAILED")

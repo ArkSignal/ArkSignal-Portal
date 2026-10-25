@@ -10,7 +10,8 @@ import urllib.request
 
 from .settings import get_secret, get_setting
 
-DEFAULT_REPO = "mallison01/adsb-portal-content"   # public: only the two public-safe files, published automatically by .github/workflows/publish-content.yml
+DEFAULT_REPO = "ArkSignal/ArkSignal-Content"   # public, in the ArkSignal organization: only the two public-safe files, published by tools/publish_content.sh (the commit hook and every release)
+OLD_REPO = "mallison01/adsb-portal-content"   # where they were before the move to the organization: a site that still has it saved reads the new one
 MAX_BYTES = 1_000_000
 _lock = threading.Lock()
 _cache = {}      # name -> {"data", "etag", "at" (last good), "tried" (last attempt), "error"}
@@ -22,7 +23,7 @@ def conf():
             return max(1, min(1440, int(v)))
         except (TypeError, ValueError):
             return d
-    return {"enabled": (get_setting("content_enabled") or "1") == "1", "repo": get_setting("content_repo") or DEFAULT_REPO, "branch": get_setting("content_branch") or "main",
+    return {"enabled": (get_setting("content_enabled") or "1") == "1", "repo": (lambda r: DEFAULT_REPO if r in ("", OLD_REPO) else r)((get_setting("content_repo") or "").strip()), "branch": get_setting("content_branch") or "main",
             "minutes": _int(get_setting("content_minutes"), 10), "base": (get_setting("content_base_url") or "").strip().rstrip("/"), "has_token": bool(get_setting("content_token"))}
 
 

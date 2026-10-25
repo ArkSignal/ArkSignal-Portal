@@ -20,7 +20,7 @@ name: Build and publish
 on:
   push:
     branches: [main]
-    # the live Release Notes and Roadmap are published separately (publish-content.yml); text-only changes do not need a new image
+    # the live Release Notes and Roadmap are published separately (tools/publish_content.sh, run by the commit hook and by the release script); text-only changes do not need a new image
     paths-ignore:
       - app/release_notes.json
       - app/roadmap.json
@@ -57,6 +57,8 @@ jobs:
           - {image: adsb-acars, dockerfile: Dockerfile.acars, context: ., file: deploy/acars/Dockerfile.acars}
           - {image: adsb-mesh, dockerfile: Dockerfile.mesh, context: ., file: deploy/mesh/Dockerfile.mesh}
           - {image: adsb-mesh-mqtt, dockerfile: Dockerfile.mesh-mqtt, context: ., file: deploy/mesh/Dockerfile.mesh-mqtt}
+          - {image: adsb-element, dockerfile: Dockerfile.element, context: ., file: deploy/element/Dockerfile.element}
+          - {image: adsb-matrix, dockerfile: Dockerfile.matrix, context: ., file: deploy/matrix/Dockerfile.matrix}
           - {image: adsb-mlat, dockerfile: Dockerfile.mlat, context: deploy/mlat, file: deploy/mlat/Dockerfile.mlat}
           - {image: adsb-stack, dockerfile: Dockerfile.stack, context: ., file: deploy/stack/Dockerfile.stack}
     steps:

@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}{{ f.from_code }} to {{ f.to_code }}{% endblock %}
+{% block content %}
+{% if not shared %}{% with active = 'myflights' %}{% include "partials/_my_subnav.html" %}{% endwith %}{% endif %}
+<h1><span>{{ f.from_code }}</span> to {{ f.to_code }}</h1>
+<div class="sub">{{ f.from_city or f.from_name }} to {{ f.to_city or f.to_name }}{% if f.when %} &middot; <time class="ts" datetime="{{ f.when.isoformat() }}" data-fmt="d">{{ f.when.strftime('%Y-%m-%d') }}</time>{% endif %}{% if f.flight_no %} &middot; {{ f.flight_no }}{% endif %}{% if f.airline %} &middot; {{ f.airline }}{% endif %}
+  {% if not shared %}<a class="btn small" href="/my/flights/{{ f.id }}/edit">Edit</a> <a class="btn small" href="/my/flights/shares?flight={{ f.id }}">Share</a> <a class="btn small neutral" href="/my/flights">Back to My Flights</a>{% elif diary_url %}<a class="btn small neutral" href="{{ diary_url }}">Back to the Diary</a>{% endif %}</div>
+<div class="tiles" style="margin-bottom:14px">
+  <div class="panel tile"><div class="tv">{{ dist(f.distance_km) }}</div><div class="tl">Distance</div></div>
+  <div class="panel tile"><div class="tv">{{ hm(der.air if der.air is not none else der.total) }}</div><div class="tl">{{ 'Air time' if der.air is not none else 'Time' }}</div></div>
+  <div class="panel tile"><div class="tv">{{ hm(der.total) }}</div><div class="tl">Total time</div></div>
+  <div class="panel tile"><div class="tv">{{ f.aircraft_type or '-' }}</div><div class="tl">Aircraft{% if f.registration %} &middot; {{ f.registration }}{% endif %}</div></div>
+</div>
+{% call sec('times', 'Times', True) %}
+  <table><thead><tr><th></th><th>Scheduled</th><th>Actual</th></tr></thead><tbody>
+  {% for s, label, w in stages %}<tr><td>{{ label }}</td>
+    <td>{% if f['sched_' ~ s] %}<time class="ts" datetime="{{ f['sched_' ~ s].isoformat() }}" data-fmt="dt" data-tz="{{ f.from_tz if w == 'dep' else f.to_tz }}">{{ f['sched_' ~ s].strftime('%Y-%m-%d %H:%M') }} UTC</time>{% else %}<span class="dim">-</span>{% endif %}</td>
+    <td>{% if f['act_' ~ s] %}<time class="ts" datetime="{{ f['act_' ~ s].isoformat() }}" data-fmt="dt" data-tz="{{ f.from_tz if w == 'dep' else f.to_tz }}">{{ f['act_' ~ s].strftime('%Y-%m-%d %H:%M') }} UTC</time>{% else %}<span class="dim">-</span>{% endif %}</td></tr>{% endfor %}
+  <tr><td>Taxi out</td><td colspan="2">{{ hm(der.taxi_out) }}</td></tr><tr><td>Taxi in</td><td colspan="2">{{ hm(der.taxi_in) }}</td></tr></tbody></table>
+  <p class="dim" style="font-size:.85rem;margin-bottom:0">Times are shown in UTC here (the airports are {{ f.from_tz }} and {{ f.to_tz }}); {% if not shared %}the edit page writes them in each airport's own time.{% endif %}</p>
+{% endcall %}
+{% if pax or f.notes %}{% call sec('people', 'People and Notes', True) %}
+  {% if pax %}<table><thead><tr><th>Name</th><th>Class</th><th>Reason</th><th>Seat</th></tr></thead><tbody>{% for p in pax %}<tr><td>{{ p.name }}</td><td>{{ p.klass }}</td><td>{{ p.reason }}</td><td>{{ p.seat }}{% if p.seat_kind %} <span class="dim">{{ p.seat_kind }}</span>{% endif %}</td></tr>{% endfor %}</tbody></table>{% endif %}
+  {% if f.notes %}<p class="cm-pre" style="margin-bottom:0">{{ f.notes }}</p>{% endif %}
+{% endcall %}{% endif %}
+{% if track or not shared %}{% call sec('track', 'Track' ~ (' (' ~ (track.source ~ ', ' if track.source else '') ~ stats.n ~ ' points)' if track else ''), True) %}
+  <link rel="stylesheet" href="{{ leaflet_base }}/leaflet.css" crossorigin="anonymous">
+  {% if track %}
+  <div class="tiles" style="margin:0 0 10px">
+    <div class="panel tile"><div class="tv" style="font-size:1.2rem">{{ dist(stats.km) }}</div><div class="tl">Flown</div></div>
+    <div class="panel tile"><div class="tv" style="font-size:1.2rem">{{ hm(stats.minutes) }}</div><div class="tl">Tracked</div></div>
+    {% if stats.max_alt is not none %}<div class="panel tile"><div class="tv" style="font-size:1.2rem">{{ '{:,}'.format(stats.max_alt | round | int) }} ft</div><div class="tl">Highest</div></div>{% endif %}
+    {% if stats.max_kt is not none %}<div class="panel tile"><div class="tv" style="font-size:1.2rem">{{ stats.max_kt }} kt</div><div class="tl">Fastest</div></div>{% endif %}
+  </div>
+  <div id="ftmap" style="height:460px;border-radius:14px;overflow:hidden;background:var(--map-bg)"></div>
+  <style>.leaflet-container{background:var(--map-bg);font:inherit}.leaflet-tile-pane{filter:var(--map-filter)}@media(max-width:700px){ #ftmap{height:340px!important}}</style>
+  <p class="dim" style="font-size:.85rem">The line is colored by height (low is blue, high is orange). {% if not shared %}<form class="inline" method="post" action="/my/flights/{{ f.id }}/track/remove" data-confirm="Remove the track from this flight?"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small warn" type="submit">Remove Track</button></form>{% endif %}</p>
+  {% endif %}
+  {% if not shared %}
+  <form method="post" action="/my/flights/{{ f.id }}/track/upload" enctype="multipart/form-data" class="cm-row">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div><label for="tk-file">{{ 'Replace the track with' if track else 'Add a track from' }} a KML or GPX file (or an AirTrail track)</label><input type="file" id="tk-file" name="file" accept=".kml,.gpx,.json" required></div>
+    <button class="btn small" type="submit">{{ 'Replace Track' if track else 'Add Track' }}</button>
+  </form>
+  <p class="dim" style="font-size:.85rem;margin-bottom:0">A track with times also fills in this flight's takeoff and landing, the aircraft and the registration when they are empty.</p>
+  {% endif %}
+{% endcall %}{% endif %}
+{% if track %}
+<script nonce="{{ csp_nonce() }}" src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script><script nonce="{{ csp_nonce() }}" src="/static/safehtml.js"></script>
+<script nonce="{{ csp_nonce() }}">
+(function () {
+  var box = document.getElementById("ftmap");
+  try {
+    var map = L.map("ftmap").setView([{{ map_lat | float }}, {{ map_lon | float }}], 5);
+    L.tileLayer({{ tile_url | tojson }}, {maxZoom: 19, attribution: {{ tile_attr | tojson }}}).addTo(map);
+    fetch({{ (track_url or "/my/flights/" ~ f.id ~ "/track.json") | tojson }}).then(function (r) { return r.json(); }).then(function (d) {
+      var p = d.points, hi = Math.max.apply(null, p.map(function (x) { return x[3] || 0; })) || 1, all = [];
+      function col(a) { var k = Math.min(1, Math.max(0, (a || 0) / hi)); return "hsl(" + Math.round(210 - 170 * k) + ",90%," + Math.round(60 - 8 * k) + "%)"; }
+      for (var i = 1; i < p.length; i++) L.polyline([[p[i - 1][1], p[i - 1][2]], [p[i][1], p[i][2]]], {color: col(p[i][3]), weight: 4, opacity: .9}).addTo(map);
+      p.forEach(function (x) { all.push([x[1], x[2]]); });
+      L.circleMarker(all[0], {radius: 6, color: "#fff", fillColor: "#3ee6a8", fillOpacity: 1}).addTo(map).bindTooltip("Start of the track");
+      L.circleMarker(all[all.length - 1], {radius: 6, color: "#fff", fillColor: "#ff8c42", fillOpacity: 1}).addTo(map).bindTooltip("End of the track");
+      map.fitBounds(all, {padding: [30, 30]});
+    });
+  } catch (e) { box.textContent = "The map could not be drawn: " + e.message; }
+})();
+</script>
+{% endif %}
+{% endblock %}

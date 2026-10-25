@@ -13,7 +13,17 @@ TYPES = [
     ("mesh", "Mesh Nodes", "/mesh/map"),
     ("ais", "River Traffic", "/ais/map"),
     ("drones", "Drones", "/drones/map"),
+    ("satellites", "Satellites", "/radio/satellites/map"),
 ]
+
+
+# the map types that belong to a service that can be switched off or hidden (Feature Access): the selector offers only the maps the viewer may open
+GATED = {"weather": "wx_enabled", "balloons": "sonde_enabled", "repeaters": "repeater_enabled", "aprs": "aprs_enabled", "mesh": "mesh_enabled", "ais": "ais_enabled", "drones": "rid_enabled", "satellites": "satpass_enabled"}
+
+
+def visible_types():
+    from .settings import cfg   # cfg answers "0" for a service that is off or hidden from this viewer
+    return [t for t in TYPES if t[0] not in GATED or cfg(GATED[t[0]]) == "1"]
 
 
 def section_tags():

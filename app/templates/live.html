@@ -173,24 +173,24 @@
   <input type="range" id="rp-slide" min="0" max="1439" step="1" aria-label="Time of day">
 </div>
 
-<script src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script>
-<script src="/static/touchhit.js"></script>
-{% if m.sondes %}<script src="/static/sondeicons.js"></script>{% endif %}
-<script src="/static/wxmap.js"></script>
-<script src="/static/maplayers.js"></script>
-<script src="/static/labelfit.js?v={{ app_version }}"></script>
-<script src="/static/replay.js?v={{ app_version }}"></script>
-<script src="/static/heatlayer.js?v={{ app_version }}"></script>
-<script src="/static/pasttraffic.js?v={{ app_version }}"></script>
-<script src="/static/drivetimes.js?v={{ app_version }}"></script>
-<script src="/static/mylocation.js?v={{ app_version }}"></script>
-<script src="/static/countyoutline.js?v={{ app_version }}"></script>
-<script>
+<script nonce="{{ csp_nonce() }}" src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script><script nonce="{{ csp_nonce() }}" src="/static/safehtml.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/touchhit.js"></script>
+{% if m.sondes %}<script nonce="{{ csp_nonce() }}" src="/static/sondeicons.js"></script>{% endif %}
+<script nonce="{{ csp_nonce() }}" src="/static/wxmap.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/maplayers.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/labelfit.js?v={{ app_version }}"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/replay.js?v={{ app_version }}"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/heatlayer.js?v={{ app_version }}"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/pasttraffic.js?v={{ app_version }}"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/drivetimes.js?v={{ app_version }}"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/mylocation.js?v={{ app_version }}"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/countyoutline.js?v={{ app_version }}"></script>
+<script nonce="{{ csp_nonce() }}">
 // the classic map's icon file expects these globals; none of them are used for drawing here
 var halloween = false, atcStyle = false, squareMania = false, usp = {has: function () { return false; }, getInt: function () { return null; }};
 </script>
-<script src="/api/markers.js"></script>
-<script>
+<script nonce="{{ csp_nonce() }}" src="/api/markers.js"></script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var ALLSTATIONS = {{ stations | tojson }}, LAYERS = {{ layers | tojson }}, M = {{ m | tojson }}, STATIONS = {{ points | tojson }};
   var $ = function (id) { return document.getElementById(id); };
@@ -313,6 +313,7 @@ var halloween = false, atcStyle = false, squareMania = false, usp = {has: functi
 
   var WATCHNAMES = {};
   if (M.signedIn) $("f-watch-l").style.display = "";
+  if (!M.signedIn) $("c-kml").style.display = "none";   // downloads of a flight are for signed-in members only
   var chosen = new Set(M.focus || []);
   var data = new Map(), markers = new Map(), trails = new Map(), trailLines = new Map(), selected = null, follow = false, trailSel = true;
   var multi = new Set(), multiOn = false, multiTraces = new Map(), multiLayer = L.layerGroup().addTo(map), persist = false;   // several aircraft selected at once (key M, T); persistence: aircraft that went quiet stay on the map (key P)
@@ -703,6 +704,7 @@ var halloween = false, atcStyle = false, squareMania = false, usp = {has: functi
       '<svg viewBox="0 0 ' + W + " " + H + '" preserveAspectRatio="none"><path d="' + path + '" fill="none" stroke="var(--acc)" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg></div>';
   }
   $("c-kml").addEventListener("click", function () {
+    if (!M.signedIn) return;
     var a = selected && data.get(selected), pts = trace.ok && trace.hex === selected ? trace.pts : null;
     if (!a || !pts || pts.length < 2) { alert("There is no recorded track for this aircraft yet."); return; }
     var name = esc(nm(a)), co = pts.filter(function (p) { return p[1] != null && p[2] != null; }).map(function (p) { return p[2] + "," + p[1] + "," + Math.round((typeof p[3] === "number" ? p[3] : 0) * 0.3048); }).join(" ");
@@ -1603,12 +1605,17 @@ var halloween = false, atcStyle = false, squareMania = false, usp = {has: functi
   if (pref("persist") === "1") { $("f-persist").checked = true; persist = true; }
   // ---- past traffic: the Replay bar and the heat map (static/pasttraffic.js, static/replay.js, static/heatlayer.js)
   var replayMeta = {}, past = null;
+  var metaBusy = 0, metaCount = 0;
+  function metaFor(hex, now) {   // the replay files carry no registration or type, so each aircraft's own icon needs them asked for once (a few at a time)
+    replayMeta[hex] = false; metaBusy++; metaCount++;
+    fetch("/api/trace/" + hex + ".json?at=" + Math.floor(now > 1e11 ? now / 1000 : now), {cache: "no-store"}).then(function (r) { return r.json(); }).then(function (d) { if (d && (d.reg || d.type)) replayMeta[hex] = {r: d.reg || null, t: d.type || null}; }).catch(function () {}).then(function () { metaBusy--; });
+  }
   if (window.ArkPast && window.ArkReplay && window.ArkHeat) {
     past = ArkPast.init({map: map, speed: M.replaySpeed, startAgoMinutes: M.replayStart, heatDuration: M.heatDuration, heatMaxDays: M.heatMaxDays,
-      ingest: function (f) { f.aircraft.forEach(function (a) { var m = replayMeta[a.hex]; if (m) { a.r = m.r; a.t = m.t; } }); ingest(f); },
+      ingest: function (f) { f.aircraft.forEach(function (a) { var m = replayMeta[a.hex]; if (m) { a.r = m.r; a.t = m.t; } else if (m === undefined && metaBusy < 6 && metaCount < 400) metaFor(a.hex, f.now); }); ingest(f); },
       clear: function () { data = new Map(); trails.clear(); },
       altitude: function () { var mn = parseFloat($("f-min").value), mx = parseFloat($("f-max").value), k = U("alt")[0]; return {min: isNaN(mn) ? null : Math.round(mn / k), max: isNaN(mx) ? null : Math.round(mx / k)}; },
-      onMode: function (on) { replayMeta = {}; if (!on) { poll(); } if (selected) loadTrace(true); setTimeout(renderLegend, 0); }});
+      onMode: function (on) { replayMeta = {}; metaCount = 0; if (!on) { poll(); } if (selected) loadTrace(true); setTimeout(renderLegend, 0); }});
     document.addEventListener("ark-heat-state", function () { setTimeout(renderLegend, 0); setBadge("past", (past.heatOn() ? 1 : 0) + (past.replayOn() ? 1 : 0)); });
     document.addEventListener("keydown", function (e) { if ((e.key === "y" || e.key === "Y") && !e.ctrlKey && !e.metaKey && !e.altKey && !/^(INPUT|TEXTAREA|SELECT)$/.test((e.target || {}).tagName || "")) { past.toggleReplay(); setBadge("past", (past.heatOn() ? 1 : 0) + (past.replayOn() ? 1 : 0)); } });
     past.boot();
@@ -1617,10 +1624,10 @@ var halloween = false, atcStyle = false, squareMania = false, usp = {has: functi
   applyUrl(); poll(); setInterval(poll, (PHONE ? Math.max(M.refresh, M.mobileRefresh) : M.refresh) * 1000);
 })();
 </script>
-<script src="/static/mapsearch.js?v={{ app_version }}" data-ark-rerun></script>
-<script src="/static/mapfull.js?v={{ app_version }}" data-ark-rerun></script>
-<script src="/static/mapfit.js?v={{ app_version }}" data-ark-rerun></script>
-<script src="/static/mapfs.js?v={{ app_version }}" data-ark-rerun></script>
-<script src="/static/mapheadfold.js?v={{ app_version }}" data-ark-rerun></script>
-<script src="/static/mapviews.js?v={{ app_version }}" data-ark-rerun></script>
+<script nonce="{{ csp_nonce() }}" src="/static/mapsearch.js?v={{ app_version }}" data-ark-rerun></script>
+<script nonce="{{ csp_nonce() }}" src="/static/mapfull.js?v={{ app_version }}" data-ark-rerun></script>
+<script nonce="{{ csp_nonce() }}" src="/static/mapfit.js?v={{ app_version }}" data-ark-rerun></script>
+<script nonce="{{ csp_nonce() }}" src="/static/mapfs.js?v={{ app_version }}" data-ark-rerun></script>
+<script nonce="{{ csp_nonce() }}" src="/static/mapheadfold.js?v={{ app_version }}" data-ark-rerun></script>
+<script nonce="{{ csp_nonce() }}" src="/static/mapviews.js?v={{ app_version }}" data-ark-rerun></script>
 {% endblock %}

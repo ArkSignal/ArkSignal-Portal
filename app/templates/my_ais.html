@@ -3,9 +3,9 @@
 {% from "partials/_aisrx.html" import fields with context %}
 {% block title %}My AIS Stations{% endblock %}
 {% block content %}
+{% with active = 'ais' %}{% include "partials/_my_subnav.html" %}{% endwith %}
 <h1>My <span>AIS Stations</span></h1>
 <div class="sub">Your AIS receivers (AIS-catcher, rtl_ais or any receiver that outputs standard AIS sentences) that send the boats and barges they hear to <a href="/ais/">River Traffic</a>. Each gets a private upload address. New to this? Read <a href="/feed/ais">How to Feed AIS</a>.</div>
-{% with active = 'ais' %}{% include "partials/_my_subnav.html" %}{% endwith %}
 
 {% call sec('add', 'Add a Station', False) %}
   <form method="post" action="/my/ais/add" data-async data-async-target="#my-ais" data-reset>

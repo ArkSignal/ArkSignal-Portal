@@ -60,8 +60,8 @@ check("and a friend request by call sign or email says no member matches", "No m
 check("moderators still find them by email", names("claimer1@example.com", adm) == ["claimer1"])
 r = post(other, "/my/friends/prefs", contact_policy="anyone", show_online="1", find_by_callsign="1", find_by_email="1")
 check("ticking the boxes switches both back on", r.json()["ok"] and psql("select find_by_email, find_by_callsign from users where username = 'claimer1'") == "t|t")
-pg = other.get(B + "/my/friends").text
-check("the friends page has the two choices, ticked, with the email promise", 'name="find_by_callsign" value="1" checked' in pg and 'name="find_by_email" value="1" checked' in pg and "never shown to anyone" in pg)
+pg = other.get(B + "/my/community").text
+check("the community settings page has the two choices, ticked, with the email promise", 'name="find_by_callsign" value="1" checked' in pg and 'name="find_by_email" value="1" checked' in pg and "never shown to anyone" in pg)
 
 # site settings
 setting("people_search_email", "0")

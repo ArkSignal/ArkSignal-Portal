@@ -27,7 +27,7 @@
   {% if p.callsign %}<p class="dim" style="margin:12px 0 0;font-size:.85rem">
     {% if p.last_push %}Last tried <time class="ts" datetime="{{ p.last_push.isoformat() }}">{{ p.last_push }}</time>: {% if p.last_ok %}<span class="tag live">sent</span>{% else %}<span class="tag off">not sent</span>{% endif %} {{ p.last_result }}.{% else %}Nothing has been sent yet.{% endif %}
     {{ '{:,}'.format(p.sent or 0) }} report{{ '' if p.sent == 1 else 's' }} sent so far.{% if p.fail_count and p.fail_count >= 8 %} It paused after repeated failures and tries again every few hours; fix the problem and press Send Now.{% endif %}</p>{% endif %}
-  <script>
+  <script nonce="{{ csp_nonce() }}">
   (function () {
     var b = document.getElementById("ap-prev"); if (!b) return;
     b.addEventListener("click", function () {

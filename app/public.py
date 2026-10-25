@@ -232,8 +232,19 @@ def _feed_context(**extra):
 
 @bp.route("/feed/")
 def feed():
+    """The overview of everything a member can feed the network: the aircraft receiver and each of the other services, with what each needs and where its own page is."""
     if request.args.get("check") == "1":
         return redirect("/feed/check?check=1", code=302)
+    from . import services
+    others = []
+    for s in services.enabled():
+        if s.get("feed"):
+            others.append({"name": s["feed"][0], "href": s["feed"][1], "text": (s.get("about") or ("", "", ""))[2]})
+    return render_template("feed_overview.html", fsub="overview", others=others, **_feed_context())
+
+
+@bp.route("/feed/adsb")
+def feed_adsb():
     return render_template("feed.html", fsub="adsb", **_feed_context())
 
 
@@ -286,7 +297,7 @@ def about():
     from . import build_info
     built = build_info.read()["built"]
     from . import services
-    return render_template("about.html", service_about=[s["about"] for s in services.enabled() if s.get("about")], intro=cfg("about_intro"), team=cfg("about_team"), tagline=cfg("site_tagline"), built=built[:10] if built[:4].isdigit() else None,
+    return render_template("about.html", service_about=[s["about"] for s in services.enabled() if s.get("about") and (current_user.is_authenticated or not s["about"][0].startswith(("/my/", "/chat", "/admin")))], intro=cfg("about_intro"), team=cfg("about_team"), tagline=cfg("site_tagline"), built=built[:10] if built[:4].isdigit() else None,
                            feed_host=cfg("feed_host"), license_note=cfg("map_attribution"))
 
 
@@ -345,6 +356,8 @@ def view_tool(slug):
         return redirect("/live" + ("?icao=" + icao.lower() if __import__("re").match(r"^[0-9a-fA-F]{6}$", icao) else ""), code=301)
     if t is None:
         abort(404)
+    if t["slug"] in ("planefence", "plane-alert") and not current_user.is_authenticated:   # heavy pages: members only
+        return redirect("/my/login?next=" + request.path)
     if t["slug"] in ("heatmap", "replay") and cfg("history_native") == "1" and request.args.get("classic") != "1":
         # the portal's own Replay and Heat Map on the live map; ?classic=1 (or Settings > Public Pages) brings back the embedded tar1090 pages
         q = {"heatmap": "heat=1", "replay": "replay=1"}[t["slug"]]

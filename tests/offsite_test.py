@@ -31,6 +31,13 @@ check("it says secrets are saved", "saved: leave blank to keep it" in page)
 ok, msg, _ = act2(adm, "/admin/backups/offsite/save", {**base, "secret": "", "passphrase": "", "small_keep": "5"})
 check("saving again with the secret fields blank works", ok, msg)
 
+ok, msg, _ = act2(adm, "/admin/backups/offsite/save", {**base, "type": "nas", "secret": "", "passphrase": "", "small_keep": "5"})
+page = adm.get(B + "/admin/backups").text
+check("the NAS choice saves, comes back selected, and shows the step-by-step setup", ok and '<option value="nas" selected>' in page and "switch on its <b>SFTP</b> service" in page and "Test the Connection" in page, msg)
+j2 = requests.get(B + "/internal/backup/config", headers=H).json()
+check("the backup service still sees a plain SFTP destination, so the service needs no change", j2["config"]["type"] == "sftp", j2["config"].get("type"))
+act2(adm, "/admin/backups/offsite/save", {**base, "secret": "", "passphrase": "", "small_keep": "5"})
+check("choosing SFTP again drops the NAS preset", '<option value="sftp" selected>' in adm.get(B + "/admin/backups").text)
 check("the service API is hidden without the token", requests.get(B + "/internal/backup/config").status_code == 404)
 check("and with a wrong token", requests.get(B + "/internal/backup/config", headers={"Authorization": "Bearer nope"}).status_code == 404)
 check("and when the request came through the public proxy (forwarded address present)", requests.get(B + "/internal/backup/config", headers={**H, "X-Forwarded-For": "203.0.113.5"}).status_code == 404)

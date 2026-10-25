@@ -11,7 +11,7 @@ def many(path, n=24):
     return [requests.get(B + path).text for _ in range(n)]
 def post(path, data):
     j = adm.post(B + path, data=dict(data, csrf_token=tok(adm, "/admin/updates")), headers={"X-Requested-With": "XMLHttpRequest"}).json(); return j["ok"], j["message"]
-base = dict(enabled="1", repo="mallison01/adsb-portal-content", branch="main", minutes="2", token="", base="")
+base = dict(enabled="1", repo="ArkSignal/ArkSignal-Content", branch="main", minutes="2", token="", base="")
 
 # the built-in copies (live content off first, so the answer does not depend on what the public repository holds today)
 _off = dict(base); _off.pop("enabled")
@@ -63,7 +63,7 @@ ok, msg = post("/admin/updates/content", dict(base, base=f"http://{os.environ.ge
 ok, msg = post("/admin/updates/content/test", {})
 check("an unreachable source falls back to the built-in copy and says why", (not ok) and "built-in" in msg and all("Planefence and Plane-Alert" in t for t in many("/roadmap")), msg)
 page = adm.get(B + "/admin/updates").text
-check("the Updates page shows the Live Content settings and the last error", 'id="sec-live-content"' in page and "mallison01/adsb-portal-content" in page)
+check("the Updates page shows the Live Content settings and the last error", 'id="sec-live-content"' in page and "ArkSignal/ArkSignal-Content" in page)
 check("a bad repository name is refused", not post("/admin/updates/content", dict(base, repo="not a repo"))[0])
 plain = sess("plain1", "plainpassword1")
 check("an ordinary user cannot change it", plain.post(B + "/admin/updates/content", data={}, allow_redirects=False).status_code in (302, 400, 401, 403, 404))

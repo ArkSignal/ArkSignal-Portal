@@ -87,7 +87,7 @@ def post(s, path, **data):
     return s.post(B + path, data=dict(data, csrf_token=csrf(s)), headers={"X-Requested-With": "XMLHttpRequest"})
 
 check("bridges are off by default: the page does not exist and the menu does not list it", me.get(B + "/my/bridges").status_code == 404 and 'href="/my/bridges"' not in me.get(B + "/my/").text)
-check("the settings are in Admin > Settings", all(x in adm.get(B + "/admin/settings").text for x in ("APRS Bridge for Chats", "Mesh Bridge for Chats", "APRS Bridge: Messages per Hour per Member", "Mesh Bridge: Gateway Token", "Bridges: Links per Member", "Who Can See Radio Bridges")))
+check("the settings are in Admin > Settings", all(x in adm.get(B + "/admin/settings").text for x in ("APRS Bridge for Chats", "Mesh Bridge for Chats", "APRS Bridge: Messages per Hour per Member", "Mesh Bridge: Gateway Token", "Bridges: Links per Member", "Who Can Use Radio Bridges")))
 setting("bridge_aprs_enabled", "1"); setting("bridge_mesh_enabled", "1"); setting("bridge_aprs_server", "127.0.0.1:14591")
 pg = me.get(B + "/my/bridges").text
 check("with the bridges on, a member sees the page with the rules, the licensing words and no way to link yet", all(x in pg for x in ("APRS Messaging", "Meshtastic Mesh", "amateur radio license", "plain ASCII text", "never encrypted", "My Links (0")) and 'href="/my/bridges"' in me.get(B + "/my/").text)
@@ -100,7 +100,7 @@ check("bad call signs, your own call sign and a chat that is not yours are refus
       and "your own call sign" in post(me, "/my/bridges/add", kind="aprs", remote="KD5TST-7", conv_id=cid).json()["message"] and "Choose one of your chats" in post(me, "/my/bridges/add", kind="aprs", remote="W5REM-9", conv_id="99999").json()["message"])
 check("a link is made", post(me, "/my/bridges/add", kind="aprs", remote="w5rem-9", conv_id=cid).json()["ok"] and psql("select remote from bridge_links") == "W5REM-9")
 check("the same link twice is refused", "already linked" in post(me, "/my/bridges/add", kind="aprs", remote="W5REM-9", conv_id=cid).json()["message"])
-check("the chat page lists the radio link", "Radio links" in me.get(B + f"/chat/{cid}").text and "W5REM-9" in me.get(B + f"/chat/{cid}").text)
+check("the chat page lists the radio link", "Radio:</b> send what you write" in me.get(B + f"/chat/{cid}").text and "W5REM-9" in me.get(B + f"/chat/{cid}").text)
 
 # out
 r = post(me, f"/chat/{cid}/send", body="Hello from the net").json()
@@ -113,7 +113,7 @@ post(other, f"/chat/{cid}/send", body="I am not a licensed operator")
 time.sleep(2)
 check("what another member writes in the chat is never sent", log().count("KD5TST>APARKS") == before)
 r = post(me, f"/chat/{cid}/send", body="café \U0001F600").json()
-check("text that is not plain ASCII is kept in the chat but not sent, and the sender is told", r["ok"] and "plain ASCII" in r["note"] and psql("select count(*) from conv_messages where body like 'caf%'") == "1")
+check("text that is not plain ASCII is kept in the chat but not sent, and the sender is told", r["ok"] and "plain ASCII" in r["note"] and sum(1 for m in me.get(B + f"/chat/{cid}/poll").json()["messages"] if m["body"].startswith("caf")) == 1)
 r = post(me, f"/chat/{cid}/send", body="x" * 80).json()
 check("a message over the length limit is kept in the chat but not sent, and the sender is told", "67 characters" in r["note"])
 setting("bridge_aprs_rate_per_hour", "1")

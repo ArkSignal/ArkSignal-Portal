@@ -78,7 +78,7 @@
     <div><label for="tg-mode">Link</label><select id="tg-mode" name="mode"><option value="static">Static</option><option value="dynamic">Dynamic</option><option value="timed">Timed</option></select></div>
     <button class="btn small" type="submit" style="margin:0 0 2px">Add</button>
   </form>
-  <script>(function(){var n=document.getElementById("tg-num"),p=document.getElementById("tg-pick");if(n&&p)n.addEventListener("input",function(){if(n.value.replace(/\D/g,"")){p.removeAttribute("name");n.name="tg";}else{n.removeAttribute("name");p.name="tg";}});})();</script>
+  <script nonce="{{ csp_nonce() }}">(function(){var n=document.getElementById("tg-num"),p=document.getElementById("tg-pick");if(n&&p)n.addEventListener("input",function(){if(n.value.replace(/\D/g,"")){p.removeAttribute("name");n.name="tg";}else{n.removeAttribute("name");p.name="tg";}});})();</script>
   {% endif %}
   <div class="dim" style="font-size:.78rem;margin-top:10px">Standard talkgroups, the contact lists and who carries what: <a href="/callsign?tab=talkgroups">Talkgroups</a>. A call sign's DMR ID: <a href="/callsign?tab=contacts">Contacts</a> and <a href="https://radioid.net" target="_blank" rel="noopener">RadioID</a>.</div></div>{% endif %}
 {% if current_user.is_authenticated and r.approved %}
@@ -100,7 +100,7 @@
 {% if history %}<div class="panel" style="margin-top:14px"><h3 style="margin-top:0">History</h3>
   <table><thead><tr><th>When</th><th>Who</th><th>What</th></tr></thead><tbody>{% for h in history %}<tr><td><time class="ts" datetime="{{ h.ts.isoformat() }}">{{ h.ts.strftime('%Y-%m-%d %H:%M') }}</time></td><td>{{ h.actor }}</td><td>{{ h.action }}{% if h.detail %}: <span class="dim">{{ h.detail }}</span>{% endif %}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
 <p class="dim" style="font-size:.8rem">{{ credit }}. Look this repeater up on <a href="https://www.repeaterbook.com" target="_blank" rel="noopener">RepeaterBook</a> for more detail.</p>
-{% if call_lookup %}<script>
+{% if call_lookup %}<script nonce="{{ csp_nonce() }}">
 fetch("/api/callsign/{{ r.callsign | urlencode }}.json").then(function (r) { return r.json(); }).then(function (d) {
   var el = document.getElementById("rp-lic"), c = d.callsign; if (!el) return;
   if (!c) { el.textContent = "not found in the FCC license search"; return; }
@@ -110,9 +110,9 @@ fetch("/api/callsign/{{ r.callsign | urlencode }}.json").then(function (r) { ret
 }).catch(function () { var el = document.getElementById("rp-lic"); if (el) el.textContent = "the FCC license search did not answer"; });
 </script>{% endif %}
 {% if (r.lat is not none and r.lon is not none) or can_edit %}
-<script src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script>
+<script nonce="{{ csp_nonce() }}" src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script><script nonce="{{ csp_nonce() }}" src="/static/safehtml.js"></script>
 {% endif %}
-<script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   if (!document.getElementById("rmap")) return;   // no position yet: the page shows the position picker instead
   var m = L.map("rmap", {scrollWheelZoom: false}).setView([{{ r.lat }}, {{ r.lon }}], 11);
@@ -120,7 +120,7 @@ fetch("/api/callsign/{{ r.callsign | urlencode }}.json").then(function (r) { ret
   L.circleMarker([{{ r.lat }}, {{ r.lon }}], {radius: 9, color: "#4fb3ff", weight: 3, fillColor: "#4fb3ff", fillOpacity: .6}).addTo(m);
 })();
 </script>
-{% if can_edit %}<script>
+{% if can_edit %}<script nonce="{{ csp_nonce() }}">
 (function () {
   var $ = function (i) { return document.getElementById(i); }, box = $("rp-position"), m = null, mk = null, rec = {{ [r.lat, r.lon] | tojson }};
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]; }); }

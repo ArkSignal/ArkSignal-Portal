@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Profile{% endblock %}
 {% block content %}
+{% with active = 'profile' %}{% include "partials/_my_subnav.html" %}{% endwith %}
 <h1><span>Profile</span></h1>
 <div class="sub">How you appear on the network. Your email address is never shown publicly.</div>
-{% with active = 'profile' %}{% include "partials/_my_subnav.html" %}{% endwith %}
 <form class="panel narrow" method="post">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <label>Username</label>
@@ -14,9 +14,21 @@
   <label for="display_name">Display name</label>
   <input type="text" id="display_name" name="display_name" value="{{ current_user.display_name or '' }}" maxlength="60">
   <div class="help">Shown next to your feeders on public pages. Leave blank to show your username.</div>
+  <label for="first_name">First name</label>
+  <input type="text" id="first_name" name="first_name" value="{{ names[0] }}" maxlength="40" autocomplete="given-name" style="max-width:260px">
+  <label for="last_name">Last name</label>
+  <input type="text" id="last_name" name="last_name" value="{{ names[1] }}" maxlength="40" autocomplete="family-name" style="max-width:260px">
+  <div class="help">Private: your real name, kept encrypted and separate from your display name. It is never shown on your profile or member page, in chats, in searches or to administrators. It is used to check your amateur license against the FCC records.</div>
   <label for="callsign">Amateur radio callsign</label>
   <input type="text" id="callsign" name="callsign" value="{{ current_user.callsign or '' }}" maxlength="8" style="max-width:160px;text-transform:uppercase">
   <div class="help">Optional, for example KD5VCF. It can be used as the basis for your station IDs.</div>
+  {% if ham %}<div class="panel" id="ham-status" style="margin:6px 0 12px">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><b>Amateur license:</b> <span class="tag {{ 'live' if ham.status == 'verified' else 'off' }}">{{ 'Verified Amateur' if ham.status == 'verified' else ham.word }}</span>
+      <button class="btn small neutral" type="button" id="ham-check" style="margin:0" {{ 'disabled' if not current_user.callsign or not (names[0] and names[1]) }}>{{ 'Check Again' if ham.checked else 'Check My License' }}</button> <span id="ham-note" class="dim" role="status"></span></div>
+    <p class="dim" style="margin:6px 0 0;font-size:.82rem">{% if names[0] and names[1] %}Checked against the first and last name saved above.{% else %}Save your first and last name above first: the license is checked against them.{% endif %}</p>
+    <p style="margin:8px 0 0">{{ ham.reason }}</p>
+    <p class="dim" style="margin:6px 0 0;font-size:.82rem">A verified call sign shows a badge on your <a href="/members/{{ current_user.username }}">member page</a> and in your chats, and lets you use APRS (see <a href="/my/bridges">My Account &gt; Radio</a>). Save the profile first if you changed the call sign, then check again.</p>
+  </div>{% endif %}
   <label for="landing">After I sign in, take me to</label>
   <select id="landing" name="landing">
     <option value="">The site default{% if landing_site %} ({{ (landing_choices | selectattr(0, 'equalto', landing_site) | list | first or ('', 'My Feeders'))[1] }}){% endif %}</option>
@@ -28,6 +40,15 @@
   <div class="help">Limited keeps page content to a comfortable width on an ultra-wide monitor. Full width uses the whole window. Maps always use the whole window. This is saved as soon as you choose, and follows you to every device.</div>
   <button class="btn" type="submit">Save Profile</button>
 </form>
+{% if ham %}<script nonce="{{ csp_nonce() }}">
+(function () {
+  var hc = document.getElementById("ham-check"); if (!hc) return;
+  hc.addEventListener("click", function () {
+    hc.disabled = true; var f = new FormData(); f.append("csrf_token", "{{ csrf_token() }}");
+    fetch("/my/bridges/verify", { method: "POST", body: f, credentials: "same-origin" }).then(function (r) { return r.json(); }).then(function (d) { document.getElementById("ham-note").textContent = d.message || ""; setTimeout(function () { location.reload(); }, 1800); }).catch(function () { hc.disabled = false; });
+  });
+})();
+</script>{% endif %}
 <details class="panel setsec" id="sec-change-email-address" style="margin-top:14px"><summary><span class="role-name">Change Email Address</span></summary>
 <form method="post" action="/my/profile/email">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

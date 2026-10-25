@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Mesh Communities{% endblock %}
+{% block content %}
+<h1>Mesh <span>Communities</span></h1>
+<div class="sub">The named meshes around Arkansas: each has a page with how to join, a map and list of its nodes, its news and events, and the people who run it. {% if admin %}<a href="/admin/communities">Manage communities</a>{% endif %}</div>
+<div class="tiles" style="margin-bottom:14px">
+{% for c in rows %}<a class="panel tile" href="/mesh/c/{{ c.slug }}" style="text-decoration:none;color:inherit;text-align:left">
+  <div class="tv" style="font-size:1.15rem">{{ c.name }}{% if not c.published %} <span class="tag off">hidden</span>{% endif %}</div>
+  <div class="tl">{{ c.nodes }} node{{ '' if c.nodes == 1 else 's' }} &middot; {{ c.followers }} follower{{ '' if c.followers == 1 else 's' }} &middot; {{ c.team }} on the team</div>
+  <div class="dim" style="font-size:.85rem;margin-top:6px">{{ (c.about or '')[:140] }}{{ '...' if (c.about or '') | length > 140 }}</div></a>
+{% else %}<div class="panel"><p class="dim" style="margin:0">No community has a page yet.{% if admin %} Make one, or add the Arkansas meshes, under <a href="/admin/communities">Manage communities</a>.{% endif %}</p></div>{% endfor %}
+</div>
+<p><a href="/mesh/">&larr; Mesh overview</a> &middot; <a href="/feed/mesh">Join the Mesh</a></p>
+{% endblock %}

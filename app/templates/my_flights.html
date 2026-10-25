@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}My Flights{% endblock %}
+{% block content %}
+{% with active = 'myflights' %}{% include "partials/_my_subnav.html" %}{% endwith %}
+<h1><span>My</span> Flights</h1>
+<div class="sub">A private diary of the flights you took. Only you can see it. <a class="btn small" href="/my/flights/new">Add a Flight</a> <a class="btn small neutral" href="/my/flights/import">Import and Export</a></div>
+<div class="tiles" style="margin-bottom:14px">
+  <div class="panel tile"><div class="tv">{{ summary.flights }}</div><div class="tl">Flight{{ '' if summary.flights == 1 else 's' }}{% if year %} in {{ year }}{% endif %}</div></div>
+  <div class="panel tile"><div class="tv">{{ dist(summary.km) }}</div><div class="tl">Flown</div></div>
+  <div class="panel tile"><div class="tv">{{ hm(summary.minutes) }}</div><div class="tl">Time in the air</div></div>
+  <div class="panel tile"><div class="tv">{{ summary.airports }}</div><div class="tl">Airports</div></div>
+  <div class="panel tile"><div class="tv">{{ summary.airlines }}</div><div class="tl">Airlines</div></div>
+</div>
+{% call sec('flights', 'Flights (' ~ rows | length ~ (' of ' ~ total if rows | length != total else '') ~ ')', True, True) %}
+  <form method="get" class="cm-row" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin:0 0 10px">
+    <div><label for="fq">Search</label><input type="search" id="fq" name="q" value="{{ q }}" placeholder="Airport, airline, flight, aircraft" maxlength="40" style="min-width:220px"></div>
+    <div><label for="fy">Year</label><select id="fy" name="year"><option value="">All</option>{% for y in years %}<option value="{{ y }}" {{ 'selected' if y == year }}>{{ y }}</option>{% endfor %}</select></div>
+    <button class="btn small" type="submit">Show</button>{% if q or year %}<a class="btn small neutral" href="/my/flights">Clear</a>{% endif %}
+  </form>
+  {% if rows %}<table class="sortable"><thead><tr><th data-sort="text">Date</th><th data-sort="text">From</th><th data-sort="text">To</th><th data-sort="text">Flight</th><th data-sort="text">Aircraft</th><th data-sort="num">Time</th><th data-sort="num">Distance</th><th>Seats</th><th></th></tr></thead><tbody>
+  {% for r in rows %}<tr>
+    <td data-v="{{ r.when.timestamp() | int if r.when else 0 }}">{% if r.when %}<time class="ts" datetime="{{ r.when.isoformat() }}" data-fmt="d">{{ r.when.strftime('%Y-%m-%d') }}</time>{% else %}-{% endif %}</td>
+    <td><b>{{ r.from_code }}</b><br><span class="dim" style="font-size:.8rem">{{ r.from_city or r.from_name }}</span></td>
+    <td><b>{{ r.to_code }}</b><br><span class="dim" style="font-size:.8rem">{{ r.to_city or r.to_name }}</span></td>
+    <td>{{ r.flight_no or '-' }}{% if r.airline %}<br><span class="dim" style="font-size:.8rem">{{ r.airline }}</span>{% endif %}</td>
+    <td>{{ r.aircraft_type or '-' }}{% if r.registration %}<br><span class="dim mono" style="font-size:.8rem">{{ r.registration }}</span>{% endif %}</td>
+    <td data-v="{{ r.der.air or r.der.total or 0 }}">{{ hm(r.der.air if r.der.air is not none else r.der.total) }}</td>
+    <td data-v="{{ r.distance_km or 0 }}">{{ dist(r.distance_km) }}</td>
+    <td>{% for p in pax.get(r.id, []) %}<div style="font-size:.85rem">{{ p.name }}{% if p.seat or p.klass %} <span class="dim">{{ (p.seat ~ ' ') if p.seat }}{{ p.klass }}{% if p.reason %}, {{ p.reason }}{% endif %}</span>{% endif %}</div>{% endfor %}</td>
+    <td><a class="btn small" href="/my/flights/{{ r.id }}">Details</a> <a class="btn small neutral" href="/my/flights/{{ r.id }}/edit">Edit</a>
+      {% if r.heard %}<a class="btn small" href="/flight/{{ r.heard.hex }}?at={{ r.heard.at }}" title="The flight this site's receivers heard">Track</a> <a class="btn small neutral" href="/live?icao={{ r.heard.hex }}&amp;only=1&amp;replay={{ r.heard.from }}&amp;replaySpeed=20" rel="nofollow" title="Play it back on the live map">Replay</a>{% endif %}
+      <form class="inline" method="post" action="/my/flights/{{ r.id }}/delete" data-confirm="Delete the flight {{ r.from_code }} to {{ r.to_code }}?"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small warn" type="submit">Delete</button></form></td>
+  </tr>{% endfor %}</tbody></table>
+  {% else %}<p class="dim" style="margin:0">{% if total %}No flight matches that.{% else %}No flights yet. Add the first one with Add a Flight: pick the two airports, the date and the times; the rest is optional.{% endif %}</p>{% endif %}
+{% endcall %}
+<p class="dim" style="font-size:.85rem">You can keep {{ '{:,}'.format(limit) }} flights. Distances are the straight great-circle line between the two airports. Times are shown the way you wrote them, in each airport's own time.</p>
+{% endblock %}

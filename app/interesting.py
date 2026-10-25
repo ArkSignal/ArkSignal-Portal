@@ -10,7 +10,8 @@ import re
 import urllib.request
 from datetime import datetime, timezone
 
-from flask import Blueprint, Response, jsonify
+from flask import Blueprint, Response, jsonify, request
+from flask_login import current_user
 
 from .cache import cached
 from .db import get_db
@@ -201,6 +202,15 @@ def plane_alert_csv():
 
 @bp.route("/api/plane-alert-list.csv")
 def api_plane_alert_list():
+    # members only; the Planefence container on the stack's own network reads it without signing in (a request that came through the proxy carries a forwarded address and is not that)
+    import ipaddress
+    internal = not (request.headers.get("X-Forwarded-For") or request.headers.get("X-Real-IP"))
+    try:
+        internal = internal and ipaddress.ip_address(request.remote_addr or "").is_private
+    except ValueError:
+        internal = False
+    if not (current_user.is_authenticated or internal):
+        return Response("Sign in to read the Plane-Alert list.", status=401)
     resp = Response(cached(("pa_csv",), plane_alert_csv), mimetype="text/csv")
     resp.headers["Cache-Control"] = "public, max-age=300"
     return resp

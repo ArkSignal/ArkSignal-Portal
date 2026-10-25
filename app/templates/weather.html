@@ -34,7 +34,7 @@
     <div class="tl">Charts and records from the stations over time.</div>
     <p style="margin:10px 0 0"><a class="btn small" href="/weather/statistics">Weather Statistics</a></p></div>
 </div>
-<script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var $ = function (id) { return document.getElementById(id); };
   function j(u) { return fetch(u, {credentials: "same-origin"}).then(function (r) { if (!r.ok) throw 0; return r.json(); }); }
@@ -103,11 +103,11 @@
 </div></details>
 <p class="dim" style="margin-top:12px;font-size:.85rem">Readings come from the stations' owners. Where a station is read through its owner's own Ecowitt.net account the page says so and credits Ecowitt; Tempest stations carry the WeatherFlow credit.</p>
 
-<script src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script>
-<script src="/static/touchhit.js"></script>
-<script src="/static/labelfit.js"></script>
-<script src="/static/wxmap.js"></script>
-<script>
+<script nonce="{{ csp_nonce() }}" src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script><script nonce="{{ csp_nonce() }}" src="/static/safehtml.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/touchhit.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/labelfit.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/wxmap.js"></script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var map = L.map("wxmap").setView([{{ map_lat }}, {{ map_lon }}], {{ map_zoom }});
   L.tileLayer({{ tile_url | tojson }}, {maxZoom: 19, attribution: {{ tile_attr | tojson }}}).addTo(map);

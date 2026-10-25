@@ -34,6 +34,16 @@ def smtp_configured():
     return bool(c["host"] and c["from"])
 
 
+def _own_network(host):
+    """True when every address of the host name is private or on this machine (a mail relay next door)."""
+    import ipaddress
+    try:
+        ips = {i[4][0] for i in socket.getaddrinfo(host, None)}
+    except OSError:
+        return False
+    return bool(ips) and all(ipaddress.ip_address(a.split("%")[0]).is_private or ipaddress.ip_address(a.split("%")[0]).is_loopback for a in ips)
+
+
 def send_mail(recipient, subject, body):
     """Send one message. Returns (ok, message); never raises."""
     c = smtp_config()
@@ -47,6 +57,12 @@ def send_mail(recipient, subject, body):
         port = int(c["port"] or default_port)
     except ValueError:
         return False, "SMTP Port is not a number. Fix it, save, and try again."
+    if security == "none":
+        # nothing that must stay private (a sign-in password, a reset link) may cross a network unencrypted: plain SMTP only to a server on this machine's own network, and never with a password
+        if c["username"]:
+            return False, "A user name and password may only be sent over an encrypted connection. Choose STARTTLS or SSL/TLS for the security."
+        if not _own_network(host):
+            return False, "Unencrypted email is only allowed to a server on your own network. Choose STARTTLS or SSL/TLS for the security."
     missing = [n for n, v in (("SMTP Host", host), ("From Address", sender)) if not v]
     if missing:
         return False, f"Set {' and '.join(missing)} and save before sending."

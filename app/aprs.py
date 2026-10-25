@@ -23,7 +23,7 @@ def call(path, method="GET", body=None, timeout=8):
     if not enabled():
         return False, "The APRS service is switched off in Settings."
     data = json.dumps(body).encode() if body is not None else None
-    req = urllib.request.Request(cfg("aprs_url").rstrip("/") + path, data=data, method=method, headers={"User-Agent": cfg("lookup_user_agent"), "Content-Type": "application/json"})
+    req = urllib.request.Request(cfg("aprs_url").rstrip("/") + path, data=data, method=method, headers=dict({"User-Agent": cfg("lookup_user_agent"), "Content-Type": "application/json"}, **__import__("app.servicecall", fromlist=["headers"]).headers()))
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             return True, json.loads(r.read(20_000_000).decode("utf-8"))

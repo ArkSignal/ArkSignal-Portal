@@ -26,12 +26,12 @@ from .settings import cfg, get_secret, get_setting, set_secret, set_setting
 
 bp = Blueprint("offsite", __name__)
 
-TYPES = {"sftp": "SFTP (any server with SSH)", "s3": "S3-compatible bucket", "smb": "SMB / Windows share (NAS)", "webdav": "WebDAV (Nextcloud and others)"}
+TYPES = {"nas": "NAS over SFTP (step by step)", "sftp": "SFTP (any server with SSH)", "s3": "S3-compatible bucket", "smb": "SMB / Windows share (NAS)", "webdav": "WebDAV (Nextcloud and others)"}
 CONFIG_KEY = "offsite_config"
 COMMAND_KEY = "offsite_command"
 TEST_KEY = "offsite_test"
 DEFAULTS = {
-    "enabled": False, "type": "sftp", "host": "", "port": "", "user": "", "path": "adsb-backups", "endpoint": "", "region": "", "bucket": "", "access_key": "",
+    "enabled": False, "type": "sftp", "preset": "", "host": "", "port": "", "user": "", "path": "adsb-backups", "endpoint": "", "region": "", "bucket": "", "access_key": "",
     "small": {"time": "03:30", "every_days": 1, "keep": 14},
     "big": {"time": "04:30", "every_days": 7, "keep": 4, "globe": True, "prometheus": True},
 }
@@ -88,7 +88,8 @@ def save(form):
         t = form.get("type", "sftp")
         if t not in TYPES:
             raise ValueError("Choose a destination type.")
-        c["type"] = t
+        c["preset"] = "nas" if t == "nas" else ""
+        c["type"] = "sftp" if t == "nas" else t
         c["enabled"] = bool(form.get("enabled"))
         host = form.get("host", "").strip()
         if host and not HOST_RE.match(host):
@@ -199,7 +200,7 @@ def context():
     c = load()
     now = datetime.now(timezone.utc)
     return {"offsite": {
-        "cfg": c, "types": TYPES, "has_secret": bool(get_secret("offsite_secret")), "has_key": bool(get_secret("offsite_key")), "has_pass": bool(get_secret("offsite_pass")),
+        "cfg": c, "types": TYPES, "shown": "nas" if c.get("preset") == "nas" and c["type"] == "sftp" else c["type"], "has_secret": bool(get_secret("offsite_secret")), "has_key": bool(get_secret("offsite_key")), "has_pass": bool(get_secret("offsite_pass")),
         "ready": configured(c), "runs": runs(), "command": command(), "test": _test_result(),
         "next": {k: next_slot(k, c, now) for k in ("small", "big")},
     }}

@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Import and Export Flights{% endblock %}
+{% block content %}
+{% with active = 'flightimport' %}{% include "partials/_my_subnav.html" %}{% endwith %}
+<h1><span>Import and Export</span> Flights</h1>
+<div class="sub">Move your diary in or out as a CSV file, which opens in any spreadsheet, or bring in a flight from a GPX or KML track. <a href="/my/flights">Back to My Flights</a></div>
+{% if result and result.notes %}<div class="panel" style="margin-bottom:14px"><ul class="plain" style="margin:0">{% for n in result.notes %}<li>{{ n }}</li>{% endfor %}</ul></div>{% endif %}
+{% if result %}<div class="flash {{ 'ok' if result.added else 'error' }}">{{ result.added }} flight{{ '' if result.added == 1 else 's' }} added{% if result.bad %}, {{ result.bad | length + result.more }} line{{ '' if result.bad | length + result.more == 1 else 's' }} skipped{% endif %}.</div>
+{% if result.bad %}<div class="panel" style="margin-bottom:14px"><b>Skipped lines</b><ul class="plain" style="margin:6px 0 0">{% for n, why in result.bad %}<li>{% if n %}Line {{ n }}: {% endif %}{{ why }}</li>{% endfor %}{% if result.more %}<li>And {{ result.more }} more.</li>{% endif %}</ul></div>{% endif %}{% endif %}
+{% call sec('export', 'Export Your Diary', True) %}
+  <p style="margin-top:0">Every flight with its times (each in its airport's own time), aircraft, notes and the people on board.</p>
+  <a class="btn small" href="/my/flights/export.csv">Download the CSV</a>
+{% endcall %}
+{% call sec('import', 'Import a File', True) %}
+  <p style="margin-top:0">The first line names the columns. Only <b>from</b> and <b>to</b> (airport codes such as LIT or KLIT) and a <b>date</b> or a departure time are needed; the rest is optional. A flight already in your diary (same airports and departure) is skipped. Up to {{ '{:,}'.format(max_rows) }} lines and 1 MB.</p>
+  <form method="post" action="/my/flights/import" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="file" name="file" accept=".csv,.gpx,.kml,.json,text/csv,application/json" multiple required> <button class="btn small" type="submit">Import</button>
+  </form>
+  <p style="font-size:.9rem"><b>You can choose several files at once.</b> A CSV, an AirTrail export, or tracks:</p>
+  <ul class="plain" style="font-size:.9rem;margin-top:0">
+    <li><b>An AirTrail JSON export</b> (in AirTrail: Settings, Export, JSON) brings everything: every time, the aircraft and airline, <b>all the people</b> with their seats, classes and reasons, and each flight's <b>track</b>. The CSV export leaves the people and the tracks out, but is understood too.</li>
+    <li><b>A GPX or KML track</b> (a flight tracker's download, such as Flightradar24's KML) is attached to the flight in your diary it belongs to (same flight number, registration or airports, within a day), and becomes a new flight when none matches. A track can also be added on a flight's own page.</li>
+  </ul>
+  <p class="dim" style="font-size:.85rem;margin-bottom:0">Columns the CSV file may have: {% for c in cols %}<span class="mono">{{ c }}</span>{{ ', ' if not loop.last }}{% endfor %}. Times are written <span class="mono">2024-08-15 12:15</span> in the local time of the airport they happened at. People are <span class="mono">Name|Class|Reason|Seat|Where</span> separated by semicolons.</p>
+{% endcall %}
+{% call sec('airtrail', 'Pull From Your AirTrail', False) %}
+  <p style="margin-top:0">Bring everything in straight from your own AirTrail: flights, people and tracks. In AirTrail make an API key (Settings, Security, API Keys) with the flights read scope, and the tracks read scope if you want the tracks. The key is used for this one import and is not kept.</p>
+  <form method="post" action="/my/flights/import/airtrail" class="cm-row">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div><label for="at-url">Address of your AirTrail</label><input type="text" id="at-url" name="url" placeholder="https://airtrail.example.com" style="min-width:300px" required></div>
+    <div><label for="at-key">API key</label><input type="password" id="at-key" name="key" autocomplete="off" style="min-width:260px" required></div>
+    <button class="btn small" type="submit">Pull Flights</button>
+  </form>
+  <p class="dim" style="font-size:.85rem;margin-bottom:0">{% if private_ok %}Any address works, including one on a private network.{% else %}The address must be a public https address. An administrator can allow an AirTrail on a private network in Settings > My Flights.{% endif %} Flights already in your diary are skipped.</p>
+{% endcall %}
+{% endblock %}

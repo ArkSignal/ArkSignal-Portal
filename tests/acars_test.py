@@ -3,6 +3,7 @@ the text setting, the administrators' page (add for a member, switch off, hide a
 (sh tests/deploy_acars.sh)."""
 import json, os, re, subprocess, time, requests
 exec(open("roles_test.py", encoding="utf-8").read().split("ok_all=True")[0])
+MEM = sess("plain1", "plainpassword1")   # Planefence, the code plug exports, downloads and the My ... pages are for signed-in members
 ok_all = True
 def check(name, cond, extra=""):
     global ok_all
@@ -66,7 +67,7 @@ mine = [x for x in pos.get("positions", []) if x.get("tail") == tail1.upper() or
 check("aircraft that reported a position by ACARS are on the positions list for the live map (positions only, no text)", pos.get("enabled") and mine and abs(mine[0]["lat"] - 34.205) < 0.001 and "text" not in mine[0], (mine[:2], len(pos.get("positions", []))))
 lv = requests.get(B + "/live").text
 check("the live map has an ACARS positions layer once ACARS is on", 'id="l-acars"' in lv and "loadAcarsPos" in lv)
-check("it is in the menu: ACARS and My ACARS Stations", 'href="/acars/"' in requests.get(B + "/").text and 'href="/my/acars"' in requests.get(B + "/").text)
+check("it is in the menu: ACARS and My ACARS Stations", 'href="/acars/"' in MEM.get(B + "/").text and 'href="/my/acars"' in MEM.get(B + "/").text)
 check("an unknown upload address is a 404", requests.post(B + "/acars/push/" + "A" * 30, json=flat).status_code == 404)
 u = sess("plain1", "plainpassword1")
 check("a member's page opens", u.get(B + "/my/acars").status_code == 200 and "Add an ACARS Station" in u.get(B + "/my/acars").text)

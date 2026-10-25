@@ -11,7 +11,7 @@
   <div class="panel tile"><div class="tv" style="font-size:1.05rem">{{ n.packets }}</div><div class="tl">Adverts heard</div></div>
   <div class="panel tile"><div class="tv" style="font-size:1.05rem">{{ heard | length }}</div><div class="tl">Observers that heard it</div></div>
   {% else %}
-  <div class="panel tile"><div class="tv" style="font-size:1.05rem">{{ n.hardware or '-' }}</div><div class="tl">Hardware</div></div>
+  <div class="panel tile"><div class="tv" style="font-size:1.05rem">{{ n.hardware or '-' }}</div><div class="tl">Hardware{% set sl = shop_link(n.hardware) %}{% if sl %} &middot; <a href="{{ sl.url }}" target="_blank" rel="{{ 'sponsored ' if sl.sponsored }}nofollow noopener">Where to buy</a>{% endif %}</div></div>
   <div class="panel tile"><div class="tv" style="font-size:1.05rem">{{ n.firmware or '-' }}</div><div class="tl">Firmware</div></div>
   <div class="panel tile"><div class="tv" style="font-size:1.05rem">{{ n.region_name or '-' }}{% if n.preset_name %} &middot; {{ n.preset_name }}{% endif %}</div><div class="tl">Region and preset</div></div>
   <div class="panel tile"><div class="tv" style="font-size:1.05rem">{% if n.battery is not none %}{{ ('%d%%' % n.battery) if n.battery <= 100 else 'powered' }}{% else %}-{% endif %}</div><div class="tl">Battery</div></div>
@@ -46,6 +46,20 @@
     <td data-v="{{ x.snr if x.snr is not none else -99 }}">{{ x.snr if x.snr is not none else '-' }}</td><td><time class="ts" datetime="{{ x.last_seen }}" data-fmt="dt">{{ x.last_seen[:16].replace('T', ' ') }}</time></td></tr>{% endfor %}</tbody></table>
 </div>
 {% endif %}
+{% if charts %}
+<style>@media(max-width:760px){.wxcharts{grid-template-columns:minmax(0,1fr)!important}}.wxcharts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 24px}.wxchart{min-width:0;max-width:980px}.wxchart h3{margin:8px 0 2px;font-size:.95rem;display:flex;gap:6px;align-items:center}.wxchart svg.chart{display:block;width:100%;height:auto}</style>
+<details class="panel setsec" id="sec-readings" open style="margin:14px 0"><summary><span class="role-name">Readings</span></summary><div class="secbody">
+  <p class="dim" style="margin-top:0">What this node reported in the clear: battery, voltage and channel use, and any sensors it has. Averaged into time slots; kept {{ keep_days }} days.</p>
+  <div class="subnav" style="margin-bottom:10px">{% for k, v in periods.items() %}<a class="{{ 'active' if k == period }}" href="?period={{ k }}#sec-readings">{{ v[0] }}</a>{% endfor %}</div>
+  <div class="wxcharts">
+  {% for title, svg, caption, legend in charts %}
+  <div class="wxchart"><h3>{{ title }}</h3>{{ svg }}
+  <div class="dim" style="font-size:.8rem">{{ caption }}{% for c, l in legend %} &nbsp; <span style="color:{{ c }}">&#9632;</span> {{ l }}{% endfor %}</div></div>
+  {% endfor %}
+  </div>
+</div></details>
+<script nonce="{{ csp_nonce() }}" src="/static/chartinspect.js"></script>
+{% endif %}
 <h2>Heard By</h2>
 <div class="panel" style="overflow-x:auto">
   {% if heard %}<p class="dim" style="margin-top:0">{{ 'The observers (repeaters and companions that report to the broker) that heard this node\'s adverts' if mc else 'The gateways (nodes that uplink to the broker) that heard this node' }}, with the signal at the last packet. This is measured from what was heard, not a prediction.</p>
@@ -56,5 +70,5 @@
   {% if gateway_for %}<p style="margin-bottom:0">This node is itself {{ 'an observer' if mc else 'a gateway' }} for {{ gateway_for }} node{{ '' if gateway_for == 1 else 's' }}.</p>{% endif %}
 </div>
 <p><a href="/mesh/nodes">&larr; All nodes</a> &middot; <a href="/mesh/">Mesh overview</a></p>
-<p class="dim" style="font-size:.8rem">{{ credit }}.</p>
+<p class="dim" style="font-size:.8rem">{{ credit }}.{% if shop_note() %} {{ shop_note() }}{% endif %}</p>
 {% endblock %}

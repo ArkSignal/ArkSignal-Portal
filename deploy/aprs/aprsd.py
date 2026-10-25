@@ -319,7 +319,17 @@ class H(BaseHTTPRequestHandler):
         except ValueError:
             return {}
 
+    def _allowed(self):
+        """With a SERVICE_TOKEN set, every request but /health must carry it (the portal and this stack's other services do)."""
+        want = os.environ.get("SERVICE_TOKEN", "")
+        if not want or urllib.parse.urlparse(self.path).path.rstrip("/") in ("", "/health"):
+            return True
+        import hmac
+        return hmac.compare_digest(self.headers.get("X-Service-Token", ""), want)
+
     def do_GET(self):
+        if not self._allowed():
+            return self.send({"error": "unauthorized"}, 401)
         u = urllib.parse.urlparse(self.path)
         q = {k: v[0] for k, v in urllib.parse.parse_qs(u.query).items()}
         p = u.path.rstrip("/")
@@ -370,6 +380,8 @@ class H(BaseHTTPRequestHandler):
             return self.send({"error": str(e)[:200]}, 500)
 
     def do_POST(self):
+        if not self._allowed():
+            return self.send({"error": "unauthorized"}, 401)
         p = urllib.parse.urlparse(self.path).path.rstrip("/")
         b = self.body_json()
         try:

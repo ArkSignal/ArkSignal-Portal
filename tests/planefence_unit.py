@@ -36,6 +36,11 @@ def check(n, cond, extra=""):
 
 
 c = app.test_client()
+with app.app_context():   # Planefence is for signed-in members: sign the test client in as the first user
+    from app.db import get_db
+    uid = get_db().execute("SELECT id FROM users ORDER BY id LIMIT 1").fetchone()["id"]
+with c.session_transaction() as sess:
+    sess["_user_id"] = str(uid); sess["_fresh"] = True
 t0 = time.time()
 r = c.get("/pf/cgi/stream.sh?mode=planefence&date=today", headers={"Accept-Encoding": "gzip"}, buffered=False)
 it = iter(r.response)

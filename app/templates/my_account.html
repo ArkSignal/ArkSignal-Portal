@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}My Account{% endblock %}
+{% block content %}
+{% include "partials/_my_subnav.html" %}
+<h1>Overview</h1>
+<div class="sub">Signed in as <b>{{ u.username }}</b>. Everything of yours is here or one click away from the menu.</div>
+<style>
+.acct-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin:0 0 18px}
+.acct-grid .panel{margin:0}
+.acct-grid h2{margin:0 0 8px;font-size:1.02rem}
+.acct-grid p{margin:0 0 6px}
+.acct-todo{margin:0 0 18px}
+.acct-todo ul{margin:6px 0 0;padding-left:18px}
+.acct-stat{display:flex;justify-content:space-between;gap:10px;border-top:1px solid var(--line);padding:6px 0}
+.acct-stat:first-of-type{border-top:0}
+</style>
+
+<div class="panel acct-todo" id="acct-todo">
+  <b>{{ 'Needs your attention' if todo else 'All good' }}</b>
+  {% if todo %}<ul>{% for text, href, word in todo %}<li>{{ text }} <a href="{{ href }}">{{ word }}</a></li>{% endfor %}</ul>
+  {% else %}<span class="dim"> Nothing needs a look right now.</span>{% endif %}
+</div>
+
+<div class="acct-grid">
+  <div class="panel" id="acct-profile">
+    <h2>Profile</h2>
+    <p><b>{{ u.display_name or u.username }}</b>{% if u.display_name %} <span class="dim">({{ u.username }})</span>{% endif %}</p>
+    <p>{% if u.callsign %}Call sign <b class="mono">{{ u.callsign }}</b>{% if call %} <span class="tag live">Verified Amateur</span>{% endif %}{% else %}<span class="dim">No call sign saved.</span>{% endif %}</p>
+    <p class="dim">Your real name: {{ 'saved (private)' if names[0] and names[1] else 'not saved' }}</p>
+    <p><a href="/my/profile">Edit Profile</a> &middot; <a href="/members/{{ u.username }}">Member Page</a> &middot; <a href="/my/display">Display and Maps</a></p>
+  </div>
+
+  <div class="panel" id="acct-security">
+    <h2>Security</h2>
+    <div class="acct-stat"><span>Two-factor sign-in</span><b>{{ 'On' if sec.totp else 'Off' }}</b></div>
+    {% if passkeys_on %}<div class="acct-stat"><span>Passkeys</span><b>{{ sec.passkeys }}</b></div>{% endif %}
+    {% if api_on %}<div class="acct-stat"><span>API keys</span><b>{{ sec.apikeys }}</b></div>{% endif %}
+    <div class="acct-stat"><span>Signed in on</span><b>{{ sec.sessions }} {{ 'device' if sec.sessions == 1 else 'devices' }}</b></div>
+    {% if last %}<p class="dim" style="margin:6px 0 0">Last sign-in before this one: <time class="ts" datetime="{{ last.created_at.isoformat() }}" data-fmt="dt">{{ last.created_at }}</time></p>{% endif %}
+    <p style="margin-top:8px"><a href="/my/password">Password</a> &middot; <a href="/my/two-factor">Two-Factor</a> &middot; <a href="/my/sessions">Sign-Ins</a></p>
+  </div>
+
+  {% if comm.chat or comm.mail or comm.friends %}<div class="panel" id="acct-community">
+    <h2>Community</h2>
+    {% if comm.chat %}<div class="acct-stat"><span><a href="/chat/">Chat</a></span><b>{% if matrix_on %}encrypted, in Element{% else %}{{ chat_unread or 0 }} unread{% endif %}</b></div>{% endif %}
+    {% if comm.mail %}<div class="acct-stat"><span><a href="/my/messages">Messages</a></span><b>{{ pm_unread or 0 }} new</b></div>{% endif %}
+    {% if comm.friends %}<div class="acct-stat"><span><a href="/my/friends">Friends</a></span><b>{{ comm.friend_count }}{% if friend_requests %} ({{ friend_requests }} waiting){% endif %}</b></div>{% endif %}
+    <div class="acct-stat"><span><a href="/my/community">Community Settings</a></span><b>Privacy, blocks</b></div>
+    {% if bridges_on %}<div class="acct-stat"><span><a href="/my/bridges">Radio</a></span><b>{% if call %}Verified{% elif ham %}{{ ham.word }}{% else %}Set up{% endif %}</b></div>{% endif %}
+  </div>{% endif %}
+
+  <div class="panel" id="acct-alerts">
+    <h2>Alerts</h2>
+    <div class="acct-stat"><span><a href="/my/alerts">Aircraft alert rules</a></span><b>{{ alerts.rules }} on</b></div>
+    {% if mesh_on %}<div class="acct-stat"><span><a href="/my/mesh#sec-node-alerts">Mesh node alerts</a></span><b>{{ alerts.mesh }} new</b></div>{% endif %}
+    {% if chans is not none %}<div class="acct-stat"><span><a href="/my/mesh/channels">Mesh channels</a></span><b>{{ chans }}</b></div>{% endif %}
+  </div>
+</div>
+
+<details class="panel setsec" id="sec-acct-stations" open><summary><span class="role-name">My Stations</span></summary><div class="secbody">
+  <div class="acct-grid" style="margin:0">
+    {% for c in cards %}<div class="panel"><h2>{{ c.title }}</h2><p class="dim">{{ c.blurb }}</p><p><b>{{ c.count }}</b>{% if c.extra %} <span class="dim">({{ c.extra }})</span>{% endif %} &middot; <a href="{{ c.open }}">Open</a></p></div>{% endfor %}
+  </div>
+  <p style="margin:12px 0 0"><a href="/my/stations">All My Stations</a></p>
+</div></details>
+{% endblock %}

@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}{{ 'Change a Flight' if f.id else 'Add a Flight' }}{% endblock %}
+{% block content %}
+{% with active = 'myflights' %}{% include "partials/_my_subnav.html" %}{% endwith %}
+<style>.fl-pick{position:relative}.fl-pick ul{position:absolute;z-index:30;left:0;right:0;top:100%;margin:2px 0 0;padding:4px;list-style:none;background:var(--pop-bg,var(--card-bg));border:1px solid var(--line);border-radius:10px;max-height:260px;overflow-y:auto}.fl-pick li{padding:7px 10px;border-radius:8px;cursor:pointer}.fl-pick li:hover,.fl-pick li.on{background:rgba(62,230,168,.12)}
+.ft{display:grid;grid-template-columns:minmax(120px,1fr) minmax(150px,1.2fr) minmax(150px,1.2fr);gap:8px 12px;align-items:center}.ft .h{font-size:.75rem;color:var(--dim);text-transform:uppercase;letter-spacing:.04em}.ft .d{color:var(--dim)}.ft input{width:100%;box-sizing:border-box}
+@media(max-width:620px){.ft{grid-template-columns:1fr 1fr}.ft .h:first-child{display:none}.ft .rowlabel{grid-column:1 / -1;margin-top:8px;font-weight:700}}
+.fl-pax{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:0 0 10px}.fl-pax .cm-row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin:6px 0}.fl-chips span{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:3px 10px;margin:2px 4px 2px 0;font-size:.8rem;cursor:pointer}.fl-chips span:hover{border-color:var(--acc)}</style>
+<h1><span>{{ 'Change' if f.id else 'Add' }}</span> a Flight</h1>
+<div class="sub">The two airports and the date are all that is needed. {% if f.id %}<a class="btn small neutral" href="/my/flights/{{ f.id }}">Details and Track</a> {% endif %}<a href="/my/flights">Back to My Flights</a></div>
+{% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+<form method="post" action="/my/flights/save" id="flform">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="id" value="{{ f.id or '' }}">
+  <input type="hidden" name="from_id" id="from_id" value="{{ f.from_id or '' }}">
+  <input type="hidden" name="to_id" id="to_id" value="{{ f.to_id or '' }}">
+  {% call sec('lookup', 'Look It Up', False) %}
+    <p style="margin-top:0">Type a flight number or a registration, and the date of the flight in the Times below if you know it, and the site checks what its own receivers heard. If it finds the flight, one click fills in the airports, aircraft and takeoff and landing. Only flights heard by this site's receivers can be found; airline, aircraft and route details come from <a href="https://www.adsbdb.com/" rel="noopener nofollow" target="_blank">adsbdb</a> and <a href="https://adsb.im/" rel="noopener nofollow" target="_blank">adsb.im</a>, and a route is the one the flight number usually flies.</p>
+    <div class="cm-row" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end"><div><label for="lk_q">Flight number or registration</label><input type="text" id="lk_q" maxlength="12" placeholder="WN 1672 or N8555Q" style="width:190px"></div>
+      <div><label for="lk_d">Date (optional)</label><input type="date" id="lk_d"></div><button class="btn small" type="button" id="lk_go">Look Up</button></div>
+    <div id="lk_out" class="dim" style="margin-top:8px;font-size:.88rem"></div>
+    {% if schedules_on %}<div class="cm-row" style="margin-top:12px"><button class="btn small neutral" type="button" id="sc_go">Look Up the Airline Schedule</button>
+      <span class="dim" style="font-size:.85rem">Uses the flight number and the date above (or the date in Times). Fills the scheduled times, airports, airline and aircraft the airline planned.</span></div>
+    <div id="sc_out" class="dim" style="margin-top:8px;font-size:.88rem"></div>{% endif %}
+  {% endcall %}
+  {% call sec('route', 'The Flight', True) %}
+    <div class="cm-row" style="display:flex;gap:12px;flex-wrap:wrap">
+      <div class="fl-pick" style="flex:1 1 280px"><label for="from_q">From *</label><input type="text" id="from_q" autocomplete="off" value="{{ f.from_label }}" placeholder="Airport, city or code" required style="width:100%;box-sizing:border-box"><ul id="from_l" hidden></ul></div>
+      <div class="fl-pick" style="flex:1 1 280px"><label for="to_q">To *</label><input type="text" id="to_q" autocomplete="off" value="{{ f.to_label }}" placeholder="Airport, city or code" required style="width:100%;box-sizing:border-box"><ul id="to_l" hidden></ul></div>
+    </div>
+    <div class="cm-row" style="display:flex;gap:12px;flex-wrap:wrap;margin-top:10px">
+      <div><label for="flight_no">Flight Number</label><input type="text" id="flight_no" name="flight_no" value="{{ f.flight_no }}" maxlength="8" placeholder="WN 1672" style="width:130px"></div>
+      <div><label for="airline">Airline</label><input type="text" id="airline" name="airline" value="{{ f.airline }}" maxlength="60" placeholder="Southwest Airlines" style="min-width:220px"></div>
+      <div><label for="aircraft_type">Aircraft</label><input type="text" id="aircraft_type" name="aircraft_type" value="{{ f.aircraft_type }}" maxlength="30" placeholder="B738" style="width:140px"></div>
+      <div><label for="registration">Registration</label><input type="text" id="registration" name="registration" value="{{ f.registration }}" maxlength="12" placeholder="N8555Q" style="width:120px"></div>
+    </div>
+  {% endcall %}
+  {% call sec('times', 'Times', True, True) %}
+    <p style="margin-top:0"><label style="margin-right:16px"><input type="radio" name="mode" value="detailed" {{ 'checked' if f.mode != 'simple' }}> Detailed: scheduled and actual times</label><label><input type="radio" name="mode" value="simple" {{ 'checked' if f.mode == 'simple' }}> Simple: a departure and an arrival</label></p>
+    <p class="dim" style="margin-top:0;font-size:.85rem">Write each time in the local time of the airport it happened at<span id="tzline"></span>. Leave out any you do not know.</p>
+    <div class="ft" id="ft">
+      <div class="h"></div><div class="h sch">Scheduled</div><div class="h">Actual</div>
+      <div class="rowlabel" data-simple="Departure">Gate departure</div><div class="sch"><input type="datetime-local" name="sched_out" value="{{ f.sched_out }}" aria-label="Gate departure, scheduled"></div><div><input type="datetime-local" name="act_out" value="{{ f.act_out }}" aria-label="Gate departure, actual"></div>
+      <div class="d dt">Taxi out</div><div class="d dt" id="d_taxi_out">-</div><div class="dt"></div>
+      <div class="rowlabel det">Takeoff</div><div class="sch det"><input type="datetime-local" name="sched_off" value="{{ f.sched_off }}" aria-label="Takeoff, scheduled"></div><div class="det"><input type="datetime-local" name="act_off" value="{{ f.act_off }}" aria-label="Takeoff, actual"></div>
+      <div class="rowlabel det">Landing</div><div class="sch det"><input type="datetime-local" name="sched_on" value="{{ f.sched_on }}" aria-label="Landing, scheduled"></div><div class="det"><input type="datetime-local" name="act_on" value="{{ f.act_on }}" aria-label="Landing, actual"></div>
+      <div class="d dt">Taxi in</div><div class="d dt" id="d_taxi_in">-</div><div class="dt"></div>
+      <div class="rowlabel" data-simple="Arrival">Gate arrival</div><div class="sch"><input type="datetime-local" name="sched_in" value="{{ f.sched_in }}" aria-label="Gate arrival, scheduled"></div><div><input type="datetime-local" name="act_in" value="{{ f.act_in }}" aria-label="Gate arrival, actual"></div>
+      <div class="d">Air time</div><div class="d" id="d_air">-</div><div></div>
+      <div class="d">Total time</div><div class="d" id="d_total">-</div><div></div>
+      <div class="d">Distance</div><div class="d" id="d_km">-</div><div></div>
+    </div>
+  {% endcall %}
+  {% call sec('people', 'People and Seats', True) %}
+    <div id="paxbox">
+    {% for p in pax %}
+    <div class="fl-pax" data-i="{{ loop.index0 }}">
+      <div class="cm-row"><div><label>Name</label><input type="text" name="p{{ loop.index0 }}_name" value="{{ p.name }}" maxlength="60"></div>
+      <div><label>Class</label><select name="p{{ loop.index0 }}_class">{% for c in classes %}<option {{ 'selected' if c == p.klass }}>{{ c }}</option>{% endfor %}</select></div>
+      <div><label>Reason</label><select name="p{{ loop.index0 }}_reason">{% for c in reasons %}<option {{ 'selected' if c == p.reason }}>{{ c }}</option>{% endfor %}</select></div>
+      <div><label>Seat</label><input type="text" name="p{{ loop.index0 }}_seat" value="{{ p.seat }}" maxlength="6" placeholder="12A" style="width:80px"></div>
+      <div><label>Where</label><select name="p{{ loop.index0 }}_kind"><option value=""></option>{% for c in seats %}<option {{ 'selected' if c == p.seat_kind }}>{{ c }}</option>{% endfor %}</select></div>
+      <button class="btn small warn" type="button" data-rm>Remove</button></div>
+    </div>
+    {% endfor %}
+    </div>
+    <p><button class="btn small neutral" type="button" id="addpax">Add a Person</button> <span class="dim" style="font-size:.85rem">Up to {{ max_pax }}.</span></p>
+  {% endcall %}
+  {% call sec('notes', 'Notes', False) %}
+    <label for="notes">Anything to remember about the flight</label><textarea id="notes" name="notes" rows="4" maxlength="2000" style="width:100%;max-width:640px">{{ f.notes }}</textarea>
+  {% endcall %}
+  <p><button class="btn" type="submit">Save the Flight</button> <a class="btn neutral" href="/my/flights">Cancel</a></p>
+</form>
+<template id="paxtpl"><div class="fl-pax"><div class="cm-row"><div><label>Name</label><input type="text" name="p__I___name" maxlength="60"></div>
+  <div><label>Class</label><select name="p__I___class">{% for c in classes %}<option>{{ c }}</option>{% endfor %}</select></div>
+  <div><label>Reason</label><select name="p__I___reason">{% for c in reasons %}<option>{{ c }}</option>{% endfor %}</select></div>
+  <div><label>Seat</label><input type="text" name="p__I___seat" maxlength="6" placeholder="12A" style="width:80px"></div>
+  <div><label>Where</label><select name="p__I___kind"><option value=""></option>{% for c in seats %}<option>{{ c }}</option>{% endfor %}</select></div>
+  <button class="btn small warn" type="button" data-rm>Remove</button></div></div></template>
+<script nonce="{{ csp_nonce() }}">
+(function () {
+  var F = document.getElementById("flform"), MAXP = {{ max_pax }}, tok = F.querySelector("[name=csrf_token]").value;
+  function $(i) { return document.getElementById(i); }
+  function setv(name, v) { var e = F.querySelector("[name=" + name + "]"); if (e && v != null) { e.value = v; e.dispatchEvent(new Event("change", {bubbles: true})); } }
+  function esc(t) { return String(t == null ? "" : t).replace(/[&<>"]/g, function (c) { return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]; }); }
+  var applying = false;
+  function applySuggest(sg, onlyEmpty) {
+    applying = true; try { applyIt(sg, onlyEmpty); } finally { applying = false; }
+  }
+  function applyIt(sg, onlyEmpty) {   // what the outside lookups know goes into the form (into empty boxes only when it was not asked for)
+    function put(name, v) { var e = F.querySelector("[name=" + name + "]"); if (e && v && (!onlyEmpty || !e.value)) setv(name, v); }
+    put("airline", sg.airline); put("aircraft_type", sg.aircraft_type); put("registration", sg.registration); put("flight_no", sg.flight_no);
+    if (sg.from && sg.to && (!onlyEmpty || (!$("from_id").value && !$("to_id").value))) { $("from_id").value = sg.from.id; $("from_q").value = sg.from.label; $("to_id").value = sg.to.id; $("to_q").value = sg.to.label; }
+  }
+  function wireSg(sg) { var b = $("lk_sg"); if (b) b.addEventListener("click", function () { applySuggest(sg, false); $("lk_out").insertAdjacentHTML("beforeend", '<p class="dim" style="margin:6px 0 0">Filled in. Check the times below.</p>'); }); }
+  function auto() {   // typing a flight number or a registration fills the empty boxes from the lookups
+    var q = (this.value || "").trim(); if (q.length < 3 || applying) return;
+    fetch("/my/flights/lookup.json?q=" + encodeURIComponent(q)).then(function (r) { return r.json(); }).then(function (j) { if (j.suggest) applySuggest(j.suggest, true); }).catch(function () {});
+  }
+  $("flight_no").addEventListener("change", auto); $("registration").addEventListener("change", auto);
+  $("lk_go").addEventListener("click", function () {   // what the site's receivers heard for a flight number or registration around a date
+    var q = ($("lk_q").value || $("flight_no").value || $("registration").value).trim(), d = $("lk_d").value || (F.querySelector("[name=act_out]").value || F.querySelector("[name=sched_out]").value || "").slice(0, 10), out = $("lk_out");
+    if (q.length < 3) { out.textContent = "Type a flight number or a registration first."; return; }
+    out.textContent = "Looking...";
+    fetch("/my/flights/lookup.json?q=" + encodeURIComponent(q) + "&date=" + encodeURIComponent(d)).then(function (r) { return r.json(); }).then(function (j) {
+      var sg = j.suggest || {}, head = "";
+      if (sg.airline || sg.aircraft_type || sg.from) {
+        head = '<p style="margin:0 0 8px"><b>Suggested</b> ' + [sg.airline, sg.flight_no, sg.aircraft_name ? sg.aircraft_name + (sg.aircraft_type ? " (" + sg.aircraft_type + ")" : "") : sg.aircraft_type, sg.from && sg.to ? sg.from.code + " to " + sg.to.code : ""].filter(Boolean).map(esc).join(" &middot; ") + ' <button class="btn small" type="button" id="lk_sg">Use This</button> <span class="dim">' + esc((sg.notes || []).join(" ")) + "</span></p>";
+      }
+      if (!j.flights.length) { out.innerHTML = head + esc(j.note || (head ? "" : "Nothing found.")); wireSg(sg); return; }
+      out.innerHTML = head + '<table><thead><tr><th>Heard</th><th>Flight</th><th>Aircraft</th><th>From</th><th>To</th><th></th></tr></thead><tbody>' + j.flights.map(function (f, i) {
+        return "<tr><td>" + esc(f.first.slice(0, 16).replace("T", " ")) + " UTC</td><td>" + esc(f.callsign) + "</td><td>" + esc(f.reg) + " " + esc(f.type) + "</td><td>" + (f.from ? esc(f.from.code) : '<span class="dim">not at an airport</span>') + "</td><td>" + (f.to ? esc(f.to.code) : '<span class="dim">not at an airport</span>') + '</td><td><button class="btn small" type="button" data-use="' + i + '">Use</button></td></tr>';
+      }).join("") + "</tbody></table>";
+      wireSg(sg);
+      out.querySelectorAll("[data-use]").forEach(function (b) { b.addEventListener("click", function () {
+        var f = j.flights[+b.getAttribute("data-use")];
+        if (f.from) { $("from_id").value = f.from.id; $("from_q").value = f.from.label; }
+        if (f.to) { $("to_id").value = f.to.id; $("to_q").value = f.to.label; }
+        if (f.reg) setv("registration", f.reg); if (f.type) setv("aircraft_type", f.type);
+        if (/^[A-Z]{2,3}[0-9]{1,4}[A-Z]?$/.test(f.callsign) && !$("flight_no").value) setv("flight_no", f.callsign);
+        if (f.act_off) { var det = F.querySelector("[name=mode][value=detailed]"); if (det && !det.checked) { det.checked = true; det.dispatchEvent(new Event("change", {bubbles: true})); } setv("act_off", f.act_off); setv("act_on", f.act_on); }
+        out.textContent = "Filled in from the flight the receivers heard" + (f.from && f.to ? "; the times are when it was first and last heard, close to takeoff and landing." : ". Choose the airports it did not reach.");
+      }); });
+    }).catch(function () { out.textContent = "The look-up did not answer."; });
+  });
+  var sc = $("sc_go");
+  if (sc) sc.addEventListener("click", function () {   // the airline's schedule for a flight number on a date
+    var q = ($("lk_q").value || $("flight_no").value).trim(), d = $("lk_d").value || (F.querySelector("[name=act_out]").value || F.querySelector("[name=sched_out]").value || "").slice(0, 10), out = $("sc_out");
+    if (q.length < 3 || !d) { out.textContent = "Type a flight number and choose the date first."; return; }
+    out.textContent = "Looking...";
+    fetch("/my/flights/schedule.json?q=" + encodeURIComponent(q) + "&date=" + encodeURIComponent(d), {credentials: "same-origin"}).then(function (r) { return r.json(); }).then(function (j) {
+      if (!j.flights || !j.flights.length) { out.textContent = j.note || "Nothing found."; return; }
+      out.innerHTML = '<table><thead><tr><th>Flight</th><th>From</th><th>To</th><th>Aircraft</th><th></th></tr></thead><tbody>' + j.flights.map(function (f, i) {
+        return "<tr><td>" + esc(f.number) + "<br><span class=\"dim\">" + esc(f.airline) + "</span></td><td>" + esc(f.from_code) + (f.sched_out ? "<br><span class=\"dim\">" + esc(f.sched_out.replace("T", " ")) + "</span>" : "") + (f.terminal_from ? "<br><span class=\"dim\">Terminal " + esc(f.terminal_from) + "</span>" : "") +
+          "</td><td>" + esc(f.to_code) + (f.sched_in ? "<br><span class=\"dim\">" + esc(f.sched_in.replace("T", " ")) + "</span>" : "") + (f.terminal_to ? "<br><span class=\"dim\">Terminal " + esc(f.terminal_to) + "</span>" : "") +
+          "</td><td>" + esc(f.aircraft) + " " + esc(f.registration) + '</td><td><button class="btn small" type="button" data-sc="' + i + '">Use</button></td></tr>';
+      }).join("") + '</tbody></table><p class="dim" style="margin:6px 0 0">' + esc(j.credit || "") + (j.cached ? " (an answer kept from an earlier look-up)" : "") + "</p>";
+      out.querySelectorAll("[data-sc]").forEach(function (b) { b.addEventListener("click", function () {
+        var f = j.flights[+b.getAttribute("data-sc")];
+        if (f.from) { $("from_id").value = f.from.id; $("from_q").value = f.from.label; }
+        if (f.to) { $("to_id").value = f.to.id; $("to_q").value = f.to.label; }
+        if (f.airline) setv("airline", f.airline); if (f.number) setv("flight_no", f.number); if (f.registration) setv("registration", f.registration);
+        if (f.aircraft && !$("aircraft_type").value) setv("aircraft_type", f.aircraft);
+        var det = F.querySelector("[name=mode][value=detailed]"); if (det && !det.checked) { det.checked = true; det.dispatchEvent(new Event("change", {bubbles: true})); }
+        if (f.sched_out) setv("sched_out", f.sched_out); if (f.sched_in) setv("sched_in", f.sched_in);
+        out.insertAdjacentHTML("beforeend", '<p class="dim" style="margin:6px 0 0">Filled in the scheduled times. Add the actual times below.</p>');
+      }); });
+    }).catch(function () { out.textContent = "The schedule look-up did not answer."; });
+  });
+  function pick(inp, list, hidden) {
+    var timer = null, items = [];
+    inp.addEventListener("input", function () {
+      hidden.value = ""; clearTimeout(timer);
+      var q = inp.value.trim(); if (q.length < 2) { list.hidden = true; return; }
+      timer = setTimeout(function () {
+        fetch("/my/flights/airports.json?q=" + encodeURIComponent(q), {credentials: "same-origin"}).then(function (r) { return r.json(); }).then(function (d) {
+          items = d.airports || []; list.innerHTML = "";
+          items.forEach(function (a) { var li = document.createElement("li"); li.textContent = (a.code ? a.code + " " : "") + a.name + (a.city ? ", " + a.city : "") + (a.country ? " (" + a.country + ")" : ""); li.addEventListener("mousedown", function (e) { e.preventDefault(); inp.value = (a.code ? a.code + " " : "") + a.name; hidden.value = a.id; list.hidden = true; derive(); }); list.appendChild(li); });
+          list.hidden = !items.length;
+        });
+      }, 200);
+    });
+    inp.addEventListener("blur", function () { setTimeout(function () { list.hidden = true; }, 150); });
+  }
+  pick($("from_q"), $("from_l"), $("from_id")); pick($("to_q"), $("to_l"), $("to_id"));
+  function mode() { return F.querySelector("[name=mode]:checked").value; }
+  function applyMode() {
+    var simple = mode() === "simple";
+    Array.prototype.forEach.call(F.querySelectorAll(".det, .dt"), function (e) { e.style.display = simple ? "none" : ""; });
+    Array.prototype.forEach.call(F.querySelectorAll(".h.sch, .sch input"), function (e) { e.style.visibility = simple ? "hidden" : ""; });
+    Array.prototype.forEach.call(F.querySelectorAll("[data-simple]"), function (e) { if (!e.dataset.full) e.dataset.full = e.textContent; e.textContent = simple ? e.dataset.simple : e.dataset.full; });
+    derive();
+  }
+  var dt = null;
+  function derive() {
+    clearTimeout(dt);
+    dt = setTimeout(function () {
+      if (!$("from_id").value || !$("to_id").value) return;
+      var body = {from_id: $("from_id").value, to_id: $("to_id").value, mode: mode()};
+      ["out", "off", "on", "in"].forEach(function (s) { body["sched_" + s] = F.querySelector("[name=sched_" + s + "]").value; body["act_" + s] = F.querySelector("[name=act_" + s + "]").value; });
+      fetch("/my/flights/derive.json", {method: "POST", credentials: "same-origin", headers: {"Content-Type": "application/json", "X-CSRFToken": tok}, body: JSON.stringify(body)}).then(function (r) { return r.json(); }).then(function (d) {
+        if (!d.ok) return;
+        $("d_taxi_out").textContent = d.taxi_out; $("d_taxi_in").textContent = d.taxi_in; $("d_air").textContent = d.air; $("d_total").textContent = d.total; $("d_km").textContent = d.km.toLocaleString() + " km";
+        $("tzline").textContent = " (departure " + d.from_tz.replace("_", " ") + ", arrival " + d.to_tz.replace("_", " ") + ")";
+      });
+    }, 250);
+  }
+  Array.prototype.forEach.call(F.querySelectorAll("input[type=datetime-local], [name=mode]"), function (e) { e.addEventListener("change", function () { if (e.name === "mode") applyMode(); else derive(); }); });
+  var box = $("paxbox");
+  function renumber() { Array.prototype.forEach.call(box.children, function (p, i) { Array.prototype.forEach.call(p.querySelectorAll("[name]"), function (e) { e.name = e.name.replace(/^p\d+_/, "p" + i + "_"); }); }); $("addpax").disabled = box.children.length >= MAXP; }
+  box.addEventListener("click", function (e) { if (e.target.hasAttribute("data-rm")) { e.target.closest(".fl-pax").remove(); renumber(); } });
+  $("addpax").addEventListener("click", function () { if (box.children.length >= MAXP) return; var t = document.getElementById("paxtpl").innerHTML.replace(/p__I___/g, "p" + box.children.length + "_"); var w = document.createElement("div"); w.innerHTML = t; box.appendChild(w.firstElementChild); renumber(); });
+  renumber(); applyMode();
+})();
+</script>
+{% endblock %}

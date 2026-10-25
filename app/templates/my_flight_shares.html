@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Shared Flights{% endblock %}
+{% block content %}
+{% with active = 'flightshares' %}{% include "partials/_my_subnav.html" %}{% endwith %}
+<h1><span>Shared</span> Flights</h1>
+<div class="sub">Give someone a link to a flight, or to your whole diary. Anyone with the link can look, nobody needs an account, and the page is read only and kept out of search engines. <a class="btn small neutral" href="/my/flights">My Flights</a></div>
+{% call sec('newshare', 'Make a Link', True) %}
+  <form method="post" action="/my/flights/shares/create" class="cm-row" style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if pick %}<input type="hidden" name="flight_id" value="{{ pick.id }}"><div><label>Sharing</label><div>The flight {{ pick.from_code }} to {{ pick.to_code }} <a href="/my/flights/shares" class="dim">(share the whole diary instead)</a></div></div>
+    {% else %}<div><label>Sharing</label><div>Your whole diary: the list, the map and the statistics. <span class="dim">To share one flight, use Share on that flight's page.</span></div></div>{% endif %}
+    <div><label for="sh-label">Title (optional)</label><input id="sh-label" name="label" maxlength="80" placeholder="For example: Trip to Las Vegas"></div>
+    <div><label for="sh-days">The link works for</label><select id="sh-days" name="days">{% for d, t in expiry %}<option value="{{ d }}" {{ 'selected' if d == default_days }}>{{ t }}</option>{% endfor %}</select></div>
+    <fieldset style="border:0;padding:0;margin:0"><legend class="dim" style="font-size:.85rem">What the page shows (the route, times, aircraft and airline always show)</legend>
+      <label style="display:inline-flex;gap:6px;margin-right:14px"><input type="checkbox" name="show_track" value="1" checked> The recorded track</label>
+      <label style="display:inline-flex;gap:6px;margin-right:14px"><input type="checkbox" name="show_reg" value="1"> The registration</label>
+      <label style="display:inline-flex;gap:6px;margin-right:14px"><input type="checkbox" name="show_people" value="1"> The people on board</label>
+      <label style="display:inline-flex;gap:6px"><input type="checkbox" name="show_notes" value="1"> My notes</label></fieldset>
+    <button class="btn small" type="submit">Make Link</button>
+  </form>
+  <p class="dim" style="font-size:.85rem;margin-bottom:0">The link is shown once, right after you make it; the site keeps only a fingerprint of it, so copy it then. If you lose it, remove it and make another. You can keep {{ limit }} links.</p>
+{% endcall %}
+{% call sec('myshares', 'Your Links (' ~ rows | length ~ ')', True, True) %}
+  {% if rows %}<table><thead><tr><th>What</th><th>Shows</th><th>Made</th><th>Ends</th><th>Looked at</th><th></th></tr></thead><tbody>
+  {% for r in rows %}<tr>
+    <td>{% if r.flight_id %}Flight {{ r.from_code }} to {{ r.to_code }}{% else %}The diary{% endif %}{% if r.label %}<br><span class="dim" style="font-size:.85rem">{{ r.label }}</span>{% endif %}</td>
+    <td style="font-size:.85rem">{{ ['track' if r.show_track, 'registration' if r.show_reg, 'people' if r.show_people, 'notes' if r.show_notes] | select | join(', ') or 'route and times only' }}</td>
+    <td><time class="ts" datetime="{{ r.created_at.isoformat() }}" data-fmt="d">{{ r.created_at.strftime('%Y-%m-%d') }}</time></td>
+    <td>{% if r.expires_at %}<time class="ts" datetime="{{ r.expires_at.isoformat() }}" data-fmt="d">{{ r.expires_at.strftime('%Y-%m-%d') }}</time>{% if r.expired %} <span class="dim">(ended)</span>{% endif %}{% else %}Never{% endif %}</td>
+    <td>{{ r.views }}</td>
+    <td><form class="inline" method="post" action="/my/flights/shares/{{ r.id }}/revoke" data-confirm="Remove this link? Anyone who has it will get a page not found."><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small warn" type="submit">Remove</button></form></td>
+  </tr>{% endfor %}</tbody></table>
+  {% else %}<p class="dim" style="margin:0">No links yet.</p>{% endif %}
+{% endcall %}
+{% endblock %}

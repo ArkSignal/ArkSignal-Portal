@@ -20,6 +20,26 @@
   {% else %}<p class="dim" style="margin:0">No gateway has uplinked yet.</p>{% endif %}
 {% endcall %}
 {% endif %}
+{% call sec('owneralerts', 'Owner Alerts', True, True) %}
+  <p style="margin-top:0">{% if oa_on %}Owners are told when their router goes quiet or a battery is low (limits and timing are in <a href="/admin/settings/radio#sec-mesh-nodes">Settings &gt; Mesh Nodes</a>); each member chooses what they hear on My Mesh Nodes.{% else %}Owner alerts are switched off in <a href="/admin/settings/radio#sec-mesh-nodes">Settings &gt; Mesh Nodes</a>.{% endif %}</p>
+  <div class="tiles"><div class="panel tile"><div class="tv">{{ oa.day }}</div><div class="tl">Alerts in the last 24 hours</div></div><div class="panel tile"><div class="tv">{{ oa.week }}</div><div class="tl">In the last 7 days ({{ oa.people }} people)</div></div>
+    <div class="panel tile"><div class="tv">{{ oa_open }}</div><div class="tl">Troubles open right now</div></div><div class="panel tile"><div class="tv">{{ oa.waiting }}</div><div class="tl">Messages waiting to go</div></div><div class="panel tile"><div class="tv">{{ oa.failed }}</div><div class="tl">Messages that failed</div></div></div>
+{% endcall %}
+{% call sec('channels', 'Member Channels (' ~ (channels | length) ~ ')', True, True) %}
+  <p style="margin-top:0">Private channels members made on My Mesh Nodes &gt; Mesh Channels. You see the name, the owner and how many people can see it, never the key. Removing one deletes it for everyone.</p>
+  {% if channels %}<table><thead><tr><th>Channel</th><th>Owner</th><th>People</th><th>MQTT</th><th>Made</th><th></th></tr></thead><tbody>
+  {% for c in channels %}<tr><td class="mono">{{ c.name }}</td><td>{{ c.owner }}</td><td>{{ c.people }}</td><td>{{ 'up' if c.uplink }}{{ ' ' if c.uplink and c.downlink }}{{ 'down' if c.downlink }}{{ 'none' if not c.uplink and not c.downlink }}</td>
+    <td><time class="ts" datetime="{{ c.created.isoformat() }}" data-fmt="dt">{{ c.created }}</time></td>
+    <td><form method="post" action="/admin/mesh/channels/{{ c.id }}/delete" data-async data-confirm="Remove this channel for everyone?" style="margin:0"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small danger" type="submit" style="margin:0">Remove</button></form></td></tr>{% endfor %}
+  </tbody></table>{% else %}<p class="dim" style="margin:0">No member has made a channel.</p>{% endif %}
+{% endcall %}
+{% call sec('releases', 'Meshtastic Releases', True, False) %}
+  <p style="margin-top:0">The site reads the project's newest stable releases once a day{% if not rel.on %} (switched off in Settings){% endif %}. A new protobuf release may change the packet formats the mesh service decodes: review the decoders against it, run <span class="mono">tests/mesh_test.py</span>, then mark it reviewed. Firmware updates stay with the official flasher.</p>
+  <table><tbody><tr><th>Newest stable firmware</th><td>{{ rel.fw or 'not read yet' }}{% if rel.fw_date %} ({{ rel.fw_date }}){% endif %}</td></tr><tr><th>Newest protobufs</th><td>{{ rel.pb or 'not read yet' }}{% if rel.pending_review %} <span class="tag live">to review</span>{% elif rel.pb %} <span class="tag off">reviewed</span>{% endif %}</td></tr>
+    <tr><th>Decoders last reviewed against</th><td>{{ rel.reviewed or '-' }}</td></tr><tr><th>Checked</th><td>{% if rel.checked %}<time class="ts" datetime="{{ rel.checked }}" data-fmt="dt">{{ rel.checked[:16].replace('T', ' ') }}</time>{% else %}never{% endif %}</td></tr></tbody></table>
+  <form class="inline" method="post" action="/admin/mesh/releases/check" data-async><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small neutral" type="submit">Check Now</button></form>
+  {% if rel.pending_review %}<form class="inline" method="post" action="/admin/mesh/releases/review" data-confirm="Mark the decoders as reviewed against {{ rel.pb }}?"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small" type="submit">Mark Reviewed</button></form>{% endif %}
+{% endcall %}
 {% call sec('apply', 'Apply Settings', True, False) %}
   <form method="post" action="/admin/mesh/apply" data-async style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small" type="submit" style="margin:0">Apply Settings to the Service</button><span class="dim" style="font-size:.84rem">Sends the settings and the takedown list to {{ url }}.</span></form>
 {% endcall %}
@@ -32,7 +52,7 @@
   <div class="help">The login is made under the member's account (the limit per member does not apply) and opens on their own page, where the password is ready to copy.</div>
   <button class="btn" type="submit">Make Login</button>
 </form>
-<script src="/static/memberpicker.js"></script></details>
+<script nonce="{{ csp_nonce() }}" src="/static/memberpicker.js"></script></details>
 {% call sec('logins', 'Member Logins (' ~ (accounts | length) ~ ')', True, True) %}
   {% if accounts %}<table class="sortable"><thead><tr><th data-sort="text">Login</th><th data-sort="text">Owner</th><th data-sort="text">Nodes</th><th data-sort="text">Status</th><th></th></tr></thead><tbody>
   {% for a in accounts %}<tr><td><a href="/my/mesh/{{ a.id }}" class="mono">{{ a.username }}</a>{% if a.label %}<br><span class="dim">{{ a.label }}</span>{% endif %}</td><td>{{ a.owner_display or a.owner_name }}</td><td class="mono">{{ a.nodes }}</td><td>{{ 'Switched off' if a.disabled else 'Active' }}</td>

@@ -151,6 +151,11 @@ def small_paths(db_backup):
             paths.append(f"{d}/compose.yaml")
     if os.path.isdir(os.path.join(BASE, "grafana/grafana-data")):
         paths.append("grafana/grafana-data")
+    if os.path.isfile(os.path.join(BASE, "matrix/dumps/matrix.dump")):   # the Matrix server: a consistent dump of its database, and the small files that make it who it is (signing key, secrets); the media is in the big copy
+        paths.append("matrix/dumps")
+    mdata = os.path.join(BASE, "matrix/data")
+    if os.path.isdir(mdata):
+        paths += [f"matrix/data/{n}" for n in sorted(os.listdir(mdata)) if os.path.isfile(os.path.join(mdata, n))]
     return paths
 
 
@@ -158,6 +163,8 @@ def big_paths(conf):
     paths = []
     if conf["big"]["prometheus"] and os.path.isdir(os.path.join(BASE, "grafana/prometheus-data")):
         paths.append("grafana/prometheus-data")
+    if os.path.isdir(os.path.join(BASE, "matrix/data/media_store")):
+        paths.append("matrix/data/media_store")
     if conf["big"]["globe"]:
         for rel in ("hub/globe_history", "hub/graphs1090"):
             if os.path.isdir(os.path.join(BASE, rel)):

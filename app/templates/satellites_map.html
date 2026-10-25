@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% from "partials/_mapshell.html" import shell, boot with context %}
+{% block title %}Satellite Map{% endblock %}
+{% block main_class %}wide{% endblock %}
+{% block content %}
+{# The same map page as every other map: partials/_mapshell.html carries the layout; the satellites chosen on the Satellite Passes page are drawn below, and nothing else. #}
+{% call shell("Search a satellite", "Search satellites", "Satellites", "Pass Times", map_type="satellites") %}
+    <details class="fsec" data-k="show" open><summary><span class="ic">&#9737;</span>Satellites<span class="fbadge" data-fb="show"></span></summary><div class="fbody">
+      <div class="help" style="font-size:.82rem;margin:0 0 8px"><b>Passes over {{ place.label }}</b> ({{ '%.3f' % place.lat }}, {{ '%.3f' % place.lon }}) in the next {{ hours }} hours, at least {{ min_el }}&deg; high: {{ pass_list | length }}. The same place and choices as on the Satellite Passes page.</div>
+      <div class="lv-row"><label><input type="checkbox" id="sm-passes" checked> Show the paths of the passes</label></div>
+      <div class="lv-row"><label><input type="checkbox" id="sm-path" checked> Show the path ahead</label></div>
+      <div class="lv-row"><label><input type="checkbox" id="sm-foot" checked> Show the part of the earth each can see</label></div>
+      <div class="lv-row"><label>Icon Size <select id="sm-dot"><option value="75">Small</option><option value="100">Medium</option><option value="130">Large</option><option value="170">Extra large</option></select></label></div>
+      <div class="help dim" style="font-size:.78rem;margin-top:6px">Only the satellites you chose are shown. <a href="/radio/satellites">Choose others</a> on the Satellite Passes page. Orbits: CelesTrak (US Space Force tracking), positions worked out here. Click a satellite for its details.</div>
+    </div></details>
+{% endcall %}
+{{ boot("/radio/satellites/map", "sm") }}
+<script nonce="{{ csp_nonce() }}" src="/static/touchhit.js"></script>
+<script nonce="{{ csp_nonce() }}">
+(function () {
+  var S = ArkShell, $ = S.$, esc = S.esc;
+  var q = new URLSearchParams(location.search), CHOSEN = {{ chosen | tojson }}, NAMES = {{ names | tojson }}, PASSES = {{ pass_list | tojson }}, PLACE = {{ place | tojson }};
+  var map = L.map("lvmap", {zoomControl: false, zoomSnap: 0.25}).setView([parseFloat(q.get("lat")) || {{ map_lat | float }}, parseFloat(q.get("lon")) || {{ map_lon | float }}], parseFloat(q.get("zoom")) || 2);
+  L.control.zoom({position: "bottomright"}).addTo(map);
+  var state = {q: "", path: true, foot: true, passes: true}, selPass = -1, passG = L.layerGroup().addTo(map), dot = parseInt(S.pref("sm.dot"), 10) || 100, cardId = null, sats = [], lines = [], feet = [];
+  var shell = S.start({map: map, layers: {{ layers | tojson }}, key: "sm", url: "/radio/satellites/map", cfg: {tile: {{ tile_url | tojson }}, attr: {{ tile_attr | tojson }}, labelScale: {{ label_scale | int }}, labelBg: {{ label_bg | tojson }}, wxRefresh: {{ wx_refresh | int }}},
+    share: function () { return {q: state.q, id: cardId || "", sat: CHOSEN.join(",")}; }, legend: function () { return legend(); }});
+  var COLOR = {iss: "#7fd1ff", ham: "#4dff88", wx: "#ffb347"}, group = L.layerGroup().addTo(map), under = L.layerGroup().addTo(map), marks = {};
+  $("m-display").innerHTML = ""; $("sm-dot").value = String(dot); $("q").value = state.q;
+  function color(p) { return COLOR[p.KIND] || "#4dff88"; }
+  function legend() { return "<h6>Satellites</h6>" + [["iss", "Space station"], ["ham", "Amateur radio"], ["wx", "Weather"]].map(function (k) { return '<div style="display:flex;gap:8px;align-items:center;margin:3px 0"><span style="width:12px;height:12px;border-radius:50%;background:' + COLOR[k[0]] + ';display:inline-block"></span>' + k[1] + "</div>"; }).join("") + '<div class="dim" style="font-size:.76rem;margin-top:6px">The dashed line is the path ahead; the faint circle is the part of the earth the satellite can see.</div>'; }
+  function match(p) { var t = state.q.trim().toLowerCase(); return !t || ((p.event || "") + " " + p.norad).toLowerCase().indexOf(t) >= 0; }
+  function render() {
+    group.clearLayers(); under.clearLayers(); marks = {};
+    var vis = sats.filter(function (f) { return match(f.properties); });
+    var ok = {}; vis.forEach(function (f) { ok[f.properties.norad] = 1; });
+    if (state.foot) feet.forEach(function (f) { if (ok[f.properties.norad]) L.polygon(f.geometry.coordinates[0].map(function (c) { return [c[1], c[0]]; }), {color: color(f.properties), weight: 1, fillOpacity: .05, opacity: .5, interactive: false}).addTo(under); });
+    if (state.path) lines.forEach(function (f) { if (ok[f.properties.norad]) L.polyline(f.geometry.coordinates.map(function (c) { return [c[1], c[0]]; }), {color: color(f.properties), weight: 2, opacity: .75, dashArray: "6 6", interactive: false}).addTo(under); });
+    vis.forEach(function (f) {
+      var p = f.properties, c = f.geometry.coordinates, sel = String(p.norad) === String(cardId);
+      var m = L.circleMarker([c[1], c[0]], {radius: 8 * dot / 100, color: sel ? "#fff" : color(p), weight: sel ? 3 : 2, fillColor: color(p), fillOpacity: .75}).addTo(group);
+      m.bindTooltip("<b>" + esc(p.event) + "</b> " + esc(p.headline || ""), {className: "lv-tip", permanent: map.getZoom() >= 3, direction: "right", offset: [8, 0]});
+      m.on("click", function () { select(p.norad, false); });
+      marks[p.norad] = m;
+    });
+    renderPasses();
+    var np = PASSES.filter(matchPass).length;
+    $("lv-count").textContent = np + " pass" + (np === 1 ? "" : "es") + " of " + CHOSEN.length + " satellite" + (CHOSEN.length === 1 ? "" : "s");
+    $("lv-chips").innerHTML = state.q ? '<span class="chip" data-c="q">Search: ' + esc(state.q) + "<b>×</b></span>" : "";
+    shell.renderLegend();
+  }
+  function tm(iso) { return window.fmtTime ? window.fmtTime(new Date(iso), "dts") : new Date(iso).toLocaleString(); }
+  function tmShort(iso) { return window.fmtTime ? window.fmtTime(new Date(iso), "ts") : new Date(iso).toLocaleTimeString(); }
+  function matchPass(p) { var t = state.q.trim().toLowerCase(); return !t || (p.name + " " + p.norad).toLowerCase().indexOf(t) >= 0; }
+  function renderPasses() {   // the place that was entered, and every pass of the chosen satellites over it in the look-ahead, with its times
+    passG.clearLayers();
+    L.circleMarker([PLACE.lat, PLACE.lon], {radius: 7, color: "#fff", weight: 3, fillColor: "#ff8c42", fillOpacity: 1}).addTo(passG).bindTooltip("<b>" + esc(PLACE.label) + "</b><br>the place the passes are for", {className: "lv-tip", permanent: true, direction: "top", offset: [0, -8]});
+    var rows = [];
+    PASSES.forEach(function (p, i) {
+      if (!matchPass(p)) return;
+      rows.push(i);
+      if (!state.passes) return;
+      var sel = i === selPass, col = COLOR[colorKind(p.norad)] || "#4dff88";
+      var line = L.polyline(p.path, {color: sel ? "#fff" : col, weight: sel ? 5 : 3, opacity: sel ? 1 : .8}).addTo(passG);
+      line.bindTooltip("<b>" + esc(p.name) + "</b><br>rises " + esc(tmShort(p.aos)) + " in the " + esc(p.az_aos) + "<br>peaks at " + p.max_el + "&deg; at " + esc(tmShort(p.tca)) + "<br>sets " + esc(tmShort(p.los)) + " in the " + esc(p.az_los), {className: "lv-tip", sticky: true});
+      line.on("click", function () { selectPass(i, false); });
+      L.circleMarker(p.path[0], {radius: 4, color: col, fillColor: "#0b1422", fillOpacity: 1, weight: 2, interactive: false}).addTo(passG);
+    });
+    $("lv-tbl").querySelector("thead").innerHTML = "<tr><th>Rises</th><th>Satellite</th><th>Peak</th></tr>";
+    $("lv-tbl").querySelector("tbody").innerHTML = rows.map(function (i) { var p = PASSES[i]; return '<tr class="it' + (i === selPass ? " sel" : "") + '" data-p="' + i + '"><td>' + esc(tm(p.aos)) + "</td><td>" + esc(p.name) + "</td><td>" + p.max_el + "&deg;</td></tr>"; }).join("") || '<tr><td colspan="3" class="dim" style="text-align:left;padding:12px">No pass in this time at this height. Change the look-ahead or the lowest peak on the Satellite Passes page.</td></tr>';
+  }
+  function colorKind(norad) { var f = sats.filter(function (x) { return String(x.properties.norad) === String(norad); })[0]; return f ? f.properties.KIND : ""; }
+  function selectPass(i, zoom) {
+    selPass = i; var p = PASSES[i], card = $("lv-card"); cardId = null;
+    if (!p) { card.style.display = "none"; $("lv").classList.remove("has-card"); render(); return; }
+    var mins = Math.round((new Date(p.los) - new Date(p.aos)) / 60000);
+    $("c-name").textContent = p.name; $("c-sub").textContent = "Pass over " + PLACE.label; $("c-page").href = "/radio/satellites?sel=1&sat=" + p.norad + "&lat=" + PLACE.lat + "&lon=" + PLACE.lon + "&hours={{ hours }}&min={{ min_el }}";
+    var rows = [["Rises", tm(p.aos) + ", in the " + p.az_aos], ["Highest", p.max_el + "\u00b0 at " + tm(p.tca)], ["Sets", tm(p.los) + ", in the " + p.az_los], ["Above the horizon for", mins + " min"]];
+    $("c-body").innerHTML = '<div class="k">' + rows.map(function (r) { return "<div>" + esc(r[0]) + "</div><div>" + esc(r[1]) + "</div>"; }).join("") + "</div>";
+    card.style.display = "block"; $("lv").classList.add("has-card");
+    $("c-follow").onclick = function () { map.fitBounds(L.latLngBounds(p.path.concat([[PLACE.lat, PLACE.lon]])), {padding: [40, 40], maxZoom: 6}); };
+    $("c-close").onclick = function () { selPass = -1; card.style.display = "none"; $("lv").classList.remove("has-card"); render(); };
+    if (zoom) map.fitBounds(L.latLngBounds(p.path.concat([[PLACE.lat, PLACE.lon]])), {padding: [40, 40], maxZoom: 6});
+    render();
+  }
+  function select(id, zoom) {
+    cardId = id; var f = sats.filter(function (x) { return String(x.properties.norad) === String(id); })[0], card = $("lv-card");
+    if (!f) { card.style.display = "none"; $("lv").classList.remove("has-card"); render(); return; }
+    var p = f.properties; selPass = -1;
+    $("c-name").textContent = p.event; $("c-sub").textContent = p.headline || ""; $("c-page").href = p.link || "/radio/satellites?sat=" + p.norad;
+    $("c-body").innerHTML = '<div class="k">' + (p.rows || []).map(function (r) { return "<div>" + esc(r[0]) + "</div><div>" + (r[2] === "t" && window.fmtTime ? esc(window.fmtTime(new Date(r[1]), "dts")) : esc(r[1])) + "</div>"; }).join("") + "</div>";
+    card.style.display = "block"; $("lv").classList.add("has-card");
+    $("c-follow").onclick = function () { var c = f.geometry.coordinates; map.setView([c[1], c[0]], Math.max(map.getZoom(), 4)); };
+    $("c-close").onclick = function () { cardId = null; card.style.display = "none"; $("lv").classList.remove("has-card"); render(); };
+    if (zoom) { var c = f.geometry.coordinates; map.setView([c[1], c[0]], Math.max(map.getZoom(), 4)); }
+    render();
+  }
+  $("lv-chips").addEventListener("click", function (e) { if (e.target.closest(".chip")) { state.q = ""; $("q").value = ""; render(); } });
+  $("lv-tbl").querySelector("tbody").addEventListener("click", function (e) { var tr = e.target.closest("tr.it"); if (tr && tr.getAttribute("data-p") != null) selectPass(parseInt(tr.getAttribute("data-p"), 10), true); });
+  $("sm-passes").addEventListener("change", function () { state.passes = this.checked; render(); });
+  $("q").addEventListener("input", function () { state.q = this.value; render(); });
+  $("sm-path").addEventListener("change", function () { state.path = this.checked; render(); });
+  $("sm-foot").addEventListener("change", function () { state.foot = this.checked; render(); });
+  $("sm-dot").addEventListener("change", function () { dot = parseInt(this.value, 10); S.pref("sm.dot", this.value); render(); });
+  var first = true;
+  function load() {
+    return fetch("/api/satellites.geojson?sat=" + encodeURIComponent(CHOSEN.join(","))).then(function (r) { return r.json(); }).then(function (d) {
+      var fs = d.features || [];
+      sats = fs.filter(function (f) { return f.geometry.type === "Point"; }); lines = fs.filter(function (f) { return f.geometry.type === "LineString"; }); feet = fs.filter(function (f) { return f.geometry.type === "Polygon"; });
+      render();
+      if (first) { first = false; var pts = [[PLACE.lat, PLACE.lon]]; PASSES.forEach(function (p) { p.path.forEach(function (c) { pts.push(c); }); }); if (!PASSES.length) sats.forEach(function (f) { pts.push([f.geometry.coordinates[1], f.geometry.coordinates[0]]); }); map.fitBounds(L.latLngBounds(pts), {padding: [40, 40], maxZoom: 6}); }
+      if (q.get("id") && first === false && !cardId) select(q.get("id"), true);
+    });
+  }
+  load().catch(function () { $("lv-count").textContent = "Could not load the satellites."; });
+  setInterval(function () { load().catch(function () {}); }, {{ refresh | int }} * 1000);
+  window.satMap = {state: function () { return {shown: Object.keys(marks).length, chosen: CHOSEN, total: sats.length, passes: PASSES.length, drawn: passG.getLayers().length, place: PLACE}; }, map: map, selectPass: selectPass};
+})();
+</script>
+{% endblock %}

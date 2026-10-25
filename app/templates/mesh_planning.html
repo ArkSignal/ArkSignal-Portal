@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Mesh Router Planning{% endblock %}
+{% block content %}
+<h1>Mesh <span>Router Planning</span></h1>
+<div class="sub">Where one more router would help the most nodes that are poorly served today. {{ credit }}. The numbers are in <a href="/admin/settings/radio#sec-mesh-nodes">Settings &gt; Mesh Nodes</a>.</div>
+{% if p is none %}<div class="panel"><p class="dim" style="margin:0">The mesh service did not answer. Try again in a minute.</p></div>
+{% else %}
+<div class="tiles" style="margin-bottom:14px">
+  <div class="panel tile"><div class="tv">{{ p.active }}</div><div class="tl">Nodes with a place, heard in {{ p.days }} days</div></div>
+  <div class="panel tile"><div class="tv">{{ p.serving }}</div><div class="tl">Routers and gateways among them</div></div>
+  <div class="panel tile"><div class="tv">{{ p.poor }}</div><div class="tl">Poorly served nodes</div></div>
+</div>
+<div class="panel" style="overflow-x:auto">
+  <p class="dim" style="margin-top:0">A node is poorly served when no more than one gateway heard it lately, or the best signal anyone had of it was weaker than {{ p.poor_snr }} dB. Each suggestion is the place where a router would be within {{ p.radius_km | round | int }} km of the most of those nodes, then the best place for the nodes that are left, and so on.
+  <b>This is a guess from what was heard.</b> It does not know about hills, trees or antenna heights: check a spot with a coverage tool and a visit before putting a router there.</p>
+  {% if p.suggestions %}<table class="sortable"><thead><tr><th data-sort="num">#</th><th data-sort="num">Nodes Helped</th><th data-sort="text">Place</th><th data-sort="num">Nearest Router or Gateway (km)</th><th>Some of the Nodes</th><th></th></tr></thead><tbody>
+  {% for s in p.suggestions %}<tr><td data-v="{{ loop.index }}">{{ loop.index }}</td><td data-v="{{ s.helps }}">{{ s.helps }}</td><td class="mono">{{ s.lat }}, {{ s.lon }}</td><td data-v="{{ s.nearest_serving_km if s.nearest_serving_km is not none else 9999 }}">{{ s.nearest_serving_km if s.nearest_serving_km is not none else '-' }}</td>
+    <td>{% for n in s.nodes %}<a href="/mesh/{{ n.slug }}">{{ n.name or n.id }}</a>{{ ', ' if not loop.last }}{% endfor %}{% if s.helps > s.nodes | length %} and {{ s.helps - s.nodes | length }} more{% endif %}</td>
+    <td><a class="btn small" href="/mesh/map?lat={{ s.lat }}&lon={{ s.lon }}&zoom=11">Show on the Map</a></td></tr>{% endfor %}</tbody></table>
+  {% else %}<p class="dim" style="margin:0">Nothing to suggest: every node with a place is served by two or more gateways with a good signal, or a router or gateway is already close to the ones that are not.</p>{% endif %}
+</div>
+{% endif %}
+<p><a href="/mesh/health">&larr; Mesh Health</a> &middot; <a href="/mesh/">Mesh overview</a></p>
+{% endblock %}

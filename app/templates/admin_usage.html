@@ -41,7 +41,7 @@
   </tbody></table>
 {% endcall %}
 
-<script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   // the From and To boxes show your time; the page asks for them in UTC
   function pad(n) { return (n < 10 ? "0" : "") + n; }

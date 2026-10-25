@@ -15,8 +15,10 @@
 </div>
 <p style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><a href="/sondes/flights">&larr; Flights</a>
   <a class="btn small show-on-map" href="/sondes/map?only={{ f.serial }}">Show on Radiosonde Map</a>
+  <a class="btn small neutral" href="/sondes/map?replay={{ f.serial }}" rel="nofollow">Replay on the Big Map</a>
   {% if f.last_lat is not none %}<a class="btn small show-on-map" href="/live?lat={{ '%.4f' % f.last_lat }}&amp;lon={{ '%.4f' % f.last_lon }}&amp;zoom=9&amp;layers=sondes">Show on Aircraft Map</a>{% endif %}
-  <a class="btn small" href="/sondes/{{ f.serial }}/track.csv">Download CSV</a> <a class="btn small" href="/sondes/{{ f.serial }}/track.geojson">Download GeoJSON</a></p>
+  {% if current_user.is_authenticated and push_on_site %}<form class="inline" method="post" action="/my/notifications/balloons/{{ f.serial }}/{{ 'unfollow' if following else 'follow' }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small{{ ' neutral' if following }}" type="submit" title="Get a notification when this balloon lands">{{ 'Stop Following' if following else 'Follow This Balloon' }}</button></form>{% endif %}
+  {% if current_user.is_authenticated %}<a class="btn small" href="/sondes/{{ f.serial }}/track.csv">Download CSV</a> <a class="btn small" href="/sondes/{{ f.serial }}/track.geojson">Download GeoJSON</a>{% else %}<span class="dim" style="font-size:.85rem"><a href="/my/login?next=/sondes/{{ f.serial }}">Sign in</a> to download this track.</span>{% endif %}</p>
 
 <div class="tiles" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr));margin-bottom:14px">
   <div class="panel tile"><div class="tv" style="font-size:1.4rem" id="t-alt">{{ (latest.alt | u_alt) if latest and latest.alt is not none else '-' }}</div><div class="tl">Altitude now</div></div>
@@ -29,7 +31,7 @@
 
 <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:6px"><label style="margin:0">Icon size <select id="f-isize" style="width:auto"><option value="75">Small</option><option value="100">Medium</option><option value="125">Large</option><option value="160">Extra large</option><option value="200">Huge</option></select></label>
   <label style="margin:0">Labels <select id="f-labels" style="width:auto"><option value="1">Shown</option><option value="0">Hidden (hover for the details)</option></select></label></div>
-<div class="panel" style="padding:0;overflow:hidden;margin-bottom:14px"><div id="fmap" style="height:460px"></div></div>
+<div class="panel" style="padding:10px;display:flex;flex-direction:column;gap:8px;margin-bottom:14px"><div id="sr-host"><div class="dim" id="sr-idle" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:.85rem"><button class="btn small" type="button" id="f-replay" title="Play this flight back on the map below">Replay</button></div></div><div id="fmap" style="height:460px;border-radius:14px;overflow:hidden"></div></div>
 
 {% call sec('now', 'Telemetry Now', True) %}
   <div class="dim" style="font-size:.8rem;margin:0 0 8px"><span id="live-note">{% if f.status == 'aloft' %}Updates by itself every {{ sonde_live }} seconds while the balloon is in the air.{% else %}The last telemetry received.{% endif %}</span></div>
@@ -61,7 +63,7 @@
     <label for="rec-note">Notes</label><textarea id="rec-note" name="note" maxlength="600" rows="3"></textarea>
     <button class="btn" type="submit">Submit Report</button>
   </form>
-  <script>
+  <script nonce="{{ csp_nonce() }}">
   (function () {
     var ok = document.getElementById("rec-ok"), plan = document.getElementById("rec-plan");
     ok.addEventListener("change", function () { if (ok.checked) plan.checked = false; });
@@ -129,16 +131,25 @@
 
 <p class="dim" style="font-size:.8rem">{{ credit }}. Telemetry is uploaded by volunteers' receiving stations to <a href="https://sondehub.org" target="_blank" rel="noopener">SondeHub</a> and shared under the <a href="https://creativecommons.org/licenses/by-sa/2.0/" target="_blank" rel="noopener">Creative Commons BY-SA 2.0</a> license; what you download from this page carries the same license.</p>
 
-<script src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script>
-<script src="/static/touchhit.js"></script>
-<script src="/static/sondechart.js"></script>
-<script src="/static/sondeicons.js"></script>
-<script>
+<script nonce="{{ csp_nonce() }}" src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script><script nonce="{{ csp_nonce() }}" src="/static/safehtml.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/touchhit.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/sondechart.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/sondeicons.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/sondereplay.js"></script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var SERIAL = {{ f.serial | tojson }}, LIVE = {{ (sonde_live * 1000) | tojson }}, ALOFT = {{ (f.status == 'aloft') | tojson }}, SITE = {{ (f.site_name or 'the launch site') | tojson }};
   var $ = function (id) { return document.getElementById(id); };
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]; }); }
   var map = L.map("fmap", {center: [34.8, -92.3], zoom: 7}); window.fmap = map;
+  var srHost = document.getElementById("sr-host"), srIdle = srHost.innerHTML;
+  function wireReplay() {   // the recorded flight replayed on this page's own map: balloon, launch, burst, parachute and landing, with the same bar the aircraft Flight page has
+    document.getElementById("f-replay").addEventListener("click", function () {
+      if (window.smReplay || !window.ArkSondeReplay) return;
+      ArkSondeReplay.start(map, srHost, [{{ f.serial | tojson }}], {embed: true, onStop: function () { srHost.innerHTML = srIdle; wireReplay(); }});
+    });
+  }
+  wireReplay();
   L.tileLayer({{ tile_url | tojson }}, {maxZoom: 19, attribution: {{ tile_attr | tojson }}}).addTo(map);
   var STOPS = [[0, "#3ee6a8"], [5000, "#6be28f"], [10000, "#c8f06a"], [15000, "#ffd24f"], [20000, "#ff9f43"], [25000, "#ff6b6b"], [30000, "#c58bff"]];
   function altColor(m) { var c = STOPS[0][1]; STOPS.forEach(function (s) { if (m != null && m >= s[0]) c = s[1]; }); return c; }

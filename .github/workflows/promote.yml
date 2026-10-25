@@ -64,7 +64,7 @@ jobs:
       # Grafana, Prometheus and the stack updater (config baked in, see deploy/grafana) are released together with the portal.
       - name: Re-tag Grafana and Prometheus images latest -> stable + v${{ inputs.version }}
         run: |
-          for img in adsb-grafana adsb-prometheus adsb-stack adsb-mlat adsb-planefence adsb-backup adsb-photon adsb-predict adsb-aprs adsb-acars adsb-mesh adsb-mesh-mqtt; do
+          for img in adsb-grafana adsb-prometheus adsb-stack adsb-mlat adsb-planefence adsb-backup adsb-photon adsb-predict adsb-aprs adsb-acars adsb-mesh adsb-mesh-mqtt adsb-matrix adsb-element; do
             docker buildx imagetools create               -t ${{ secrets.DOCKERHUB_USERNAME }}/$img:stable -t ${{ secrets.DOCKERHUB_USERNAME }}/$img:v${{ inputs.version }}               ${{ secrets.DOCKERHUB_USERNAME }}/$img:latest
             docker buildx imagetools create               -t ghcr.io/arksignal/arksignal-${img#adsb-}:stable -t ghcr.io/arksignal/arksignal-${img#adsb-}:v${{ inputs.version }}               ghcr.io/arksignal/arksignal-${img#adsb-}:latest
           done

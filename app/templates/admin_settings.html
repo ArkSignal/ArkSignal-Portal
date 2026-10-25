@@ -10,8 +10,8 @@
 </div>
 <div class="tfilterbar"><input type="search" id="setsearch" placeholder="Find a setting by name (for example retention, map, email)" aria-label="Find a setting"><span class="dim" id="setcount"></span></div>
 <div class="setsec-tools">
-  <button class="btn small neutral" type="button" onclick="document.querySelectorAll('details.setsec').forEach(function(d){d.open=true})">Expand All</button>
-  <button class="btn small neutral" type="button" onclick="document.querySelectorAll('details.setsec').forEach(function(d){d.open=false})">Collapse All</button>
+  <button class="btn small neutral" type="button" data-details-open="details.setsec" data-open-all="1">Expand All</button>
+  <button class="btn small neutral" type="button" data-details-open="details.setsec" data-open-all="0">Collapse All</button>
 </div>
 
 {% macro intfield(key, label, width='120px') %}
@@ -96,6 +96,9 @@
     <select id="{{ s.key }}" name="{{ s.key }}">{% for k, l in s.extra.choices %}<option value="{{ k }}" {{ 'selected' if v[s.key] == k }}>{{ l }}</option>{% endfor %}</select>
     {% elif s.kind == 'dist' %}
     <input type="text" id="{{ s.key }}" name="{{ s.key }}" value="{{ dist_show(v[s.key], s.extra.base) }}" style="max-width:140px" title="A number in {{ dist_unit(s.extra.base) }}, or add a unit such as 250 m or 0.5 mi">
+    {% elif s.kind == 'secret' %}
+    <input type="password" id="{{ s.key }}" name="{{ s.key }}" autocomplete="new-password" placeholder="{{ 'saved: leave blank to keep it' if v[s.key] else 'not set' }}" style="max-width:100%">
+    {% if v[s.key] %}<label class="check"><input type="checkbox" name="{{ s.key }}__clear" value="1"><span>Remove the saved value</span></label>{% endif %}
     {% else %}
     <input type="text" id="{{ s.key }}" name="{{ s.key }}" value="{{ v[s.key] }}" style="max-width:{{ '120px' if s.kind in ('int','float') else '100%' }}">
     {% endif %}
@@ -117,7 +120,7 @@
   {% endif %}
 </details>
 {% endfor %}
-<script>
+<script nonce="{{ csp_nonce() }}">
 // Settings sub-nav: one group of sections at a time, a search that spans every group, and old links such as #sec-security still open their section.
 (function () {
   var tabs = Array.prototype.slice.call(document.querySelectorAll("#settabs a")), secs = Array.prototype.slice.call(document.querySelectorAll("details.setsec"));

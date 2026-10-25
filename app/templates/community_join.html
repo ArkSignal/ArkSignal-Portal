@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Invitation | {{ c.name }}{% endblock %}
+{% block content %}
+<h1>Invitation to <span>{{ c.name }}</span></h1>
+<div class="panel" style="max-width:560px">
+  {% if inv %}<p style="margin-top:0">You are invited to be <b>{{ role_label[inv.role] }}</b> of {{ c.name }}, a mesh community on this site. You can accept or decline.</p>
+  <form class="inline" method="post" action="/mesh/c/{{ c.slug }}/join/{{ token }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="answer" value="accept"><button class="btn" type="submit">Accept</button></form>
+  <form class="inline" method="post" action="/mesh/c/{{ c.slug }}/join/{{ token }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="answer" value="decline"><button class="btn neutral" type="submit">Decline</button></form>
+  {% else %}<p style="margin:0">{{ why }}</p>{% endif %}
+</div>
+<p><a href="/mesh/c/{{ c.slug }}">&larr; {{ c.name }}</a></p>
+{% endblock %}

@@ -4,7 +4,7 @@
 {%- endmacro %}
 
 {% macro other_feeds() -%}
-The other feeding pages: {% for g in nav_groups if g.key == 'feed' %}{% for it in g['items'] %}{{ ', ' if not loop.first }}{{ 'and ' if loop.last }}<a href="{{ it[1] }}">{{ 'ADS-B' if it[1] == '/feed/' else it[0] }}</a>{% endfor %}{% endfor %}
+The other feeding pages: {% for g in nav_groups if g.key == 'feed' %}{% for it in g['items'] %}{{ ', ' if not loop.first }}{{ 'and ' if loop.last }}<a href="{{ it[1] }}">{{ 'Overview' if it[1] == '/feed/' else it[0] }}</a>{% endfor %}{% endfor %}
 {%- endmacro %}
 
 {% macro data_and_help(kind) -%}

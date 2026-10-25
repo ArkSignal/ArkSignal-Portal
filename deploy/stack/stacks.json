@@ -73,6 +73,13 @@
    "note": "mesh node service and MQTT broker"
   },
   {
+   "name": "matrix",
+   "dir": "matrix",
+   "file": "/stacks/matrix/compose.yaml",
+   "env": "none",
+   "note": "Matrix chat server (Synapse)"
+  },
+  {
    "name": "hub",
    "dir": "hub",
    "file": "/stacks/hub/compose.yaml",

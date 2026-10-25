@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Community Settings{% endblock %}
+{% block content %}
+{% with active = 'community' %}{% include "partials/_my_subnav.html" %}{% endwith %}
+<style>
+.fr-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid color-mix(in srgb, var(--line) 50%, transparent)}
+.fr-row:last-child{border-bottom:0}
+.fr-name{font-weight:700;min-width:0;overflow-wrap:anywhere}
+.fr-acts{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+.fr-acts .btn{margin:0}
+.dotl{display:inline-block;width:10px;height:10px;border-radius:50%;background:#7a7f8a;flex:none}
+.dotl.on{background:#38c172}
+</style>
+<h1>Community Settings</h1>
+<div class="sub">Settings and information for chat, messages and friends. The things themselves are in the <a href="/chat/">Community</a> section: <a href="/chat/">Chat</a>, <a href="/my/messages">Messages</a> and <a href="/my/friends">Friends</a>.</div>
+{% if mx %}{% call sec('matrix', 'Chat and Notifications', True) %}
+  <p style="margin-top:0">Chat and messages are end-to-end encrypted and live in <a href="/chat/">Chat</a>. Your chat settings (notification choices for each room and chat, your picture, devices, and the keys that unlock your history) are in Element: open <a href="/chat/">Chat</a> and choose the gear in the corner. You sign in with your {{ brand_name }}{{ brand_accent }} account; there is no separate chat password.</p>
+  <p><b>On a phone:</b> install the Element app, choose <b>Sign in</b>, enter <span class="mono">{{ mx.server }}</span> as the server, and continue with {{ brand_name }}{{ brand_accent }}. Element's own notifications work with this server.</p>
+  {% if mx.push_on %}{% with element_url = mx.element_url %}{% include "partials/_push_device.html" %}{% endwith %}
+  {% endif %}
+{% endcall %}{% endif %}
+{% call sec('privacy', 'Who Can Contact Me', True) %}
+  <form id="fr-prefs">
+    <label for="fr-pol">Chats, messages and friend requests</label>
+    <select id="fr-pol" name="contact_policy" style="max-width:320px">{% for k, t in policies %}<option value="{{ k }}" {{ 'selected' if k == policy }}>{{ t }}</option>{% endfor %}</select>
+    <p class="help">Friends only: a member who is not your friend can only send you a friend request. Nobody new: not even requests (friends can still write). Moderators can always reach you about a report.</p>
+    <label class="check"><input type="checkbox" name="show_online" value="1" {{ 'checked' if show_online }}><span>Show my friends and chat partners when I am online</span></label>
+    <p class="help" style="margin:10px 0 4px"><b>Being found:</b> members find you by your user name and display name. You can also let them find you by:</p>
+    <label class="check"><input type="checkbox" name="find_by_callsign" value="1" {{ 'checked' if find_by_callsign }}><span>My call sign</span></label>
+    <label class="check"><input type="checkbox" name="find_by_email" value="1" {{ 'checked' if find_by_email }}><span>My email address (only when someone types all of it; it is never shown to anyone)</span></label>
+    <p class="help" style="margin:10px 0 4px">Which notifications you get on your phone or computer, friend requests included, are chosen on the <a href="/my/notifications">Notifications</a> page.</p>
+    <button class="btn" type="submit">Save</button> <span id="fr-pnote" class="dim" role="status"></span>
+  </form>
+{% endcall %}
+
+{% call sec('blocked', 'Blocked Members (' ~ blocks | length ~ ')', False) %}
+  {% for b in blocks %}<div class="fr-row"><span class="fr-name">{{ name_of(b) }}</span><span class="dim" style="font-size:.8rem">@{{ b.username }}</span><span class="fr-acts"><button class="btn small neutral" type="button" data-act="/my/friends/{{ b.username }}/unblock">Unblock</button></span></div>
+  {% else %}<p class="dim" style="margin:0">You have not blocked anyone. A blocked member cannot chat with you, message you or send requests, and is not told.</p>{% endfor %}
+{% endcall %}
+{% call sec('about', 'How Chat, Messages and Friends Work', False) %}
+  <ul class="plain">
+    {% if chat_on %}<li><b>Chat</b>: live conversations, one to one or in a small group. Messages are kept {{ keep_days }} days and only the people in a chat can read them. Moderators never read a chat unless a message was reported. {% if mute %}<b>You are muted in chat{% if mute.until %} until <time class="ts" datetime="{{ mute.until.isoformat() }}" data-fmt="dt">{{ mute.until }}</time>{% endif %}.</b>{% endif %}</li>{% endif %}
+    {% if mail_on %}<li><b>Messages</b>: longer, email-style messages with folders. {% if pm_mute %}<b>You are muted in messages{% if pm_mute.until %} until <time class="ts" datetime="{{ pm_mute.until.isoformat() }}" data-fmt="dt">{{ pm_mute.until }}</time>{% endif %}.</b>{% endif %}</li>{% endif %}
+    {% if friends_on %}<li><b>Friends</b>: the members you chose. You can see which of them are online (if they allow it) and start a chat or write a message from your friends list.</li>{% endif %}
+    <li>Your first and last name, kept private, are on your <a href="/my/profile">Profile</a>; your amateur license and the radio bridges are under <a href="/my/bridges">Radio</a>.</li>
+  </ul>
+{% endcall %}
+<script nonce="{{ csp_nonce() }}">
+(function () {
+  var csrf = "{{ csrf_token() }}";
+  function post(url, data) { var f = new FormData(); f.append("csrf_token", csrf); Object.keys(data || {}).forEach(function (k) { f.append(k, data[k]); }); return fetch(url, { method: "POST", body: f, credentials: "same-origin" }).then(function (r) { return r.json(); }); }
+  Array.prototype.forEach.call(document.querySelectorAll("[data-act]"), function (b) {
+    b.addEventListener("click", function () {
+      var c = b.getAttribute("data-confirm"); if (c && !confirm(c)) return;
+      post(b.getAttribute("data-act")).then(function () { location.reload(); });
+    });
+  });
+  document.getElementById("fr-prefs").addEventListener("submit", function (e) {
+    e.preventDefault(); var f = this, data = { contact_policy: f.contact_policy.value }; if (f.show_online.checked) data.show_online = "1"; if (f.find_by_callsign.checked) data.find_by_callsign = "1"; if (f.find_by_email.checked) data.find_by_email = "1";
+    post("/my/friends/prefs", data).then(function (d) { document.getElementById("fr-pnote").textContent = d.message || ""; });
+  });
+})();
+</script>
+{% endblock %}

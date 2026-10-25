@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Flight Map{% endblock %}
+{% block content %}
+{% with active = 'flightmap' %}{% include "partials/_my_subnav.html" %}{% endwith %}
+<h1><span>Flight</span> Map</h1>
+<div class="sub">Every route in your diary on one map. Airport circles grow with the number of flights; click one for the flights. <a class="btn small" href="/my/flights">Flights</a></div>
+<form method="get" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin:0 0 10px">
+  <div><label for="fy">Year</label><select id="fy" name="year"><option value="">All</option>{% for y in years %}<option value="{{ y }}" {{ 'selected' if y == year }}>{{ y }}</option>{% endfor %}</select></div>
+  <button class="btn small" type="submit">Show</button>{% if year %}<a class="btn small neutral" href="/my/flights/map">Clear</a>{% endif %}
+</form>
+{% with shared = False, fbase = "/my/flights/" %}{% include "partials/_my_map_body.html" %}{% endwith %}
+{% endblock %}

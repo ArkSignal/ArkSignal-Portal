@@ -335,7 +335,7 @@ def home():
             get_db().rollback()
     from . import services
     from .roadmap import coming_services
-    return render_template("overview.html", coming=coming_services(), svc_now=services.collect("home_now"), wx=wx_card, sonde=sonde_card, layers=homemap.layers(), stations=fd.online_in_state(), ar=arkansas.js_config(), named=totals["claimed"], tagline=cfg("site_tagline"),
+    return render_template("overview.html", coming=coming_services(), svc_now=services.collect("home_now"), svc_cards=services.home_cards(current_user.is_authenticated), wx=wx_card, sonde=sonde_card, layers=homemap.layers(), stations=fd.online_in_state(), ar=arkansas.js_config(), named=totals["claimed"], tagline=cfg("site_tagline"),
                            refresh=cfg_int("home_refresh_seconds"), m=_map_settings(), mlat_on=mlat_on, mlat_working=len(mlat.working_uuids()) if mlat_on else 0,
                            status=status.run(False, sources=False), release=release, home_area=[float(x) for x in cfg("home_map_area").split(",")])
 
@@ -444,6 +444,13 @@ def api_trace(hex_):
     except ValueError:
         at = None
 
+    resp = jsonify(trace_data(hex_, at))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+def trace_data(hex_, at=None):
+    """{..., points, leg, end?} of one aircraft: the hub's trace files, the leg containing `at` (else the latest). Points: [time, lat, lon, altitude ft, speed kt, track, vertical rate]."""
     def merge(files):
         return merge_trace(files, cfg_int("flightlog_gap_minutes") * 60)
 
@@ -468,9 +475,7 @@ def api_trace(hex_):
         if at is not None:
             out["end"] = bounds[pick + 1] if pick + 1 < len(bounds) else len(pts)
         return out
-    resp = jsonify(cached(("trace", hex_, at), load, 10))
-    resp.headers["Cache-Control"] = "no-store"
-    return resp
+    return cached(("trace", hex_, at), load, 10)
 
 
 @bp.route("/api/history/flights.json")
@@ -511,14 +516,19 @@ _HIST_DURATIONS = [("1", "1 hour"), ("6", "6 hours"), ("24", "24 hours"), ("72",
 _HIST_ENDS = [("0", "Now"), ("24", "1 day ago"), ("72", "3 days ago"), ("168", "7 days ago"), ("720", "30 days ago"), ("2160", "90 days ago")]
 
 
-@bp.route("/history/")
-def flight_history():
-    """Earlier flights from the portal's own log, for a period chosen like the heatmap's: the last N hours ending some time ago, or exact dates and times."""
+def _export_box():
+    """What the Flight History page needs to offer the downloads: whether they are on, whether this person may, and the limits in plain numbers."""
+    from . import flightexport
+    return flightexport.box()
+
+
+def history_period(args):
+    """The search and period a Flight History address asks for: (q, start, stop, duration, end, custom, error, tz), shared with the downloads so both mean the same flights."""
     from zoneinfo import ZoneInfo
     tz = ZoneInfo(cfg("timezone"))
     now = datetime.now(timezone.utc)
-    q = request.args.get("q", "").strip()[:20]
-    duration, end = request.args.get("duration", "24"), request.args.get("end", "0")
+    q = args.get("q", "").strip()[:20]
+    duration, end = args.get("duration", "24"), args.get("end", "0")
     if duration not in dict(_HIST_DURATIONS):
         duration = "24"
     if end not in dict(_HIST_ENDS):
@@ -526,7 +536,7 @@ def flight_history():
     start = now - timedelta(hours=float(duration) + float(end))
     stop = now - timedelta(hours=float(end))
     custom, error = False, ""
-    f_from, f_to = request.args.get("from", ""), request.args.get("to", "")
+    f_from, f_to = args.get("from", ""), args.get("to", "")
     if f_from and f_to:
         try:
             s_dt = datetime.fromisoformat(f_from).replace(tzinfo=tz)
@@ -537,6 +547,13 @@ def flight_history():
                 start, stop, custom = s_dt.astimezone(timezone.utc), e_dt.astimezone(timezone.utc), True
         except ValueError:
             error = "Enter the start and end as dates and times."
+    return q, start, stop, duration, end, custom, error, tz
+
+
+@bp.route("/history/")
+def flight_history():
+    """Earlier flights from the portal's own log, for a period chosen like the heatmap's: the last N hours ending some time ago, or exact dates and times."""
+    q, start, stop, duration, end, custom, error, tz = history_period(request.args)
     page = max(1, request.args.get("page", 1, type=int) or 1)
     size = cfg_int("page_size")
     d = get_db()
@@ -548,7 +565,7 @@ def flight_history():
     pager = {"page": page, "pages": max(1, -(-total // size)), "total": total, "args": {k: v for k, v in request.args.items() if k != "page"}}
     return render_template("history.html", rows=rows, pager=pager, sort=sort, direction=direction, q=q, durations=_HIST_DURATIONS, ends=_HIST_ENDS, duration=duration, end=end, custom=custom, error=error,
                            shown_from=start.astimezone(tz).strftime("%Y-%m-%dT%H:%M"), shown_to=stop.astimezone(tz).strftime("%Y-%m-%dT%H:%M"), tz=cfg("timezone"),
-                           since=first, enabled=cfg("flightlog_enabled") == "1", days=cfg_int("flightlog_days"))
+                           since=first, enabled=cfg("flightlog_enabled") == "1", days=cfg_int("flightlog_days"), export=_export_box(), replay_from=int(start.timestamp()))
 
 
 @bp.route("/flight/")
@@ -578,4 +595,4 @@ def flight(hex_):
     hex_ = hex_.lower()
     if not re.fullmatch(r"[0-9a-f]{6}", hex_):
         abort(404)
-    return render_template("flight.html", hex=hex_, m=_map_settings())
+    return render_template("flight.html", hex=hex_, m=_map_settings(), export=_export_box())

@@ -10,7 +10,7 @@ def setting(k, v): psql(f"INSERT INTO settings (key, value) VALUES ('{k}','{v}')
 def compose(txt):
     m = re.search(r'<pre class="code">(services:.*?)</pre>', txt, re.S)
     return html.unescape(m.group(1)) if m else ""
-def page(): return requests.get(B + "/feed/").text
+def page(): return requests.get(B + "/feed/adsb").text
 setting("public_cache_seconds", "0")
 SECTIONS = ["the-short-version", "how-it-works", "what-you-need", "hardware", "hardware-setup", "software-setup", "after-you-are-feeding", "ports", "troubleshooting", "data", "more-help"]
 def semi_ok(c, tag):
@@ -55,4 +55,8 @@ check("the old #sec-mlat link still lands on the MLAT page", "/feed/mlat" in t a
 check("the feed page names no old address (the Already feeding note is gone)", "feed.adsb.allisononline.org" not in t and "Already feeding?" not in t)
 check("it links to the status and MLAT network pages", 'href="/status"' in t)
 setting("mlat_enabled", "0"); setting("uat_enabled", "0")
+ov = requests.get(B + "/feed/").text
+check("/feed/ is the overview: every kind of feeding with its own page, not the ADS-B instructions", "Aircraft (ADS-B)" in ov and 'href="/feed/adsb"' in ov and "Am I Feeding?" in ov and "ULTRAFEEDER_CONFIG" not in ov, "")
+check("the ADS-B instructions are on /feed/adsb under an ADS-B title", "ULTRAFEEDER_CONFIG" in requests.get(B + "/feed/adsb").text and "<title>Feed ADS-B" in requests.get(B + "/feed/adsb").text)
+check("the Feed menu has the overview then ADS-B", 'href="/feed/adsb"' in ov and ov.index('href="/feed/"') < ov.index('href="/feed/adsb"'))
 print("ALL PASS" if ok_all else "SOME FAILED")

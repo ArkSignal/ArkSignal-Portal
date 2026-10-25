@@ -61,11 +61,11 @@
 <div class="panel" style="padding:0;overflow:hidden;margin:14px 0"><div id="cmap" style="height:560px"></div></div>
 <p class="dim" style="font-size:.8rem">County outlines: US Census Bureau (TIGERweb).{% if ct %} Trauma regions and zones: Arkansas Department of Health.{% endif %}</p>
 
-<script src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script>
-<script src="/static/touchhit.js"></script>
-<script src="/static/colocate.js"></script>
-<script src="/static/sondeicons.js"></script>
-<script>
+<script nonce="{{ csp_nonce() }}" src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script><script nonce="{{ csp_nonce() }}" src="/static/safehtml.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/touchhit.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/colocate.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/sondeicons.js"></script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var map = L.map("cmap");
   L.tileLayer({{ tile_url | tojson }}, {maxZoom: 19, attribution: {{ tile_attr | tojson }}}).addTo(map);

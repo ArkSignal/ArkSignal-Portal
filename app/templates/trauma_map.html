@@ -5,7 +5,7 @@
 {% block content %}
 {# The simple map of the trauma system: the same page as every other map (partials/_mapshell.html), with only what the trauma system needs: regions, zones, facilities, county outlines, the street and
    satellite maps, weather, saved views, label and icon sizes, and drive times that are asked for. Units are fixed (miles). #}
-<script>window.ARK_DRIVE_KEY = "drive.trauma";</script>
+<script nonce="{{ csp_nonce() }}">window.ARK_DRIVE_KEY = "drive.trauma";</script>
 {% call shell("Search a county or hospital", "Search counties and hospitals", "Trauma Facilities", "County Page", map_type="trauma",
    labels_extra='<select id="tr-labels" aria-label="Which labels to show"><option value="names">Region or zone names</option><option value="all">Region or zone names and county names</option><option value="none">No labels</option></select>',
    display_extra='<div class="lv-row"><label>Icon Size <select id="tr-dot"><option value="75">Small</option><option value="100">Medium</option><option value="130">Large</option><option value="170">Extra large</option></select></label></div>',
@@ -25,8 +25,8 @@
     </div></details>
 {% endcall %}
 {{ boot("/trauma/", "tr") }}
-<script src="/static/labelfit.js"></script>
-<script>
+<script nonce="{{ csp_nonce() }}" src="/static/labelfit.js"></script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var S = ArkShell, $ = S.$, esc = S.esc;
   var q = new URLSearchParams(location.search);

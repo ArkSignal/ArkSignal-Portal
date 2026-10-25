@@ -4,7 +4,7 @@
     <b>The new key{% if new_note %} ({{ new_note }}){% endif %}{% if new_member %} for {{ new_member }}{% endif %}</b>
     <p class="dim" style="margin:6px 0 10px">Copy it now and pass it to the member in a private way. It is shown only this one time and is not kept anywhere else.</p>
     <pre class="code mono copyable" id="apikey-new-value" style="user-select:all">{{ new_key }}</pre>
-    <button class="btn small" type="button" id="apikey-copy" onclick="navigator.clipboard && navigator.clipboard.writeText(document.getElementById('apikey-new-value').textContent.trim()).then(function(){ document.getElementById('apikey-copy').textContent = 'Copied'; })">Copy the Key</button>
+    <button class="btn small" type="button" id="apikey-copy" data-copy-from="apikey-new-value" data-copied="Copied">Copy the Key</button>
   </div>
   {% endif %}
   <div class="tfilterbar"><input type="search" class="tfilter" data-table="#apikeys-tbl" placeholder="Search by member, key name or the start of a key" aria-label="Search keys"><span class="dim tcount"></span></div>

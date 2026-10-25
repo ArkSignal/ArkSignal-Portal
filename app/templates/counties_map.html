@@ -28,12 +28,12 @@
     </div></details>
 {% endcall %}
 {{ boot("/counties/", "cm") }}
-<script src="/static/touchhit.js"></script>
-<script src="/static/colocate.js"></script>
-<script src="/static/labelfit.js"></script>
-<script src="/static/sondeicons.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/touchhit.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/colocate.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/labelfit.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/sondeicons.js"></script>
 
-<script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var S = ArkShell, $ = S.$, esc = S.esc;
   var CFG = {{ {"metric": default_metric, "hover": county_hover, "labelScale": label_scale | int, "labelBg": label_bg, "lat": map_lat | float, "lon": map_lon | float, "zoom": map_zoom | int, "wxRefresh": wx_refresh | int} | tojson }};

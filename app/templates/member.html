@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}{{ name }}{% endblock %}
+{% block content %}
+<h1><span>{{ name }}</span></h1>
+<div class="sub">A member of this network.{% if me %} This is how others see you. Change it on your <a href="/my/profile">Profile</a>.{% endif %}</div>
+<div class="panel narrow">
+  <p style="margin:0 0 6px"><b>User name:</b> {{ u.username }}</p>
+  {% if call %}
+  <p style="margin:0 0 6px"><span class="tag live">Verified Amateur</span> <b class="mono">{{ call }}</b></p>
+  <p class="dim" style="margin:0 0 6px;font-size:.85rem">This call sign was checked against the FCC amateur license records and is in this member's name.</p>
+  {% else %}<p class="dim" style="margin:0 0 6px">No verified amateur radio call sign.</p>{% endif %}
+  {% if aprs or mesh %}<p style="margin:0 0 6px"><b>Radio bridges:</b> {% if aprs %}<span class="tag member">APRS</span> {% endif %}{% if mesh %}<span class="tag member">Mesh</span>{% endif %}
+    <span class="dim" style="font-size:.85rem">This member can link their chats to the radio networks.</span></p>{% endif %}
+  {% if not me %}<p style="margin:10px 0 0;display:flex;gap:6px;flex-wrap:wrap">
+    {% if chat_ok %}{% if matrix_on %}<a class="btn small" href="/chat/?dm={{ u.username }}" style="margin:0">Start a Chat</a>{% else %}<button class="btn small" type="button" id="mb-chat" data-user="{{ u.username }}" style="margin:0">Start a Chat</button>{% endif %}{% endif %}
+    {% if pm_ok %}<a class="btn small neutral" href="/my/messages/compose?to={{ u.username }}" style="margin:0">Write a Message</a>{% endif %}
+  </p><span id="mb-note" class="dim" role="status"></span>{% endif %}
+</div>
+{% if chat_ok and not me %}
+<script nonce="{{ csp_nonce() }}">
+(function () {
+  var b = document.getElementById("mb-chat"); if (!b) return;
+  b.addEventListener("click", function () {
+    var f = new FormData(); f.append("csrf_token", "{{ csrf_token() }}"); f.append("to", b.getAttribute("data-user"));
+    fetch("/chat/new", { method: "POST", body: f, credentials: "same-origin", headers: { "X-Requested-With": "XMLHttpRequest" } }).then(function (r) { return r.json(); }).then(function (d) { if (d.ok) location.href = d.url; else document.getElementById("mb-note").textContent = d.message || "Could not start the chat."; });
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

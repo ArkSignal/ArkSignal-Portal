@@ -3,6 +3,7 @@ the home map and the card beside it, the admin Overview, the About page, the Fee
 missing from one of them fails here; one that is not in the registry at all is caught by the checklist (NEW_SERVICE_CHECKLIST.md)."""
 import re, subprocess, requests
 exec(open("roles_test.py", encoding="utf-8").read().split("ok_all=True")[0])
+MEM = sess("plain1", "plainpassword1")   # Planefence, the code plug exports, downloads and the My ... pages are for signed-in members
 ok_all = True
 def check(name, cond, extra=""):
     global ok_all
@@ -17,8 +18,8 @@ import time; time.sleep(6)
 reg = adm.get(B + "/admin/services.json").json()["services"]
 keys = [s["key"] for s in reg]
 check("the registry lists weather, radiosondes and the county map", {"weather", "sondes", "counties"} <= set(keys), keys)
-home = requests.get(B + "/").text
-about = requests.get(B + "/about").text
+home = MEM.get(B + "/").text
+about = MEM.get(B + "/about").text
 nowhtml = requests.get(B + "/home/now").text
 overview = adm.get(B + "/admin/").text
 feedmenu = requests.get(B + "/feed/").text

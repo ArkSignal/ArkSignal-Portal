@@ -14,6 +14,21 @@ def act(s, path, page, **data):
     data["csrf_token"]=tok(s, page)
     r=s.post(B+path, data=data, headers={"X-Requested-With":"XMLHttpRequest"})
     j=r.json(); return j["ok"], j["message"], j.get("html","")
+_OPSQL = []
+def opsql(sql):
+    """Rows of a SELECT with sealed text opened (for checking what a feature stored: message, notes and people's names are sealed in the database). Returns a list of rows, each a list of strings."""
+    import subprocess as _sp
+    if not _OPSQL:
+        _sp.run(["scp", "-q", "sql_open.py", "nastemp:adsb-portal/sql_open.py"], check=True)
+        _sp.run(["ssh", "-q", "nastemp", "echo $TEST_SUDO_PASSWORD | sudo -S -p '' /usr/local/bin/docker cp ~/adsb-portal/sql_open.py adsb-portal:/tmp/sql_open.py"], check=True, capture_output=True)
+        _OPSQL.append(1)
+    for _try in range(4):
+        _r = _sp.run(["ssh", "-q", "nastemp", "echo $TEST_SUDO_PASSWORD | sudo -S -p '' /usr/local/bin/docker exec -w /app -e PYTHONPATH=/app adsb-portal python /tmp/sql_open.py \"" + sql.replace('"', '\\"') + "\""], capture_output=True, text=True, timeout=120)
+        if _r.returncode == 0:
+            break
+        import time as _t; _t.sleep(3)
+    out = _r.stdout
+    return [line.split("|") for line in out.splitlines() if line.strip() != ""]
 ok_all=True
 def check(name, cond, extra=""):
     global ok_all

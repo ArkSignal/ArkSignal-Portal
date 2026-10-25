@@ -2,9 +2,9 @@
 {% from "partials/_feedsec.html" import sec with context %}
 {% block title %}Google Sign-In{% endblock %}
 {% block content %}
+{% with active = 'google' %}{% include "partials/_my_subnav.html" %}{% endwith %}
 <h1>My <span>Google Sign-In</span></h1>
 <div class="sub">Link your Google account to sign in with one click, without typing your password. Your password still works.</div>
-{% with active = 'google' %}{% include "partials/_my_subnav.html" %}{% endwith %}
 
 {% call sec('link', 'Your Google Account', True) %}
   {% include "partials/_my_google.html" %}

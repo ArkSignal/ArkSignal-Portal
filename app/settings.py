@@ -6,7 +6,7 @@ from cryptography.fernet import Fernet, InvalidToken
 from flask import current_app, g, has_app_context, has_request_context
 
 from .db import get_db
-from .features import ENABLE_KEYS, KEYS as FEATURE_KEYS
+from .features import ENABLE_KEYS, KEYS as FEATURE_KEYS, MEMBERS_ONLY
 
 
 DEFAULTS = {
@@ -128,7 +128,14 @@ DEFAULTS = {
     "signin_ip_failures": "20",
     "signin_ip_window_minutes": "15",
     "security_headers": "1",
+    "csp_scripts": "1",
+    "request_limit_mb": "10",
+    "request_limit_admin_mb": "512",
+    "request_limit_member_mb": "40",
     "session_keep_days": "30",
+    "alert_push_per_hour": "20",
+    "alert_push_per_day": "100",
+    "alert_push_combine_minutes": "1",
     "webhook_per_hour": "20",
     "webhook_per_day": "100",
     "webhook_combine_minutes": "1",
@@ -185,6 +192,10 @@ DEFAULTS = {
     "alert_poll_seconds": "15",
     "alert_default_cooldown_minutes": "30",
     "pre_restore_keep": "5",
+    "seo_enabled": "1",
+    "seo_description": "Arkansas's open network for sky, weather and radio: live aircraft, radiosondes, weather stations, mesh nodes and repeaters, from receivers run by people across the state.",
+    "seo_google_verification": "",
+    "seo_bing_verification": "",
     "site_tagline": "One network for what's overhead, outdoors and on the air.",
     "radar_range_nm": "150",
     "radar_ring_nm": "50",
@@ -279,6 +290,13 @@ DEFAULTS = {
     "people_search_per_minute": "40",
     "friends_max": "300",
     "friends_requests_per_day": "20",
+    "friends_push": "1",
+    "wx_thin_days": "0",
+    "wx_thin_seconds": "3600",
+    "retention_run_hour": "3",
+    "retention_batch_rows": "20000",
+    "retention_log_keep_days": "365",
+    "matrix_media_keep_days": "0",
     "chat_group_max": "20",
     "chat_new_per_day": "30",
     "chat_online_seconds": "120",
@@ -309,6 +327,48 @@ DEFAULTS = {
     "google_jwks_url": "https://www.googleapis.com/oauth2/v3/certs",
     "google_issuers": "https://accounts.google.com,accounts.google.com",
     "google_timeout_seconds": "10",
+    "matrix_enabled": "0",
+    "matrix_client_id": "matrix",
+    "matrix_issuer": "",
+    "matrix_url": "http://matrix:8483",
+    "matrix_server_name": "arksignal.net",
+    "matrix_public_url": "https://matrix.arksignal.net",
+    "matrix_element_url": "https://chat.arksignal.net",
+    "matrix_oidc_internal": "http://adsb-portal:8430",
+    "matrix_federation": "0",
+    "matrix_calls": "0",
+    "matrix_push_url": "http://adsb-portal:8430/_matrix/push/v1/notify",
+    "push_enabled": "1",
+    "push_endpoint_hosts": "fcm.googleapis.com,push.services.mozilla.com,push.apple.com,notify.windows.com",
+    "push_contact": "mailto:support@arksignal.net",
+    "push_ttl_seconds": "86400",
+    "push_timeout_seconds": "10",
+    "push_devices_per_member": "5",
+    "push_kinds_off": "",
+    "push_quiet_enabled": "1",
+    "push_kind_per_hour": "10",
+    "push_kind_per_day": "40",
+    "push_watch_seconds": "300",
+    "push_places_per_member": "5",
+    "push_place_max_radius_km": "300",
+    "push_follows_per_member": "20",
+    "push_quake_min_mag": "3.0",
+    "push_river_min_category": "MIN",
+    "push_weather_codes": "TOR,SVR,FLD,WIN,HOT,FIR",
+    "push_satpass_lead_minutes": "15",
+    "push_satpass_min_elev": "30",
+    "matrix_appservice_url": "http://adsb-portal:8430",
+    "matrix_create_rooms": "everyone",
+    "matrix_invite": "everyone",
+    "matrix_auto_join": "1",
+    "matrix_rooms": "general|General|Talk about anything;aircraft|Aircraft|Aircraft, ADS-B and the map;weather|Weather|Weather stations, storms and balloons;radio|Radio|Amateur radio, repeaters, nets and mesh;help|Help|Questions about the site",
+    "matrix_sync_seconds": "300",
+    "matrix_presence": "1",
+    "matrix_url_previews": "1",
+    "matrix_max_upload_mb": "50",
+    "matrix_redirect_uris": "",
+    "oidc_code_seconds": "120",
+    "oidc_token_seconds": "3600",
     "goes_enabled": "1",
     "goes_sectors": "smv,sp,conus,conus-west,fd,fd-west",
     "goes_products": "GEOCOLOR,13,09,AirMass,02",
@@ -398,11 +458,78 @@ DEFAULTS = {
     "mesh_east": "-88.8",
     "mesh_keep_days": "60",
     "mesh_links_keep_days": "30",
+    "mesh_communities_enabled": "1",
+    "mesh_community_max_points": "60",
+    "mesh_community_max_channels": "8",
+    "mesh_community_max_pins": "200",
+    "myflights_enabled": "1",
+    "myflights_max_per_member": "2000",
+    "myflights_max_passengers": "10",
+    "myflights_map_track_points": "150",
+    "myflights_sharing": "1",
+    "meshalert_enabled": "0",
+    "meshlink_enabled": "0",
+    "meshlink_admin_approval": "1",
+    "meshlink_max_per_community": "5",
+    "meshlink_default_hops": "3",
+    "meshlink_max_hops": "5",
+    "meshlink_max_rate": "30",
+    "meshalert_codes": "TOR,SVR,FLD,WIN,FIR",
+    "meshalert_weather_hours": "6",
+    "meshalert_daily_cap": "24",
+    "meshalert_min_gap_seconds": "120",
+    "meshalert_check_seconds": "300",
+    "meshalert_station_minutes": "90",
+    "meshalert_log_days": "30",
+    "meshalert_node_id": "a5c0a001",
+    "meshalert_gateway": "!a5c0a001",
+    "schedules_enabled": "0",
+    "schedules_provider": "apimarket",
+    "schedules_base_url": "",
+    "schedules_key": "",
+    "schedules_cache_days": "3",
+    "schedules_per_member_day": "10",
+    "schedules_site_month": "150",
+    "schedules_timeout_seconds": "10",
+    "myflights_max_shares": "20",
+    "myflights_share_max_days": "0",
+    "myflights_airtrail_private": "0",
+    "shop_enabled": "1",
+    "shop_amazon_domain": "www.amazon.com",
+    "shop_amazon_tag": "",
+    "shop_disclosure": "As an Amazon Associate we earn from qualifying purchases.",
+    "shop_overrides": "",
+    "export_enabled": "1",
+    "export_max_flights": "5000",
+    "export_per_day": "20",
+    "mesh_release_check": "1",
+    "mesh_release_check_hours": "24",
+    "mesh_release_api": "https://api.github.com/repos/meshtastic",
+    "mesh_bridge_enabled": "1",
+    "mesh_bridge_max": "3",
+    "mesh_bridge_poll_seconds": "30",
+    "mesh_bridge_polls_per_minute": "30",
+    "mesh_bridge_poll_max": "5",
+    "mesh_bridge_cmd_expire_hours": "24",
+    "mesh_bridge_cmd_keep_days": "90",
+    "mesh_community_invite_days": "14",
+    "mesh_community_max_links": "10",
+    "mesh_community_max_logins": "10",
+    "mesh_community_join_requests": "1",
+    "mesh_community_max_requests": "20",
+    "mesh_history_keep_days": "30",
+    "mesh_plan_radius_km": "15",
+    "mesh_plan_poor_snr": "-5",
+    "mesh_plan_results": "8",
+    "mesh_plan_separation_km": "3",
+    "mesh_history_min_seconds": "300",
     "mesh_links_show": "1",
     "mesh_links_show_days": "14",
     "mesh_online_minutes": "30",
     "mesh_map_area": "33.0,-94.62,36.5,-89.64",
     "mesh_up_enabled": "1",
+    "mesh_forward_enabled": "0",
+    "mesh_forward_root": "msh/US/AR",
     "mesh_up_host": "mqtt.meshtastic.org",
     "mesh_up_port": "1883",
     "mesh_up_user": "meshdev",
@@ -413,6 +540,18 @@ DEFAULTS = {
     "mesh_busy_channel_pct": "25",
     "mesh_firmware_gap": "2",
     "mesh_router_gap_miles": "15",
+    "mesh_sync_seconds": "120",
+    "mesh_channels_enabled": "1",
+    "mesh_channels_per_member": "5",
+    "mesh_channel_max_members": "50",
+    "mesh_owner_alerts": "1",
+    "mesh_owner_alert_check_seconds": "300",
+    "mesh_owner_alert_repeat_hours": "24",
+    "mesh_owner_alert_max_repeats": "3",
+    "mesh_owner_alert_battery_margin": "5",
+    "mesh_owner_alert_combine_minutes": "10",
+    "mesh_owner_alert_per_day": "6",
+    "mesh_owner_alert_keep_days": "30",
     "mesh_public_rules": "1",
     "mesh_public_channels": "LongFast,LongSlow,LongModerate,MediumFast,MediumSlow,ShortFast,ShortSlow,ShortTurbo,VLongSlow",
     "mesh_public_portnums": "1,3,4,5,7,67,71,73",
@@ -661,7 +800,7 @@ def map_area(key):
 
 
 for _k in FEATURE_KEYS:   # who can see each feature (app/features.py): everyone until an administrator limits it
-    DEFAULTS.setdefault("access_" + _k, "everyone")
+    DEFAULTS.setdefault("access_" + _k, "members" if _k in MEMBERS_ONLY else "everyone")
 
 
 def cfg_raw(key):
@@ -694,11 +833,21 @@ def cfg_int(key):
         return int(DEFAULTS[key])
 
 
+SEALED_SETTINGS = {"bridge_mesh_token", "mesh_password", "mesh_up_password", "schedules_key"}   # settings whose value is a secret: stored sealed (app/vault.py), read back as plain text, never shown or written to the audit log
+
+
+def _unsealed(key, value):
+    if key in SEALED_SETTINGS and value:
+        from .vault import unseal
+        return unseal(value)
+    return value
+
+
 def _all():
     """Every setting in one query, kept for the rest of the request (a page asks for dozens)."""
     cache = g.get("_settings") if has_app_context() else None
     if cache is None:
-        cache = {r["key"]: r["value"] for r in get_db().execute("SELECT key, value FROM settings").fetchall()}
+        cache = {r["key"]: _unsealed(r["key"], r["value"]) for r in get_db().execute("SELECT key, value FROM settings").fetchall()}
         if has_app_context():
             g._settings = cache
     return cache
@@ -710,8 +859,12 @@ def get_setting(key, default=""):
 
 def set_setting(key, value):
     d = get_db()
+    stored = value
+    if key in SEALED_SETTINGS and value:
+        from .vault import seal
+        stored = seal(value)
     d.execute("INSERT INTO settings (key, value) VALUES (%s,%s) "
-              "ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value", (key, value))
+              "ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value", (key, stored))
     d.commit()
     if has_app_context() and g.get("_settings") is not None:
         g._settings[key] = value

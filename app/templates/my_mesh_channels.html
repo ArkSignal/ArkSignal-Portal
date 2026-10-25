@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}Mesh Channels{% endblock %}
+{% block content %}
+{% macro plabel(p) %}{% if p == 0 %}None: no position is shared on this channel{% elif p == 32 %}Exact: no blurring{% else %}{{ p }} bits: blurred to about {{ precision_km[p] | u_dist(2) }}{% endif %}{% endmacro %}
+{% with active = 'channels' %}{% include "partials/_my_subnav.html" %}{% endwith %}
+<h1><span>Mesh</span> Channels</h1>
+<div class="sub">Make a private Meshtastic channel with a random key, then share it with chosen members. Each person gets the same QR code and address to add the channel in the Meshtastic app.</div>
+
+<details class="panel setsec" id="sec-make-a-channel" {{ 'open' if not mine and not shared }} style="margin-top:14px"><summary><span class="role-name">Make a Channel</span></summary><div class="secbody">
+  {% if full %}<p class="dim" style="margin-top:0">You have made the most channels you can ({{ limit }}). Delete one to make another.</p>{% else %}
+  <form method="post" action="/my/mesh/channels/add"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="mc-name">Channel Name</label>
+    <input type="text" id="mc-name" name="name" maxlength="11" required style="max-width:200px" placeholder="MyCrew">
+    <div class="help">Up to 11 letters, digits, dashes or underscores (the Meshtastic limit). The key is made here, at random, and kept sealed.</div>
+    <label for="mc-bits">Key Strength</label>
+    <select id="mc-bits" name="key_bits" style="max-width:260px"><option value="256">256-bit (recommended)</option><option value="128">128-bit</option></select>
+    <label class="check"><input type="checkbox" name="uplink" value="1"><span>Uplink to MQTT (nodes may send this channel to a broker)</span></label>
+    <label class="check"><input type="checkbox" name="downlink" value="1"><span>Downlink from MQTT (nodes may bring this channel in from a broker)</span></label>
+    <label for="mc-prec">Position Sharing</label>
+    <select id="mc-prec" name="precision" style="max-width:320px">{% for p in precisions %}<option value="{{ p }}">{{ plabel(p) }}</option>{% endfor %}</select>
+    <label for="mc-note">Note (only you see it)</label>
+    <input type="text" id="mc-note" name="note" maxlength="200" style="max-width:420px">
+    <button class="btn" type="submit">Make the Channel</button>
+  </form>{% endif %}
+</div></details>
+
+<details class="panel setsec" id="sec-my-channels" {{ 'open' if mine }} style="margin-top:14px"><summary><span class="role-name">My Channels ({{ mine | length }} of up to {{ limit }})</span></summary><div class="secbody">
+  {% for c in mine %}
+  <div class="panel" style="margin:0 0 14px" id="ch-{{ c.id }}">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><b class="mono" style="font-size:1.05rem">{{ c.name }}</b>
+      <span class="dim">{{ c.people }} {{ 'person' if c.people == 1 else 'people' }} can see it</span></div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;margin-top:10px">
+      <img src="/my/mesh/channels/{{ c.id }}/qr.svg" alt="QR code for the channel {{ c.name }}" width="220" height="220" style="background:#fff;border-radius:8px;max-width:100%">
+      <div style="flex:1 1 240px;min-width:0">
+        <p style="margin:0 0 6px">Scan this with the Meshtastic app (Settings &gt; Channels &gt; the QR icon on Android, Settings &gt; Channels on iPhone), or open the address on the phone. It <b>adds</b> the channel and keeps your others.</p>
+        <button class="btn small neutral" type="button" data-key="{{ c.id }}" style="margin:0">Show the Key and Address</button>
+        <div id="key-{{ c.id }}" class="mono" style="display:none;margin-top:8px;word-break:break-all;font-size:.82rem"></div>
+      </div>
+    </div>
+    <details style="margin-top:12px"><summary class="dim" style="cursor:pointer">Options</summary>
+      <form method="post" action="/my/mesh/channels/{{ c.id }}/save" style="margin-top:8px"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label class="check"><input type="checkbox" name="uplink" value="1" {{ 'checked' if c.uplink }}><span>Uplink to MQTT</span></label>
+        <label class="check"><input type="checkbox" name="downlink" value="1" {{ 'checked' if c.downlink }}><span>Downlink from MQTT</span></label>
+        <label for="mp-{{ c.id }}">Position Sharing</label>
+        <select id="mp-{{ c.id }}" name="precision" style="max-width:320px">{% for p in precisions %}<option value="{{ p }}" {{ 'selected' if p == c.precision }}>{{ plabel(p) }}</option>{% endfor %}</select>
+        <label for="mn-{{ c.id }}">Note (only you see it)</label>
+        <input type="text" id="mn-{{ c.id }}" name="note" value="{{ c.note }}" maxlength="200" style="max-width:420px">
+        <button class="btn small" type="submit">Save Options</button>
+      </form>
+    </details>
+    <details style="margin-top:8px" {{ 'open' if people.get(c.id) }}><summary class="dim" style="cursor:pointer">Share It ({{ c.people }})</summary>
+      <div class="ch-people" style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0">{% for p in people.get(c.id, []) %}<span class="tag member">{{ p.name }}
+        <form method="post" action="/my/mesh/channels/{{ c.id }}/unshare" style="display:inline;margin:0"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="user" value="{{ p.username }}"><button type="submit" class="x" title="Stop sharing with {{ p.name }}">&times;</button></form></span>{% else %}<span class="dim">Not shared with anyone yet.</span>{% endfor %}</div>
+      <form method="post" action="/my/mesh/channels/{{ c.id }}/share"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label for="sh-{{ c.id }}">Members (user name, call sign or email address; several with commas)</label>
+        <input type="text" id="sh-{{ c.id }}" name="to" data-memberpicker="people" data-multi="1" maxlength="400" style="max-width:420px">
+        {% if friends_on %}<label class="check"><input type="checkbox" name="all_friends" value="1"><span>All my friends</span></label>{% endif %}
+        {% if convs %}<label for="sg-{{ c.id }}">Everyone in a Chat Group</label>
+        <select id="sg-{{ c.id }}" name="conv_id" style="max-width:360px"><option value="">None</option>{% for g in convs %}<option value="{{ g.id }}">{{ g.name or g.others or ('Group ' ~ g.id) }}</option>{% endfor %}</select>{% endif %}
+        <button class="btn small" type="submit">Share</button>
+      </form>
+      <p class="help">People you share it with see the same QR code and key. Up to {{ max_people }} people. Taking someone off does not lock them out of a key they already have: replace the key for that.</p>
+    </details>
+    <p style="margin:12px 0 0;display:flex;gap:8px;flex-wrap:wrap">
+      <form method="post" action="/my/mesh/channels/{{ c.id }}/rotate" data-confirm="Replace the key? Everyone, including you, has to scan the new QR code." style="margin:0"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small neutral" type="submit" style="margin:0">Replace the Key</button></form>
+      <form method="post" action="/my/mesh/channels/{{ c.id }}/delete" data-confirm="Delete this channel? Radios that already have it keep working; nobody can see its key here any more." style="margin:0"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small danger" type="submit" style="margin:0">Delete the Channel</button></form>
+    </p>
+    {% if c.note %}<p class="dim" style="margin:8px 0 0;font-size:.85rem">Note: {{ c.note }}</p>{% endif %}
+  </div>
+  {% else %}<p class="dim" style="margin:0">No channels yet. Make one above.</p>{% endfor %}
+</div></details>
+
+<details class="panel setsec" id="sec-default-channel" style="margin-top:14px"><summary><span class="role-name">The Default Channel</span></summary><div class="secbody">
+  <p style="margin-top:0">The channel every Meshtastic radio starts with (Long Fast with the well-known default key). It is public: anyone can read it, so it is not private, but it is handy to add back to a radio, alone or together with your own channels below.</p>
+  <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start">
+    <img src="/my/mesh/channels/combine.svg?ids=default" alt="QR code for the default channel" width="180" height="180" style="background:#fff;border-radius:8px;max-width:100%">
+    <div style="flex:1 1 240px;min-width:0"><div class="dim">Address</div><div class="mono" style="word-break:break-all;font-size:.82rem">{{ default_address }}</div></div>
+  </div>
+</div></details>
+
+<details class="panel setsec" id="sec-one-code" {{ 'open' if mine or shared }} style="margin-top:14px"><summary><span class="role-name">One Code for Several Channels</span></summary><div class="secbody">
+  <p style="margin-top:0">Tick the channels you want and make a single QR code: scanning it once puts all of them into the Meshtastic app. The first one ticked in the list becomes the primary channel when you replace what is on the radio. A radio holds {{ max_code }} channels at most.</p>
+  <form id="oc-form">
+    <label class="check"><input type="checkbox" name="oc" value="default"><span>The default channel (public)</span></label>
+    {% for c in mine %}<label class="check"><input type="checkbox" name="oc" value="{{ c.id }}"><span>{{ c.name }} <span class="dim">(mine)</span></span></label>{% endfor %}
+    {% for c in shared %}<label class="check"><input type="checkbox" name="oc" value="{{ c.id }}"><span>{{ c.name }} <span class="dim">(from {{ c.owner_name }})</span></span></label>{% endfor %}
+    <label for="oc-mode">What the code does on the radio</label>
+    <select id="oc-mode" style="max-width:420px"><option value="add">Add these to the channels already on the radio</option><option value="replace">Replace all the channels on the radio with these</option></select>
+    <button class="btn" type="submit">Make One Code</button> <span id="oc-note" class="dim" role="status"></span>
+  </form>
+  <div id="oc-out" style="display:none;margin-top:12px">
+    <img id="oc-img" alt="QR code for the chosen channels" width="260" height="260" style="background:#fff;border-radius:8px;max-width:100%">
+    <div id="oc-addr" class="mono" style="word-break:break-all;font-size:.82rem;margin-top:8px"></div>
+  </div>
+</div></details>
+
+<details class="panel setsec" id="sec-shared-with-me" {{ 'open' if shared }} style="margin-top:14px"><summary><span class="role-name">Shared With Me ({{ shared | length }})</span></summary><div class="secbody">
+  {% for c in shared %}
+  <div class="panel" style="margin:0 0 14px" id="sh-ch-{{ c.id }}">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><b class="mono" style="font-size:1.05rem">{{ c.name }}</b><span class="dim">from {{ c.owner_name }}</span></div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;margin-top:10px">
+      <img src="/my/mesh/channels/{{ c.id }}/qr.svg" alt="QR code for the channel {{ c.name }}" width="220" height="220" style="background:#fff;border-radius:8px;max-width:100%">
+      <div style="flex:1 1 240px;min-width:0">
+        <p style="margin:0 0 6px">Scan this with the Meshtastic app to add the channel. Keep the key to yourselves: it is the only thing that keeps the channel private.</p>
+        <button class="btn small neutral" type="button" data-key="{{ c.id }}" style="margin:0">Show the Key and Address</button>
+        <div id="key-{{ c.id }}" class="mono" style="display:none;margin-top:8px;word-break:break-all;font-size:.82rem"></div>
+        <form method="post" action="/my/mesh/channels/{{ c.id }}/leave" data-confirm="Leave this channel? You will no longer see its key here." style="margin:10px 0 0"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small neutral" type="submit" style="margin:0">Leave</button></form>
+      </div>
+    </div>
+  </div>
+  {% else %}<p class="dim" style="margin:0">Nothing has been shared with you.</p>{% endfor %}
+</div></details>
+<script nonce="{{ csp_nonce() }}">
+(function () {
+  var csrf = "{{ csrf_token() }}";
+  Array.prototype.forEach.call(document.querySelectorAll("[data-key]"), function (b) {
+    b.addEventListener("click", function () {
+      var id = b.getAttribute("data-key"), box = document.getElementById("key-" + id), f = new FormData(); f.append("csrf_token", csrf);
+      if (box.getAttribute("data-on") === "1") { box.style.display = "none"; box.textContent = ""; box.setAttribute("data-on", "0"); b.textContent = "Show the Key and Address"; return; }
+      fetch("/my/mesh/channels/" + id + "/key", { method: "POST", body: f, credentials: "same-origin" }).then(function (r) { return r.json(); }).then(function (d) {
+        if (!d.ok) return;
+        box.style.display = "block"; box.textContent = "";
+        [["Key (" + d.bits + "-bit, base64)", d.base64], ["Key (hex)", d.hex], ["Address that adds the channel", d.address], ["Address that replaces all channels", d.replace_address]].forEach(function (p) {
+          var line = document.createElement("div"); line.style.margin = "0 0 6px"; var l = document.createElement("div"); l.className = "dim"; l.textContent = p[0]; var v = document.createElement("div"); v.textContent = p[1]; line.appendChild(l); line.appendChild(v); box.appendChild(line);
+        });
+        box.setAttribute("data-on", "1"); b.textContent = "Hide the Key";
+      });
+    });
+  });
+  var oc = document.getElementById("oc-form");
+  if (oc) oc.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var ids = Array.prototype.map.call(oc.querySelectorAll("input[name=oc]:checked"), function (x) { return x.value; }).join(","), note = document.getElementById("oc-note"), f = new FormData();
+    f.append("csrf_token", csrf); f.append("ids", ids);
+    fetch("/my/mesh/channels/combine", { method: "POST", body: f, credentials: "same-origin" }).then(function (r) { return r.json(); }).then(function (d) {
+      if (!d.ok) { note.textContent = d.message || "Choose at least one channel."; document.getElementById("oc-out").style.display = "none"; return; }
+      var replace = document.getElementById("oc-mode").value === "replace";
+      note.textContent = d.count + (d.count === 1 ? " channel" : " channels") + " in one code.";
+      document.getElementById("oc-img").src = "/my/mesh/channels/combine.svg?ids=" + encodeURIComponent(ids) + (replace ? "&replace=1" : "") + "&t=" + Date.now();
+      document.getElementById("oc-addr").textContent = replace ? d.replace_address : d.address;
+      document.getElementById("oc-out").style.display = "block";
+    });
+  });
+})();
+</script>
+{% endblock %}

@@ -32,9 +32,13 @@ try:
     # sign out and back in with the passkey
     J("document.querySelector('form[action=\"/my/logout\"] button').click()"); time.sleep(2)
     d.get(URL + "/my/login"); time.sleep(2)
-    check("the sign-in page offers the passkey button", d.find_element(By.ID, "pk-login").is_displayed())
-    J("document.getElementById('pk-login').click()"); time.sleep(4)
-    check("a click on it signs the person in with no user name or password", "/my/login" not in d.current_url and "plain1" in d.page_source, d.current_url)
+    if "/my/login" not in d.current_url:
+        # the passkey offered in the user name box (the browser's own prompt) already signed the person in, with the test authenticator answering at once
+        check("the passkey offered in the user name box signs the person in with no user name or password", "plain1" in d.page_source, d.current_url)
+    else:
+        check("the sign-in page offers the passkey button", d.find_element(By.ID, "pk-login").is_displayed())
+        J("document.getElementById('pk-login').click()"); time.sleep(4)
+        check("a click on it signs the person in with no user name or password", "/my/login" not in d.current_url and "plain1" in d.page_source, d.current_url)
     creds = d.execute_cdp_cmd("WebAuthn.getCredentials", {"authenticatorId": aid})["credentials"]
     check("the counter moved on in the authenticator", creds[0]["signCount"] >= 1, creds)
 finally:

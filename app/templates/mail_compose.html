@@ -4,7 +4,6 @@
 {% block content %}
 <h1>Write a <span>Message</span></h1>
 <div class="sub"><a href="/my/messages">Back to Messages</a>. Only the people you send it to can read it.</div>
-{% include "partials/_my_subnav.html" %}
 {% include "partials/_mailnav.html" %}
 {% call sec('compose', 'New Message', True) %}
   <form id="mc-form">
@@ -22,7 +21,7 @@
     </div>
   </form>
 {% endcall %}
-<script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var csrf = "{{ csrf_token() }}", f = document.getElementById("mc-form"), note = document.getElementById("mc-note");
   function post(url) { var d = new FormData(f); d.append("csrf_token", csrf); return fetch(url, { method: "POST", body: d, credentials: "same-origin" }).then(function (r) { return r.json(); }); }

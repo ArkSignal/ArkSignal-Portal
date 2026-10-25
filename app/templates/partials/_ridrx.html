@@ -15,7 +15,7 @@
   <span class="tag {{ 'live' if r.enabled and r.last_report else 'off' }}" style="margin-left:8px">{{ 'switched off' if not r.enabled else ('reporting' if r.last_report else 'nothing heard yet') }}</span>
   <span class="dim" style="font-size:.82rem;margin-left:8px">{{ r.msgs }} message{{ '' if r.msgs == 1 else 's' }}{% if r.last_report %}, last <time class="ts" datetime="{{ r.last_report.isoformat() }}" data-fmt="dt">{{ r.last_report }}</time>{% endif %}{% if admin %}, {% if r.owner_name %}{{ r.owner_display or r.owner_name }}{% else %}the network{% endif %}{% endif %}</span></summary>
   <p style="margin:8px 0 2px"><b>Upload Address</b> (private: anyone who has it can send drones as this station)</p>
-  <input type="text" readonly value="{{ url_of(r) }}" onclick="this.select()" style="width:100%;max-width:640px" class="mono" aria-label="Upload address of {{ r.name }}">
+  <input type="text" readonly value="{{ url_of(r) }}" data-select-on-click style="width:100%;max-width:640px" class="mono" aria-label="Upload address of {{ r.name }}">
   <form method="post" action="{{ base }}/{{ r.id }}/save" data-async data-async-target="{{ target }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     {{ fields(r, 'r' ~ r.id) }}

@@ -708,13 +708,15 @@ def _nice(lo, hi, ticks=4):
     return a, b, step
 
 
-def chart_svg(points, lines, period="24h", convert=lambda v: v, unit="", width=640, height=210, zero=False, bars=False):
+def chart_svg(points, lines, period="24h", convert=lambda v: v, unit="", width=640, height=210, zero=False, bars=False, spacing=None):
     """lines: [(key, color, label)]. Gaps in the data break the line. Time labels follow the site time zone."""
     from markupsafe import Markup
     pts = [p for p in points if any(p.get(k) is not None for k, _c, _l in lines)]
     if not pts:
         return Markup('<p class="dim">No readings for this period yet.</p>')
     label, window, bucket = PERIODS.get(period, PERIODS["24h"])
+    if spacing:   # data that arrives less often than the period's slot (a mesh node reports every half hour): lines join across that spacing and the hover finds the nearest reading
+        bucket = max(bucket, spacing)
     now = datetime.now(timezone.utc)
     t0, t1 = (now - window).timestamp(), now.timestamp()
     vals = [convert(p[k]) for p in pts for k, _c, _l in lines if p.get(k) is not None]

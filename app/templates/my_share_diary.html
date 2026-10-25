@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}{{ label or 'A Flight Diary' }}{% endblock %}
+{% block content %}
+<h1>{% if label %}<span>{{ label }}</span>{% else %}<span>A Flight</span> Diary{% endif %}</h1>
+<div class="sub">A flight diary shared with you by link. It is read only and not listed anywhere.{% if share.expires_at %} The link works until <time class="ts" datetime="{{ share.expires_at.isoformat() }}" data-fmt="d">{{ share.expires_at.strftime('%Y-%m-%d') }}</time>.{% endif %}</div>
+<form method="get" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin:0 0 10px">
+  <div><label for="fy">Year</label><select id="fy" name="year"><option value="">All</option>{% for y in years %}<option value="{{ y }}" {{ 'selected' if y == year }}>{{ y }}</option>{% endfor %}</select></div>
+  <button class="btn small" type="submit">Show</button>{% if year %}<a class="btn small neutral" href="{{ base }}">Clear</a>{% endif %}
+</form>
+{% with shared = True, fbase = base ~ '/f/' %}{% include "partials/_my_map_body.html" %}{% endwith %}
+{% with shared = True %}{% include "partials/_my_stats_body.html" %}{% endwith %}
+{% call sec('flights', 'Flights (' ~ rows | length ~ ')', True, True) %}
+  {% if rows %}<table class="sortable"><thead><tr><th data-sort="text">Date</th><th data-sort="text">From</th><th data-sort="text">To</th><th data-sort="text">Flight</th><th data-sort="text">Aircraft</th><th data-sort="num">Time</th><th data-sort="num">Distance</th>{% if pax %}<th>People</th>{% endif %}<th></th></tr></thead><tbody>
+  {% for r in rows %}<tr>
+    <td data-v="{{ r.when.timestamp() | int if r.when else 0 }}">{% if r.when %}<time class="ts" datetime="{{ r.when.isoformat() }}" data-fmt="d">{{ r.when.strftime('%Y-%m-%d') }}</time>{% else %}-{% endif %}</td>
+    <td><b>{{ r.from_code }}</b><br><span class="dim" style="font-size:.8rem">{{ r.from_city or r.from_name }}</span></td>
+    <td><b>{{ r.to_code }}</b><br><span class="dim" style="font-size:.8rem">{{ r.to_city or r.to_name }}</span></td>
+    <td>{{ r.flight_no or '-' }}{% if r.airline %}<br><span class="dim" style="font-size:.8rem">{{ r.airline }}</span>{% endif %}</td>
+    <td>{{ r.aircraft_type or '-' }}{% if r.registration %}<br><span class="dim mono" style="font-size:.8rem">{{ r.registration }}</span>{% endif %}</td>
+    <td data-v="{{ r.der.air or r.der.total or 0 }}">{{ hm(r.der.air if r.der.air is not none else r.der.total) }}</td>
+    <td data-v="{{ r.distance_km or 0 }}">{{ dist(r.distance_km) }}</td>
+    {% if pax %}<td>{% for p in pax.get(r.id, []) %}<div style="font-size:.85rem">{{ p.name }}{% if p.seat or p.klass %} <span class="dim">{{ (p.seat ~ ' ') if p.seat }}{{ p.klass }}{% if p.reason %}, {{ p.reason }}{% endif %}</span>{% endif %}</div>{% endfor %}</td>{% endif %}
+    <td><a class="btn small" href="{{ base }}/f/{{ r.id }}">Details</a></td>
+  </tr>{% endfor %}</tbody></table>
+  {% else %}<p class="dim" style="margin:0">No flights to show.</p>{% endif %}
+{% endcall %}
+{% endblock %}

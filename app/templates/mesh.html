@@ -75,9 +75,9 @@
 {% endcall %}
 <p class="dim" style="font-size:.8rem">{{ credit }}. Only what a node publishes in the clear is used; private channels and chat are never read. A node's owner can ask for it to be hidden (<a href="/contact">Contact</a>).</p>
 {% if o.ok %}
-<script src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script>
-<script src="/static/colocate.js?v=mesh2"></script>
-<script>
+<script nonce="{{ csp_nonce() }}" src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script><script nonce="{{ csp_nonce() }}" src="/static/safehtml.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/colocate.js?v=mesh2"></script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var map = L.map("meshmap", {scrollWheelZoom: false}).setView([{{ map_lat }}, {{ map_lon }}], 6);
   L.tileLayer({{ tile_url | tojson }}, {maxZoom: 19, attribution: {{ tile_attr | tojson }}}).addTo(map);

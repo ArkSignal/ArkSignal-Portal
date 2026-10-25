@@ -3,10 +3,10 @@
 {% block title %}MLAT | How to Feed{% endblock %}
 {% block feed_body %}
 <h1>Feed <span>MLAT</span></h1>
-<div class="sub">Multilateration finds aircraft that do not broadcast a position. It uses the same receiver and the same container as your <a href="/feed/">ADS-B feed</a>, so most stations send both. This page has the settings, what the position has to be, and how to check it.</div>
+<div class="sub">Multilateration finds aircraft that do not broadcast a position. It uses the same receiver and the same container as your <a href="/feed/adsb">ADS-B feed</a>, so most stations send both. This page has the settings, what the position has to be, and how to check it.</div>
 
 {% call sec('the-short-version', 'The Short Version', True) %}
-  <p style="margin:0 0 10px">Your ADS-B feed from the <a href="/feed/">ADS-B page</a> must already work. Then add this line to the same <span class="mono">ULTRAFEEDER_CONFIG</span> (the line before it needs a semicolon at the end) and set the three settings below it:</p>
+  <p style="margin:0 0 10px">Your ADS-B feed from the <a href="/feed/adsb">ADS-B page</a> must already work. Then add this line to the same <span class="mono">ULTRAFEEDER_CONFIG</span> (the line before it needs a semicolon at the end) and set the three settings below it:</p>
   <pre class="code">mlat,{{ feed_host }},{{ mlat_port }}</pre>
   <ul class="plain" style="margin-top:10px">
     <li><span class="mono">MLAT_USER</span>: your Station ID (letters, digits, dashes and underscores). If you already use another name, keep it and enter it as the <b>MLAT User Name</b> on your station page.</li>
@@ -19,12 +19,12 @@
 {% call sec('how-it-works', 'How It Works', True) %}
   <p style="margin-top:0"><b>MLAT</b> (multilateration) finds aircraft that do not broadcast a position. Radio travels at a fixed speed, so when an aircraft transmits, stations at different distances hear it at slightly different instants, a difference of millionths of a second. If three or more stations record exactly when they heard the same message, the differences place the aircraft at one point in the sky (four stations also give altitude). The same trick, run the other way, is how GPS works.</p>
   <p><b>What your station does:</b> your receiver time-stamps every message it hears with its own clock, and sends those timestamps (not your location data) to the network's MLAT server. The server compares all stations' clocks, using aircraft that <em>do</em> broadcast their position as reference beacons, and calculates positions for the others. The results come back to you and appear on the map labelled MLAT.</p>
-  <p style="margin-bottom:0">Trade-offs: MLAT positions are less exact than ADS-B and arrive a moment later, and only aircraft heard by enough stations get one. It is an extra, not a replacement for your <a href="/feed/">ADS-B feed</a>, which it depends on. See the <a href="/mlat/">MLAT network</a> page for who is connected and how well.</p>
+  <p style="margin-bottom:0">Trade-offs: MLAT positions are less exact than ADS-B and arrive a moment later, and only aircraft heard by enough stations get one. It is an extra, not a replacement for your <a href="/feed/adsb">ADS-B feed</a>, which it depends on. See the <a href="/mlat/">MLAT network</a> page for who is connected and how well.</p>
 {% endcall %}
 
 {% call sec('what-you-need', 'What You Need', True) %}
   <ul class="plain">
-    <li><b>A working <a href="/feed/">ADS-B feed</a>.</b> MLAT uses the same receiver, antenna, computer and container; there is nothing extra to buy.</li>
+    <li><b>A working <a href="/feed/adsb">ADS-B feed</a>.</b> MLAT uses the same receiver, antenna, computer and container; there is nothing extra to buy.</li>
     <li><b>An exact position.</b> Your latitude, longitude and the antenna's altitude above sea level must be right to within a few metres, because the whole calculation assumes it. A wrong location does not just fail; it makes your station's timing look bad to the others, and the server will pause it.</li>
     <li><b>Neighbours.</b> At least three stations must hear the same aircraft, so MLAT is best where stations overlap. Your station may sit at &quot;connected, waiting for peers&quot; until the next station near you joins; that is normal.</li>
     <li><b>A steady receiver:</b> a computer that is not overloaded, a USB radio that is not dropping samples, a correct clock, and a wired network without long delays or gaps.</li>
@@ -81,7 +81,7 @@
   <table>
     <tr><th>What</th><th>Direction</th><th>Destination</th><th>Port</th></tr>
     <tr><td>MLAT</td><td>outbound TCP</td><td class="mono">{{ feed_host }}</td><td class="mono">{{ mlat_port }}</td></tr>
-    <tr><td>ADS-B feed (see the <a href="/feed/">ADS-B page</a>)</td><td>outbound TCP</td><td class="mono">{{ feed_host }}</td><td class="mono">{{ feed_port }}</td></tr>
+    <tr><td>ADS-B feed (see the <a href="/feed/adsb">ADS-B page</a>)</td><td>outbound TCP</td><td class="mono">{{ feed_host }}</td><td class="mono">{{ feed_port }}</td></tr>
   </table>
 {% endcall %}
 

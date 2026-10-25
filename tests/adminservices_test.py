@@ -10,8 +10,8 @@ def check(name, cond, extra=""):
 adm = sess("marty", PW)
 o = adm.get(B + "/admin/").text
 for g in ("Aircraft and Feeders", "Weather and Balloons", "Radio", "Map and Data", "Updates", "Site"):
-    check(f"the admin menu has the group {g}", f'<span class="agl">{g}</span>' in o, g)
-check("Data Updates, Software Updates and Backups are together under Updates", all(x in o for x in ("Data Updates", "Software Updates", "Backups")) and o.index('class="agl">Updates<') < o.index("Software Updates") < o.index('class="agl">Site<'))
+    check(f"the admin menu has the group {g}", f'<span>{g}</span><span class="my-side-caret"' in o, g)
+check("Data Updates, Software Updates and Backups are together under Updates", all(x in o for x in ("Data Updates", "Software Updates", "Backups")) and o.index('<span>Updates</span><span class="my-side-caret"') < o.index("Software Updates") < o.index('<span>Site</span><span class="my-side-caret"'))
 for sv in ("aircraft", "weather", "radio", "mapdata", "updates", "site"):
     r = adm.get(B + "/admin/settings/" + sv)
     check(f"/admin/settings/{sv} opens", r.status_code == 200 and "Settings</h1>" in r.text, r.status_code)

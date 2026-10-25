@@ -3,9 +3,9 @@
 {% from "partials/_ridrx.html" import fields with context %}
 {% block title %}My Remote ID Stations{% endblock %}
 {% block content %}
+{% with active = 'drones' %}{% include "partials/_my_subnav.html" %}{% endwith %}
 <h1>My <span>Remote ID Stations</span></h1>
 <div class="sub">Your drone Remote ID receivers (an ESP32 scanner, a phone app or anything that reads Remote ID) that send the drones they hear to <a href="/drones/">Drones</a>. Each gets a private upload address. New to this? Read <a href="/feed/drones">How to Feed Remote ID</a>.</div>
-{% with active = 'drones' %}{% include "partials/_my_subnav.html" %}{% endwith %}
 
 {% call sec('add', 'Add a Station', False) %}
   <form method="post" action="/my/drones/add" data-async data-async-target="#my-drones" data-reset>

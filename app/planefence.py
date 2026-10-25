@@ -13,13 +13,21 @@ import urllib.error
 import urllib.request
 import zlib
 
-from flask import Blueprint, Response, abort, render_template, request, stream_with_context
+from flask import Blueprint, Response, abort, redirect, render_template, request, stream_with_context
+from flask_login import current_user
 
 from . import csrf
 from .admin import permission_required
 from .settings import cfg_int
 
 bp = Blueprint("planefence", __name__)
+
+
+@bp.after_request
+def _planefence_policy(resp):
+    # these pages are Planefence's own (relayed as they are, for signed-in members): their scripts carry no nonce of this site, so the site-wide script rule is replaced by one that allows the page's own scripts
+    resp.headers["Content-Security-Policy"] = "script-src 'self' 'unsafe-inline'; frame-ancestors 'self'; base-uri 'self'; object-src 'none'; form-action 'self'"
+    return resp
 
 MAX_BYTES = 40_000_000
 PASS_HEADERS = ("Content-Type", "Cache-Control", "Last-Modified", "ETag")
@@ -163,6 +171,8 @@ def _proxy(kind, path, prefix):
 @bp.route("/pf/", defaults={"path": ""}, methods=["GET", "HEAD"])
 @bp.route("/pf/<path:path>", methods=["GET", "HEAD", "POST"])
 def public(path):
+    if not current_user.is_authenticated:   # Planefence and Plane-Alert are heavy: members only
+        return redirect("/my/login?next=" + request.full_path.rstrip("?"))
     if request.method == "POST" and not path.startswith("cgi/"):
         abort(405)
     return _proxy("site", path, "/pf/")

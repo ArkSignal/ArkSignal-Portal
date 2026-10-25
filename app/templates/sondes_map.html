@@ -40,10 +40,11 @@
     </div></details>
 {% endcall %}
 {{ boot("/sondes/map", "sm") }}
-<script src="/static/sondeicons.js"></script>
-<script src="/static/labelfit.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/sondeicons.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/sondereplay.js?v={{ app_version }}"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/labelfit.js"></script>
 
-<script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var S = ArkShell, $ = S.$, esc = S.esc;
   var CFG = {{ {"labelScale": label_scale | int, "labelBg": label_bg, "lat": map_lat | float, "lon": map_lon | float, "zoom": map_zoom | int, "wxRefresh": wx_refresh | int, "hours": hours, "live": sonde_live, "area": map_area("balloon_map_area")} | tojson }};
@@ -463,8 +464,14 @@
       } else if (cardId) select(cardId);
     } catch (e) { $("lv-count").textContent = "Could not load the balloons."; }
   }
-  load(); loadForecast(); setInterval(loadForecast, 600000);
-  setInterval(function () { if (!document.hidden && !state.from) load(); }, Math.max(5, CFG.live) * 1000);
+  var replaySerials = (q.get("replay") || "").split(",").map(function (x) { return x.trim(); }).filter(Boolean).slice(0, 12);
+  if (replaySerials.length && window.ArkSondeReplay) {   // a replay of recorded flights: the live balloons stay out of the way
+    ArkSondeReplay.start(map, $("lv"), replaySerials, {back: "/sondes/map"});
+    $("lv-count").textContent = "Replay of " + replaySerials.length + " recorded flight" + (replaySerials.length === 1 ? "" : "s");
+  } else {
+    load(); loadForecast(); setInterval(loadForecast, 600000);
+    setInterval(function () { if (!document.hidden && !state.from) load(); }, Math.max(5, CFG.live) * 1000);
+  }
 })();
 </script>
 {% endblock %}

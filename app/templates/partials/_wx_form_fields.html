@@ -39,7 +39,7 @@
 <label for="{{ fp }}desc">About the Station (optional)</label>
 <input type="text" id="{{ fp }}desc" name="description" maxlength="500">
 <label class="check"><input type="checkbox" name="public" value="1"><span><b>Show this station publicly</b><br><span class="dim">Adds it to the Weather pages and the maps, at the position the privacy choice allows. Leave it off to keep readings private for now.</span></span></label>
-<script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var fp = {{ fp | tojson }}, kind = document.getElementById(fp + "kind"), feeder = document.getElementById(fp + "feeder"), solo = document.getElementById(fp + "solo");
   function sync() {

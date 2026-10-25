@@ -27,9 +27,9 @@
 <div class="panel">{{ flight_table(flights, 'No flights recorded for this station yet.') }}
   <p style="margin:10px 0 0"><a href="/sondes/flights?station={{ s.callsign | urlencode }}">All flights heard by this station</a></p></div>
 <p class="dim" style="font-size:.8rem">Station details and telemetry: SondeHub, Creative Commons BY-SA 2.0.</p>
-{% if loc %}<script src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script>
-<script src="/static/touchhit.js"></script>
-<script>
+{% if loc %}<script nonce="{{ csp_nonce() }}" src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script><script nonce="{{ csp_nonce() }}" src="/static/safehtml.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/touchhit.js"></script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var map = L.map("smap").setView([{{ loc[0] }}, {{ loc[1] }}], {{ 10 if approx else 13 }});
   L.tileLayer({{ tile_url | tojson }}, {maxZoom: 19, attribution: {{ tile_attr | tojson }}}).addTo(map);

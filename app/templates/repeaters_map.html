@@ -18,10 +18,10 @@
     </div></details>
 {% endcall %}
 {{ boot("/repeaters/map", "rm") }}
-<script src="/static/touchhit.js"></script>
-<script src="/static/colocate.js"></script>
-<script src="/static/labelfit.js"></script>
-<script>
+<script nonce="{{ csp_nonce() }}" src="/static/touchhit.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/colocate.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/labelfit.js"></script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var S = ArkShell, $ = S.$, esc = S.esc;
   var q = new URLSearchParams(location.search);

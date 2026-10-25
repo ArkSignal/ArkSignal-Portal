@@ -1,28 +1,115 @@
-<div class="subnav">
-  <span class="sn-label">My Stations</span>
-  <a class="{{ 'active' if active == 'stations' }}" href="/my/stations">All My Stations</a>
-  <a class="{{ 'active' if active == 'feeders' }}" href="/my/">My Feeders</a>
-  <a class="{{ 'active' if active == 'weather' }}" href="/my/weather">My Weather Stations</a>
-  <a class="{{ 'active' if active == 'sondes' }}" href="/my/sondes">My Sonde Stations</a>
-  {% if acars_on %}<a class="{{ 'active' if active == 'acars' }}" href="/my/acars">My ACARS Stations</a>{% endif %}
-  {% if ais_on %}<a class="{{ 'active' if active == 'ais' }}" href="/my/ais">My AIS Stations</a>{% endif %}
-  {% if rid_on %}<a class="{{ 'active' if active == 'drones' }}" href="/my/drones">My Remote ID Stations</a>{% endif %}
-  {% if mesh_on %}<a class="{{ 'active' if active == 'mesh' }}" href="/my/mesh">My Mesh Nodes</a>{% endif %}
-  {% if repeater_on %}<a class="{{ 'active' if active == 'repeaters' }}" href="/my/repeaters">My Repeaters</a>{% endif %}
-  {% if satimg_on %}<a class="{{ 'active' if active == 'satrx' }}" href="/my/sat-receivers">My Satellite Receivers</a>{% endif %}
-  {% if listings_on %}<a class="{{ 'active' if active == 'listings' }}" href="/my/nets">My Nets and Gateways</a>{% endif %}
-  <span class="sn-break"></span><span class="sn-label">My Account</span>
-  {% if chat_on %}<a class="{{ 'active' if active == 'chat' }}" href="/chat/">Chat{% if chat_unread %} <span class="msgbadge">{{ chat_unread }}</span>{% endif %}</a>{% endif %}
-  {% if pm_on %}<a class="{{ 'active' if active == 'messages' }}" href="/my/messages">Messages{% if pm_unread %} <span class="msgbadge">{{ pm_unread }}</span>{% endif %}</a>{% endif %}
-  {% if bridges_on %}<a class="{{ 'active' if active == 'bridges' }}" href="/my/bridges">Radio Bridges</a>{% endif %}
-  {% if friends_on %}<a class="{{ 'active' if active == 'friends' }}" href="/my/friends">Friends{% if friend_requests %} <span class="msgbadge">{{ friend_requests }}</span>{% endif %}</a>{% endif %}
-  <a class="{{ 'active' if active == 'alerts' }}" href="/my/alerts">Aircraft Alerts</a>
-  <a class="{{ 'active' if active == 'profile' }}" href="/my/profile">Profile</a>
-  <a class="{{ 'active' if active == 'display' }}" href="/my/display">Display and Maps</a>
-  {% if google_on %}<a class="{{ 'active' if active == 'google' }}" href="/my/google">Google Sign-In</a>{% endif %}
-  {% if passkeys_on %}<a class="{{ 'active' if active == 'passkeys' }}" href="/my/passkeys">Passkeys</a>{% endif %}
-  {% if api_on %}<a class="{{ 'active' if active == 'apikeys' }}" href="/my/api-keys">API Keys</a>{% endif %}
-  <a class="{{ 'active' if active == 'password' }}" href="/my/password">Password</a>
-  <a class="{{ 'active' if active == 'twofactor' }}" href="/my/two-factor">Two-Factor</a>
-  <a class="{{ 'active' if active == 'sessions' }}" href="/my/sessions">Sign-Ins</a>
+{# My Account menu: a left side menu on a wide screen, a drop-down button on a phone (like the section bar of the rest of the site). Its groups are an accordion: the group holding the current page is open, the others closed, one open at a time. Every page of My Account includes it with `active` set to its own key. #}
+{% set groups = [
+  ('Account', [
+    ('account', 'Overview', '/my/account', 1),
+    ('profile', 'Profile', '/my/profile', 1),
+    ('display', 'Display and Maps', '/my/display', 1),
+    ('alerts', 'Aircraft Alerts', '/my/alerts', 1)]),
+  ('Security', [
+    ('password', 'Password', '/my/password', 1),
+    ('twofactor', 'Two-Factor', '/my/two-factor', 1),
+    ('passkeys', 'Passkeys', '/my/passkeys', passkeys_on),
+    ('google', 'Google Sign-In', '/my/google', google_on),
+    ('apikeys', 'API Keys', '/my/api-keys', api_on),
+    ('sessions', 'Sign-Ins', '/my/sessions', 1)]),
+  ('My Stations', [
+    ('stations', 'All My Stations', '/my/stations', 1),
+    ('feeders', 'My Feeders', '/my/', 1),
+    ('weather', 'My Weather Stations', '/my/weather', 1),
+    ('sondes', 'My Sonde Stations', '/my/sondes', 1),
+    ('acars', 'My ACARS Stations', '/my/acars', acars_on),
+    ('ais', 'My AIS Stations', '/my/ais', ais_on),
+    ('drones', 'My Remote ID Stations', '/my/drones', rid_on),
+    ('mesh', 'My Mesh Nodes', '/my/mesh', mesh_on),
+    ('channels', 'Mesh Channels', '/my/mesh/channels', mesh_channels_on),
+    ('repeaters', 'My Repeaters', '/my/repeaters', repeater_on),
+    ('satrx', 'My Satellite Receivers', '/my/sat-receivers', satimg_on),
+    ('listings', 'My Nets and Gateways', '/my/nets', listings_on)]),
+  ('Flights', [
+    ('myflights', 'My Flights', '/my/flights', myflights_on),
+    ('flightmap', 'Flight Map', '/my/flights/map', myflights_on),
+    ('flightstats', 'Flight Statistics', '/my/flights/stats', myflights_on),
+    ('flightshares', 'Shared Flights', '/my/flights/shares', myflights_on and myflights_share_on),
+    ('flightimport', 'Import and Export', '/my/flights/import', myflights_on)]),
+  ('Community Settings', [
+    ('notifications', 'Notifications', '/my/notifications', push_on_site),
+    ('community', 'Chat, Messages and Friends', '/my/community', chat_on or pm_on or friends_on or matrix_on),
+    ('bridges', 'Radio', '/my/bridges', bridges_on)])] %}
+{% set here = namespace(label='Account') %}
+{% for g, items in groups %}{% for key, label, href, show in items %}{% if show and key == active %}{% set here.label = label %}{% endif %}{% endfor %}{% endfor %}
+<h1 class="acct-head">My <span>Account</span></h1>
+<div class="my-side" id="my-side" role="navigation" aria-label="Account">
+  <button type="button" class="my-side-btn" id="my-side-btn" aria-expanded="false" aria-controls="my-side-list"><span>Account: <b>{{ here.label }}</b></span><span class="my-side-caret" aria-hidden="true">&#9662;</span></button>
+  <div class="my-side-list" id="my-side-list">
+    {% for g, items in groups %}
+    {% set has = namespace(current=false) %}
+    {% for key, label, href, show in items %}{% if show and key == active %}{% set has.current = true %}{% endif %}{% endfor %}
+    <div class="my-side-group{{ ' has-current expanded' if has.current }}">
+      <button type="button" class="my-side-head" id="my-h{{ loop.index }}" aria-expanded="{{ 'true' if has.current else 'false' }}" aria-controls="my-g{{ loop.index }}"><span>{{ g }}</span><span class="my-side-caret" aria-hidden="true">&#9662;</span></button>
+      <div class="my-side-items" id="my-g{{ loop.index }}"{{ '' if has.current else ' hidden' }}>
+        {% for key, label, href, show in items %}{% if show %}<a class="{{ 'active' if active == key }}" href="{{ href }}"{% if active == key %} aria-current="page"{% endif %}>{{ label }}</a>{% endif %}{% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
 </div>
+<script nonce="{{ csp_nonce() }}">
+(function () {
+  var b = document.getElementById("my-side-btn"), n = document.getElementById("my-side");
+  if (!b || !n || n.dataset.ready) return; n.dataset.ready = "1";
+  b.addEventListener("click", function () { var o = n.classList.toggle("open"); b.setAttribute("aria-expanded", o ? "true" : "false"); });
+  var heads = Array.prototype.slice.call(n.querySelectorAll(".my-side-head"));
+  heads.forEach(function (h) {
+    h.addEventListener("click", function () {
+      var open = h.getAttribute("aria-expanded") === "true";
+      heads.forEach(function (x) { x.setAttribute("aria-expanded", "false"); document.getElementById(x.getAttribute("aria-controls")).hidden = true; x.parentNode.classList.remove("expanded"); });   // one group open at a time
+      if (!open) { h.setAttribute("aria-expanded", "true"); document.getElementById(h.getAttribute("aria-controls")).hidden = false; h.parentNode.classList.add("expanded"); }
+    });
+  });
+  // Moving between account pages swaps only the part of the page beside the menu (the header and the menu stay put, nothing blinks or closes); any trouble falls back to an ordinary page load.
+  if (window.__mySideNav) return; window.__mySideNav = true;
+  function swapNodes(doc) {
+    var main = document.querySelector("main"), mine = document.getElementById("my-side"), theirs = doc.getElementById("my-side"), nmain = doc.querySelector("main");
+    if (!main || !mine || !theirs || !nmain) return false;
+    var stop = function (el) { return el.id === "to-top" || el.tagName === "FOOTER"; };
+    var old = [], el = mine; while (el && !stop(el)) { old.push(el); el = el.nextElementSibling; }
+    var fresh = [], f = theirs; while (f && !stop(f)) { fresh.push(f); f = f.nextElementSibling; }
+    var anchor = el;
+    old.forEach(function (x) { x.remove(); });
+    var queue = [];
+    fresh.forEach(function (x) {
+      var c = document.importNode(x, true);
+      main.insertBefore(c, anchor);
+      Array.prototype.forEach.call(c.tagName === "SCRIPT" ? [c] : c.querySelectorAll("script"), function (sc) { queue.push(sc); });
+    });
+    // the page's scripts run one after the other, in order, and one that loads a file (the map library) is waited for before the next runs, as on an ordinary page load
+    (function next() {
+      var sc = queue.shift(); if (!sc) return;
+      var n2 = document.createElement("script"); Array.prototype.forEach.call(sc.attributes, function (a) { n2.setAttribute(a.name, a.value); }); n2.text = sc.text;
+      if (sc.src) { n2.async = false; n2.onload = n2.onerror = next; sc.parentNode.replaceChild(n2, sc); } else { sc.parentNode.replaceChild(n2, sc); next(); }
+    })();
+    return true;
+  }
+  function go(url, push) {
+    fetch(url, { credentials: "same-origin", headers: { "X-Requested-With": "fetch" } }).then(function (r) {
+      if (!r.ok || r.redirected && r.url.indexOf("/my/") < 0) throw new Error("no");
+      return r.text();
+    }).then(function (html) {
+      var doc = new DOMParser().parseFromString(html, "text/html");
+      if (!swapNodes(doc)) throw new Error("shape");
+      document.title = doc.title;
+      if (push) history.pushState({ mySide: 1 }, "", url);
+      window.scrollTo(0, 0);
+    }).catch(function () { location.href = url; });
+  }
+  document.addEventListener("click", function (e) {
+    var a = e.target.closest && e.target.closest(".my-side-items a");
+    if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || a.target) return;
+    var u = new URL(a.href, location.href);
+    if (u.origin !== location.origin || u.pathname.indexOf("/my/") !== 0) return;
+    e.preventDefault(); go(u.pathname + u.search, true);
+  });
+  window.addEventListener("popstate", function (e) { if (e.state && e.state.mySide || document.getElementById("my-side")) go(location.pathname + location.search, false); });
+  history.replaceState({ mySide: 1 }, "", location.href);
+})();
+</script>

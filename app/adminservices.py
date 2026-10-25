@@ -9,7 +9,7 @@ SERVICES = [
     ("radio", "Radio", ["Repeaters", "APRS", "Mesh Nodes", "Space Weather", "Satellites", "Nets and Gateways", "River Traffic"]),
     ("mapdata", "Map and Data", ["Map Defaults", "Map Areas", "Home Page and Live Map", "Map Tiles and Weather", "Hospitals", "Places and Search", "Address Finders", "Counties", "Map Data", "Routing"]),
     ("updates", "Updates", ["Scheduled Updates", "Backups"]),
-    ("site", "Site", ["General", "Display", "Units", "Themes", "Public Pages", "Contacts", "Accounts", "Security", "Service Status", "API"]),
+    ("site", "Site", ["General", "Display", "Units", "Themes", "Public Pages", "Contacts", "Accounts", "Security", "Service Status", "Data Retention", "Shopping Links", "My Flights", "API"]),
 ]
 LABELS = {k: label for k, label, _s in SERVICES}
 _OF = {name: key for key, _l, names in SERVICES for name in names}

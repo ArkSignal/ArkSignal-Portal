@@ -48,7 +48,7 @@ def names_match(profile, licensee, mode="normal"):
     p = [t for t in _tokens(profile) if len(t) > 1]
     lic = [t for t in _tokens(licensee) if len(t) > 1]
     if len(p) < 2:
-        return False, "Your profile name needs a first and a last name to be compared with the license."
+        return False, "Your first and last name are needed to compare with the license."
     if not lic:
         return False, "The license record has no personal name."
     first, last = p[0], p[-1]
@@ -58,7 +58,7 @@ def names_match(profile, licensee, mode="normal"):
         ok = last in lic and (first in lic or any(t.startswith(first[0]) for t in lic))
     else:
         ok = first in lic and last in lic
-    return ok, "" if ok else "The name on your profile does not match the name on the license."
+    return ok, "" if ok else "The name you entered does not match the name on the license."
 
 
 def _parse_date(text):
@@ -110,7 +110,27 @@ def evaluate(call, profile_name, existing_approval=False):
 
 
 def _row(uid):
-    return get_db().execute("SELECT id, username, display_name, callsign, ham_status, ham_call, ham_name, ham_checked, ham_expires, ham_reason, ham_licensee, ham_override, ham_by, ham_warn FROM users WHERE id=%s", (uid,)).fetchone()
+    return get_db().execute("SELECT id, username, display_name, legal_first_sealed, legal_last_sealed, callsign, ham_status, ham_call, ham_name, ham_checked, ham_expires, ham_reason, ham_licensee, ham_override, ham_by, ham_warn FROM users WHERE id=%s", (uid,)).fetchone()
+
+
+def legal_name(r):
+    """(first, last) as the member typed them for the license check: sealed in the database, never shown to anyone but the member."""
+    from .vault import unseal
+    return unseal(r["legal_first_sealed"]), unseal(r["legal_last_sealed"])
+
+
+def legal_key(r):
+    """A keyed hash of the legal name (so a change is noticed without the name being kept in the clear), or '' when either name is missing."""
+    from .vault import keyed_hash
+    first, last = legal_name(r)
+    f, l = " ".join(_tokens(first)), " ".join(_tokens(last))
+    return keyed_hash(f + "|" + l, "legalname") if f and l else ""
+
+
+def clean_name(text):
+    """A name for the license check: letters, spaces, dashes, apostrophes and dots, 1 to 40 characters; None when it is not."""
+    t = " ".join((text or "").split())
+    return t if 1 <= len(t) <= 40 and re.fullmatch(r"[A-Za-z][A-Za-z .'\-]*", t) else None
 
 
 def state(uid):
@@ -123,7 +143,7 @@ def state(uid):
         return "revoked"
     if not call or r["ham_call"] != call:
         return "unverified"
-    if r["ham_override"] != "approved" and (r["ham_name"] or "") != (r["display_name"] or ""):
+    if r["ham_override"] != "approved" and (r["ham_name"] or "") != legal_key(r):
         return "unverified"
     return r["ham_status"]
 
@@ -143,7 +163,10 @@ def check(uid, by=None):
     approved = r["ham_override"] == "approved" and r["ham_call"] == call
     if r["ham_override"] == "revoked":
         return {"status": "revoked", "reason": "An administrator revoked this member."}
-    res = evaluate(call, r["display_name"] or "", approved)
+    first, last = legal_name(r)
+    if not legal_key(r):
+        return {"status": "unverified", "reason": "Save your first and last name on your Profile first."}
+    res = evaluate(call, first + " " + last, approved)
     now = datetime.now(timezone.utc)
     if res.get("down"):
         d.execute("UPDATE users SET ham_warn=%s WHERE id=%s", (f"The last check on {now.date().isoformat()} could not reach the license service: {res['reason']}. The previous status is kept.", uid))
@@ -152,7 +175,7 @@ def check(uid, by=None):
         return {"status": state(uid), "down": True, "reason": res["reason"]}
     set_setting("bridge_verify_last_ok", now.isoformat())
     d.execute("UPDATE users SET ham_status=%s, ham_call=%s, ham_name=%s, ham_checked=now(), ham_expires=%s, ham_reason=%s, ham_licensee=%s, ham_warn='', ham_override=CASE WHEN %s THEN ham_override ELSE '' END WHERE id=%s",
-              (res["status"], call, r["display_name"] or "", res["expires"], res["reason"], res["licensee"], approved and res["status"] == "verified", uid))
+              (res["status"], call, legal_key(r), res["expires"], res["reason"], res["licensee"], approved and res["status"] == "verified", uid))
     d.commit()
     audit("bridge.verify", target=r["username"], detail=f"{call}: {res['status']}", actor_name=by or (current_user.username if current_user and current_user.is_authenticated else "system"))
     return res
@@ -182,7 +205,40 @@ def member_context(uid):
     why = r["ham_reason"] if st == r["ham_status"] else {"unverified": "Your call sign or your profile name changed since the last check, so it has to be checked again." if r["ham_call"] else "Not checked yet."}.get(st, r["ham_reason"])
     if st == "revoked":
         why = r["ham_reason"] or "An administrator revoked this member's APRS sending."
-    return {"status": st, "word": STATUS_WORDS[st], "reason": why, "checked": r["ham_checked"], "expires": r["ham_expires"], "licensee": r["ham_licensee"] if st in ("verified", "review") else "", "by": r["ham_by"], "warn": r["ham_warn"]}
+    return {"status": st, "word": STATUS_WORDS[st], "reason": why, "checked": r["ham_checked"], "expires": r["ham_expires"], "licensee": r["ham_licensee"] if st in ("verified", "review") else "", "by": r["ham_by"], "warn": r["ham_warn"], "first": legal_name(r)[0], "last": legal_name(r)[1]}
+
+
+def verified_call(uid):
+    """The member's call sign when it is currently a verified amateur license (the Verified Amateur badge), else ''. Remembered for the rest of the request."""
+    from flask import g
+    memo = g.__dict__.setdefault("_ham_memo", {})
+    if uid not in memo:
+        r = _row(uid)
+        memo[uid] = base_call(r["callsign"]) if r is not None and state(uid) == "verified" else ""
+    return memo[uid]
+
+
+@bp.app_template_global("ham_call")
+def _ham_call(uid):
+    return verified_call(uid) if uid else ""
+
+
+# ------------------------------------------------------------------ the member page
+
+@bp.route("/members/<username>")
+@login_required
+def member_page(username):
+    if cfg("chat_enabled") != "1" and cfg("pm_enabled") != "1":
+        abort(404)
+    u = get_db().execute("SELECT id, username, display_name, bridge_aprs_ok, bridge_mesh_ok FROM users WHERE lower(username)=lower(%s) AND NOT disabled", (username,)).fetchone()
+    if u is None:
+        abort(404)
+    from . import social
+    from .bridge import enabled
+    call = verified_call(u["id"])
+    return render_template("member.html", u=u, name=social.name_of(u), call=call, me=u["id"] == current_user.id,
+                           aprs=bool(call) and enabled("aprs") and u["bridge_aprs_ok"], mesh=enabled("mesh") and u["bridge_mesh_ok"],
+                           chat_ok=cfg("chat_enabled") == "1" or cfg("matrix_enabled") == "1", pm_ok=cfg("pm_enabled") == "1" and cfg("matrix_enabled") != "1", active="")
 
 
 # ------------------------------------------------------------------ the member's Check button
@@ -195,7 +251,9 @@ def verify_me():
     r = _row(current_user.id)
     if not base_call(r["callsign"]):
         return jsonify({"ok": False, "message": "Put your amateur radio call sign on your Profile first."}), 400
-    if r["ham_checked"] and (datetime.now(timezone.utc) - r["ham_checked"]).total_seconds() < cfg_int("bridge_verify_cooldown_minutes") * 60 and r["ham_call"] == base_call(r["callsign"]) and (r["ham_name"] or "") == (r["display_name"] or ""):
+    if not legal_key(r):
+        return jsonify({"ok": False, "message": "Save your first and last name on your Profile first (they are private)."}), 400
+    if r["ham_checked"] and (datetime.now(timezone.utc) - r["ham_checked"]).total_seconds() < cfg_int("bridge_verify_cooldown_minutes") * 60 and r["ham_call"] == base_call(r["callsign"]) and (r["ham_name"] or "") == legal_key(r):
         return jsonify({"ok": False, "message": f"It was checked a moment ago. You can check again after {cfg_int('bridge_verify_cooldown_minutes')} minutes."}), 400
     res = check(current_user.id)
     if res.get("down"):
@@ -235,7 +293,7 @@ def admin_act(uid, act):
     if act == "approve":
         if not call or r["ham_call"] != call or r["ham_status"] != "review":
             return jsonify({"ok": False, "message": "Only a member whose check ended in needs-review, for their current call sign, can be approved. Ask them to check first."}), 400
-        d.execute("UPDATE users SET ham_status='verified', ham_override='approved', ham_by=%s, ham_reason=%s, ham_name=%s WHERE id=%s", (current_user.username, f"Approved by {current_user.username}: {reason}", r["display_name"] or "", uid))
+        d.execute("UPDATE users SET ham_status='verified', ham_override='approved', ham_by=%s, ham_reason=%s, ham_name=%s WHERE id=%s", (current_user.username, f"Approved by {current_user.username}: {reason}", legal_key(r), uid))
     elif act == "revoke":
         d.execute("UPDATE users SET ham_override='revoked', ham_by=%s, ham_reason=%s WHERE id=%s", (current_user.username, f"Revoked by {current_user.username}: {reason}", uid))
         d.execute("UPDATE bridge_links SET enabled=FALSE WHERE created_by=%s AND kind='aprs'", (uid,))

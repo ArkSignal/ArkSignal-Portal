@@ -3,9 +3,9 @@
 {% from "partials/_radiolist_form.html" import fields with context %}
 {% block title %}My Nets and Gateways{% endblock %}
 {% block content %}
+{% with active = 'listings' %}{% include "partials/_my_subnav.html" %}{% endwith %}
 <h1>My <span>Nets and Gateways</span></h1>
 <div class="sub">The amateur radio nets you run and the Winlink gateways you operate, for the <a href="/radio/nets">Nets</a> and <a href="/radio/winlink">Winlink Gateways</a> pages.{% if approval %} An editor checks a new entry or a change before it shows.{% endif %} You can keep {{ limit }} entries.</div>
-{% with active = 'listings' %}{% include "partials/_my_subnav.html" %}{% endwith %}
 
 {% call sec('add-net', 'Add a Net', False) %}
   <form method="post" action="/my/nets/add" data-async data-async-target="#my-listings" data-reset>

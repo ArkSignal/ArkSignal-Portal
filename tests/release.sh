@@ -48,14 +48,14 @@ import sys, json
 t = {x['name']: x['images'][0]['digest'] for x in json.load(sys.stdin)['results'] if x.get('images')}
 sys.exit(0 if t.get('stable') and t.get('stable') == t.get('v$v') else 1)"; then
   bad=0
-  for img in portal grafana prometheus stack mlat backup planefence photon predict aprs acars mesh mesh-mqtt; do   # every adsb-* image must carry the new version on stable
+  for img in portal grafana prometheus stack mlat backup planefence photon predict aprs acars mesh mesh-mqtt matrix element; do   # every adsb-* image must carry the new version on stable
     curl -s "https://hub.docker.com/v2/repositories/mallison01/adsb-$img/tags?page_size=30" | python3 -c "
 import sys, json
 t = {x['name']: x['images'][0]['digest'] for x in json.load(sys.stdin)['results'] if x.get('images')}
 sys.exit(0 if t.get('stable') and t.get('stable') == t.get('v$v') else 1)" 2>/dev/null || { echo "adsb-$img: stable is NOT v$v"; bad=1; }
   done
   # GitHub Container Registry is the official home of the images: the same check there (anonymous token, the digest of stable against the digest of the version tag)
-  for img in portal grafana prometheus stack mlat backup planefence photon predict aprs acars mesh mesh-mqtt; do
+  for img in portal grafana prometheus stack mlat backup planefence photon predict aprs acars mesh mesh-mqtt matrix element; do
     tok=$(curl -s "https://ghcr.io/token?scope=repository:arksignal/arksignal-$img:pull" | python3 -c "import sys, json; print(json.load(sys.stdin).get('token', ''))" 2>/dev/null)
     dg() { curl -sI -H "Authorization: Bearer $tok" -H "Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json" "https://ghcr.io/v2/arksignal/arksignal-$img/manifests/$1" | tr -d '\r' | sed -n 's/^[Dd]ocker-[Cc]ontent-[Dd]igest: //p'; }
     a=$(dg stable); b=$(dg "v$v")

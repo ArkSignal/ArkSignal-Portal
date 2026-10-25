@@ -279,6 +279,21 @@ def _aprs_check():
     return _c("aprs", "APRS", "ok", "APRS is working.", f"Answered in {ms:.0f} ms: {d['heard_hour']} stations heard this hour, {d.get('weather_now', 0)} weather stations reporting, {feed.get('per_min')} packets a minute.")
 
 
+def _matrix_check():
+    if cfg("matrix_enabled") != "1":
+        return _c("matrix", "Matrix Chat", "off", "Matrix chat is switched off.")
+    from . import matrix
+    status, ms, err = _fetch_ms(cfg("matrix_url").rstrip("/") + "/health")
+    if status != 200:
+        return _c("matrix", "Matrix Chat", "down", "Matrix chat is not available right now.", f"{cfg('matrix_url')} did not answer ({err or 'HTTP ' + str(status)}). The matrix container (with matrix-db) may be stopped or still starting.")
+    d = (matrix.status().get("data") or {})
+    if not d.get("applied"):
+        return _c("matrix", "Matrix Chat", "warn", "The Matrix service has not been given its settings.", "Open Admin > Matrix Chat and press Apply.")
+    if not d.get("synapse_answering"):
+        return _c("matrix", "Matrix Chat", "warn", "The Matrix server is not answering.", d.get("error") or "Synapse is starting or has stopped; it is started again by itself.")
+    return _c("matrix", "Matrix Chat", "ok", "Matrix chat is working.", f"Answered in {ms:.0f} ms: Synapse {d.get('synapse_version', '')} has been running {int(d.get('uptime', 0)) // 60} minutes.")
+
+
 def _mesh_check():
     if cfg("mesh_enabled") != "1":
         return _c("mesh", "Mesh Nodes", "off", "Mesh nodes are switched off.")
@@ -292,7 +307,18 @@ def _mesh_check():
         return _c("mesh", "Mesh Nodes", "warn", "The mesh service is not connected to the broker.", f"The service answers but cannot reach the MQTT broker ({feed.get('error') or 'reconnecting'}).")
     if not d.get("nodes"):
         return _c("mesh", "Mesh Nodes", "ok", "The mesh service is ready, with no node heard yet.", f"Answered in {ms:.0f} ms. Nodes appear when they publish to the broker.")
-    return _c("mesh", "Mesh Nodes", "ok", "Mesh nodes are working.", f"Answered in {ms:.0f} ms: {d['heard_hour']} nodes heard this hour, {d['nodes']} known, {feed.get('per_min')} packets a minute.")
+    fwd = ""
+    if cfg("mesh_forward_enabled") == "1":   # communities that chose to forward to the public Meshtastic server: how many packets went and how many its rules stopped
+        try:
+            n = get_db().execute("SELECT COUNT(*) AS n FROM communities WHERE feed_public").fetchone()["n"]
+        except Exception:
+            get_db().rollback()
+            n = 0
+        if n and feed.get("fwd_error"):
+            return _c("mesh", "Mesh Nodes", "warn", "Forwarding to the public Meshtastic server is failing.", f"{n} communities forward there, and the last attempt failed ({feed.get('fwd_error')}). Mesh nodes themselves are working.")
+        if n:
+            fwd = f" Forwarding to the public Meshtastic server for {n} communit{'y' if n == 1 else 'ies'}: {feed.get('fwd_sent', 0)} packets sent, {feed.get('fwd_dropped', 0)} held back by its rules."
+    return _c("mesh", "Mesh Nodes", "ok", "Mesh nodes are working.", f"Answered in {ms:.0f} ms: {d['heard_hour']} nodes heard this hour, {d['nodes']} known, {feed.get('per_min')} packets a minute." + fwd)
 
 
 def _acars_check():
@@ -434,13 +460,17 @@ def _sources():
         ("src_metar", "Aviation Weather (aviationweather.gov)", "airport weather reports", cfg("metar_api_url") + "?ids=KLIT&format=json", ""),
         ("src_elevation", "Open-Meteo Elevation", "ground height for Sky View", cfg("elevation_api_url") + "?latitude=34.7&longitude=-92.3", ""),
         ("src_photos", "Planespotters Photos", "aircraft photos", cfg("photo_api_url"), ""),
-        ("src_adsbdb", "adsbdb Aircraft and Callsign Data", "aircraft and callsign details", cfg("aircraft_db_url"), ""),
+        ("src_adsbdb", "adsbdb Aircraft and Callsign Data", "aircraft, airline and callsign details (the lists, My Flights and the flight pages)", cfg("aircraft_db_url"), ""),
         ("src_routes", "adsb.im Route Service", "flight routes", cfg("route_api_url"), ""),
+        ("src_meshproto", "Meshtastic Protocol Definitions (GitHub)", "the names of mesh hardware", "https://raw.githubusercontent.com/meshtastic/protobufs/master/meshtastic/mesh.proto", ""),
         ("src_osmtiles", "OpenStreetMap Map Tiles", "the base map", _tile(cfg("map_tile_url")), ""),
         ("src_leaflet", "Map Library (cdnjs)", "the map code every map page loads", cfg("leaflet_base_url") + "/leaflet.js", ""),
         ("src_terrain", "Terrain Tiles (AWS)", "Sky View terrain", _tile(cfg("skyview_dem_url")), ""),
         ("src_imagery", "USGS Imagery", "Sky View satellite imagery", _tile(cfg("skyview_imagery_url")).replace("{z}/{y}/{x}", "0/0/0"), ""),
     ]
+    from . import schedules
+    if schedules.configured():   # asked only when an administrator has switched it on with a key
+        s.append(("src_schedules", "AeroDataBox Airline Schedules", "scheduled times of a flight number (My Flights, Look It Up)", schedules.base_url(), ""))
     try:   # the outside weather services are asked only when a member's station is read through them
         kinds = {r["kind"] for r in get_db().execute("SELECT DISTINCT kind FROM wx_stations WHERE NOT disabled").fetchall()}
         if "ecowitt_cloud" in kinds and cfg("wx_ecowitt_pull_enabled") == "1":
@@ -511,7 +541,7 @@ def _source_checks():
     return out
 
 
-PUBLIC = (_site_check, _hub_check, _feeders_check, _history_check, _mlat_check, _uat_check, _weather_check, _sondes_check, _predict_check, _aprs_check, _acars_check, _mesh_check, _satellites_check, _bridge_check, _ais_check, _drones_check, _osrm_check, _photon_check, _planefence_check, _grafana_check, _source_checks)
+PUBLIC = (_site_check, _hub_check, _feeders_check, _history_check, _mlat_check, _uat_check, _weather_check, _sondes_check, _predict_check, _aprs_check, _acars_check, _mesh_check, _matrix_check, _satellites_check, _bridge_check, _ais_check, _drones_check, _osrm_check, _photon_check, _planefence_check, _grafana_check, _source_checks)
 ADMIN = (_prometheus_check, _updates_check, _stack_check, _backup_check, _disk_check, _airports_check, _data_updates_check)
 
 

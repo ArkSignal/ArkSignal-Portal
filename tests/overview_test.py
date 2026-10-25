@@ -10,7 +10,7 @@ check("the home page is the ArkSignal overview", "ArkSignal" in h and 'class="ov
 check("it has a live strip, a map preview and a search box", 'aria-label="Right now"' in h and 'id="ovmap"' in h and 'action="/search"' in h)
 check("it has a card for each service that exists", all(x in h for x in ('href="/aircraft"', 'href="/coverage"', 'href="/feeders/"', 'href="/status"', 'href="/feed/"')))
 check("it shows the latest release and the roadmap link (lower down)", "Latest release" in h and 'href="/roadmap"' in h and "Release Notes" in h)
-check("it does not list services that do not exist yet as cards", "Weather Stations</h3>" not in h and "Repeaters</h3>" not in h)
+check("it does not list services that are switched off as cards (ACARS and mesh are off by default)", "ACARS</h3>" not in h and "Mesh Nodes</h3>" not in h and "Weather Stations</h3>" not in h)
 a = anon.get(B + "/aircraft").text
 check("Aircraft Tracking is the old home page", 'id="radar"' in a and 'id="ac"' in a and "Aircraft</span> Tracking" in a and "<title>Aircraft Tracking | ArkSignal</title>" in a)
 check("the menu has Aircraft and the brand links to the overview", '<a class="gl" href="/aircraft">Aircraft</a>' in a and '<a class="brand" href="/">' in a)

@@ -30,8 +30,8 @@
   <div id="smap" style="height:320px;border-radius:12px;min-height:240px"></div>
 </div>
 <p class="dim" style="font-size:.8rem">{{ credit }}. Only the latest position{% if trail %} and a short trail{% endif %} are kept. The owner of this call sign can ask for it to be hidden (<a href="/contact">Contact</a>).</p>
-<script src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script>
-<script>
+<script nonce="{{ csp_nonce() }}" src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script><script nonce="{{ csp_nonce() }}" src="/static/safehtml.js"></script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var m = L.map("smap", {scrollWheelZoom: false}).setView([{{ s.lat }}, {{ s.lon }}], 11);
   L.tileLayer({{ tile_url | tojson }}, {maxZoom: 19, attribution: {{ tile_attr | tojson }}}).addTo(m);

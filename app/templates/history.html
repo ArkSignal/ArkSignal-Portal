@@ -36,33 +36,46 @@ td.mk{width:34px}
   </div>
   <div class="help" style="margin-top:0">A flight is shown if it was in the air at any time during the period. Times are in {{ tz }}{% if days %}; flights are kept for {{ days }} days{% endif %}.</div>
 </div>
+<div class="panel" style="margin-bottom:14px"><b>Replay</b> <a class="btn small neutral" href="/live?replay={{ replay_from }}&amp;replaySpeed=40" rel="nofollow">Replay This Period on the Map</a> <span class="dim" style="font-size:.8rem">Plays everything the hub recorded from the start of this period, on the live map, with its speed and pause controls (and any flight below with its own Replay button). A replay reaches back as far as the hub keeps its history; balloons have a Replay on the <a href="/sondes/flights">Balloon Flights</a> list.</span></div>
+{% if export.on %}<div class="panel" style="margin-bottom:14px">
+  <b>Download These Flights</b> <span class="dim">({{ pager.total }} match{{ '' if pager.total == 1 else 'es' }}{% if pager.total > export.max %}; a file holds the first {{ export.max }}{% endif %})</span>
+  {% if export.signed_in %}
+  <div style="margin-top:8px">{% for f, l in (('csv', 'CSV'), ('kml', 'KML'), ('geojson', 'GeoJSON')) %}<a class="btn small neutral" href="/history/export.{{ f }}?{{ pager.args | urlencode }}" rel="nofollow">{{ l }}</a> {% endfor %}
+  <span class="dim" style="font-size:.8rem">{{ export.left }} of {{ export.per_day }} downloads left in the last 24 hours. A line in KML or GeoJSON runs straight from the first to the last place a flight was heard; it is not the path flown (open a flight for its real track).</span></div>
+  {% else %}<p class="dim" style="margin:6px 0 0"><a href="/my/login?next=/history/">Sign in</a> to download the flights as CSV, KML or GeoJSON.</p>{% endif %}
+</div>{% endif %}
 <div class="panel" style="overflow-x:auto">
   <table>
-    <tr><th></th>{{ sorthead("Flight", "flight", sort, direction, pager.args) }}{{ sorthead("Registration", "reg", sort, direction, pager.args) }}{{ sorthead("Type", "type", sort, direction, pager.args) }}{{ sorthead("First Heard", "first", sort, direction, pager.args) }}{{ sorthead("Last Heard", "last", sort, direction, pager.args) }}{{ sorthead("Highest", "alt", sort, direction, pager.args) }}{{ sorthead("Top Speed", "speed", sort, direction, pager.args) }}<th></th></tr>
+    <tr><th></th>{{ sorthead("Flight", "flight", sort, direction, pager.args) }}{{ sorthead("Registration", "reg", sort, direction, pager.args) }}<th>Airline</th>{{ sorthead("Type", "type", sort, direction, pager.args) }}<th>Route</th>{{ sorthead("First Heard", "first", sort, direction, pager.args) }}{{ sorthead("Last Heard", "last", sort, direction, pager.args) }}{{ sorthead("Highest", "alt", sort, direction, pager.args) }}{{ sorthead("Top Speed", "speed", sort, direction, pager.args) }}<th></th></tr>
     {% for f in rows %}
-    <tr>
+    <tr data-x data-hex="{{ f.hex }}" data-cs="{{ f.callsign or '' }}" data-lat="{{ f.start_lat if f.start_lat is not none else '' }}" data-lon="{{ f.start_lon if f.start_lon is not none else '' }}">
       <td class="mk" data-cs="{{ f.callsign or '' }}" data-mil="{{ 1 if f.mil else 0 }}"></td>
-      <td class="mono"><b>{{ f.callsign or '-' }}</b></td>
-      <td>{{ f.reg or '' }}</td>
-      <td>{{ f.type or '' }}</td>
+      <td class="mono"><b>{% if f.callsign %}<a href="/history/?q={{ f.callsign | urlencode }}&amp;duration=8760" title="Every logged flight with this flight number">{{ f.callsign }}</a>{% else %}-{% endif %}</b></td>
+      <td>{% if f.reg %}<a href="/history/?q={{ f.reg | urlencode }}&amp;duration=8760" title="Every logged flight of this aircraft">{{ f.reg }}</a>{% endif %}</td>
+      <td class="x-airline"></td>
+      <td>{{ f.type or '' }} <span class="dim x-model"></span></td>
+      <td class="x-route"></td>
       <td><time class="ts" datetime="{{ f.first_seen.isoformat() }}">{{ f.first_seen }}</time></td>
       <td><time class="ts" datetime="{{ f.last_seen.isoformat() }}">{{ f.last_seen }}</time></td>
       <td>{{ (f.max_alt | u_ft) if f.max_alt is not none else '' }}</td>
       <td>{{ (f.max_gs | u_kt) if f.max_gs else '' }}</td>
-      <td><a class="btn small" style="margin:0" href="/flight/{{ f.hex }}?at={{ (f.first_seen.timestamp() + 1) | int }}">Flight Progress</a></td>
+      <td><a class="btn small" style="margin:0" href="/flight/{{ f.hex }}?at={{ (f.first_seen.timestamp() + 1) | int }}">Flight Progress</a> <a class="btn small neutral" style="margin:0" href="/live?icao={{ f.hex }}&amp;only=1&amp;replay={{ (f.first_seen.timestamp() - 120) | int }}&amp;replaySpeed=20" rel="nofollow" title="Play this flight back on the live map">Replay</a></td>
     </tr>
     {% else %}
-    <tr><td colspan="9" class="dim">No flights match that period{{ ' and search' if q }}. {% if not since %}Nothing has been recorded yet.{% endif %}</td></tr>
+    <tr><td colspan="12" class="dim">No flights match that period{{ ' and search' if q }}. {% if not since %}Nothing has been recorded yet.{% endif %}</td></tr>
     {% endfor %}
   </table>
   {% include "partials/_pager.html" %}
 </div>
-<script>
+<p class="dim" style="font-size:.8rem;margin:6px 4px 0">Airline, aircraft and route details come from <a href="https://www.adsbdb.com/" rel="noopener nofollow" target="_blank">adsbdb</a> and <a href="https://adsb.im/" rel="noopener nofollow" target="_blank">adsb.im</a>; a route is the one the flight number usually flies.</p>
+<script nonce="{{ csp_nonce() }}" src="/static/flightextra.js?v={{ app_version }}"></script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   function marks() {
     document.querySelectorAll("td.mk").forEach(function (td) { td.innerHTML = window.ADSB_MARK ? ADSB_MARK.html({flight: td.dataset.cs, mil: td.dataset.mil === "1"}) : ""; });
   }
   ADSB_MARK.onchange = marks; marks();
+  if (window.ArkFlightExtra) ArkFlightExtra.fill(document);
 })();
 </script>
 {% endblock %}

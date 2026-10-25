@@ -2,9 +2,9 @@
 {% from "partials/_feedsec.html" import sec with context %}
 {% block title %}API Keys{% endblock %}
 {% block content %}
+{% with active = 'apikeys' %}{% include "partials/_my_subnav.html" %}{% endwith %}
 <h1>My <span>API Keys</span></h1>
 <div class="sub">A key lets a program of yours read the network's public data through the documented <a href="/api/docs">API</a>, with fair limits. Make one key for each project, so you can stop one without touching the others.</div>
-{% with active = 'apikeys' %}{% include "partials/_my_subnav.html" %}{% endwith %}
 
 {% if can_make %}
 {% call sec('make', 'Make a Key', True) %}

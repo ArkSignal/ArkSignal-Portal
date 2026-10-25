@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Mesh Weather{% endblock %}
+{% block content %}
+<h1>Mesh <span>Weather</span></h1>
+<div class="sub">Mesh nodes that report sensor readings (temperature, humidity, pressure, wind, rain, light) in the clear, with their newest values from the last 24 hours. Units follow the Display menu. {{ credit }}.</div>
+<div class="panel" style="overflow-x:auto">
+  {% if rows %}<div class="tfilterbar" style="margin-bottom:8px"><input type="search" class="tfilter" data-table="mesh-wx" placeholder="Filter by node name" aria-label="Filter the table by node name"><span class="dim tcount"></span></div>
+  <table class="sortable" id="mesh-wx"><thead><tr><th data-sort="text">Node</th><th data-sort="num">Temperature ({{ '°F' if imp else '°C' }})</th><th data-sort="num">Humidity (%)</th><th data-sort="num">Pressure ({{ 'inHg' if imp else 'hPa' }})</th><th data-sort="num">Wind ({{ 'mph' if imp else 'km/h' }})</th><th data-sort="num">Rain, Last Hour ({{ 'in' if imp else 'mm' }})</th><th data-sort="num">Light (lux)</th><th data-sort="text">Reported</th></tr></thead><tbody>
+  {% for r in rows %}{% set t = (r.temp_c * 9 / 5 + 32) if (imp and r.temp_c is not none) else r.temp_c %}{% set pr = (r.pressure_hpa * 0.02953) if (imp and r.pressure_hpa is not none) else r.pressure_hpa %}{% set w = (r.wind_ms * 2.236936 if imp else r.wind_ms * 3.6) if r.wind_ms is not none else none %}{% set rn = (r.rain_1h_mm / 25.4 if imp else r.rain_1h_mm) if r.rain_1h_mm is not none else none %}
+  <tr><td><a href="/mesh/{{ r.slug }}">{{ r.name or r.id }}</a></td>
+    <td data-v="{{ t if t is not none else -999 }}">{{ '%.1f' % t if t is not none else '-' }}</td><td data-v="{{ r.humidity if r.humidity is not none else -1 }}">{{ '%.0f' % r.humidity if r.humidity is not none else '-' }}</td>
+    <td data-v="{{ pr if pr is not none else -1 }}">{{ ('%.2f' if imp else '%.1f') % pr if pr is not none else '-' }}</td><td data-v="{{ w if w is not none else -1 }}">{{ '%.0f' % w if w is not none else '-' }}</td>
+    <td data-v="{{ rn if rn is not none else -1 }}">{{ ('%.2f' if imp else '%.1f') % rn if rn is not none else '-' }}</td><td data-v="{{ r.lux if r.lux is not none else -1 }}">{{ '%.0f' % r.lux if r.lux is not none else '-' }}</td>
+    <td><time class="ts" datetime="{{ r.ts }}" data-fmt="dt">{{ r.ts[:16].replace('T', ' ') }}</time></td></tr>{% endfor %}</tbody></table>
+  {% else %}<p class="dim" style="margin:0">No node has reported sensor readings lately. A node sends them when it has a sensor fitted, its telemetry is on, and it uplinks without encryption.</p>{% endif %}
+</div>
+<p><a href="/mesh/nodes">&larr; All nodes</a> &middot; <a href="/mesh/">Mesh overview</a></p>
+{% endblock %}

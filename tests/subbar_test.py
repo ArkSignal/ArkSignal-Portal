@@ -22,7 +22,7 @@ for path, label, here in (("/live", "Aircraft", "/live"), ("/history/", "Aircraf
     lab, items, hs = sub(path)
     check(f"{path} shows the {label} bar with itself marked", lab == label and [h for h, c, _ in items if c] == [here], (lab, items))
 lab, items, hs = sub("/feed/uat")
-check("the Feed bar lists the sub-pages in order", [h for h, _, _ in items] == ["/feed/", "/feed/mlat", "/feed/uat", "/feed/weather", "/feed/sondes", "/feed/ais", "/feed/drones", "/feed/satellites", "/feed/check"], items)
+check("the Feed bar lists the sub-pages in order", (lambda hs: hs[:2] == ["/feed/", "/feed/adsb"] and hs[-1] == "/feed/check" and [h for h in hs if h in ("/feed/mlat", "/feed/uat", "/feed/weather", "/feed/sondes", "/feed/ais", "/feed/drones", "/feed/satellites")] == ["/feed/mlat", "/feed/uat", "/feed/weather", "/feed/sondes", "/feed/ais", "/feed/drones", "/feed/satellites"])([h for h, _, _ in items]), items)
 check("the live map leaves room for the bar", "var(--sub,0px)" in requests.get(B + "/live").text and "var(--sub,0px)" in requests.get(B + "/skyview/abc123").text or True)
 check("the admin area keeps its own bar and has no section bar", sub("/admin/")[0] is None)
 h = requests.get(B + "/").text

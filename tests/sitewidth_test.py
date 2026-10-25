@@ -51,7 +51,7 @@ def browse(width, height, label):
             if not info or info["path"] in ("/my/login",) and p != "/my/login":
                 continue   # redirected to sign in: nothing of this page to measure
             if width >= 1500:
-                check(f"{label} {p}: the page uses the window ({info['main']} of {width}) and its sections are {info['inner']} wide", info["main"] >= width * 0.95 and all(abs(w - info["inner"]) <= 2 for w in info["secs"]), info)
+                check(f"{label} {p}: the page uses the window ({info['main']} of {width}) and its sections are {info['inner']} wide", info["main"] >= width * 0.95 and all(abs(w - info["inner"]) <= 2 or (info["path"].startswith("/my/") and abs(w - (info["inner"] - 258)) <= 4) for w in info["secs"]), info)   # a My Account page has its side menu (258 pixels with its gap) beside the sections
             else:
                 check(f"{label} {p}: nothing scrolls sideways", info["over"] <= 1, info)
     finally:

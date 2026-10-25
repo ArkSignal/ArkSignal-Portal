@@ -29,8 +29,8 @@
   <p style="margin-top:0">GOES-19 (GOES-East) and GOES-18 (GOES-West) sit about 22,000 miles above the equator and photograph the Western Hemisphere every few minutes. Arkansas is seen by GOES-East. The pictures come from NOAA's public image server and are in the public domain; this site keeps the newest pictures and asks NOAA for new ones at most every {{ refresh }} minutes, only when somebody looks.</p>
   <p class="dim" style="margin-bottom:0">Want to catch the pictures with your own radio? Members with a weather satellite receiver can send their decoded pictures on <a href="/my/sat-receivers">My Account &gt; My Satellite Receivers</a>, shown on <a href="/radio/satellite-images">Satellite Images</a>. More animations are on <a href="https://www.star.nesdis.noaa.gov/GOES/index.php" target="_blank" rel="noopener">NOAA's GOES page</a>. Source: NOAA/NESDIS STAR.</p>
 {% endcall %}
-<script src="/static/looper.js?v={{ looper_v }}"></script>
-<script>
+<script nonce="{{ csp_nonce() }}" src="/static/looper.js?v={{ looper_v }}"></script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var M = {{ meta | tojson }};
   var S = {sector: {{ sector | tojson }}, product: {{ product | tojson }}, mode: {{ mode | tojson }}, n: {{ n }}};

@@ -15,6 +15,8 @@ from .settings import cfg, cfg_int, get_setting
 
 # requests a page makes on its own; they are checked for expiry but never extend the session
 PASSIVE_PREFIXES = ("/api/", "/metrics", "/healthz", "/background.svg", "/my/alerts/count.json")
+# addresses whose pages are for one person (or carry a secret): answered with Cache-Control: no-store
+PRIVATE_PREFIXES = ("/my/", "/admin/", "/chat", "/oidc/authorize", "/login", "/share/")
 
 
 def now():
@@ -24,6 +26,8 @@ def now():
 def password_error(pw):
     """None when the password meets the rules, otherwise the sentence to show."""
     n = cfg_int("min_password_length")
+    if len(pw) > 256:
+        return "The password can be at most 256 characters."
     if len(pw) < n:
         return f"The password must be at least {n} characters."
     if cfg("password_require_mix") == "1" and not (re.search(r"[A-Za-z]", pw) and re.search(r"\d", pw)):
@@ -111,6 +115,14 @@ def ip_blocked(ip):
     return n >= limit
 
 
+def csp_nonce():
+    """The one-time value of this request that marks the page's own scripts as allowed (a new one for every request, never reused or guessable)."""
+    from flask import g
+    if not g.get("csp_nonce"):
+        g.csp_nonce = secrets.token_urlsafe(18)
+    return g.csp_nonce
+
+
 def apply_headers(resp):
     """Browser security headers (Settings > Security). Added to every response."""
     if cfg("security_headers") != "1":
@@ -119,10 +131,17 @@ def apply_headers(resp):
     h.setdefault("X-Content-Type-Options", "nosniff")
     h.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     h.setdefault("X-Frame-Options", "SAMEORIGIN")
-    h.setdefault("Content-Security-Policy", "frame-ancestors 'self'; base-uri 'self'; object-src 'none'; form-action 'self'")
+    # script-src: only scripts that carry this request's nonce (and the scripts those load) run, so a script slipped into a page by an injection does not; inline event handlers are not allowed
+    scripts = f"script-src 'nonce-{csp_nonce()}' 'strict-dynamic' 'self'; " if cfg("csp_scripts") == "1" else ""
+    h.setdefault("Content-Security-Policy", scripts + "frame-ancestors 'self'; base-uri 'self'; object-src 'none'; form-action 'self'")
     h.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=(self), payment=()")
     if request.is_secure or request.headers.get("X-Forwarded-Proto", "") == "https":
         h.setdefault("Strict-Transport-Security", "max-age=15552000")
+    # pages for a signed-in person, and the pages that carry a secret in their address, are never kept by the browser's history cache or a shared cache
+    if request.path.startswith(PRIVATE_PREFIXES):
+        h.setdefault("Cache-Control", "no-store")
+        if request.path.startswith(("/my/reset/", "/mesh/c/")):
+            h.setdefault("Referrer-Policy", "no-referrer")
     return resp
 
 

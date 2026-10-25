@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% from "partials/_feedsec.html" import sec with context %}
+{% block title %}Data Retention{% endblock %}
+{% block content %}
+<h1><span>Data</span> Retention</h1>
+<div class="sub">Everything the site keeps that grows, how big it is, and what happens to it as it gets old. The choices are in <a href="{{ thin.href }}">Settings &gt; Data Retention</a> and in the Settings section named on each row.</div>
+{% include "partials/_admin_subnav.html" %}
+
+{% call sec('stores', 'What Is Kept', True, True) %}
+  <table id="ret-stores"><thead><tr><th>Data</th><th>Rows (About)</th><th>Size</th><th>Oldest</th><th>As It Ages</th><th></th></tr></thead><tbody>
+  {% for s in stores %}<tr><td>{{ s.label }}</td><td>{{ '{:,}'.format(s.n) }}</td><td>{{ human(s.size) }}</td><td>{% if s.oldest %}<time class="ts" datetime="{{ s.oldest.isoformat() }}" data-fmt="d">{{ s.oldest.strftime('%Y-%m-%d') }}</time>{% else %}<span class="dim">-</span>{% endif %}</td><td>{{ s.text }}</td><td><a href="{{ s.href }}">Settings</a></td></tr>{% endfor %}
+  <tr><td>Chat Pictures and Files</td><td colspan="3" class="dim">{% if media.on %}kept by the chat server{% else %}chat is off{% endif %}</td><td>{{ ('removed after ' ~ media.days ~ ' days (the message stays)') if media.days else 'never removed' }}</td><td><a href="{{ thin.href }}">Settings</a></td></tr>
+  {% for o in own %}<tr><td>{{ o.label }}</td><td colspan="3" class="dim">own service and database (see Usage)</td><td>{{ o.text }}</td><td><a href="{{ o.href }}">Settings</a></td></tr>{% endfor %}
+  </tbody></table>
+  <p class="dim" style="margin-bottom:0">Row counts are the database's own estimates. Thinning keeps real readings, never averages. The defaults keep today's behavior: nothing is thinned until you choose.</p>
+{% endcall %}
+
+{% call sec('run', 'Run Now', True) %}
+  <p style="margin-top:0">The nightly run goes after {{ '%02d' % hour }}:00 UTC{% if last %} (last run date: {{ last }}){% endif %} when thinning or chat file removal is set. A run works in small batches and never locks the tables. A dry run only counts.</p>
+  <form class="inline" method="post" action="/admin/retention/run" data-async><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="dry" value="1"><button class="btn small neutral" type="submit">Dry Run</button></form>
+  <form class="inline" method="post" action="/admin/retention/run" data-async data-confirm="Thin and remove old data now, as the settings say? Removed rows cannot be brought back except from a backup."><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="dry" value="0"><button class="btn small warn" type="submit">Run Now</button></form>
+  <span id="ret-note" class="dim" role="status"></span>
+{% endcall %}
+
+{% call sec('log', 'What Each Run Removed', False, True) %}
+  {% if runs %}<table><thead><tr><th>When</th><th>Started By</th><th>What</th><th>Rows</th><th>Seconds</th></tr></thead><tbody>
+  {% for r in runs %}<tr><td><time class="ts" datetime="{{ r.ts.isoformat() }}" data-fmt="dt">{{ r.ts.strftime('%Y-%m-%d %H:%M') }}</time></td><td>{{ r.who }}</td><td>{{ r.what }}</td><td>{{ '{:,}'.format(r.rows_removed) }}</td><td>{{ r.seconds }}</td></tr>{% endfor %}</tbody></table>
+  {% else %}<p class="dim" style="margin:0">No run yet.</p>{% endif %}
+{% endcall %}
+{% endblock %}

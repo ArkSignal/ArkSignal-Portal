@@ -3,9 +3,9 @@
 {% from "partials/_satrx.html" import fields with context %}
 {% block title %}My Satellite Receivers{% endblock %}
 {% block content %}
+{% with active = 'satrx' %}{% include "partials/_my_subnav.html" %}{% endwith %}
 <h1>My <span>Satellite Receivers</span></h1>
 <div class="sub">Weather satellite pictures your own station has decoded (Meteor-M, GOES or NOAA), sent to the <a href="/radio/satellite-images">Satellite Images</a> gallery. Each receiver gets a private upload address. New to this? Read <a href="/feed/satellites">How to Feed Satellite Pictures</a>.</div>
-{% with active = 'satrx' %}{% include "partials/_my_subnav.html" %}{% endwith %}
 
 {% call sec('add', 'Add a Receiver', False) %}
   <form method="post" action="/my/sat-receivers/add" data-async data-async-target="#my-satrx" data-reset>

@@ -4,7 +4,7 @@
 <h1><span>APRS</span> Weather</h1>
 <div class="sub">Weather stations that report over APRS (many are Citizen Weather Observer Program stations), latest observation of each. Your own units apply: change them in the Display menu.</div>
 <div class="panel">
-  <div class="tfilterbar"><label style="margin:0"><input type="checkbox" onchange="location.href='/aprs/weather' + (this.checked ? '?airports=0' : '')" {{ 'checked' if hide_airports }}> Hide airport weather (the airports' own reports, relayed over APRS)</label></div>
+  <div class="tfilterbar"><label style="margin:0"><input type="checkbox" data-nav-checked="/aprs/weather" data-nav-checked-query="?airports=0" {{ 'checked' if hide_airports }}> Hide airport weather (the airports' own reports, relayed over APRS)</label></div>
   {% if rows %}<div class="tfilterbar"><input type="search" class="tfilter" data-table="#aprswx-tbl" placeholder="Search stations by call sign" aria-label="Search weather stations"><span class="dim tcount"></span></div>
   <table class="sortable" id="aprswx-tbl"><thead><tr><th data-sort="text">Station</th><th data-sort="num">Temperature</th><th data-sort="num">Wind</th><th data-sort="num">Gust</th><th data-sort="num">Humidity</th><th data-sort="num">Pressure</th><th data-sort="num">Rain, 24 h</th><th data-sort="text">Reported</th></tr></thead><tbody>
   {% for r in rows %}<tr><td class="mono"><a href="/aprs/{{ r.call | callurl }}" data-call="{{ r.call }}">{{ r.call }}</a>{% if r.airport %} <span class="tag">airport</span>{% endif %}</td>

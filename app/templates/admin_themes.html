@@ -25,7 +25,7 @@
   <p class="dim" style="margin-top:0">Always in the Display menu for anyone to pick. The look the site uses when no seasonal theme is on (Normal Look) is set in Settings.</p>
   <div style="display:flex;gap:10px;flex-wrap:wrap">{% for s in schemes %}<button type="button" class="btn small neutral" data-try="{{ s.id }}" style="margin:0"><span style="display:inline-flex;gap:3px;vertical-align:middle">{% for k in ('--bg', '--acc', '--acc2') %}<i style="display:inline-block;width:12px;height:12px;border-radius:50%;border:1px solid #fff4;background:{{ s.vars.get(k, base.get(k) if s.mode == 'dark' else light.get(k)) }}"></i>{% endfor %}</span> {{ s.name }}</button>{% endfor %}</div>
 {% endcall %}
-<script>
+<script nonce="{{ csp_nonce() }}">
 document.querySelectorAll("[data-try]").forEach(function (b) {
   b.addEventListener("click", function () { ArkThemes.apply({theme: b.getAttribute("data-try")}); ArkThemes.ready({theme: b.getAttribute("data-try")}); });   // a look at it on this page only; nothing is saved
 });

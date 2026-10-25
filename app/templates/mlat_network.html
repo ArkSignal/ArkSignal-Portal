@@ -28,9 +28,9 @@
   <div class="panel" style="flex:1 1 420px;padding:0;overflow:hidden;min-height:480px"><div id="mlatmap" style="height:100%;min-height:480px"></div></div>
 </div>
 
-<script src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script>
-<script src="/static/touchhit.js"></script>
-<script>
+<script nonce="{{ csp_nonce() }}" src="{{ leaflet_base }}/leaflet.js" crossorigin="anonymous"></script><script nonce="{{ csp_nonce() }}" src="/static/safehtml.js"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/touchhit.js"></script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var NET = {{ net | tojson }}, S = NET.stations, byId = {};
   var COL = {working: "#3ee6a8", syncing: "#f5c542", problem: "#ff7a59", off: "#8a9bb3"}, QCOL = {good: "#3ee6a8", fair: "#f5c542", poor: "#ff7a59"};

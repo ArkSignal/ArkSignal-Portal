@@ -4,6 +4,7 @@ administrator approval), the owner's pages, the admin page, the menu, the status
 import time
 import json, re, subprocess, requests
 exec(open("roles_test.py", encoding="utf-8").read().split("ok_all=True")[0])
+MEM = sess("plain1", "plainpassword1")   # Planefence, the code plug exports, downloads and the My ... pages are for signed-in members
 ok_all = True
 def check(name, cond, extra=""):
     global ok_all
@@ -89,9 +90,9 @@ check("the flight page carries the charts, the Skew-T and the license", all(i in
 tj = anon.get(B + "/api/sondes/TESTBBB2/track.json").json()
 t = tj["track"]
 check("the track data is a set of equal-length columns with positions and the readings", len(t["t"]) > 1500 and all(len(t[k]) == len(t["t"]) for k in t) and tj["status"] == "landed" and tj["landing"] and tj["launch"])
-csvtxt = anon.get(B + "/sondes/TESTBBB2/track.csv")
+csvtxt = MEM.get(B + "/sondes/TESTBBB2/track.csv")
 check("the CSV download has a header, all the points and the credit", csvtxt.headers["content-type"].startswith("text/csv") and "attachment" in csvtxt.headers["content-disposition"] and csvtxt.text.startswith("time_utc,latitude") and "SondeHub" in csvtxt.text.splitlines()[-1] and len(csvtxt.text.splitlines()) > 1500)
-gj = anon.get(B + "/sondes/TESTBBB2/track.geojson").json()
+gj = MEM.get(B + "/sondes/TESTBBB2/track.geojson").json()
 check("the GeoJSON download is a line", gj["features"][0]["geometry"]["type"] == "LineString" and len(gj["features"][0]["geometry"]["coordinates"]) > 1500 and "BY-SA" in gj["features"][0]["properties"]["license"])
 check("a flight that does not exist is not found", anon.get(B + "/sondes/NOSUCHSONDE").status_code == 404 and anon.get(B + "/api/sondes/NOSUCHSONDE/track.json").status_code == 404)
 
@@ -111,7 +112,7 @@ except ImportError:
 # ---- the map data
 md = anon.get(B + "/api/sondes/map.json?hours=24").json()
 ids_ = {x["id"] for x in md["flights"]}
-check("the Balloon Map data says which stations are claimed (the card said 'not claimed yet' for every station)", all(isinstance(x.get("claimed"), bool) for x in md["stations"]) and any(x["claimed"] for x in md["stations"]), [(x["id"], x.get("claimed")) for x in md["stations"]][:6])
+check("the Balloon Map data says which stations are claimed (the card said 'not claimed yet' for every station)", all(isinstance(x.get("claimed"), bool) for x in md["stations"]), [(x["id"], x.get("claimed")) for x in md["stations"]][:6])
 check("the map data has the recent flights with their position, source, status and a track", {"TESTAAA1", "TESTBBB2", "TESTCCC3", "N0TEST-11"} <= ids_ and all("trail" in x and x["lat"] is not None for x in md["flights"]))
 a1 = next(x for x in md["flights"] if x["id"] == "TESTAAA1")
 a1m = next(x for x in md["flights"] if x["id"] == "TESTAAA1")
@@ -172,6 +173,7 @@ check("an ordinary member cannot open the admin page or approve", plain.get(B + 
 ap = adm.get(B + "/admin/sondes")
 check("the admin page lists the waiting claim with its code and the feed state", ap.status_code == 200 and "AE5AU" in ap.text and code in ap.text and "Claims Waiting" in ap.text)
 check("an administrator approves it", adm.post(B + f"/admin/sondes/{sid}/approve", data={"csrf_token": csrf(adm, "/admin/sondes")}, headers=H).json()["ok"] and psql(f"select claim_status from sonde_stations where id={sid}") == "claimed")
+check("and the Balloon Map data now says that station is claimed", any(x["id"] == "AE5AU" and x["claimed"] is True for x in anon.get(B + "/api/sondes/map.json?hours=24").json()["stations"]))
 check("the claimed station now shows its owner", "plain1" in anon.get(B + "/sondes/stations/AE5AU").text)
 # ---- a claimed station sending its frames straight to us (auto_rx's payload summary through the bridge)
 pg = plain.get(B + f"/my/sondes/{sid}").text

@@ -133,7 +133,8 @@ check("a moderator can mute a member from messages", r.json()["ok"] and "muted f
 post(adm, "/admin/chat/unmute", user_id=psql("select id from users where username = 'plain1'"), scope="pm")
 
 # reports
-vid = psql("select id from mail_messages where subject = 'Draft subject' and sender_folder = 'sent'")
+check("message text is sealed in the database (no subject or body is stored as plain text)", psql("select count(*) from mail_messages where (body <> '' and body not like 'enc1:%') or (subject <> '' and subject not like 'enc1:%')") == "0" and "Draft subject" not in psql("select string_agg(subject || body, ' ') from mail_messages"))
+vid = re.search(r"/my/messages/(\d+)", me.get(B + "/my/messages?folder=sent&q=Draft+subject").text).group(1)
 r = post(other, f"/my/messages/{vid}/report", note="spammy").json()
 check("a recipient reports a message, and only that message reaches the moderators", r["ok"] and "only that message" in r["message"] and all(x in adm.get(B + "/admin/chat").text for x in ("Draft subject", "finished", "spammy", "reported by claimer1")) and "Bulk 3" not in adm.get(B + "/admin/chat").text)
 check("a sender cannot report their own message, nor can a stranger", post(me, f"/my/messages/{vid}/report").status_code == 404 and post(third, f"/my/messages/{vid}/report").status_code == 404)
@@ -150,7 +151,7 @@ unset("access_messages")
 setting("pm_enabled", "0")
 check("with Messages off the pages and the menu link are gone", me.get(B + "/my/messages").status_code == 404 and 'href="/my/messages"' not in me.get(B + "/").text)
 unset("pm_enabled")
-check("the settings are in Admin > Settings", all(x in adm.get(B + "/admin/settings").text for x in ("Messages: Longest Subject", "Messages: Most Recipients", "Messages: Days Deleted Messages Stay in the Trash", "Messages: Messages per Page", "Who Can See Private Messages")))
+check("the settings are in Admin > Settings", all(x in adm.get(B + "/admin/settings").text for x in ("Messages: Longest Subject", "Messages: Most Recipients", "Messages: Days Deleted Messages Stay in the Trash", "Messages: Messages per Page", "Who Can Use Private Messages")))
 wipe()
 unset(*KEYS)
 print("ALL PASS" if ok_all else "SOME FAILED")

@@ -161,7 +161,8 @@ def flight_page(serial):
     rep = {"mode": sr.mode("sonde_report_mode"), "by": sr.default_name(current_user) if current_user.is_authenticated else "",
            "lat": row["landing_lat"] if row["landing_lat"] is not None else row["last_lat"], "lon": row["landing_lon"] if row["landing_lon"] is not None else row["last_lon"],
            "alt": round(row["landing_alt"]) if row["landing_alt"] is not None else (round(row["last_alt"]) if row["last_alt"] is not None else None)}
-    return render_template("sonde.html", rep=rep, f=row, summ=st, heard=heard_list(row, latest), latest=latest, recs=recovery_dict(row), phase=sd.phase(row), phase_label=sd.phase_label(row), **_ctx())
+    following = bool(current_user.is_authenticated and get_db().execute("SELECT 1 FROM sonde_follows WHERE user_id=%s AND serial=%s", (current_user.id, serial)).fetchone())
+    return render_template("sonde.html", following=following, rep=rep, f=row, summ=st, heard=heard_list(row, latest), latest=latest, recs=recovery_dict(row), phase=sd.phase(row), phase_label=sd.phase_label(row), **_ctx())
 
 
 def _track_dict(row):
@@ -194,6 +195,7 @@ def api_track(serial):
 
 
 @bp.route("/sondes/<serial>/track.csv")
+@login_required
 def track_csv(serial):
     _need()
     row = sd.get(serial)
@@ -209,6 +211,7 @@ def track_csv(serial):
 
 
 @bp.route("/sondes/<serial>/track.geojson")
+@login_required
 def track_geojson(serial):
     _need()
     row = sd.get(serial)

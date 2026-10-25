@@ -31,6 +31,7 @@
     <input type="search" id="sp-filter" placeholder="Find a satellite" aria-label="Find a satellite" style="width:200px;max-width:100%">
     <button type="button" class="btn small neutral" id="sp-all">All</button><button type="button" class="btn small neutral" id="sp-none">None</button>
     <button class="btn small" type="submit" form="sp-form">Show Passes</button>
+    <a class="btn small show-on-map" id="sp-map" href="/radio/satellites/map" title="Show the ticked satellites on a map, and nothing else">Show on Map</a>
     <span class="dim" id="sp-count"></span>
   </div>
   {% for g, items in groups %}<div class="sp-group" data-group="{{ g }}"><h3>{{ g }} <button type="button" class="btn small neutral sp-only" style="margin:0">Only These</button></h3>
@@ -81,10 +82,14 @@
 
 <p class="dim" style="font-size:.82rem">Orbit data: CelesTrak (derived from US Space Force tracking), loaded {{ (els | map(attribute='fetched') | max).strftime('%Y-%m-%d') }}; the newest element set is {{ ((now - (els | map(attribute='epoch') | max)).days) }} day{{ '' if ((now - (els | map(attribute='epoch') | max)).days) == 1 else 's' }} old. Positions are most exact within a few days of an element set and drift a little afterwards, so check a few minutes before a pass that matters.</p>
 {% endif %}
-<script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var pills = [].slice.call(document.querySelectorAll(".sp-pill")), cnt = document.getElementById("sp-count");
-  function count() { var n = pills.filter(function (p) { return p.querySelector("input").checked; }).length; if (cnt) cnt.textContent = n + " of " + pills.length + " chosen"; }
+  var mapBtn = document.getElementById("sp-map");
+  function count() {
+    var on = pills.filter(function (p) { return p.querySelector("input").checked; }), n = on.length; if (cnt) cnt.textContent = n + " of " + pills.length + " chosen";
+    if (mapBtn) { var f = document.getElementById("sp-form"); mapBtn.href = n ? "/radio/satellites/map?sat=" + on.map(function (p) { return p.querySelector("input").value; }).join("&sat=") + "&lat=" + (f.lat.value || {{ lat }}) + "&lon=" + (f.lon.value || {{ lon }}) + "&q=" + encodeURIComponent(f.q.value || {{ label | tojson }}) + "&hours=" + f.hours.value + "&min=" + f.min.value : "#"; mapBtn.style.opacity = n ? "" : ".5"; mapBtn.title = n ? "Show the " + n + " ticked satellite" + (n === 1 ? "" : "s") + " on a map, and nothing else" : "Tick a satellite first"; }
+  }
   function setAll(v, within) { pills.forEach(function (p) { if (!within || within.contains(p)) { if (p.style.display !== "none") p.querySelector("input").checked = v; } }); count(); }
   var all = document.getElementById("sp-all"), none = document.getElementById("sp-none"), flt = document.getElementById("sp-filter");
   if (all) all.addEventListener("click", function () { setAll(true); });

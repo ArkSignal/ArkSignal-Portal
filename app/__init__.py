@@ -34,7 +34,7 @@ def create_app():
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
         SESSION_COOKIE_SECURE=not os.environ.get("FORCE_INSECURE_COOKIES"),
-        MAX_CONTENT_LENGTH=512 * 1024 * 1024,
+        MAX_CONTENT_LENGTH=512 * 1024 * 1024,   # the ceiling; each request gets its own, smaller limit (see _body_limit)
         HUB_URL=os.environ.get("HUB_URL", "").strip(),
     )
     # one proxy hop in front (NPM)
@@ -66,12 +66,50 @@ def create_app():
     app.register_blueprint(acars_bp)
     from .usage_views import bp as usage_bp
     app.register_blueprint(usage_bp)
+    from .retention import bp as retention_bp
+    app.register_blueprint(retention_bp)
+    from .communities import bp as communities_bp
+    app.register_blueprint(communities_bp)
+    from .flightexport import bp as flightexport_bp
+    app.register_blueprint(flightexport_bp)
+    from .myflights import bp as myflights_bp
+    app.register_blueprint(myflights_bp)
+    from .myflightsio import bp as myflightsio_bp
+    app.register_blueprint(myflightsio_bp)
+    from .myflightstracks import bp as myflightstracks_bp
+    app.register_blueprint(myflightstracks_bp)
+    from .myflightsshare import bp as myflightsshare_bp
+    app.register_blueprint(myflightsshare_bp)
+    from .pushkinds import bp as pushkinds_bp
+    app.register_blueprint(pushkinds_bp)
+    from .schedules import bp as schedules_bp
+    app.register_blueprint(schedules_bp)
+    from .meshalertchan import bp as meshalertchan_bp
+    app.register_blueprint(meshalertchan_bp)
+    from .meshlinks import bp as meshlinks_bp
+    app.register_blueprint(meshlinks_bp)
+    from .meshbridge import bp as meshbridge_bp
+    app.register_blueprint(meshbridge_bp)
+    from .meshrelease import bp as meshrelease_bp
+    app.register_blueprint(meshrelease_bp)
     from .mystations import bp as mystations_bp
     app.register_blueprint(mystations_bp)
     from .themes_views import bp as themes_bp
     app.register_blueprint(themes_bp)
+    from .webpush import bp as webpush_bp
+    app.register_blueprint(webpush_bp)
+    from .matrix import bp as matrix_bp
+    app.register_blueprint(matrix_bp)
+    from .oidcprovider import bp as oidc_bp
+    app.register_blueprint(oidc_bp)
     from .mesh_views import bp as mesh_bp
     app.register_blueprint(mesh_bp)
+    from .mesh_alerts import bp as mesh_alerts_bp
+    app.register_blueprint(mesh_alerts_bp)
+    from .mesh_channels import bp as mesh_channels_bp
+    app.register_blueprint(mesh_channels_bp)
+    from .seo import bp as seo_bp
+    app.register_blueprint(seo_bp)
     app.register_blueprint(lookups_bp)
     from .metrics import bp as metrics_bp
     app.register_blueprint(metrics_bp)
@@ -163,6 +201,7 @@ def create_app():
                                  os.environ.get("ADMIN_PASSWORD", ""))
             from .vault import encrypt_existing
             encrypt_existing(conn)   # secrets an older version stored as plain text get sealed
+            conn.commit()   # (the connection is rolled back below: without this the sealing never reached the database)
         finally:
             conn.rollback()
             conn.execute("SELECT pg_advisory_unlock(727001)")
@@ -220,7 +259,7 @@ def create_app():
     def _pm_unread():
         try:
             from flask_login import current_user as _cu
-            if _cu.is_authenticated and cfg("pm_enabled") == "1":
+            if _cu.is_authenticated and cfg("pm_enabled") == "1" and cfg("matrix_enabled") != "1":
                 from .messages import unread_count
                 return unread_count(_cu.id)
         except Exception:
@@ -233,7 +272,7 @@ def create_app():
             from flask_login import current_user as _cu
             if _cu.is_authenticated:
                 from . import social
-                return {"chat_unread": social.chat_unread(_cu.id) if cfg("chat_enabled") == "1" else 0, "friend_requests": social.friend_requests(_cu.id) if cfg("friends_enabled") == "1" else 0}
+                return {"chat_unread": social.chat_unread(_cu.id) if cfg("chat_enabled") == "1" and cfg("matrix_enabled") != "1" else 0, "friend_requests": social.friend_requests(_cu.id) if cfg("friends_enabled") == "1" else 0}
         except Exception:
             pass
         return {"chat_unread": 0, "friend_requests": 0}
@@ -248,10 +287,11 @@ def create_app():
     @app.context_processor
     def inject_globals():
         from . import tools
+        from flask_login import current_user
         from . import themes as _themes
-        return {"ark_themes": _themes.public_config(), "unit_area": _units.area_now(), "unit_areas": _units.AREAS, "unit_site_by": {a: _units.site_default(a) for a, _l in _units.AREAS if _units.site_default(a)}, "repeater_on": cfg("repeater_enabled") == "1", "acars_on": cfg("acars_enabled") == "1", "mesh_on": cfg("mesh_enabled") == "1", "site_name": cfg("site_name"), "brand_name": cfg("brand_name"), "brand_accent": cfg("brand_accent"), "page_width_mode": cfg("page_width_mode"), "page_max_width": int(cfg("page_max_width")), "registration_open": cfg("registration_open") == "1",
-                "nav_tools": tools.list_enabled(), "nav_groups": _nav_groups(), "nav_sub": next((g for g in _nav_groups() if g["active"]), None), "feeder_stats": any(t["slug"] == "network-feeders" for t in tools.list_enabled()), "min_password": cfg_int("min_password_length"),
-                "kiosk_on": cfg("kiosk_enabled") == "1", "api_on": cfg("api_enabled") == "1", "passkeys_on": cfg("passkeys_enabled") == "1", "listings_on": cfg("radiolists_enabled") == "1", "satimg_on": cfg("satimg_enabled") == "1", "google_on": _google_on(), "ais_on": cfg("ais_enabled") == "1", "rid_on": cfg("rid_enabled") == "1", "goes_on": cfg("goes_enabled") == "1", "chat_on": cfg("chat_enabled") == "1", "pm_on": cfg("pm_enabled") == "1", "pm_unread": _pm_unread(), "friends_on": cfg("friends_enabled") == "1", "bridges_on": cfg("chat_enabled") == "1" and (cfg("bridge_aprs_enabled") == "1" or cfg("bridge_mesh_enabled") == "1"), **_social_counts(), "map_panels_open": cfg("map_panels_open") == "1", "site_units": cfg("live_units"), "map_area": __import__("app.settings", fromlist=["map_area"]).map_area, "tile_url": cfg("map_tile_url"), "tile_attr": cfg("map_attribution"), "leaflet_base": cfg("leaflet_base_url"),
+        return {"ark_themes": _themes.public_config(), "unit_area": _units.area_now(), "unit_areas": _units.AREAS, "unit_site_by": {a: _units.site_default(a) for a, _l in _units.AREAS if _units.site_default(a)}, "repeater_on": cfg("repeater_enabled") == "1", "acars_on": cfg("acars_enabled") == "1", "mesh_on": cfg("mesh_enabled") == "1", "seo": __import__("app.seo", fromlist=["page_info"]).page_info() if __import__("flask").has_request_context() else {}, "mesh_channels_on": cfg("mesh_enabled") == "1" and cfg("mesh_channels_enabled") == "1", "myflights_on": cfg("myflights_enabled") == "1", "myflights_share_on": cfg("myflights_sharing") == "1", "push_on_site": cfg("push_enabled") == "1", "schedules_on": cfg("schedules_enabled") == "1" and bool(cfg("schedules_key")), "site_name": cfg("site_name"), "brand_name": cfg("brand_name"), "brand_accent": cfg("brand_accent"), "page_width_mode": cfg("page_width_mode"), "page_max_width": int(cfg("page_max_width")), "registration_open": cfg("registration_open") == "1",
+                "nav_tools": [t for t in tools.list_enabled() if current_user.is_authenticated or t["slug"] not in ("planefence", "plane-alert")], "nav_groups": _nav_groups(), "nav_sub": next((g for g in _nav_groups() if g["active"]), None), "feeder_stats": any(t["slug"] == "network-feeders" for t in tools.list_enabled()), "min_password": cfg_int("min_password_length"),
+                "kiosk_on": cfg("kiosk_enabled") == "1", "api_on": cfg("api_enabled") == "1", "passkeys_on": cfg("passkeys_enabled") == "1", "listings_on": cfg("radiolists_enabled") == "1", "satimg_on": cfg("satimg_enabled") == "1", "google_on": _google_on(), "ais_on": cfg("ais_enabled") == "1", "rid_on": cfg("rid_enabled") == "1", "goes_on": cfg("goes_enabled") == "1", "chat_on": cfg("chat_enabled") == "1" or cfg("matrix_enabled") == "1", "pm_on": cfg("pm_enabled") == "1" and cfg("matrix_enabled") != "1", "pm_unread": _pm_unread(), "friends_on": cfg("friends_enabled") == "1", "matrix_on": cfg("matrix_enabled") == "1", "bridges_on": (cfg("chat_enabled") == "1" or cfg("matrix_enabled") == "1") and (cfg("bridge_aprs_enabled") == "1" or cfg("bridge_mesh_enabled") == "1"), **_social_counts(), "map_panels_open": cfg("map_panels_open") == "1", "site_units": cfg("live_units"), "map_area": __import__("app.settings", fromlist=["map_area"]).map_area, "tile_url": cfg("map_tile_url"), "tile_attr": cfg("map_attribution"), "leaflet_base": cfg("leaflet_base_url"),
                 # radius of the circle drawn for a General-privacy location: half the rounding step, in metres
                 "site_tz": cfg("timezone"), "idle_seconds": _idle_seconds(), "idle_warning": cfg_int("idle_warning_seconds"), "password_rules": _security.password_rules_text(), "support_on": __import__("app.support", fromlist=["on"]).on(), "password_mix": cfg("password_require_mix") == "1", "alerts_unseen": _alerts_unseen(), "alert_poll_seconds": max(15, cfg_int("live_refresh_seconds") * 10), "app_version": _APP_VERSION, "server_prefs": _server_prefs(),
                 "mark_cfg": _mark_cfg(), "approx_radius_m": int(0.5 * 10 ** -cfg_int("general_precision_decimals") * 111320)}
@@ -279,12 +319,29 @@ def create_app():
         # a receiver posting to its private upload address, or a key-holder calling the API, is not a signed-in person: the feature switches answer with what is saved (see settings.cfg)
         import re as _re
         from flask import request as _rq
-        if _re.match(r"^/(acars/push|ais/push|drones/push|sat/push|sondes/push|wx/push|wx/wu|wx/relay)/|^/api/v1/", _rq.path):
+        if _re.match(r"^/(acars/push|ais/push|drones/push|sat/push|sondes/push|wx/push|wx/wu|wx/relay)/|^/api/v1/|^/bridge/mesh/|^/\.well-known/(matrix|openid-configuration)|^/matrix/element-config\.json|^/_matrix/|^/oidc/", _rq.path):   # and the machine addresses of the radio bridge gateway, Matrix and the sign-in provider (token guarded)
             from flask import g as _gg
             _gg._cfg_raw = True
 
+    def _body_limit():
+        # how much a request may send: small for everything a visitor or a receiver can reach (an anonymous request must not be able to make the server hold a huge body in memory), larger where a person has signed in
+        # to bring a file (an administrator restoring a backup, a member importing flights) and for a satellite receiver's picture
+        from flask import request as _rq
+        p = _rq.path
+        mb = cfg_int("request_limit_mb")
+        if p.startswith("/admin/"):
+            mb = max(mb, cfg_int("request_limit_admin_mb"))
+        elif p.startswith("/my/flights/"):
+            mb = max(mb, cfg_int("request_limit_member_mb"))
+        elif p.startswith("/sat/push/"):
+            mb = max(mb, cfg_int("satimg_max_mb") + 2)
+        _rq.max_content_length = mb * 1024 * 1024
+
+    app.before_request_funcs.setdefault(None, []).insert(0, _body_limit)   # first of all, before the form token check reads the body
+
     app.before_request(_security.enforce)
     app.after_request(_security.apply_headers)
+    app.jinja_env.globals["csp_nonce"] = _security.csp_nonce   # {{ csp_nonce }} in a script tag's nonce attribute (the function is called by the template)
 
     def _site_time(value, fmt):
         if isinstance(value, str):  # timestamps kept in settings are ISO text
@@ -297,6 +354,8 @@ def create_app():
 
     from . import units as _units
     from . import adminnav as _adminnav
+    from . import shop as _shop
+    app.jinja_env.globals.update(shop_link=_shop.link, shop_note=_shop.disclosure)
     app.jinja_env.globals.update(admin_nav=_adminnav.visible)
     app.jinja_env.globals.update(dist_unit=_units.unit_for, dist_show=_units.show)
     app.jinja_env.filters["dist"] = lambda value, base="m": _units.fmt(value, base)
@@ -306,7 +365,7 @@ def create_app():
     from . import privacy as _privacy
     app.jinja_env.globals["privacy_help"] = _privacy.help_text
     from . import maptypes as _maptypes
-    app.jinja_env.globals["map_types"] = _maptypes.TYPES
+    app.jinja_env.globals["map_types"] = _maptypes.visible_types
     from . import repeater_digital as _rd
     app.jinja_env.globals["rp_attr_keys"] = _rd.ATTR_KEYS
     import json as _json
@@ -390,9 +449,27 @@ def create_app():
         start_sondes(app)   # the live radiosonde and balloon feed (one web worker at a time holds it)
         from .wxstats import start_collector as start_wxstats
         start_wxstats(app)   # keeps a reading of every weather station that reports (members, APRS, airports) for the statistics
+        from .meshrelease import start as start_meshrelease
+        start_meshrelease(app)   # reads the newest Meshtastic firmware and protobuf releases once a day
+        from .retention import start as start_retention
+        start_retention(app)   # thins old detail once a night when an administrator has set it up (Admin > Data Retention)
         from .status import start_collector as start_status
         start_status(app)   # the service checks run here in the background, on a schedule: the status pages only read the result
         from .update_check import start_update_checks
         start_update_checks(app)
+
+    if not os.environ.get("DISABLE_MESH_SYNC"):   # not tied to the background-jobs switch the test portal turns off: a restarted broker must get its logins back by itself
+        from .mesh import start_login_sync
+        start_login_sync(app)   # the mesh broker's member logins are kept in step with this database by themselves
+        from .matrix import start_sync as start_matrix_sync
+        start_matrix_sync(app)   # the Matrix server is kept in step with the site (accounts, blocks, moderators, standing rooms)
+        from .mesh_alerts import start as start_mesh_alerts
+        start_mesh_alerts(app)   # owners are told when their router goes quiet or a battery is low
+        from .pushkinds import start as start_pushwatch
+        from .meshalertchan import start as start_meshalerts
+        from .meshlinks import start as start_meshlinks
+        start_meshlinks(app)   # the mesh service is told which community links are active
+        start_meshalerts(app)   # warnings and weather summaries for the communities that chose the alert channel
+        start_pushwatch(app)   # weather warnings, earthquakes, floods, satellite passes, landed balloons and admin items for the members who asked
 
     return app

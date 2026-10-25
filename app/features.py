@@ -4,11 +4,14 @@ Each feature: key, name shown to people, the Settings switches that turn it on (
 one, who can see it: everyone (the default), signed-in members only, or only members whose role holds the permission "See <name>" (see app/access.py)."""
 
 FEATURES = [
+    ("myflights", "My Flights", ("myflights_enabled",), "manage_settings"),
+    ("exports", "Flight Data Downloads", ("export_enabled",), "manage_settings"),
     ("weather", "Weather Stations", ("wx_enabled",), "manage_weather"),
     ("sondes", "Radiosondes", ("sonde_enabled",), "manage_sondes"),
     ("repeaters", "Repeaters", ("repeater_enabled",), "moderate_repeaters"),
     ("aprs", "APRS", ("aprs_enabled",), "manage_map_data"),
     ("mesh", "Mesh Nodes", ("mesh_enabled",), "manage_map_data"),
+    ("communities", "Mesh Communities", ("mesh_communities_enabled",), "manage_map_data"),
     ("acars", "ACARS", ("acars_enabled",), "manage_feeders"),
     ("ais", "River Traffic", ("ais_enabled",), "manage_feeders"),
     ("drones", "Drones", ("rid_enabled",), "manage_feeders"),
@@ -26,8 +29,12 @@ FEATURES = [
     ("chat", "Chat", ("chat_enabled",), "moderate_chat"),
     ("messages", "Private Messages", ("pm_enabled",), "moderate_chat"),
     ("friends", "Friends Lists", ("friends_enabled",), "moderate_chat"),
+    ("matrix", "Matrix Chat", ("matrix_enabled",), "moderate_chat"),
     ("bridges", "Radio Bridges", ("bridge_aprs_enabled", "bridge_mesh_enabled"), "moderate_chat"),
 ]
+
+# features that only work for a signed-in person (a diary, chat, messages, friends): "members only" until an administrator chooses otherwise, so a guest is never offered a page that only asks for a sign-in
+MEMBERS_ONLY = ("myflights", "chat", "messages", "friends", "matrix", "bridges")
 
 KEYS = [f[0] for f in FEATURES]
 LABEL = {f[0]: f[1] for f in FEATURES}

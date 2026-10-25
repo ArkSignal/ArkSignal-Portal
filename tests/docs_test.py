@@ -18,9 +18,9 @@ for path, limit in (("app/release_notes.json", 6), ("app/roadmap.json", 8), ("RO
     n = since(path)
     check(f"{path} is kept up to date: {n} code commits since it last changed (limit {limit})", n <= limit, n)
 try:
-    out = subprocess.run(["gh", "api", "repos/mallison01/adsb-portal-content/contents/release_notes.json", "-q", ".content"], capture_output=True, text=True, timeout=60).stdout
+    out = subprocess.run(["gh", "api", "repos/ArkSignal/ArkSignal-Content/contents/release_notes.json", "-q", ".content"], capture_output=True, text=True, timeout=60).stdout
     pub = json.loads(base64.b64decode(out).decode("utf-8")) if out.strip() else None
-    out2 = subprocess.run(["gh", "api", "repos/mallison01/adsb-portal-content/contents/roadmap.json", "-q", ".content"], capture_output=True, text=True, timeout=60).stdout
+    out2 = subprocess.run(["gh", "api", "repos/ArkSignal/ArkSignal-Content/contents/roadmap.json", "-q", ".content"], capture_output=True, text=True, timeout=60).stdout
     pubr = json.loads(base64.b64decode(out2).decode("utf-8")) if out2.strip() else None
     if pub is None:
         print("note: GitHub cannot be reached from here, the public copy was not compared")

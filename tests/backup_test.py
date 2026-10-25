@@ -27,6 +27,15 @@ r=adm.get(B+f"/admin/backups/{mine}/download"); check("download works", r.status
 tf=tarfile.open(fileobj=io.BytesIO(r.content),mode="r:gz"); man=json.load(tf.extractfile("manifest.json"))
 check("archive has manifest and all tables", {"users","roles","user_roles","audit_log","settings"} <= set(man["tables"]) and all(f"tables/{t}.csv" in tf.getnames() for t in man["tables"]), man["tables"])
 users_before=man["row_counts"]["users"]
+# the list reads each archive's manifest once and remembers it (the page was slow to load because every archive was unpacked on every visit)
+_SSH = lambda cmd: subprocess.run(["ssh", "-q", "nastemp", cmd], capture_output=True, text=True)
+_DK = "echo $TEST_SUDO_PASSWORD | sudo -S -p '' /usr/local/bin/docker"
+subprocess.run(["scp", "-q", "backupinfo_unit.py", "nastemp:adsb-portal/backupinfo_unit.py"], check=True, capture_output=True)
+_SSH(f"{_DK} cp ~/adsb-portal/backupinfo_unit.py adsb-portal:/tmp/backupinfo_unit.py")
+_o = _SSH(f"{_DK} exec -w /app -e PYTHONPATH=/app adsb-portal python /tmp/backupinfo_unit.py").stdout.strip().splitlines()
+_r = json.loads(_o[-1]) if _o else {}
+check("a backup writes a small .info file; listing twice opens no archive", _r.get("info_written") and _r.get("no_reads"), _r)
+check("a missing .info is rebuilt once, a changed archive is looked at again, and deleting removes both files", _r.get("rebuilt") and _r.get("changed_file_rechecked") and _r.get("deleted_both"), _r)
 # make changes after the backup
 s2=requests.Session()
 t=re.search(r'name="csrf_token" value="([^"]+)"', s2.get(B+"/my/register").text).group(1)
@@ -88,4 +97,15 @@ bad = blob[:200] + bytes([blob[200] ^ 255]) + blob[201:]
 ok, m, _ = act_files(adm, "/admin/backups/upload", "/admin/backups", {"file": ("bad.tar.gz", bad)}); check("a damaged encrypted backup is refused and changes nothing", not ok, m)
 adm = sess("marty", PW)
 act(adm, f"/admin/backups/{enc_name}/delete", "/admin/backups")
+# ---- the page never opens an archive: a backup without its summary file is listed at once, "counting..." until the background count has run
+import subprocess as _sp, time as _t
+_setting("backup_encrypt", "0")
+ok, m, html = act(adm, "/admin/backups/run", "/admin/backups")
+quick = re.findall(r"portal-backup-\d{8}-\d{6}-manual\.tar\.gz", html)[0]
+_sp.run(["ssh", "-q", "nastemp", f"echo $TEST_SUDO_PASSWORD | sudo -S -p '' /usr/local/bin/docker exec adsb-portal rm -f /backups/{quick}.info"], capture_output=True)
+t0 = _t.time(); page = adm.get(B + "/admin/backups"); took = _t.time() - t0
+check("a backup with no summary file is listed at once and says it is counting", quick in page.text and "counting..." in page.text and took < 3, took)
+_t.sleep(4)
+check("the next visit shows its row count", "counting..." not in adm.get(B + "/admin/backups").text)
+act(adm, f"/admin/backups/{quick}/delete", "/admin/backups")
 print("ALL PASS" if ok_all else "SOME FAILED")

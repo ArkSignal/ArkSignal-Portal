@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block title %}My ACARS Stations{% endblock %}
 {% block content %}
+{% with active = 'acars' %}{% include "partials/_my_subnav.html" %}{% endwith %}
 <h1>My <span>ACARS Stations</span></h1>
 <div class="sub">Signed in as {{ current_user.username }}. An ACARS station is a receiver (an SDR with acarsdec, dumpvdl2 or dumphfdl, usually through acars_router) that sends what it hears to a private address on this site.</div>
-{% with active = 'acars' %}{% include "partials/_my_subnav.html" %}{% endwith %}
 {% if rows %}
 <div class="tiles" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))">
   {% for r in rows %}

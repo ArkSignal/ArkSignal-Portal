@@ -27,11 +27,16 @@ def profile():
     if request.method == "POST":
         display = request.form.get("display_name", "").strip()[:60] or None
         callsign = request.form.get("callsign", "").strip().upper()
+        from .bridge_verify import clean_name
+        first, last = " ".join(request.form.get("first_name", "").split()), " ".join(request.form.get("last_name", "").split())
         if callsign and not st.valid_callsign(callsign):
             flash("Enter a valid amateur radio callsign such as KD5VCF, or leave it blank.", "error")
+        elif (first and not clean_name(first)) or (last and not clean_name(last)):
+            flash("A first or last name may contain only letters, spaces, dashes, apostrophes and dots (up to 40 characters).", "error")
         else:
+            from .vault import seal
             d = get_db()
-            d.execute("UPDATE users SET display_name=%s, callsign=%s WHERE id=%s", (display, callsign or None, current_user.id))
+            d.execute("UPDATE users SET display_name=%s, callsign=%s, legal_first_sealed=%s, legal_last_sealed=%s WHERE id=%s", (display, callsign or None, seal(first), seal(last), current_user.id))
             from .landing import allowed
             import json
             land = request.form.get("landing", "")
@@ -57,7 +62,77 @@ def profile():
     except ValueError:
         mine = ""
     return render_template("my_profile.html", delete_enabled=cfg("account_delete_enabled") == "1", landing_choices=allowed(current_user), landing_mine=mine,
-                           landing_site=target_for(current_user) if not mine else "")
+                           landing_site=target_for(current_user) if not mine else "", ham=_profile_ham(), names=_my_names())
+
+
+@bp.route("/account")
+@login_required
+def account():
+    """My Account > Overview: who you are on the site, what needs your attention, and where everything of yours is."""
+    from . import mystations
+    from .bridge_verify import legal_name, member_context, required, verified_call, _row
+    d = get_db()
+    me = current_user.id
+
+    def n(sql, args=(me,)):
+        try:
+            return int(d.execute(sql, args).fetchone()["n"])
+        except Exception:
+            d.rollback()
+            return 0
+    u = d.execute("SELECT username, display_name, callsign, totp_enabled, created_at FROM users WHERE id=%s", (me,)).fetchone()
+    names = legal_name(_row(me))
+    ham = member_context(me) if cfg("chat_enabled") == "1" and cfg("bridge_aprs_enabled") == "1" and required() else None
+    sec = {"totp": bool(u["totp_enabled"]), "passkeys": n("SELECT COUNT(*) AS n FROM passkeys WHERE user_id=%s"), "apikeys": n("SELECT COUNT(*) AS n FROM api_keys WHERE user_id=%s AND NOT revoked"),
+           "sessions": n("SELECT COUNT(*) AS n FROM user_sessions WHERE user_id=%s AND NOT ended")}
+    last = d.execute("SELECT created_at, ip FROM user_sessions WHERE user_id=%s ORDER BY created_at DESC OFFSET 1 LIMIT 1", (me,)).fetchone()
+    comm = {"chat": cfg("chat_enabled") == "1" or cfg("matrix_enabled") == "1", "mail": cfg("pm_enabled") == "1" and cfg("matrix_enabled") != "1", "friends": cfg("friends_enabled") == "1", "friend_count": n("SELECT COUNT(*) AS n FROM friendships WHERE status='accepted' AND (user_a=%s OR user_b=%s)", (me, me))}
+    alerts = {"rules": n("SELECT COUNT(*) AS n FROM alert_rules WHERE user_id=%s AND enabled"), "mesh": n("SELECT COUNT(*) AS n FROM mesh_alert_events WHERE user_id=%s AND NOT seen") if cfg("mesh_enabled") == "1" else 0}
+    chans = n("SELECT COUNT(*) AS n FROM mesh_channels WHERE owner_id=%s") + n("SELECT COUNT(*) AS n FROM mesh_channel_members WHERE user_id=%s") if cfg("mesh_enabled") == "1" and cfg("mesh_channels_enabled") == "1" else None
+    # what needs a look, most useful first
+    todo = []
+    if not sec["totp"]:
+        todo.append(("Turn on two-factor sign-in for a safer account.", "/my/two-factor", "Two-Factor"))
+    if ham is not None:
+        if not (names[0] and names[1]) and u["callsign"]:
+            todo.append(("Save your first and last name (private) so your amateur license can be checked.", "/my/profile", "Profile"))
+        elif u["callsign"] and ham["status"] != "verified":
+            todo.append(("Your amateur license is not verified yet: " + ham["word"].lower() + ".", "/my/profile", "Check Again"))
+    for label, count, href, word in (("unread chat", chat_unread_n(me), "/chat/", "Chat"), ("new message", pm_unread_n(me), "/my/messages", "Messages"), ("friend request", friend_requests_n(me), "/my/friends", "Friends")):
+        if count:
+            todo.append((f"{count} {label}{'s' if count != 1 else ''}.", href, word))
+    if alerts["mesh"]:
+        todo.append((f"{alerts['mesh']} new alert{'s' if alerts['mesh'] != 1 else ''} about your mesh nodes.", "/my/mesh#sec-node-alerts", "My Mesh Nodes"))
+    return render_template("my_account.html", u=u, names=names, ham=ham, call=verified_call(me) if ham is not None else "", sec=sec, last=last, comm=comm, alerts=alerts, chans=chans, cards=mystations.cards(me), todo=todo, active="account")
+
+
+def chat_unread_n(uid):
+    from . import social
+    return social.chat_unread(uid) if cfg("chat_enabled") == "1" and cfg("matrix_enabled") != "1" else 0
+
+
+def pm_unread_n(uid):
+    from . import social
+    return social.mail_unread(uid) if cfg("pm_enabled") == "1" and cfg("matrix_enabled") != "1" else 0
+
+
+def friend_requests_n(uid):
+    from . import social
+    return social.friend_requests(uid) if cfg("friends_enabled") == "1" else 0
+
+
+def _my_names():
+    """The member's own private first and last name (sealed in the database; shown only to them)."""
+    from .bridge_verify import _row, legal_name
+    return legal_name(_row(current_user.id))
+
+
+def _profile_ham():
+    """The member's amateur license status for the Profile page (None when license checking does not apply)."""
+    from .bridge_verify import member_context, required
+    if cfg("chat_enabled") != "1" or cfg("bridge_aprs_enabled") != "1" or not required():
+        return None
+    return member_context(current_user.id)
 
 
 @bp.route("/profile/email", methods=["POST"])

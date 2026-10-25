@@ -63,6 +63,8 @@ check("typing is shown to the others for a few seconds and not to the typist", p
 psql("UPDATE conv_members SET typing_at = now() - interval '1 minute'")
 check("the typing notice fades", poll(me, cid)["typing"] == [])
 check("sending clears the typing notice", (post(other, f"/chat/{cid}/typing"), post(other, f"/chat/{cid}/send", body="done"), poll(me, cid)["typing"] == [])[2])
+# the text is sealed in the database
+check("chat text is sealed in the database (no message body is stored as plain text)", psql("select count(*) from conv_messages where body <> '' and body not like 'enc1:%'") == "0")
 # online
 check("a chat partner who just polled shows online", [o for o in poll(me, cid)["others"] if o["name"] == "Claimer"][0]["online"] is True)
 # delete, report
@@ -149,7 +151,7 @@ setting("chat_enabled", "0")
 check("with Chat off the pages are gone", me.get(B + "/chat/").status_code == 404 and 'href="/chat/"' not in me.get(B + "/").text)
 unset("chat_enabled")
 check("the admin menu, the roles page and the settings have it", 'href="/admin/chat"' in adm.get(B + "/admin/").text and "Moderate Chat and Messages" in adm.get(B + "/admin/roles").text
-      and all(x in adm.get(B + "/admin/settings").text for x in ("Chat: Longest Message", "Chat: Most People in a Group Chat", "Chat: New Chats a Member Can Start per Day", "Chat: Seconds a Member Counts as Online", "Chat: Seconds the Typing Notice Lasts", "Who Can See Chat")))
+      and all(x in adm.get(B + "/admin/settings").text for x in ("Chat: Longest Message", "Chat: Most People in a Group Chat", "Chat: New Chats a Member Can Start per Day", "Chat: Seconds a Member Counts as Online", "Chat: Seconds the Typing Notice Lasts", "Who Can Use Chat")))
 au = adm.get(B + "/admin/audit").text
 check("chat structure and moderation are in the audit log, never the words", all(x in au for x in ("chat.start", "chat.group_add", "chat.group_remove", "chat.group_leave", "chat.group_rename", "chat.mute", "chat.unmute", "chat.report_delete")) and "Net at 8" not in au and "not nice" not in au.replace("reported message", ""))
 check("the overview shows chat counts, and the restore area lists the new tables", "Chat messages, last 24 hours" in adm.get(B + "/admin/").text and all(x in open("../app/restorepart.py", encoding="utf-8").read() for x in ("conv_messages", "friendships", "mail_messages")))

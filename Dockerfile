@@ -17,4 +17,4 @@ USER portal
 EXPOSE 8430
 
 CMD ["gunicorn", "wsgi:app", "--bind", "0.0.0.0:8430", "--workers", "2", "--threads", "4", \
-     "--access-logfile", "-", "--error-logfile", "-"]
+     "--access-logfile", "-", "--error-logfile", "-", "--logger-class", "app.logredact.RedactingLogger"]

@@ -42,13 +42,18 @@
   .ch-wrap:not(.has-conv) .ch-main{display:none}
   .ch-back{display:inline-block}
   .bub{max-width:90%}
-  body:has(#chatapp.has-conv) .sub,body:has(#chatapp.has-conv) #sec-new{display:none}
+  body:has(#chatapp.has-conv) .sub,body:has(#chatapp.has-conv) #sec-new
   #ch-msgs{height:calc(100dvh - 450px);min-height:200px}
 }
 </style>
 <h1><span>Chat</span></h1>
 <div class="sub">Live conversations with other members: one to one, or in a small group. New messages appear at once. For something longer, write a <a href="/my/messages">message</a>{% if friends_on %}; to see who you can chat with, open <a href="/my/friends">Friends</a>{% endif %}. Be kind: you can report a message, block a member, and moderators never read a chat unless it was reported.</div>
 {% if mute %}<div class="panel" style="border-color:var(--acc2);margin-bottom:14px">You are muted in chat{% if mute.until %} until <time class="ts" datetime="{{ mute.until.isoformat() }}" data-fmt="dt">{{ mute.until }}</time>{% endif %}{% if mute.reason %}: {{ mute.reason }}{% endif %}. You can still read.</div>{% endif %}
+
+{% if radio.aprs or radio.mesh %}{% call sec('radiohow', 'Radio: How Chat Reaches APRS and Mesh', False) %}
+  <p style="margin:0 0 6px">Licensed amateurs can link a chat to an operator on APRS, and any member can link one to a node on the Meshtastic mesh. Open a chat and use <b>Radio</b> under <b>People and Settings</b> to link it. After that, what you write in that chat is sent out and what comes back appears in it with its source.</p>
+  <ul class="plain"><li>APRS needs a verified call sign: check it on your <a href="/my/profile">Profile</a> or in <a href="/my/bridges">My Account &gt; Radio</a>.</li><li>Only what the member who made the link writes is sent, under their own call sign. Messages are plain text, never encrypted.</li><li>A verified member shows <b>&#10003; and their call sign</b> next to their name.</li></ul>
+{% endcall %}{% endif %}
 
 {% call sec('new', 'Start a Chat', False) %}
   <form id="ch-new">
@@ -96,17 +101,40 @@
 
 {% if conv %}
 {% call sec('people', conv.title ~ ': People and Settings', False) %}
-  <div class="ch-people">{% for p in conv.people %}<span class="tag member">{{ p.name }}{% if conv.kind == 'group' and conv.mine and p.username != current_user.username %} <button type="button" class="x" data-remove="{{ p.username }}" title="Remove from the group">&times;</button>{% endif %}</span>{% endfor %}</div>
+  <div class="ch-people">{% for p in conv.people %}<span class="tag member"><a href="/members/{{ p.username }}" style="color:inherit">{{ p.name }}</a>{% if ham_call(p.uid) %} <span title="Verified Amateur">&#10003; {{ ham_call(p.uid) }}</span>{% endif %}{% if conv.kind == 'group' and conv.mine and p.username != current_user.username %} <button type="button" class="x" data-remove="{{ p.username }}" title="Remove from the group">&times;</button>{% endif %}</span>{% endfor %}</div>
   {% if conv.kind == 'group' and conv.mine %}
     <form id="ch-rename" style="margin-top:10px"><label for="ch-rn">Group Name</label><input type="text" id="ch-rn" name="name" value="{{ conv.title }}" maxlength="60" style="max-width:320px"> <button class="btn small" type="submit">Save</button></form>
     <form id="ch-add"><label for="ch-ad">Add a Member (User Name)</label><input type="text" id="ch-ad" name="to" data-memberpicker="people" maxlength="120" style="max-width:320px"> <button class="btn small" type="submit">Add</button></form>
   {% elif conv.kind == 'group' %}<p class="dim" style="margin:10px 0 0">The member who made the group can rename it and add or remove people.</p>{% endif %}
   {% if conv.kind == 'direct' %}{% for p in conv.people %}{% if p.username != current_user.username %}<p style="margin:10px 0 0"><button class="btn small neutral" type="button" id="ch-block" data-user="{{ p.username }}" style="margin:0">Block {{ p.name }}</button>
     <a class="btn small neutral" href="/my/messages/compose?to={{ p.username }}" style="margin:0">Write a Message</a></p>{% endif %}{% endfor %}{% endif %}
-  {% if links %}<p style="margin:10px 0 0"><b>Radio links:</b> {% for l in links %}<span class="tag member">{{ 'APRS' if l.kind == 'aprs' else 'Mesh' }} {{ l.remote }}{{ '' if l.enabled else ' (off)' }}</span> {% endfor %}
-    <span class="dim" style="font-size:.8rem">What the member who linked it writes here goes to the radio, and what comes back shows here with its source.</span></p>{% endif %}
+  {% if radio.aprs or radio.mesh %}<div class="panel" id="ch-radio" style="margin:10px 0 0">
+    <p style="margin:0 0 6px"><b>Radio:</b> send what you write here to APRS or the Meshtastic mesh.</p>
+    {% for l in links %}<p style="margin:0 0 6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><span class="tag member">{{ 'APRS' if l.kind == 'aprs' else 'Mesh' }} {{ l.remote }}</span><span class="tag {{ 'live' if l.enabled else 'off' }}">{{ 'sending' if l.enabled and l.created_by == current_user.id else ('on' if l.enabled else 'off') }}</span>
+      {% if l.created_by == current_user.id %}<button class="btn small neutral" type="button" data-act="/my/bridges/{{ l.id }}/toggle" style="margin:0">{{ 'Turn Off' if l.enabled else 'Turn On' }}</button><button class="btn small neutral" type="button" data-act="/my/bridges/{{ l.id }}/delete" style="margin:0" data-confirm="Remove this radio link?">Remove</button>{% endif %}</p>
+    {% else %}<p class="dim" style="margin:0 0 6px">This chat is not linked to the radio yet.</p>{% endfor %}
+    {% if radio.aprs_ok or radio.mesh_ok %}
+    <form id="ch-radio-add" style="margin-top:8px">
+      <label for="cr-kind">Link This Chat to</label>
+      <select id="cr-kind" name="kind" style="max-width:260px">{% if radio.aprs_ok %}<option value="aprs">APRS call sign</option>{% endif %}{% if radio.mesh_ok %}<option value="mesh">Mesh node</option>{% endif %}</select>
+      <label for="cr-remote">Call Sign (like W5ABC-9) or Node ID (like !a1b2c3d4)</label>
+      <input type="text" id="cr-remote" name="remote" maxlength="20" style="max-width:260px">
+      <button class="btn small" type="submit">Link</button> <span id="cr-note" class="dim" role="status"></span>
+    </form>
+    <p class="help">Only what the member who linked it writes goes out, under their own call sign. What comes back shows here with its source.</p>
+    {% else %}<p style="margin:8px 0 0">To send from here, set up your radio account first: <a href="/my/bridges">My Account &gt; Radio</a>{% if radio.aprs and not radio.ham %} (your call sign must be verified for APRS){% endif %}.</p>{% endif %}
+  </div>
+  <script nonce="{{ csp_nonce() }}">
+  (function () {
+    var csrf = document.getElementById("chatapp").getAttribute("data-csrf");
+    function post(url, data) { var f = new FormData(); f.append("csrf_token", csrf); Object.keys(data || {}).forEach(function (k) { f.append(k, data[k]); }); return fetch(url, { method: "POST", body: f, credentials: "same-origin" }).then(function (r) { return r.json(); }); }
+    Array.prototype.forEach.call(document.querySelectorAll("#ch-radio [data-act]"), function (b) { b.addEventListener("click", function () { var c = b.getAttribute("data-confirm"); if (c && !confirm(c)) return; post(b.getAttribute("data-act")).then(function () { location.reload(); }); }); });
+    var f = document.getElementById("ch-radio-add");
+    if (f) f.addEventListener("submit", function (e) { e.preventDefault(); post("/my/bridges/add", { kind: f.kind.value, remote: f.remote.value, conv_id: "{{ conv.id }}" }).then(function (d) { document.getElementById("cr-note").textContent = d.message || ""; if (d.ok) setTimeout(function () { location.reload(); }, 600); }); });
+  })();
+  </script>{% endif %}
   <p class="dim" style="font-size:.8rem;margin:10px 0 0">Messages are kept {{ keep_days }} days. Only the people in this chat can read it.</p>
 {% endcall %}
 {% endif %}
-<script src="/static/chatlive.js?v={{ app_version }}"></script>
+<script nonce="{{ csp_nonce() }}" src="/static/chatlive.js?v={{ app_version }}"></script>
 {% endblock %}

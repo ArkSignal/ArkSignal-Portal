@@ -46,7 +46,7 @@ check("the action is in the audit log", "backup.restore_part" in adm.get(B + "/a
 r = post(f"/admin/backups/{name}/parts/restore", {"area": "stations", "mode": "replace"})
 flash = adm.get(B + f"/admin/backups/{name}/parts").text
 check("Replace on Stations alone is refused because it would delete other data", "Replace would also delete" in flash and psql("SELECT count(*) FROM feeders WHERE station_id='RPNEW'") == "1", flash[:0])
-r = post(f"/admin/backups/{name}/parts/restore", {"area": ["stations", "station_history", "alerts", "accounts", "weather", "sondes", "acars", "mesh", "api", "satimages", "google", "ais", "drones", "chat", "repeaters"], "mode": "replace"})
+r = post(f"/admin/backups/{name}/parts/restore", {"area": ["stations", "station_history", "alerts", "accounts", "weather", "sondes", "acars", "mesh", "api", "satimages", "google", "ais", "drones", "chat", "repeaters", "audit", "myflights", "notifications"], "mode": "replace"})
 msg = adm.get(B + "/admin/backups").text
 check("Replace with everything it depends on ticked makes the area exactly as in the backup", psql("SELECT count(*) FROM feeders WHERE station_id='RPNEW'") == "0" and psql("SELECT count(*) FROM feeders WHERE station_id='RPTEST1'") == "1", msg[:0])
 check("the station's own history came back with it", psql("SELECT count(*) FROM feeder_events WHERE detail='rp test event'") == "1")

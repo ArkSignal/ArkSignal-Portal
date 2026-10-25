@@ -1,6 +1,48 @@
 {
-  "updated": "2026-10-17",
+  "updated": "2026-10-24",
   "items": [
+    {
+      "title": "Linking islanded mesh areas",
+      "summary": "Two mesh communities with no radio path between them can share one channel: the site carries its packets between their topics (still encrypted), with hop, duplicate and rate limits, agreement by both communities and an administrator's approval.",
+      "status": "done",
+      "area": "Mesh"
+    },
+    {
+      "title": "Airline schedules for My Flights",
+      "summary": "Look up the scheduled times, terminals and aircraft of a flight number and date from AeroDataBox to fill your diary. Built; it switches on when the site's administrator adds a key.",
+      "status": "progress",
+      "area": "My Flights"
+    },
+    {
+      "title": "Browser notifications for every alert",
+      "summary": "One Notifications page with a switch for every kind: chat, friends, communities, aircraft alerts, mesh nodes, shared flight links, weather warnings, earthquakes, rivers, satellite passes and landed balloons for your places, and items needing attention for administrators.",
+      "status": "done",
+      "area": "Community"
+    },
+    {
+      "title": "Sharing My Flights",
+      "summary": "Share one flight or your whole diary with a link, choosing what shows, and switch it off again at any time.",
+      "status": "done",
+      "area": "My Flights"
+    },
+    {
+      "title": "Real flight tracks on the My Flights map",
+      "summary": "The Flight Map will draw each flight's recorded track (when it has one) instead of a straight line.",
+      "status": "done",
+      "area": "My Flights"
+    },
+    {
+      "title": "Matrix chat with Element",
+      "summary": "Chat and direct messages are on a Matrix server of our own with end-to-end encryption, signed in with your ArkSignal account, in the site's own pages and in the Element phone app, with notifications (also when the site is closed), moderation, friends and blocks, and a bridge for amateur radio and Discord. Built and tested; ships with the next release. Calls (they need a relay server) and moving old conversations are not planned yet.",
+      "status": "done",
+      "area": "Community"
+    },
+    {
+      "title": "Admin side menu",
+      "summary": "The Admin section has the same left side menu as My Account.",
+      "status": "done",
+      "area": "Admin"
+    },
     {
       "title": "Air ambulances on the Trauma Map",
       "summary": "A single switch on the Trauma Map draws every air ambulance helicopter and airplane the network hears, with a details card.",
@@ -808,7 +850,7 @@
     {
       "title": "Read-only production access",
       "summary": "A locked-down login that lets Claude read logs and container state on the hub, and nothing else.",
-      "status": "progress",
+      "status": "done",
       "area": "Hub",
       "audience": "admin"
     },
@@ -1001,103 +1043,163 @@
     {
       "title": "Matrix and the Element app for chat",
       "summary": "Chat and messages move to Matrix so conversations are end-to-end encrypted, with read receipts, typing notices, reactions and notifications. Element Web, themed and framed to look like the site's own chat, signs members in with their site accounts; the built-in chat is replaced. Next big project; needs a host name for Element and the Matrix server.",
-      "status": "planned",
+      "status": "done",
       "area": "Community"
+    },
+    {
+      "title": "Mesh Channels with QR codes",
+      "summary": "Make a private Meshtastic channel with a random key, then share its QR code and address with members, friends or a chat group.",
+      "status": "done",
+      "area": "Stations"
     },
     {
       "title": "Mesh owner alerts",
       "summary": "Tell a node's owner when a router goes quiet or its battery is low.",
-      "status": "planned",
+      "status": "done",
       "area": "Stations"
     },
     {
       "title": "Mesh channels and QR codes",
       "summary": "A channel configurator for the Meshtastic app: create private channels, share them with members and groups, with a QR code to scan.",
-      "status": "planned",
+      "status": "done",
       "area": "Stations"
     },
     {
       "title": "Extend the mesh through our broker",
-      "summary": "Link separate mesh areas (for example Little Rock and Sheridan) through the site's MQTT broker, without loops; first proved with two real nodes.",
-      "status": "planned",
+      "summary": "Two separate mesh areas (for example Little Rock and Sheridan) can share one channel through the site's broker without loops; built as Linked Areas. Waiting for a test with two real nodes.",
+      "status": "done",
       "area": "Stations"
     },
     {
       "title": "Mesh alert and weather channel",
-      "summary": "Warnings and weather station readings pushed to a mesh channel.",
-      "status": "planned",
+      "summary": "A community can carry National Weather Service warnings for its area and a regular weather summary out over its mesh on a channel it chooses, within daily limits, with a log of everything sent.",
+      "status": "done",
       "area": "Stations"
     },
     {
       "title": "Mesh node history and coverage planning",
-      "summary": "Charts of battery, channel use and who hears a node, and where the next router would help most.",
-      "status": "planned",
+      "summary": "Charts of battery, voltage and channel use are on each node page, and Mesh Router Planning suggests where one more router would help the most poorly served nodes (a guess from what was heard, not a terrain prediction). Ships with the next release.",
+      "status": "done",
       "area": "Stations"
     },
     {
       "title": "Mesh Communities",
-      "summary": "A page, a map and a small site for each local mesh (Little Rock, Northwest Arkansas, Hot Springs and others), edited by its own managers.",
-      "status": "planned",
+      "summary": "A page with its own menu, a drawn area, a map, nodes placed by hand, news and events, channels with QR codes, a team and its own broker topic with plain steps for each local mesh (Little Rock, Northwest Arkansas, Hot Springs and others). Ships with the next release.",
+      "status": "done",
       "area": "Stations"
     },
     {
       "title": "Mesh node telemetry",
-      "summary": "Show and list temperature, humidity, pressure and other readings from mesh nodes that share them, with charts on the node page.",
-      "status": "planned",
+      "summary": "Mesh nodes that share battery, voltage, channel use or sensor readings (temperature, humidity, pressure, wind, rain, light) get charts on their page in the site's own chart style, and Mesh Weather lists every node with sensors. Ships with the next release.",
+      "status": "done",
       "area": "Stations"
     },
     {
       "title": "Scoped roles for communities",
-      "summary": "Roles and permissions that apply inside one community only (a mesh, an APRS group, a repeater club), so each group manages its own page and resources.",
-      "status": "planned",
+      "summary": "Roles and permissions that apply inside one community only (Viewer, Node Operator, Editor, Manager, Owner), with invitations. Built for mesh communities; APRS groups and repeater clubs can use the same roles later. Ships with the next release.",
+      "status": "done",
       "area": "Stations"
     },
     {
       "title": "Mesh group self-management",
       "summary": "A mesh group sets up its own gateway logins, uplinks and downlinks, and sees its own statistics, charts and nodes.",
-      "status": "planned",
+      "status": "done",
       "area": "Stations"
     },
     {
       "title": "Remote administration of mesh nodes",
-      "summary": "Queue configuration commands for a group's nodes from the site, run by a small bridge program beside a gateway node, with approval and a full audit log; tracks new Meshtastic releases.",
-      "status": "planned",
+      "summary": "A community's Manager queues rename, role, channel name, reboot and read commands for its nodes; a small program on the group's own computer, next to a gateway node, carries them out so the node's admin key never reaches the site. Changes wait for approval and everything is logged. The site also watches the Meshtastic firmware and protobuf releases. Ships with the next release.",
+      "status": "done",
       "area": "Stations"
     },
     {
-      "title": "Chat and message notifications",
-      "summary": "Browser notifications for new chats, messages and friend requests, even when the site is closed (Web Push), with per-member choices and an installable app.",
-      "status": "planned",
+      "title": "Notifications on your phone or computer",
+      "summary": "Chat notifications while the site is open (Element's own) and, from My Account > Community Settings, on a phone or computer when it is closed (the site's own Web Push). Aircraft alerts, mesh node alerts and friend requests can use the same notifications. Built and tested; ships with the next release.",
+      "status": "done",
       "area": "Community"
     },
     {
       "title": "Share files in chats and messages",
-      "summary": "Send pictures and files in chats and messages, with size and type limits, private to the conversation and covered by backup.",
-      "status": "planned",
+      "summary": "Pictures, files and voice messages in chat (Matrix), with a size limit you set, private to the conversation, covered by the off-site backup, and removed after a set time if the administrator chooses. Ships with the next release.",
+      "status": "done",
       "area": "Community"
     },
     {
       "title": "Data retention and thinning",
-      "summary": "Admin > Storage: for every growing table, keep full detail for a time, then thin to coarser points, then delete; attachments pruned after a set time; dry run, run log and audit.",
-      "status": "planned",
+      "summary": "Admin > Data Retention shows every store that grows with its size and what happens as it ages, thins old weather readings and removes old chat files on a schedule, with a dry run, Run Now, a run log and audit entries. Ships with the next release. Later: rollups with minimum and maximum, and more stores.",
+      "status": "done",
+      "area": "Platform"
+    },
+    {
+      "title": "Mesh owner alerts",
+      "summary": "Owners of mesh nodes hear (email, webhook and a list on My Mesh Nodes) when a router goes quiet or a battery is low, and when it recovers.",
+      "status": "done",
+      "area": "Stations"
+    },
+    {
+      "title": "Found on Google",
+      "summary": "A sitemap, robots.txt, descriptions and canonical addresses on public pages, noindex on private ones, and Search Console and Bing verification codes in Settings.",
+      "status": "done",
+      "area": "Platform"
+    },
+    {
+      "title": "My Account overview and side menu",
+      "summary": "An Overview page where My Account opens, and one left side menu (a drop-down on phones) in groups: Account, Security, My Stations and Community Settings.",
+      "status": "done",
+      "area": "Accounts"
+    },
+    {
+      "title": "Community Settings",
+      "summary": "Chat, Messages and Friends are their own Community section; their settings (who can contact you, being found, blocked members) are one page in My Account.",
+      "status": "done",
+      "area": "Community"
+    },
+    {
+      "title": "Private name for the license check",
+      "summary": "Private first and last name on the Profile, kept encrypted and shown to nobody, used to check your amateur license.",
+      "status": "done",
+      "area": "Accounts"
+    },
+    {
+      "title": "Mesh broker keeps its logins",
+      "summary": "The mesh broker now saves the logins it is given, so nodes are no longer refused after the broker restarts.",
+      "status": "done",
+      "area": "Stations"
+    },
+    {
+      "title": "Phone menu scrolls anywhere",
+      "summary": "In the open phone menu, long sections such as Aircraft scroll with the whole menu wherever you swipe.",
+      "status": "done",
+      "area": "Platform"
+    },
+    {
+      "title": "Faster Backups page",
+      "summary": "The Admin backups page no longer opens every backup file each time it loads, so it stays fast as backups grow.",
+      "status": "done",
+      "area": "Platform"
+    },
+    {
+      "title": "Easy off-site backup to a NAS",
+      "summary": "A NAS choice in Off-Site Copy with step-by-step setup (SFTP, a backup-only user, a protected port or VPN) and a connection test.",
+      "status": "done",
       "area": "Platform"
     },
     {
       "title": "Radio bridge in the profile and in every chat",
-      "summary": "Show the verified call sign on the profile, a Send to APRS or Mesh button in chats and messages, and a Radio section in My Account.",
-      "status": "planned",
+      "summary": "A Verified Amateur badge and call sign on the profile, a new member page, chats and messages, a Radio panel inside every chat to link it to APRS or the mesh, a how-it-works box on the Chat page, and a clearer Radio page in My Account.",
+      "status": "done",
       "area": "Community"
     },
     {
       "title": "Forward mesh data to the public Meshtastic server",
-      "summary": "Members who opt in can have their node's data also shared on the public Meshtastic MQTT server, under its rules, without loops.",
-      "status": "planned",
+      "summary": "A community can choose to have what its gateways send also forwarded to the public Meshtastic server, under its rules. Off until the site and the community turn it on; waiting for a test with one real node.",
+      "status": "done",
       "area": "Stations"
     },
     {
       "title": "End-to-end encryption for chats and messages",
       "summary": "Encrypted conversations that only the people in them can read, through Matrix and the Element app (decided), with sign-in by the site's own accounts.",
-      "status": "planned",
+      "status": "done",
       "area": "Community"
     },
     {
@@ -1105,6 +1207,24 @@
       "summary": "A public copy of the portal's code under the AGPL on a GitHub organization, published at each release with private infrastructure details left out.",
       "status": "planned",
       "area": "Platform"
+    },
+    {
+      "title": "Mesh broker logins stay in step by themselves",
+      "summary": "The site checks every couple of minutes that the mesh broker holds every member's login and sends any that are missing, so an update or a rebuilt broker never leaves a node refused.",
+      "status": "done",
+      "area": "Stations"
+    },
+    {
+      "title": "My Flights diary and flight data exports",
+      "summary": "Downloads, the private diary (detailed times, people, seats), route map with recorded tracks, statistics, CSV, GPX, KML and AirTrail import, export, look-ups, flight pages and sharing by link are built.",
+      "status": "done",
+      "area": "Data"
+    },
+    {
+      "title": "Replay of flights and balloons",
+      "summary": "Play back a recorded aircraft flight (or a whole period) on the live map from Flight History, and recorded balloon flights on the Radiosonde Map from the Balloon Flights list, with speed, pause and a slider. Ships with the next release.",
+      "status": "done",
+      "area": "Data"
     }
   ]
 }

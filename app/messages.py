@@ -9,6 +9,7 @@ Sending, deleting for good and reporting are in the audit log (who and to whom, 
 from flask import Blueprint, abort, jsonify, redirect, render_template, request
 from flask_login import current_user, login_required
 
+from . import vault
 from .audit import audit
 from .db import get_db
 from .settings import cfg, cfg_int
@@ -22,7 +23,8 @@ ACTIONS = {"archive", "inbox", "trash", "restore", "unread", "read", "delete"}
 
 
 def _on():
-    if cfg("pm_enabled") != "1":
+    from . import matrix
+    if cfg("pm_enabled") != "1" or matrix.replaces_builtin():   # Matrix replaces the built-in messages
         abort(404)
 
 
@@ -53,22 +55,20 @@ def _counts():
 
 
 def _list(folder, q, limit, offset):
-    """(rows, total) for a folder. Each row: id, subject, snippet, who (to whom or from whom), at, unread, mine."""
+    """(rows, total) for a folder. Each row: id, subject, body, who (to whom or from whom), at, unread, mine. The text is sealed in the database: a search opens this member's own messages of the folder and looks in those."""
     d = get_db()
     me = current_user.id
-    like = "%" + q.replace("%", "").replace("_", "") + "%" if q else None
     parts, args = [], []
 
     def recv(f):
-        parts.append("SELECT m.id, m.subject, m.body, COALESCE(NULLIF(s.display_name, ''), s.username) AS who, m.sent_at AS at, (r.read_at IS NULL) AS unread, FALSE AS mine "
-                     "FROM mail_recipients r JOIN mail_messages m ON m.id = r.message_id JOIN users s ON s.id = m.sender_id WHERE r.user_id=%s AND r.folder=%s AND r.delivered" +
-                     (" AND (m.subject ILIKE %s OR m.body ILIKE %s OR s.username ILIKE %s OR s.display_name ILIKE %s)" if like else ""))
-        args.extend([me, f] + ([like] * 4 if like else []))
+        parts.append("SELECT m.id, m.subject, m.body, COALESCE(NULLIF(s.display_name, ''), s.username) AS who, s.username AS who_user, m.sent_at AS at, (r.read_at IS NULL) AS unread, FALSE AS mine "
+                     "FROM mail_recipients r JOIN mail_messages m ON m.id = r.message_id JOIN users s ON s.id = m.sender_id WHERE r.user_id=%s AND r.folder=%s AND r.delivered")
+        args.extend([me, f])
 
     def own(f):
-        parts.append("SELECT m.id, m.subject, m.body, CASE WHEN m.draft_to = '' THEN '(no recipient yet)' ELSE m.draft_to END AS who, COALESCE(m.sent_at, m.created_at) AS at, FALSE AS unread, TRUE AS mine "
-                     "FROM mail_messages m WHERE m.sender_id=%s AND m.sender_folder=%s" + (" AND (m.subject ILIKE %s OR m.body ILIKE %s OR m.draft_to ILIKE %s)" if like else ""))
-        args.extend([me, f] + ([like] * 3 if like else []))
+        parts.append("SELECT m.id, m.subject, m.body, CASE WHEN m.draft_to = '' THEN '(no recipient yet)' ELSE m.draft_to END AS who, '' AS who_user, COALESCE(m.sent_at, m.created_at) AS at, FALSE AS unread, TRUE AS mine "
+                     "FROM mail_messages m WHERE m.sender_id=%s AND m.sender_folder=%s")
+        args.extend([me, f])
     if folder in ("inbox", "archive"):
         recv(folder)
     elif folder in ("sent", "drafts"):
@@ -77,14 +77,25 @@ def _list(folder, q, limit, offset):
         recv("trash")
         own("trash")
     sql = " UNION ALL ".join(parts)
+
+    def opened(rs):
+        return [dict(r, subject=vault.unseal(r["subject"]), body=vault.unseal(r["body"])) for r in rs]
+    if q:
+        ql = q.lower()
+        rows = [r for r in opened(d.execute(f"SELECT * FROM ({sql}) t ORDER BY at DESC, id DESC", args).fetchall())
+                if ql in (r["subject"] or "").lower() or ql in (r["body"] or "").lower() or ql in (r["who"] or "").lower() or ql in (r["who_user"] or "").lower()]
+        return rows[offset:offset + limit], len(rows)
     total = d.execute(f"SELECT COUNT(*) AS n FROM ({sql}) t", args).fetchone()["n"]
     rows = d.execute(f"SELECT * FROM ({sql}) t ORDER BY at DESC, id DESC LIMIT %s OFFSET %s", args + [limit, offset]).fetchall()
-    return rows, total
+    return opened(rows), total
 
 
 @bp.route("/my/messages")
 @login_required
 def inbox():
+    from . import matrix
+    if matrix.replaces_builtin():   # Matrix replaces the built-in messages: direct messages are in Element
+        return matrix.framed_page(dm=request.args.get("dm"))
     _on()
     from . import chat
     d = get_db()
@@ -130,7 +141,8 @@ def _form():
 def _own_draft(did):
     if not str(did or "").isdigit():
         return None
-    return get_db().execute("SELECT * FROM mail_messages WHERE id=%s AND sender_id=%s AND sender_folder='drafts'", (int(did), current_user.id)).fetchone()
+    r = get_db().execute("SELECT * FROM mail_messages WHERE id=%s AND sender_id=%s AND sender_folder='drafts'", (int(did), current_user.id)).fetchone()
+    return dict(r, subject=vault.unseal(r["subject"]), body=vault.unseal(r["body"])) if r else None
 
 
 @bp.route("/my/messages/compose")
@@ -164,10 +176,10 @@ def save_draft():
     parent = int(request.form["parent"]) if (request.form.get("parent") or "").isdigit() else None
     dr = _own_draft(request.form.get("draft"))
     if dr:
-        d.execute("UPDATE mail_messages SET draft_to=%s, subject=%s, body=%s WHERE id=%s", (to[:400], subject[:300], body[:20000], dr["id"]))
+        d.execute("UPDATE mail_messages SET draft_to=%s, subject=%s, body=%s WHERE id=%s", (to[:400], vault.seal(subject[:300]), vault.seal(body[:20000]), dr["id"]))
         did = dr["id"]
     else:
-        did = d.execute("INSERT INTO mail_messages (sender_id, subject, body, draft_to, parent_id) VALUES (%s,%s,%s,%s,%s) RETURNING id", (current_user.id, subject[:300], body[:20000], to[:400], parent)).fetchone()["id"]
+        did = d.execute("INSERT INTO mail_messages (sender_id, subject, body, draft_to, parent_id) VALUES (%s,%s,%s,%s,%s) RETURNING id", (current_user.id, vault.seal(subject[:300]), vault.seal(body[:20000]), to[:400], parent)).fetchone()["id"]
     d.commit()
     return jsonify({"ok": True, "id": did, "message": "Draft saved."})
 
@@ -211,12 +223,12 @@ def send():
     shown = ", ".join(u["username"] for u, _ in targets)
     dr = _own_draft(request.form.get("draft"))
     if dr:
-        d.execute("UPDATE mail_messages SET subject=%s, body=%s, draft_to=%s, sent_at=now(), sender_folder='sent' WHERE id=%s", (subject, body, shown, dr["id"]))
+        d.execute("UPDATE mail_messages SET subject=%s, body=%s, draft_to=%s, sent_at=now(), sender_folder='sent' WHERE id=%s", (vault.seal(subject), vault.seal(body), shown, dr["id"]))
         mid = dr["id"]
         if dr["parent_id"]:
             parent = d.execute("SELECT id, thread_id FROM mail_messages WHERE id=%s", (dr["parent_id"],)).fetchone()
     else:
-        mid = d.execute("INSERT INTO mail_messages (sender_id, subject, body, draft_to, sent_at, sender_folder, parent_id) VALUES (%s,%s,%s,%s,now(),'sent',%s) RETURNING id", (me, subject, body, shown, parent["id"] if parent else None)).fetchone()["id"]
+        mid = d.execute("INSERT INTO mail_messages (sender_id, subject, body, draft_to, sent_at, sender_folder, parent_id) VALUES (%s,%s,%s,%s,now(),'sent',%s) RETURNING id", (me, vault.seal(subject), vault.seal(body), shown, parent["id"] if parent else None)).fetchone()["id"]
     d.execute("UPDATE mail_messages SET thread_id=%s WHERE id=%s", (parent["thread_id"] or parent["id"] if parent else mid, mid))
     for u, delivered in targets:
         if delivered:
@@ -234,6 +246,7 @@ def _visible(mid):
                          "LEFT JOIN mail_recipients r ON r.message_id = m.id AND r.user_id = %s WHERE m.id=%s", (current_user.id, mid)).fetchone()
     if m is None:
         abort(404)
+    m = dict(m, subject=vault.unseal(m["subject"]), body=vault.unseal(m["body"]))
     mine = m["sender_id"] == current_user.id and m["sender_folder"] != "gone"
     got = m["rcpt"] is not None and m["delivered"]
     if not (mine or got):
@@ -256,6 +269,7 @@ def view(mid):
     thread = d.execute("SELECT m.id, m.subject, m.body, m.draft_to, m.sent_at, m.sender_id, COALESCE(NULLIF(s.display_name, ''), s.username) AS sender_name, s.username AS sender_user "
                        "FROM mail_messages m JOIN users s ON s.id = m.sender_id LEFT JOIN mail_recipients r ON r.message_id = m.id AND r.user_id = %s "
                        "WHERE m.thread_id=%s AND m.sent_at IS NOT NULL AND ((m.sender_id = %s AND m.sender_folder NOT IN ('gone')) OR (r.user_id IS NOT NULL AND r.delivered)) ORDER BY m.sent_at, m.id", (me, m["thread_id"] or m["id"], me)).fetchall()
+    thread = [dict(t, subject=vault.unseal(t["subject"]), body=vault.unseal(t["body"])) for t in thread]
     folder = m["my_folder"] if m["rcpt"] is not None else ("sent" if m["sender_folder"] == "sent" else m["sender_folder"])
     return render_template("mail_view.html", m=m, thread=thread, folder=folder, folders=FOLDERS, counts=_counts(), active="messages", mine=m["sender_id"] == me, sender_blocked=social.blocked(me, m["sender_id"]),
                            names=_split(m["draft_to"]))

@@ -16,6 +16,7 @@ from flask_login import current_user, login_required
 
 from .action_response import action_response
 from .admin import permission_required
+from . import vault
 from .audit import audit
 from .db import get_db
 from .settings import cfg, cfg_int
@@ -26,7 +27,8 @@ bp = Blueprint("chat", __name__)
 
 
 def _on():
-    if cfg("chat_enabled") != "1":
+    from . import matrix
+    if cfg("chat_enabled") != "1" or matrix.replaces_builtin():   # Matrix replaces the built-in chat
         abort(404)
 
 
@@ -49,7 +51,7 @@ def migrate_v2(d):
         cid = d.execute("INSERT INTO convs (kind, created_by, created_at, last_at, pair_key) VALUES ('direct',%s,%s,%s,%s) RETURNING id", (t["user_a"], t["created_at"], t["last_at"], key)).fetchone()["id"]
         newids = []
         for m in msgs:
-            nid = d.execute("INSERT INTO conv_messages (conv_id, user_id, body, created_at) VALUES (%s,%s,%s,%s) RETURNING id", (cid, m["sender_id"], m["body"], m["created_at"])).fetchone()["id"]
+            nid = d.execute("INSERT INTO conv_messages (conv_id, user_id, body, created_at) VALUES (%s,%s,%s,%s) RETURNING id", (cid, m["sender_id"], vault.seal(m["body"]), m["created_at"])).fetchone()["id"]
             newids.append((nid, m))
         for uid in (t["user_a"], t["user_b"]):
             last = 0
@@ -137,7 +139,7 @@ def _list():
         ms = people.get(r["id"], [])
         others = [m for m in ms if m["user_id"] != me]
         title = (name_of(others[0]) if others else "Chat") if r["kind"] == "direct" else (r["name"] or ", ".join(name_of(m) for m in others[:3]) or "Group chat")
-        out.append({"id": r["id"], "kind": r["kind"], "title": title, "unread": r["unread"], "last": (r["last_body"] or "")[:120], "mine": r["last_user"] == me, "at": r["last_at"].isoformat(),
+        out.append({"id": r["id"], "kind": r["kind"], "title": title, "unread": r["unread"], "last": (vault.unseal(r["last_body"]) or "")[:120], "mine": r["last_user"] == me, "at": r["last_at"].isoformat(),
                     "online": r["kind"] == "direct" and bool(others) and others[0]["user_id"] in online, "people": len(ms)})
     return out
 
@@ -148,6 +150,9 @@ def _list():
 @bp.route("/chat/<int:cid>")
 @login_required
 def page(cid=None):
+    from . import matrix
+    if matrix.replaces_builtin():   # Matrix replaces the built-in chat: the same address shows Element
+        return matrix.framed_page(dm=request.args.get("dm"), room=request.args.get("room"))
     _on()
     d = get_db()
     migrate_v2(d)
@@ -160,12 +165,16 @@ def page(cid=None):
         d.commit()
         ms = _members(cid)
         conv = {"id": c["id"], "kind": c["kind"], "title": _title(c, ms), "mine": c["created_by"] == current_user.id, "people": [{"uid": x["user_id"], "name": name_of(x), "username": x["username"]} for x in ms]}
-    links = d.execute("SELECT kind, remote, enabled FROM bridge_links WHERE conv_id=%s ORDER BY id", (cid,)).fetchall() if cid is not None else []
+    links = d.execute("SELECT id, kind, remote, enabled, created_by FROM bridge_links WHERE conv_id=%s ORDER BY id", (cid,)).fetchall() if cid is not None else []
+    from .bridge import enabled as bridge_on, my_call, opted_in
+    from .bridge_verify import verified_call
+    me = current_user.id
+    radio = {"aprs": bridge_on("aprs"), "mesh": bridge_on("mesh"), "call": my_call(me), "ham": verified_call(me), "aprs_ok": bridge_on("aprs") and opted_in(me, "aprs"), "mesh_ok": bridge_on("mesh") and opted_in(me, "mesh")}
     friends = []
     ids = social.friend_ids(current_user.id)
     if ids:
         friends = d.execute("SELECT username, display_name FROM users WHERE id = ANY(%s) AND NOT disabled ORDER BY lower(coalesce(nullif(display_name, ''), username))", (list(ids),)).fetchall()
-    return render_template("chat.html", conv=conv, links=links, friends=friends, mute=muted(current_user.id, "chat"), is_mod=is_mod(), max_len=cfg_int("chat_max_length"), seconds=max(2, cfg_int("chat_poll_seconds")),
+    return render_template("chat.html", conv=conv, links=links, radio=radio, friends=friends, mute=muted(current_user.id, "chat"), is_mod=is_mod(), max_len=cfg_int("chat_max_length"), seconds=max(2, cfg_int("chat_poll_seconds")),
                            group_max=cfg_int("chat_group_max"), keep_days=cfg_int("chat_keep_days"), friends_on=cfg("friends_enabled") == "1", active="chat")
 
 
@@ -185,7 +194,9 @@ def unread_json():
     """The numbers beside Chat, Messages and Friends in the menu; asking also tells the site this member is online."""
     social.touch(current_user.id)
     me = current_user.id
-    return jsonify({"chat": social.chat_unread(me) if cfg("chat_enabled") == "1" else 0, "mail": social.mail_unread(me) if cfg("pm_enabled") == "1" else 0,
+    from . import matrix
+    builtin = not matrix.replaces_builtin()
+    return jsonify({"chat": social.chat_unread(me) if cfg("chat_enabled") == "1" and builtin else 0, "mail": social.mail_unread(me) if cfg("pm_enabled") == "1" and builtin else 0,
                     "friends": social.friend_requests(me) if cfg("friends_enabled") == "1" else 0, "seconds": max(10, cfg_int("chat_badge_seconds"))})
 
 
@@ -262,8 +273,10 @@ def new():
 
 def _msg(row, mods_can_delete=False):
     me = current_user.id
-    out = {"id": row["id"], "name": name_of(row), "uid": row["user_id"], "at": row["created_at"].isoformat(), "body": row["body"], "mine": row["user_id"] == me,
+    out = {"id": row["id"], "name": name_of(row), "uid": row["user_id"], "at": row["created_at"].isoformat(), "body": vault.unseal(row["body"]), "mine": row["user_id"] == me,
             "del_url": f"/chat/message/{row['id']}/delete" if row["user_id"] == me else "", "report_url": f"/chat/message/{row['id']}/report" if row["user_id"] != me else ""}
+    from .bridge_verify import verified_call
+    out["ham"] = verified_call(row["user_id"])
     return _remote(row, out)
 
 
@@ -273,6 +286,7 @@ def _remote(row, out):
         out["name"] = row["remote_from"]
         out["via"] = "APRS" if row["remote_id"].startswith("aprs:") else "mesh"
         out["mine"] = False
+        out["ham"] = ""
         out["report_url"] = f"/chat/message/{row['id']}/report" if row["user_id"] != current_user.id else ""
     return out
 
@@ -328,7 +342,7 @@ def _send_refusal(body):
 
 def _store(cid, body):
     d = get_db()
-    mid = d.execute("INSERT INTO conv_messages (conv_id, user_id, body) VALUES (%s,%s,%s) RETURNING id", (cid, current_user.id, body)).fetchone()["id"]
+    mid = d.execute("INSERT INTO conv_messages (conv_id, user_id, body) VALUES (%s,%s,%s) RETURNING id", (cid, current_user.id, vault.seal(body))).fetchone()["id"]
     d.execute("UPDATE convs SET last_at=now() WHERE id=%s", (cid,))
     d.execute("UPDATE conv_members SET hidden=FALSE WHERE conv_id=%s", (cid,))
     d.execute("UPDATE conv_members SET last_read_id=%s, typing_at=NULL WHERE conv_id=%s AND user_id=%s", (mid, cid, current_user.id))
@@ -494,7 +508,7 @@ def report(mid):
 def _admin_ctx():
     d = get_db()
     migrate_v2(d)
-    return {"mutes": d.execute("SELECT c.*, u.username FROM chat_mutes c JOIN users u ON u.id = c.user_id ORDER BY c.created_at DESC").fetchall(),
+    ctx = {"mutes": d.execute("SELECT c.*, u.username FROM chat_mutes c JOIN users u ON u.id = c.user_id ORDER BY c.created_at DESC").fetchall(),
             "reports": {
                 "chat": d.execute("SELECT r.id, r.note, r.created_at, m.body, u.username AS author, rp.username AS reporter FROM conv_reports r JOIN conv_messages m ON m.id = r.message_id "
                                   "JOIN users u ON u.id = m.user_id JOIN users rp ON rp.id = r.reporter_id WHERE r.handled_at IS NULL ORDER BY r.created_at").fetchall(),
@@ -503,6 +517,9 @@ def _admin_ctx():
                 "pm": d.execute("SELECT r.id, r.note, r.created_at, m.body, u.username AS author, rp.username AS reporter FROM pm_reports r JOIN pm_messages m ON m.id = r.message_id "
                                 "JOIN users u ON u.id = m.sender_id JOIN users rp ON rp.id = r.reporter_id WHERE r.handled_at IS NULL ORDER BY r.created_at").fetchall()},
             "c": counts(), "active": "chat"}
+    for kind, rows in ctx["reports"].items():   # the reported text is sealed in the database: a moderator sees it only here, for the report
+        ctx["reports"][kind] = [dict(r, **{c: vault.unseal(r[c]) for c in ("subject", "body") if c in r}) for r in rows]
+    return ctx
 
 
 def _admin_resp(ok, message):

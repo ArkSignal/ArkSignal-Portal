@@ -48,7 +48,7 @@
   <input type="text" id="af-notes" name="notes" maxlength="1000">
   <div class="help">For a receiver that has not connected yet: it is registered under the member's account, who can then change any of this from My Feeders. When the receiver connects with this UUID it is theirs at once. A UUID the hub already knows is handed to the member (taken over if it belonged to someone else) and its details are left as they are; Assign on a row below fills the UUID in for you. Recorded in the audit log.</div>
   <button class="btn" type="submit">Add Feeder</button>
-</form><script src="/static/memberpicker.js"></script></details>
+</form><script nonce="{{ csp_nonce() }}" src="/static/memberpicker.js"></script></details>
 </div>
 <div data-tab-title="Feeders" data-tab-order="10" data-tab-default>
 <div class="tfilterbar"><input type="search" class="tfilter" data-table="#feeders-tbl" placeholder="Search feeders by name, station ID, UUID, IP address or owner" aria-label="Search feeders by name, station ID, UUID, IP address or owner"><span class="dim tcount"></span></div>
@@ -70,7 +70,7 @@
         <a class="btn small" href="{{ '/my/feeders/' ~ f.uuid if f.owner_id else '/admin/feeders/' ~ f.uuid }}" title="{{ 'Open it with the owner\'s own pages' if f.owner_id else 'Open the administrator page' }}">Manage</a>
         {% if f.owner_id %}<a class="btn small neutral" href="/admin/feeders/{{ f.uuid }}">Details</a>
         <form method="post" action="/admin/feeders/{{ f.uuid }}/manage" data-confirm="Take this feeder away from {{ f.owner_name }}? It becomes unclaimed." style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="owner"><input type="hidden" name="owner_id" value=""><input type="hidden" name="next" value="list"><button class="btn small" type="submit">Release</button></form>
-        {% else %}<a class="btn small" href="#sec-add-feeder" onclick="var d=document.getElementById('sec-add-feeder');d.open=true;document.getElementById('af-uuid').value='{{ f.uuid }}';document.getElementById('af-user').focus();">Assign</a>{% endif %}
+        {% else %}<a class="btn small" href="#sec-add-feeder" data-open-id="sec-add-feeder" data-fill-id="af-uuid" data-fill-value="{{ f.uuid }}" data-focus-id="af-user">Assign</a>{% endif %}
         <form method="post" action="/admin/feeders/{{ f.uuid }}/manage" {% if not f.banned %}data-confirm="Ban this feeder? It is hidden from every public page."{% endif %} style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="{{ 'unban' if f.banned else 'ban' }}"><input type="hidden" name="next" value="list"><button class="btn small {{ '' if f.banned else 'danger' }}" type="submit">{{ 'Unban' if f.banned else 'Ban' }}</button></form>
       </td>
     </tr>

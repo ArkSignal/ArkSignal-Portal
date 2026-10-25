@@ -38,3 +38,6 @@ deploy/acars/*
 !deploy/mesh
 deploy/mesh/*
 !deploy/mesh/compose.yaml
+!deploy/matrix
+deploy/matrix/*
+!deploy/matrix/compose.yaml

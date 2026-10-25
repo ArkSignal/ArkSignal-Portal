@@ -1,0 +1,12 @@
+# The Matrix service (matrixd.py): runs Synapse, the Matrix homeserver, and takes its settings from the portal. Built by build.yml as adsb-matrix and released with everything else (same latest/stable tags).
+# Synapse is Apache-2.0 licensed (AGPL-3.0 for versions from 1.99 on: see DATA_SOURCES_TERMS.md); the image is the project's own, pinned to one release and moved forward on purpose.
+FROM matrixdotorg/synapse:v1.163.0
+COPY deploy/matrix/matrixd.py /matrixd.py
+COPY deploy/matrix/arksignal_policy.py /opt/arksignal/arksignal_policy.py
+COPY BUILD_INFO /BUILD_INFO
+ENV MATRIX_DATA=/data
+ENV PYTHONPATH=/opt/arksignal
+EXPOSE 8008 8483
+ENTRYPOINT []
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s CMD python -c "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8483/health',timeout=3)" || exit 1
+CMD ["python", "-u", "/matrixd.py"]

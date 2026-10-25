@@ -2,10 +2,10 @@
 {% from "partials/_sonde_rows.html" import flight_table %}
 {% block title %}{{ r.callsign }} | My Radiosonde Station{% endblock %}
 {% block content %}
+{% with active = 'sondes' %}{% include "partials/_my_subnav.html" %}{% endwith %}
 <h1>My <span>Radiosonde Station</span> {{ r.callsign }}</h1>
 <div class="sub">{% if r.claim_status == 'claimed' %}Claimed{% else %}Waiting for proof{% endif %}{% if r.last_seen %} &middot; last heard {{ r.last_seen | localtime("%b %-d %H:%M") }}{% endif %}</div>
-{% with admin_back = '/admin/sondes' %}{% if managing %}<div class="panel" style="border-color:var(--acc2);margin-bottom:14px"><b>You are managing {{ managing }}'s station as an administrator.</b> Everything here works as it does for the owner and is recorded in the audit log under your name. <a href="{{ admin_back }}">Back to the admin list</a></div>{% endif %}
-{% endwith %}{% with active = 'sondes' %}{% include "partials/_my_subnav.html" %}{% endwith %}
+{% with admin_back = '/admin/sondes' %}{% if managing %}<div class="panel" style="border-color:var(--acc2);margin-bottom:14px"><b>You are managing {{ managing }}'s station as an administrator.</b> Everything here works as it does for the owner and is recorded in the audit log under your name. <a href="{{ admin_back }}">Back to the admin list</a></div>{% endif %}{% endwith %}
 <p style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><a href="/my/sondes">&larr; My Radiosonde Stations</a>{% if r.public and not r.disabled %}<a class="btn small" href="/sondes/stations/{{ r.callsign | callurl }}">Public Page</a>{% endif %}</p>
 
 {% if r.claim_status != 'claimed' %}

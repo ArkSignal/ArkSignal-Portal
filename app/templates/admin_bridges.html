@@ -25,7 +25,7 @@
   {% else %}<p class="dim" style="margin:0">Nobody has asked to be checked yet.</p>{% endif %}
   <p id="ab-note" class="dim" role="status" style="margin:8px 0 0"></p>
 {% endcall %}
-<script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   var csrf = "{{ csrf_token() }}", note = document.getElementById("ab-note");
   Array.prototype.forEach.call(document.querySelectorAll("[data-act]"), function (b) {
