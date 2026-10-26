@@ -26,12 +26,12 @@ from .settings import cfg, get_secret, get_setting, set_secret, set_setting
 
 bp = Blueprint("offsite", __name__)
 
-TYPES = {"nas": "NAS over SFTP (step by step)", "sftp": "SFTP (any server with SSH)", "s3": "S3-compatible bucket", "smb": "SMB / Windows share (NAS)", "webdav": "WebDAV (Nextcloud and others)"}
+TYPES = {"webdav": "WebDAV over HTTPS (Nextcloud, a NAS and others)", "s3": "S3-compatible bucket (a NAS vendor's cloud, MinIO, Amazon)", "sftp": "SFTP (any server with SSH)", "smb": "SMB / Windows share (over a VPN only)"}
 CONFIG_KEY = "offsite_config"
 COMMAND_KEY = "offsite_command"
 TEST_KEY = "offsite_test"
 DEFAULTS = {
-    "enabled": False, "type": "sftp", "preset": "", "host": "", "port": "", "user": "", "path": "adsb-backups", "endpoint": "", "region": "", "bucket": "", "access_key": "",
+    "enabled": False, "type": "webdav", "preset": "", "host": "", "port": "", "user": "", "path": "adsb-backups", "endpoint": "", "region": "", "bucket": "", "access_key": "",
     "small": {"time": "03:30", "every_days": 1, "keep": 14},
     "big": {"time": "04:30", "every_days": 7, "keep": 4, "globe": True, "prometheus": True},
 }
@@ -85,15 +85,20 @@ def save(form):
     """Validate the Off-Site Copy form. Returns an error message or None. Blank secret fields keep what is saved."""
     c = load()
     try:
-        t = form.get("type", "sftp")
+        t = form.get("type", "webdav")
+        t = "sftp" if t == "nas" else t   # the old "NAS over SFTP" choice was the same as SFTP
         if t not in TYPES:
             raise ValueError("Choose a destination type.")
-        c["preset"] = "nas" if t == "nas" else ""
-        c["type"] = "sftp" if t == "nas" else t
+        c["preset"] = ""
+        c["type"] = t
         c["enabled"] = bool(form.get("enabled"))
         host = form.get("host", "").strip()
         if host and not HOST_RE.match(host):
             raise ValueError("Host must be a host name, address or (for WebDAV) a full web address.")
+        if host.lower().startswith(("http://", "https://")) and t in ("sftp", "smb"):
+            raise ValueError("That host is a web address: choose WebDAV over HTTPS as the destination type (SFTP and SMB take a host name or address).")
+        if host.lower().startswith("http://"):
+            raise ValueError("A web address must start with https://: copies are never sent over plain http.")
         c["host"] = host
         port = form.get("port", "").strip()
         if port and not (port.isdigit() and 1 <= int(port) <= 65535):
@@ -200,9 +205,10 @@ def context():
     c = load()
     now = datetime.now(timezone.utc)
     return {"offsite": {
-        "cfg": c, "types": TYPES, "shown": "nas" if c.get("preset") == "nas" and c["type"] == "sftp" else c["type"], "has_secret": bool(get_secret("offsite_secret")), "has_key": bool(get_secret("offsite_key")), "has_pass": bool(get_secret("offsite_pass")),
+        "cfg": c, "types": TYPES, "shown": c["type"], "has_secret": bool(get_secret("offsite_secret")), "has_key": bool(get_secret("offsite_key")), "has_pass": bool(get_secret("offsite_pass")),
         "ready": configured(c), "runs": runs(), "command": command(), "test": _test_result(),
         "next": {k: next_slot(k, c, now) for k in ("small", "big")},
+        "last_ok": {k: _last_success(k) for k in ("small", "big")},
     }}
 
 
@@ -261,6 +267,8 @@ def api_start():
         except Exception as e:
             current_app.logger.warning("off-site run: the database backup could not be made: %s", e)
             return jsonify({"error": "could not create the database backup (the portal log has the reason)"}), 500
+    # the service does one copy at a time, so a run of this kind that never reported back is dead (the service restarted or lost the answer): close it
+    d.execute("UPDATE offsite_runs SET finished=now(), ok=FALSE, detail='abandoned: the backup service never reported back' WHERE kind=%s AND ok IS NULL", (kind,))
     rid = d.execute("INSERT INTO offsite_runs (kind, trigger) VALUES (%s,%s) RETURNING id", (kind, trigger)).fetchone()["id"]
     d.commit()
     cmd = command()

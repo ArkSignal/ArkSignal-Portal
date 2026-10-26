@@ -1,5 +1,19 @@
 [
   {
+    "version": "1.8.6",
+    "released": "2026-10-26T15:10:43",
+    "title": "Off-site copy to a NAS over HTTPS (WebDAV) proven end to end, and the two-minute timeout on the first copy fixed",
+    "added": [],
+    "improved": [
+      "Off-Site Copy over WebDAV is proven end to end: the certificate is always checked, copies go over https only, a big copy is streamed without being held in memory, and a failed Test the Connection says in plain words what is wrong (wrong password, no permission, folder missing, file too large for a proxy, out of space, certificate not trusted). The page shows the last successful small and big copy",
+      "Off-site copy: WebDAV over HTTPS is the first choice and the way to reach a NAS without opening port 22 (the duplicate NAS over SFTP choice is gone), the page explains the safe ways to reach a NAS, a web address given to SFTP or SMB and a plain http address are refused, errors from the destination are in plain language, and the last successful copy is shown"
+    ],
+    "fixed": [
+      "Off-site copy: the first copy no longer stops after two minutes while the database backup is made (the upload now waits for it), and a run the service never reported on is closed instead of showing 'running' forever"
+    ],
+    "security": []
+  },
+  {
     "version": "1.8.5",
     "released": "2026-10-26T11:52:15",
     "title": "Find members in chat by call sign, the Chat button works for members who never opened chat, and radio bridges only on a member's own room",

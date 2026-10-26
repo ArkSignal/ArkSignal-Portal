@@ -10,22 +10,20 @@
     <select id="os-type" name="type">{% for k, l in offsite.types.items() %}<option value="{{ k }}" {{ 'selected' if offsite.shown == k }}>{{ l }}</option>{% endfor %}</select>
 
 
-    <div data-for="nas" class="panel" style="margin:10px 0">
-      <p style="margin:0 0 6px"><b>Setting up a NAS (a network storage box) as the off-site copy.</b> The menu names differ between makes; the steps are the same.</p>
+    <details class="panel" style="margin:10px 0"><summary><b>Backing up to a NAS: the safe choices</b></summary>
+      <p style="margin:8px 0 6px">The copies are encrypted with the Encryption Passphrase before they leave the hub, so the NAS only ever holds scrambled files. These are the ways to get them there, safest first. None of them needs port 22 open to the internet.</p>
       <ol style="margin:0 0 6px 18px;padding:0">
-        <li>On the NAS, switch on its <b>SFTP</b> service (some call it SSH file transfer; leave the port at 22 or choose another one). Do not switch on plain FTP.</li>
-        <li>Make a user just for this, for example <span class="mono">arksignal-backup</span>, with a long password. Give it read/write on one shared folder (for example <span class="mono">backups</span>) and no access to any other folder, and allow it to use SFTP only.</li>
-        <li>Make the NAS reachable from this hub: put its address in <b>Host</b> below (a dynamic DNS name, or a VPN address if the hub and the NAS share a VPN). Over the internet, forward one router port to the NAS, let the NAS firewall accept that port only from the hub's public address, and switch on its automatic blocking of repeated failures. A VPN is safer than an open port.</li>
-        <li>Below, enter the host, the port (if not 22), the user and password, and as <b>Folder</b> the shared folder and a sub-folder, for example <span class="mono">backups/arksignal</span>. Choose a long <b>Encryption Passphrase</b> and keep a copy of it away from the hub: the files on the NAS are encrypted and cannot be read without it.</li>
-        <li>Save, then press <b>Test the Connection</b>. It writes, reads back and deletes a small file. When it works, tick <b>Make off-site copies</b> and save.</li>
+        <li><b>WebDAV over HTTPS</b> (the usual choice): on the NAS install the <i>WebDAV Server</i> package and allow HTTPS only. Make a user just for this with read/write on one shared folder and nothing else. Reach it through the reverse proxy you already run (a name like <span class="mono">https://drive.example.org/ShareName</span> on port 443, with a valid certificate). The proxy must pass the path through unchanged: the NAS serves each shared folder at <span class="mono">/ShareName</span>, and a proxy that adds or removes a prefix such as <span class="mono">/webdav</span> makes listing and reading fail even though writing works, and in the proxy allow only the hub's public address and set its upload size limit to unlimited (nginx: <span class="mono">client_max_body_size 0</span>), because the big copy is one large file. Choose <b>WebDAV</b> above, put the full https address in <b>Web Address</b> (the shared folder it names must already exist; the <b>Folder</b> below it is created for you), then the user and password.</li>
+        <li><b>A private VPN</b> between the hub and the NAS (WireGuard): then SFTP or SMB can be used because nothing is open to the internet at all. Use the NAS's VPN address as <b>Host</b>.</li>
+        <li><b>S3-compatible storage</b>: the NAS maker's cloud object storage (a real copy in another place, paid for) or MinIO on the NAS behind the HTTPS proxy. Choose <b>S3-compatible bucket</b> and fill in the endpoint, bucket and keys.</li>
       </ol>
-      <p class="dim" style="margin:0;font-size:.85rem">You can use an SSH key instead of the password (add its public key to the user's <span class="mono">authorized_keys</span> on the NAS; some NAS boxes need the user's home folder switched on for that). The NAS needs no backup software of its own: the copies are ordinary files in the folder you chose.</p>
-    </div>
-    <div data-for="nas sftp smb s3 webdav">
-      <label for="os-host"><span data-for-label="webdav">Web Address</span><span data-for-label="s3">Endpoint Address (leave empty for Amazon S3)</span><span data-for-label="nas sftp smb">Host</span></label>
+      <p class="dim" style="margin:0;font-size:.85rem">Do not use plain FTP, WebDAV on http, or SFTP or SMB through a port opened to the internet. Save, then press <b>Test the Connection</b>: it writes, reads back and deletes a small file. When it works, tick <b>Make off-site copies</b> and save.</p>
+    </details>
+    <div data-for="sftp smb s3 webdav">
+      <label for="os-host"><span data-for-label="webdav">Web Address</span><span data-for-label="s3">Endpoint Address (leave empty for Amazon S3)</span><span data-for-label="sftp smb">Host</span></label>
       <input type="text" id="os-host" name="host" value="{{ offsite.cfg.host }}" placeholder="backup.example.org" style="max-width:380px">
     </div>
-    <div data-for="nas sftp smb">
+    <div data-for="sftp smb">
       <label for="os-port">Port (optional)</label>
       <input type="text" id="os-port" name="port" value="{{ offsite.cfg.port }}" placeholder="22" style="max-width:110px">
     </div>
@@ -39,7 +37,7 @@
       <label for="os-ak">Access Key</label>
       <input type="text" id="os-ak" name="access_key" value="{{ offsite.cfg.access_key }}" autocomplete="off" style="max-width:300px">
     </div>
-    <div data-for="nas sftp smb webdav">
+    <div data-for="sftp smb webdav">
       <label for="os-user">User Name</label>
       <input type="text" id="os-user" name="user" value="{{ offsite.cfg.user }}" autocomplete="off" style="max-width:260px">
     </div>
@@ -47,9 +45,9 @@
     <input type="text" id="os-path" name="path" value="{{ offsite.cfg.path }}" placeholder="adsb-backups" style="max-width:300px">
     <div class="help"><span data-for-label="smb">For a share, start with the share name: <span class="mono">backups/adsb</span>.</span> The copies are written inside this folder, in <span class="mono">small</span> and <span class="mono">big</span> sub-folders.</div>
 
-    <label for="os-secret"><span data-for-label="s3">Secret Key</span><span data-for-label="nas sftp smb webdav">Password</span></label>
+    <label for="os-secret"><span data-for-label="s3">Secret Key</span><span data-for-label="sftp smb webdav">Password</span></label>
     <input type="password" id="os-secret" name="secret" autocomplete="new-password" placeholder="{{ 'saved: leave blank to keep it' if offsite.has_secret else '' }}" style="max-width:300px">
-    <div data-for="nas sftp">
+    <div data-for="sftp">
       <label for="os-key">SSH Private Key (optional, instead of a password)</label>
       <textarea id="os-key" name="key" rows="3" class="mono" placeholder="{{ 'saved: leave blank to keep it' if offsite.has_key else '-----BEGIN OPENSSH PRIVATE KEY-----' }}" style="max-width:520px"></textarea>
       {% if offsite.has_key %}<label class="check"><input type="checkbox" name="clear_key" value="1"><span>Remove the saved key</span></label>{% endif %}
@@ -85,6 +83,7 @@
   </div>
   {% if offsite.command %}<p class="dim" style="margin:8px 0 0">Waiting for the backup service to pick up: <b>{{ offsite.command.action }}</b>. Reload in a minute.</p>{% endif %}
   {% if offsite.test %}<p style="margin:8px 0 0">Connection test {{ offsite.test.at | localtime }}: {% if offsite.test.ok %}<span class="tag live">worked</span>{% else %}<span class="tag off">failed</span>{% endif %} <span class="dim">{{ offsite.test.detail }}</span></p>{% endif %}
+  <p class="dim" style="margin:8px 0 0">Last successful small copy: <b>{{ (offsite.last_ok.small | localtime) if offsite.last_ok.small else 'never' }}</b> &middot; last successful big copy: <b>{{ (offsite.last_ok.big | localtime) if offsite.last_ok.big else 'never' }}</b></p>
   {% if offsite.cfg.enabled and offsite.ready %}<p class="dim" style="margin:8px 0 0">Next small copy: {{ offsite.next.small | localtime }} &middot; next big copy: {{ offsite.next.big | localtime }}</p>{% endif %}
 
   <div class="grp">Recent Copies</div>

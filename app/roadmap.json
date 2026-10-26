@@ -1197,6 +1197,12 @@
       "area": "Platform"
     },
     {
+      "title": "Off-site copy to a NAS over WebDAV with https only",
+      "summary": "Back up to any NAS without opening port 22: WebDAV over https (through your reverse proxy), certificate always checked, plain-language errors in the connection test, and the last successful copy shown. Proven with an automated end-to-end test; the real NAS is for the administrator to try.",
+      "status": "done",
+      "area": "Platform"
+    },
+    {
       "title": "Easy off-site backup to a NAS",
       "summary": "A NAS choice in Off-Site Copy with step-by-step setup (SFTP, a backup-only user, a protected port or VPN) and a connection test.",
       "status": "done",

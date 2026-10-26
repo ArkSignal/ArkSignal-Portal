@@ -27,10 +27,10 @@ def log(msg):
     print(time.strftime("%Y-%m-%d %H:%M:%S"), msg, flush=True)
 
 
-def api(path, body=None):
+def api(path, body=None, timeout=120):
     req = urllib.request.Request(PORTAL + path, data=json.dumps(body).encode() if body is not None else None, method="POST" if body is not None else "GET",
                                  headers={"Authorization": "Bearer " + TOKEN, "Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=120) as r:
+    with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.load(r)
 
 
@@ -68,7 +68,11 @@ class Dest:
                 e["RCLONE_CONFIG_DEST_PORT"] = conf["port"]
             self.remote = "DEST:" + path
         elif t == "webdav":
-            e["RCLONE_CONFIG_DEST_URL"] = conf["host"] if "://" in conf["host"] else "https://" + conf["host"]
+            url = (conf["host"] if "://" in conf["host"] else "https://" + conf["host"]).strip().rstrip("/")
+            if not url.lower().startswith("https://"):
+                raise ValueError("The WebDAV address must start with https://: the password and the copies are never sent over plain http.")
+            e["RCLONE_CONFIG_DEST_URL"] = url
+            e["RCLONE_NO_CHECK_CERTIFICATE"] = "false"   # the destination's certificate is always verified
             e["RCLONE_CONFIG_DEST_VENDOR"] = "other"
             e["RCLONE_CONFIG_DEST_USER"] = conf["user"]
             e["RCLONE_CONFIG_DEST_PASS"] = obscured(secrets["secret"])
@@ -85,6 +89,8 @@ class Dest:
             self.remote = "DEST:" + conf["bucket"] + ("/" + path if path else "")
         else:
             raise ValueError("unknown destination type")
+        e["RCLONE_LOG_LEVEL"] = "ERROR"   # no "config file not found" notice in the messages
+        e["RCLONE_CONTIMEOUT"] = "20s"   # a dead destination fails in seconds, not hours
         self.env = e
 
     def _known_hosts(self, host, port):
@@ -117,9 +123,29 @@ class Dest:
                 pass
 
 
+HINTS = (
+    (r"x509|certificate", "The destination's certificate was not accepted (expired, wrong name, or not issued by a trusted authority). Copies are never sent without a valid certificate."),
+    (r"(?<!\d)401(?!\d)|Unauthorized", "The destination refused the user name or password (401)."),
+    (r"(?<!\d)403(?!\d)|Forbidden", "The user may log in but is not allowed to write in that folder (403): give it read/write permission on the shared folder."),
+    (r"(?<!\d)404(?!\d)|Not Found", "The web address or folder was not found (404): check the address, including the WebDAV part of it."),
+    (r"(?<!\d)405(?!\d)|Method Not Allowed", "The server does not allow creating folders or files there (405): the address probably points at the wrong place, or the folder is read-only."),
+    (r"(?<!\d)409(?!\d)|Conflict", "The destination could not create a folder (409): the folder named in the web address (for example the share) must already exist, and the user must be allowed to write in it. Create it on the NAS first."),
+    (r"(?<!\d)412(?!\d)|Precondition Failed", "The destination refused the upload because the file already exists or changed (412)."),
+    (r"(?<!\d)413(?!\d)|Request Entity Too Large|Payload Too Large", "The destination, or a reverse proxy in front of it, refused the file as too large (413): raise its upload size limit (nginx: client_max_body_size 0)."),
+    (r"(?<!\d)507(?!\d)|Insufficient Storage|no space left|quota", "The destination is out of space or over its quota (507)."),
+    (r"(?<!\d)50[234](?!\d)|Bad Gateway|Gateway Time|Service Unavailable", "The destination (or the reverse proxy in front of it) is not answering properly (502/503/504)."),
+    (r"no such host|lookup .*server misbehaving", "The destination's name could not be found: check the spelling and the hub's DNS."),
+    (r"connection refused|i/o timeout|no route to host|context deadline", "Could not reach the destination: check the address, the port and any firewall."),
+)
+
+
 def _err(proc):
     t = (proc.stderr or proc.stdout or "").strip().splitlines()
-    return " | ".join(t[-3:])[:500] or f"exit code {proc.returncode}"
+    raw = " | ".join(t[-3:])[:500] or f"exit code {proc.returncode}"
+    for pat, msg in HINTS:
+        if re.search(pat, raw, re.I):
+            return msg
+    return raw
 
 
 def test(dest):
@@ -133,6 +159,10 @@ def test(dest):
         return False, "Could not write a file: " + _err(p)
     p = dest.run("cat", base + "/.write-test")
     ok = p.returncode == 0 and p.stdout.startswith("adsb backup test")
+    if p.returncode == 0 and not ok and dest.conf["type"] == "webdav":
+        dest.run("deletefile", base + "/.write-test")
+        return False, ("The destination took the test file but would not show it back. This usually means a reverse proxy in front of the NAS changes the path "
+                       "(a prefix such as /webdav that is removed or added): the address must use exactly the path the NAS serves, for example https://name/ShareName.")
     dest.run("deletefile", base + "/.write-test")
     return (True, "Wrote, read back and deleted a test file in " + base.split(":", 1)[1]) if ok else (False, "Could not read the test file back: " + _err(p))
 
@@ -173,7 +203,7 @@ def big_paths(conf):
 
 
 def make_copy(kind, conf, secrets, dest, manual=False):
-    started = api("/internal/backup/start", {"kind": kind, "manual": manual})
+    started = api("/internal/backup/start", {"kind": kind, "manual": manual}, timeout=3600)   # the portal makes a fresh database backup first: minutes on a big hub
     rid = started["run_id"]
     name = f"adsb-{kind}-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}.tar.zst.enc"
     try:
@@ -190,7 +220,7 @@ def make_copy(kind, conf, secrets, dest, manual=False):
         p = subprocess.run(["bash", "-c", cmd], env=env, capture_output=True, text=True, timeout=6 * 3600)
         # tar exits 1 when a file changed while it was read (live databases): the copy is still good, so only fail on the real errors
         if p.returncode not in (0, 1) and p.returncode != 141:
-            raise RuntimeError(((p.stderr or "").strip().splitlines() or [f"exit code {p.returncode}"])[-1][:400])
+            raise RuntimeError(_err(p))
         info = dest.run("lsjson", target, "--files-only")
         size = (json.loads(info.stdout)[0]["Size"] if info.returncode == 0 and info.stdout.strip() not in ("", "[]") else 0)
         if size <= 0:
@@ -224,7 +254,13 @@ def tick():
     cmd, due = cfgd.get("command"), cfgd.get("due") or []
     if not (cmd or due) or not cfgd.get("ready"):
         return
-    dest = Dest(conf, secrets)
+    try:
+        dest = Dest(conf, secrets)
+    except ValueError as e:   # a setting the service refuses (for example a plain http address): say so on the page
+        if cmd and cmd.get("action") == "test":
+            api("/internal/backup/test-result", {"ok": False, "detail": str(e)})
+        log("destination refused: " + str(e))
+        return
     try:
         if cmd and cmd.get("action") == "test":
             ok, detail = test(dest)
@@ -245,7 +281,7 @@ def restore():
     """Interactive: list the copies at a destination, download one, decrypt it and unpack it into a new folder (nothing is overwritten)."""
     import getpass
     print("Restore from an off-site copy. Nothing on this hub is changed: the copy is unpacked into a new folder.")
-    conf = {"type": input("Type (sftp, s3, smb, webdav): ").strip(), "host": input("Host or endpoint (blank for Amazon S3): ").strip(), "port": input("Port (blank for default): ").strip(),
+    conf = {"type": input("Type (sftp, s3, smb, webdav): ").strip(), "host": input("Host, endpoint or (WebDAV) full https address (blank for Amazon S3): ").strip(), "port": input("Port (blank for default): ").strip(),
             "user": input("User (blank for S3): ").strip(), "path": input("Folder (as in the portal): ").strip(), "endpoint": "", "region": "", "bucket": "", "access_key": ""}
     if conf["type"] == "s3":
         conf["bucket"] = input("Bucket: ").strip(); conf["access_key"] = input("Access key: ").strip(); conf["endpoint"] = conf["host"]
