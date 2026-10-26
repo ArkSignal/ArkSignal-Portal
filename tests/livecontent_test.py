@@ -17,7 +17,7 @@ base = dict(enabled="1", repo="ArkSignal/ArkSignal-Content", branch="main", minu
 _off = dict(base); _off.pop("enabled")
 post("/admin/updates/content", _off); many("/roadmap"); many("/release-notes")
 rn = requests.get(B + "/release-notes").text
-check("Release Notes shows the built-in list when nothing live is configured", "Coming Next" in rn and 'id="v1.0.24"' in rn)
+check("Release Notes shows the built-in list when nothing live is configured", "Coming Next" in rn and 'id="v1.0.24"' in rn, ("Coming Next" in rn, 'id="v1.0.24"' in rn, len(rn), rn[:300]))
 check("the Roadmap page is public and grouped", requests.get(B + "/roadmap").status_code == 200 and any(h in requests.get(B + "/roadmap").text for h in ("Coming in the next release", "In progress", "Recently released")))
 rm = requests.get(B + "/roadmap").text
 check("it has area filters and plain-language items", 'data-area="Map"' in rm and "Planefence and Plane-Alert" in rm and "Places, roads, counties and hospitals" in rm)

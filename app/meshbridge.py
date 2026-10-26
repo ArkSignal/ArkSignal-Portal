@@ -60,7 +60,7 @@ def validate(kind, form):
                 return None, f"{label} must be between {limit[0]} and {limit[1]}."
             params[name] = v
         else:
-            if not raw or len(raw) > limit or not NAME_RE.match(raw):
+            if not raw or len(raw) > limit or not NAME_RE.fullmatch(raw):
                 return None, f"{label} must be 1 to {limit} characters: letters, numbers, spaces and . _ : + ( ) # @ / -"
             params[name] = raw
     return params, ""

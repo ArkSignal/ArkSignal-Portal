@@ -35,7 +35,7 @@
     <li>Open your authenticator app (Google Authenticator, Microsoft Authenticator, Authy, 1Password, Bitwarden...) and add an account.</li>
     <li>Scan this code, or choose "enter a setup key" and type the key below.</li>
   </ol>
-  <div id="qr" style="margin:12px 0;background:#fff;padding:10px;display:inline-block;border-radius:10px"></div>
+  <div id="qr" style="margin:12px 0;background:#fff;padding:10px;display:inline-block;border-radius:10px;line-height:0">{{ qr_svg | safe }}</div>
   <div class="mono" style="font-size:1.05rem;letter-spacing:.06em;margin:6px 0 14px">{{ secret_grouped }}</div>
   <form method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="confirm">
@@ -44,8 +44,6 @@
     <button class="btn" type="submit">Turn On Two-Factor</button>
   </form>
 {% endcall %}
-<script nonce="{{ csp_nonce() }}" src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" crossorigin="anonymous"></script>
-<script nonce="{{ csp_nonce() }}">try { new QRCode(document.getElementById("qr"), {text: {{ otpauth | tojson }}, width: 180, height: 180}); } catch (e) { document.getElementById("qr").style.display = "none"; }</script>
 {% else %}
 {% call sec('start', 'Set Up Two-Factor', True) %}
   {% if required %}<div class="flash error">This site requires administrators to use two-factor sign-in. Set it up now to continue.</div>{% endif %}

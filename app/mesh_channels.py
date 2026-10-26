@@ -169,7 +169,7 @@ def add():
     d = get_db()
     f = request.form
     name = (f.get("name") or "").strip()
-    if not NAME_RE.match(name):
+    if not NAME_RE.fullmatch(name):
         return _back(False, "A channel name is 1 to 11 letters, digits, dashes or underscores (the Meshtastic limit).")
     opts, err = _options(f)
     if err:

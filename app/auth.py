@@ -180,9 +180,9 @@ def register():
         email = request.form.get("email", "").strip()
         password = request.form.get("password", "")
         confirm = request.form.get("confirm", "")
-        if not USERNAME_RE.match(username):
+        if not USERNAME_RE.fullmatch(username):
             flash("Username must be 3 to 32 characters: letters, numbers, dot, dash, underscore.", "error")
-        elif not EMAIL_RE.match(email) or len(email) > 254:
+        elif len(email) > 254 or not EMAIL_RE.match(email):
             flash("Enter a valid email address.", "error")
         elif security.password_error(password):
             flash(security.password_error(password), "error")

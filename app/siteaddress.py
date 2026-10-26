@@ -12,6 +12,7 @@ import urllib.request
 
 from flask import Blueprint, jsonify
 
+from . import safenet
 from .db import get_db
 from .settings import cfg
 
@@ -55,13 +56,18 @@ def check(host, serves_pages=True, timeout=None):
         return None
     seconds = timeout or max(3, cfg_int_safe("address_check_seconds", 8))
     try:
-        with urllib.request.urlopen(urllib.request.Request(f"https://{host}/.well-known/arksignal.json", headers={"User-Agent": cfg("lookup_user_agent")}), timeout=seconds) as r:
+        # connects only to the address it has just checked (no private, loopback or link-local answer unless the administrator allows private addresses), follows no redirect
+        with safenet.opener(cfg("webhook_allow_private") == "1").open(urllib.request.Request(f"https://{host}/.well-known/arksignal.json", headers={"User-Agent": cfg("lookup_user_agent")}), timeout=seconds) as r:
             data = json.loads(r.read(4096).decode("utf-8", "replace"))
     except ssl.SSLError as e:
         return f"{host} answers, but its https certificate is not valid ({str(e)[:80]}). Add a certificate for it in the proxy and save again."
     except urllib.error.HTTPError:
         return f"{host} answers over https, but not as this site (the address /.well-known/arksignal.json was not found). Check where its proxy host forwards to."
+    except safenet.Blocked:
+        return f"{host} points to a private or internal address, which the site will not contact. Use the public address of this site."
     except urllib.error.URLError as e:
+        if isinstance(e.reason, safenet.Blocked):
+            return f"{host} points to a private or internal address, which the site will not contact. Use the public address of this site."
         if isinstance(e.reason, ssl.SSLError):
             return f"{host} answers, but its https certificate is not valid ({str(e.reason)[:80]}). Add a certificate for it in the proxy and save again."
         return f"{host} does not answer over https ({str(e.reason)[:80]}). Check the proxy host for it and that port 443 reaches the server."

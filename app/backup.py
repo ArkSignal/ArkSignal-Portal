@@ -87,13 +87,17 @@ def readable(path):
 
 
 def valid_name(name):
-    return bool(NAME_RE.match(name or ""))
+    return bool(NAME_RE.fullmatch(name or ""))
 
 
 def backup_path(name):
     if not valid_name(name):
         raise ValueError("Invalid backup name.")
-    return os.path.join(backup_dir(), name)
+    base = os.path.realpath(backup_dir())
+    path = os.path.realpath(os.path.join(base, name))
+    if os.path.dirname(path) != base:   # never outside the backup folder, whatever the name
+        raise ValueError("Invalid backup name.")
+    return path
 
 
 # ---------------------------------------------------------------- schema discovery
@@ -257,7 +261,7 @@ def write_info(p, rows, ok=True):
 def list_backups(scan=True):
     out = []
     for name in sorted(os.listdir(backup_dir()), reverse=True):
-        m = NAME_RE.match(name)
+        m = NAME_RE.fullmatch(name)
         if not m:
             continue
         p = os.path.join(backup_dir(), name)

@@ -88,7 +88,7 @@
   var mapBtn = document.getElementById("sp-map");
   function count() {
     var on = pills.filter(function (p) { return p.querySelector("input").checked; }), n = on.length; if (cnt) cnt.textContent = n + " of " + pills.length + " chosen";
-    if (mapBtn) { var f = document.getElementById("sp-form"); mapBtn.href = n ? "/radio/satellites/map?sat=" + on.map(function (p) { return p.querySelector("input").value; }).join("&sat=") + "&lat=" + (f.lat.value || {{ lat }}) + "&lon=" + (f.lon.value || {{ lon }}) + "&q=" + encodeURIComponent(f.q.value || {{ label | tojson }}) + "&hours=" + f.hours.value + "&min=" + f.min.value : "#"; mapBtn.style.opacity = n ? "" : ".5"; mapBtn.title = n ? "Show the " + n + " ticked satellite" + (n === 1 ? "" : "s") + " on a map, and nothing else" : "Tick a satellite first"; }
+    if (mapBtn) { var f = document.getElementById("sp-form"); mapBtn.href = n ? "/radio/satellites/map?sat=" + on.map(function (p) { return p.querySelector("input").value; }).join("&sat=") + "&lat=" + (f.lat.value || {{ lat | tojson }}) + "&lon=" + (f.lon.value || {{ lon | tojson }}) + "&q=" + encodeURIComponent(f.q.value || {{ label | tojson }}) + "&hours=" + f.hours.value + "&min=" + f.min.value : "#"; mapBtn.style.opacity = n ? "" : ".5"; mapBtn.title = n ? "Show the " + n + " ticked satellite" + (n === 1 ? "" : "s") + " on a map, and nothing else" : "Tick a satellite first"; }
   }
   function setAll(v, within) { pills.forEach(function (p) { if (!within || within.contains(p)) { if (p.style.display !== "none") p.querySelector("input").checked = v; } }); count(); }
   var all = document.getElementById("sp-all"), none = document.getElementById("sp-none"), flt = document.getElementById("sp-filter");

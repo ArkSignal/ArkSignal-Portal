@@ -612,7 +612,8 @@ class H(BaseHTTPRequestHandler):
             if any(not c.get(k) for k in need):
                 return self.send({"ok": False, "error": "Missing: " + ", ".join(k for k in need if not c.get(k))}, 400)
             os.makedirs(DATA, exist_ok=True)
-            with open(path("client_secret"), "w") as f:
+            fd = os.open(path("client_secret"), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)   # private from its first byte
+            with os.fdopen(fd, "w") as f:
                 f.write(c["client_secret"])
             os.chmod(path("client_secret"), 0o600)
             ok = start(c)

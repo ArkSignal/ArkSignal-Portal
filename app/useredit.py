@@ -87,7 +87,7 @@ def profile(user_id):
     from . import stations as st
     if callsign and not st.valid_callsign(callsign):
         return _respond(target, False, "Enter a valid amateur radio callsign such as KD5VCF, or leave it blank.")
-    if not EMAIL_RE.match(email) or len(email) > 254:
+    if len(email) > 254 or not EMAIL_RE.match(email):
         return _respond(target, False, "Enter a valid email address.")
     d = get_db()
     if d.execute("SELECT 1 FROM users WHERE lower(email)=lower(%s) AND id<>%s", (email, target.id)).fetchone():

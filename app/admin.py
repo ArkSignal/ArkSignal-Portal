@@ -1443,7 +1443,7 @@ def contact_save():
     email, url = f.get("email", "").strip(), f.get("url", "").strip()
     if not name or len(name) > 80:
         return _contacts_response(False, "Enter a name of up to 80 characters.")
-    if email and not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email):
+    if email and (len(email) > 254 or not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email)):
         return _contacts_response(False, "Enter a valid email address, or leave it blank.")
     if url and (urlparse(url).scheme not in ("http", "https") or not urlparse(url).netloc):
         return _contacts_response(False, "The web address must start with http:// or https://.")

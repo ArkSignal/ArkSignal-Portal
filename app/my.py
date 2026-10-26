@@ -147,7 +147,7 @@ def change_email():
         time.sleep(0.5)    # same small delay as a wrong sign-in
         audit("user.email_change_failed", target=current_user.username, detail="wrong password")
         flash("The current password is not correct.", "error")
-    elif not EMAIL_RE.match(new) or len(new) > 254:
+    elif len(new) > 254 or not EMAIL_RE.match(new):
         flash("Enter a valid email address.", "error")
     elif new.lower() == (current_user.email or "").lower():
         flash("That is already your email address.", "error")
@@ -445,7 +445,9 @@ def two_factor():
     pend = session.get("pending_totp") or {}
     secret = pend.get("s") if time.time() - pend.get("at", 0) < 900 else None
     if secret and not ctx["enabled"]:
-        ctx.update(secret=secret, secret_grouped=totp.grouped(secret), otpauth=totp.uri(secret, current_user.username, cfg("site_name")))
+        from .mesh_channels import qr_svg   # drawn here, so the setup key is never handed to a script from another site
+        otp = totp.uri(secret, current_user.username, cfg("site_name"))
+        ctx.update(secret=secret, secret_grouped=totp.grouped(secret), otpauth=otp, qr_svg=qr_svg(otp))
     return render_template("my_two_factor.html", **ctx)
 
 

@@ -23,7 +23,10 @@
     var t = e.target;
     if (!t || !t.hasAttribute) return;
     if (t.hasAttribute("data-submit-on-change") && t.form) t.form.submit();
-    if (t.hasAttribute("data-nav-checked")) location.href = t.getAttribute("data-nav-checked") + (t.checked ? t.getAttribute("data-nav-checked-query") || "" : "");
+    if (t.hasAttribute("data-nav-checked")) {
+      var go = t.getAttribute("data-nav-checked") + (t.checked ? t.getAttribute("data-nav-checked-query") || "" : "");
+      if (go.charAt(0) === "/" && go.charAt(1) !== "/" && go.charAt(1) !== "\\") location.href = go;   // only a path on this site
+    }
     if (t.hasAttribute("data-toggle-target")) {
       var v = byId(t.getAttribute("data-toggle-target")), on = (t.getAttribute("data-needs") || "").split(",").indexOf(t.value) >= 0;
       if (v) { v.disabled = !on; if (v.parentNode) v.parentNode.style.opacity = on ? 1 : .4; }

@@ -441,7 +441,7 @@ def channel_add(slug):
     c, _r = _ctx(slug, "manage_channels")
     f = request.form
     name = (f.get("name") or "").strip()
-    if not mc.NAME_RE.match(name):
+    if not mc.NAME_RE.fullmatch(name):
         return _back(slug, False, "A channel name is 1 to 11 letters, digits, dashes or underscores (the Meshtastic limit).", "channels")
     opts, err = _ch_options(f)
     if err:

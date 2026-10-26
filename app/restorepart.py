@@ -95,6 +95,9 @@ def _load_temp(conn, plain, manifest, table, cols_cache):
         f = tar.extractfile(f"tables/{table}.csv")
         header = f.readline()
         cols = [c.strip('"') for c in header.decode().strip().split(",")]
+        real = set(bk._columns(conn, table))   # a column name comes from the backup file: only the table's own columns are ever put into a statement
+        if not cols or any(c not in real for c in cols):
+            raise ValueError("That backup's " + table + " file does not match this site's table (an unknown column).")
         conn.execute(f'CREATE TEMP TABLE "tmp_{table}" (LIKE "{table}" INCLUDING DEFAULTS) ON COMMIT DROP')
         collist = ", ".join(f'"{c}"' for c in cols)
         with conn.cursor() as cur:

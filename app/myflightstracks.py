@@ -65,13 +65,18 @@ def _meta_from_description(html):
 def read_track(text):
     """(points, meta) from a track file: [(UTC datetime, lat, lon, altitude in feet or None, speed in knots or None)] oldest first. A KML with a timed point for each placemark (Flightradar24), a KML gx:Track or a GPX track.
     A file that declares entities or a doctype is refused (ValueError)."""
-    import xml.etree.ElementTree as ET
+    try:
+        from defusedxml import ElementTree as ET   # refuses entity tricks by itself
+        from defusedxml import DefusedXmlException as _Refused
+    except ImportError:
+        import xml.etree.ElementTree as ET
+        _Refused = ValueError
     low = text[:4000].lower()
     if "<!doctype" in low or "<!entity" in low:
         raise ValueError("That file uses features this site does not read.")
     try:
         root = ET.fromstring(text)
-    except ET.ParseError:
+    except (ET.ParseError, _Refused):
         raise ValueError("That file is not a GPX or KML track.")
     pts, meta = [], {}
     try:

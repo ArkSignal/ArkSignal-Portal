@@ -27,7 +27,7 @@ check("the Two-Factor tab offers set-up", "Set Up Two-Factor" in pg and 'href="/
 s.post(B + "/my/two-factor", data={"csrf_token": tk(s, "/my/two-factor"), "action": "start"})
 pg = s.get(B + "/my/two-factor").text
 sec = "".join(re.search(r'letter-spacing:\.06em[^>]*>([^<]+)<', pg).group(1).split())
-check("the set-up page shows a setup key and a QR code area", len(sec) == 32 and 'id="qr"' in pg, sec)
+check("the set-up page shows a setup key and a QR code area", len(sec) == 32 and 'id="qr"' in pg and "<svg" in pg.split('id="qr"')[1][:400] and "cdnjs" not in pg and "qrcode" not in pg, sec)
 r = s.post(B + "/my/two-factor", data={"csrf_token": tk(s, "/my/two-factor"), "action": "confirm", "code": "000000"}, allow_redirects=True)
 check("a wrong code does not turn it on", "not right" in r.text and psql(f"SELECT totp_enabled FROM users WHERE username='{U}'") == "f")
 r = s.post(B + "/my/two-factor", data={"csrf_token": tk(s, "/my/two-factor"), "action": "confirm", "code": totp(sec)})

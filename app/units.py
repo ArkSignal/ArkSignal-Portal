@@ -145,7 +145,7 @@ def fmt(value, base):
 
 def parse(raw, base):
     """What was typed -> (value in the stored unit, error). A bare number is in the unit shown; '250 m', '0.5 mi', '800 ft' carry their own."""
-    m = re.match(r"^\s*([0-9]*\.?[0-9]+)\s*([a-zA-Z]*)\s*$", raw or "")
+    m = re.match(r"^\s*([0-9]*\.?[0-9]+)\s*([a-zA-Z]*)\s*$", (raw or "")[:40])
     if not m:
         return None, "Enter a distance such as 800 or 0.5 mi."
     word = m.group(2).lower()

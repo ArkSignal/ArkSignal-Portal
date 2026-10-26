@@ -1,5 +1,17 @@
 [
   {
+    "version": "1.8.3",
+    "released": "2026-10-25T21:52:21",
+    "title": "Code scanning review: tighter checks on the site address, track files, backups and typed input, and a two-factor QR code drawn by the site",
+    "added": [],
+    "improved": [],
+    "fixed": [],
+    "security": [
+      "Code scanning review: the Main Address check only contacts public addresses, track files (GPX and KML) are read by a parser that refuses entity tricks, a restore refuses a backup file that names a column the table does not have, backup and user names with a trailing line break are refused, and very long typed input is cut before it is matched",
+      "Two-factor set-up draws its QR code on the site itself, so the setup key is never handed to a script from another site"
+    ]
+  },
+  {
     "version": "1.8.2",
     "released": "2026-10-25T15:57:59",
     "title": "Matrix chat, My Flights (maps, sharing, schedules, tracks), a notification for every alert kind, mesh alert channel and linked areas, and a full security hardening",

@@ -99,7 +99,7 @@ def search(q, lat=None, lon=None, limit=8):
     if len(q) < 2:
         return []
     state = ""
-    m = re.match(r"^(.*?)[,\s]+([A-Za-z]{2})$", q)
+    m = re.match(r"^(.*?)[,\s]+([A-Za-z]{2})$", q) if len(q) <= 60 else None
     if m and len(m.group(1)) >= 2 and "," in q:
         q, state = m.group(1).strip(), m.group(2).upper()
     d = get_db()

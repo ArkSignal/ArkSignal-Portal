@@ -259,7 +259,8 @@ def api_start():
             db_backup, _ = bk.create_backup(current_app.config["DATABASE_URL"], "scheduled")
             bk.apply_retention()
         except Exception as e:
-            return jsonify({"error": f"could not create the database backup: {e}"}), 500
+            current_app.logger.warning("off-site run: the database backup could not be made: %s", e)
+            return jsonify({"error": "could not create the database backup (the portal log has the reason)"}), 500
     rid = d.execute("INSERT INTO offsite_runs (kind, trigger) VALUES (%s,%s) RETURNING id", (kind, trigger)).fetchone()["id"]
     d.commit()
     cmd = command()

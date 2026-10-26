@@ -92,6 +92,8 @@ def check_now():
     repo = cfg("update_check_repo").strip()
     if not repo:
         return dict(base, note="Update checking is turned off.")
+    if not re.fullmatch(r"(ghcr\.io/)?[a-z0-9][a-z0-9._-]{0,60}/[a-z0-9][a-z0-9._/-]{0,100}", repo):
+        return dict(base, error="The image repository to check is not a valid name (owner/name, or ghcr.io/owner/name).")
     if own == "unreleased":
         return dict(base, note="This build was not made as a numbered release, so there is nothing to compare against.")
     tags = _fetch_tags(repo)
