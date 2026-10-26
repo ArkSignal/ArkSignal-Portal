@@ -115,6 +115,14 @@ def ip_blocked(ip):
     return n >= limit
 
 
+def valid_email(address):
+    """A plain shape check with no backtracking pattern: one @, no spaces, something before it, a dot inside the part after it, at most 254 characters."""
+    if not isinstance(address, str) or not address or len(address) > 254 or any(c.isspace() for c in address):
+        return False
+    local, at, domain = address.partition("@")
+    return bool(at) and bool(local) and "@" not in domain and "." in domain[1:-1]
+
+
 def csp_nonce():
     """The one-time value of this request that marks the page's own scripts as allowed (a new one for every request, never reused or guessable)."""
     from flask import g

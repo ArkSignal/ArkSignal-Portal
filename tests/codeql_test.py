@@ -22,6 +22,9 @@ for k, label in (("the_address_check_refuses_a_loopback_name", "the Main Address
                  ("a_track_with_an_entity_trick_is_refused_and_a_normal_one_is_read", "a track file with an entity trick is refused and a normal GPX is read"),
                  ("very_long_input_is_handled_at_once", "very long typed input is cut before any pattern runs"),
                  ("a_backup_column_that_is_not_the_tables_is_refused", "a restore refuses a column name that the table does not have"),
+                 ("email_check_answers_as_before", "the hand-written email check accepts and refuses the same addresses as the pattern did"),
+                 ("distance_check_answers_as_before", "the hand-written distance reader accepts and refuses the same typing"),
+                 ("place_search_with_a_state_still_narrows", "a place search with a state still works"),
                  ("users_are_still_there", "and nothing was damaged")):
     check("unit: " + label, res.get(k) is True, res.get(k))
 print("ALL PASS" if ok_all else "SOME FAILED")

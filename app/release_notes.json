@@ -1,5 +1,19 @@
 [
   {
+    "version": "1.8.4",
+    "released": "2026-10-26T08:10:17",
+    "title": "Planefence shows its table again, chat points phones to the Element Classic app, and more code scanning fixes",
+    "added": [],
+    "improved": [],
+    "fixed": [
+      "Planefence and Plane-Alert show their table again: the script policy added in 1.8.2 had blocked the libraries those pages load, and they reported a stream error",
+      "Chat on a phone: the Chat page now names the Element Classic app (the newer Element X cannot sign in with a site account yet) and says how to sign in, and the chat web app no longer offers the phone app downloads"
+    ],
+    "security": [
+      "More of the code scanning review: the email, distance and place patterns that could be slowed by long input are replaced by plain checks, track files are read only by the safe parser, backup paths are checked against the backup folder, and links built in the satellite page are encoded"
+    ]
+  },
+  {
     "version": "1.8.3",
     "released": "2026-10-25T21:52:21",
     "title": "Code scanning review: tighter checks on the site address, track files, backups and typed input, and a two-factor QR code drawn by the site",

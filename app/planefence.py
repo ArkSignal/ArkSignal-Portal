@@ -25,8 +25,8 @@ bp = Blueprint("planefence", __name__)
 
 @bp.after_request
 def _planefence_policy(resp):
-    # these pages are Planefence's own (relayed as they are, for signed-in members): their scripts carry no nonce of this site, so the site-wide script rule is replaced by one that allows the page's own scripts
-    resp.headers["Content-Security-Policy"] = "script-src 'self' 'unsafe-inline'; frame-ancestors 'self'; base-uri 'self'; object-src 'none'; form-action 'self'"
+    # these pages are Planefence's own (relayed as they are, for signed-in members): their scripts carry no nonce of this site, so the site-wide script rule is replaced by one that allows the page's own scripts and the libraries it loads from jsDelivr, unpkg and cdnjs (jQuery, DataTables, the map: without them the table cannot draw and the page says "Stream error")
+    resp.headers["Content-Security-Policy"] = "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com; frame-ancestors 'self'; base-uri 'self'; object-src 'none'; form-action 'self'"
     return resp
 
 MAX_BYTES = 40_000_000

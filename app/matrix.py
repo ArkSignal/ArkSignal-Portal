@@ -132,7 +132,8 @@ def element_config():
     resp = jsonify({
         "default_server_config": {"m.homeserver": {"base_url": cfg("matrix_public_url").strip().rstrip("/"), "server_name": cfg("matrix_server_name").strip()}},
         "brand": cfg("brand_name") + cfg("brand_accent"), "disable_custom_urls": True, "disable_guests": True, "disable_login_language_selector": True, "disable_3pid_login": True,
-        "default_federate": cfg("matrix_federation") == "1", "show_labs_settings": False, "mobile_guide_toast": False, "sso_redirect_options": {"immediate": True},
+        "default_federate": cfg("matrix_federation") == "1", "show_labs_settings": False, "mobile_guide_toast": False, "mobile_builds": {"ios": None, "android": None, "fdroid": None},   # Element X cannot sign in here (it needs password or native OIDC login, this server uses single sign-on), so the web app must not send phones to it
+         "sso_redirect_options": {"immediate": True},
         "default_theme": "custom-" + theme["name"], "room_directory": {"servers": [cfg("matrix_server_name").strip()]},
         "integrations_ui_url": "", "integrations_rest_url": "", "integrations_widgets_urls": [], "bug_report_endpoint_url": "", "piwik": False, "enable_presence_by_hs_url": {cfg("matrix_public_url").strip().rstrip("/"): cfg("matrix_presence") == "1"},
         "setting_defaults": {"custom_themes": [theme], "theme": "custom-" + theme["name"], "UIFeature.registration": False, "UIFeature.passwordReset": False, "UIFeature.deactivate": False,

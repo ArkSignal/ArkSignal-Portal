@@ -81,7 +81,7 @@ try:
     ActionChains(d).move_to_element_with_offset(el, mx - er["x"] - er["width"] / 2, my - er["y"] - er["height"] / 2).click().perform(); time.sleep(.6)
     n_after = J("return JSON.parse(document.getElementById('cm-poly').value).length")
     check("clicking the outline between two points adds a point there", n_after == 4, n_after)
-    ActionChains(d).context_click(d.find_elements(By.CSS_SELECTOR, "#cm-map .cm-vtx")[3]).perform(); time.sleep(.5)
+    J("var v=document.querySelectorAll('#cm-map .cm-vtx')[3], r=v.getBoundingClientRect(); v.dispatchEvent(new MouseEvent('contextmenu', {bubbles: true, cancelable: true, button: 2, clientX: r.x + r.width / 2, clientY: r.y + r.height / 2}))"); time.sleep(.5)   # the page's own right-click handler (the driver's context click is unreliable in headless Chrome)
     check("a right-click takes a point away", J("return JSON.parse(document.getElementById('cm-poly').value).length") == 3)
     tap(d.find_element(By.CSS_SELECTOR, "#cm-pts a[data-i='0']"))
     check("so does Remove in the list under the map", J("return JSON.parse(document.getElementById('cm-poly').value).length") == 2 and "of at least 3" in J("return document.getElementById('cm-count').textContent"))

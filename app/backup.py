@@ -95,7 +95,7 @@ def backup_path(name):
         raise ValueError("Invalid backup name.")
     base = os.path.realpath(backup_dir())
     path = os.path.realpath(os.path.join(base, name))
-    if os.path.dirname(path) != base:   # never outside the backup folder, whatever the name
+    if not path.startswith(base + os.sep):   # never outside the backup folder, whatever the name
         raise ValueError("Invalid backup name.")
     return path
 

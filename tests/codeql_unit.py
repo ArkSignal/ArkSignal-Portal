@@ -62,6 +62,12 @@ with app.app_context():
             refused2 = True
         conn.rollback()
     out["a_backup_column_that_is_not_the_tables_is_refused"] = refused2
+    # the hand-written readers give the same answers as the patterns they replaced
+    from app import security
+    out["email_check_answers_as_before"] = all(security.valid_email(x) for x in ("a@b.co", "first.last@mail.example.com", "x@y.z.w")) and not any(security.valid_email(x) for x in ("", "a@b", "a@.com", "a@com.", "@b.co", "a b@c.de", "a@b@c.de", "a@b.co\n", "x" * 250 + "@b.co"))
+    out["distance_check_answers_as_before"] = units.parse("800", "m")[1] is None and bool(units.parse("0.5 mi", "m")[0]) and units.parse(".5km", "m")[1] is None and all(units.parse(x, "m")[0] is None for x in ("", "abc", "5.", "1.2.3 m", "5 parsecs", "5 m2", "5\u00b2"))
+    from app import places as pl
+    out["place_search_with_a_state_still_narrows"] = isinstance(pl.search("Little Rock, AR"), list) and isinstance(pl.search("a," + " " * 40 + "x"), list)
     n = get_db().execute("SELECT COUNT(*) AS n FROM users").fetchone()["n"]
     out["users_are_still_there"] = n >= 1
 print(json.dumps(out))

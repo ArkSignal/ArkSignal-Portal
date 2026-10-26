@@ -11,6 +11,9 @@ if r.status_code == 503:
     print("PASS skipped: no Planefence container is reachable from the test portal (see tests/README.md)"); print("ALL PASS"); raise SystemExit
 check("the public Planefence page is served by the portal", r.status_code == 200 and "lanefence" in r.text, r.status_code)
 check("its own scripts point at the portal path, not at the site root", '"/cgi/' not in r.text and "/pf/cgi/config_status.php" in r.text)
+_csp = r.headers.get("Content-Security-Policy", "")
+_hosts = set(re.findall(r'<script[^>]+src="https://([^/"]+)', r.text))
+check("every library the page loads from another site is allowed by its script rule (the table cannot draw without them: 'Stream error')", "script-src" in _csp and all(h in _csp for h in _hosts), (_hosts, _csp))
 check("Plane-Alert mode loads too", MEM.get(B + "/pf/?mode=pa").status_code == 200)
 check("a path that tries to leave the service is refused", MEM.get(B + "/pf/..%2f..%2fetc/passwd").status_code in (404, 400))
 check("posting anywhere but its cgi is refused", MEM.post(B + "/pf/index.html", data={"a": 1}).status_code in (405, 400, 403))

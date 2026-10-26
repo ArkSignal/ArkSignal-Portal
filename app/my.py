@@ -140,14 +140,14 @@ def _profile_ham():
 def change_email():
     """Change the sign-in email address. The current password is required, since the address is how an account is recovered."""
     import time
-    from .auth import EMAIL_RE
+    from . import security
     from .models import User
     new = request.form.get("new_email", "").strip()
     if not current_user.check_password(request.form.get("current_password", "")):
         time.sleep(0.5)    # same small delay as a wrong sign-in
         audit("user.email_change_failed", target=current_user.username, detail="wrong password")
         flash("The current password is not correct.", "error")
-    elif len(new) > 254 or not EMAIL_RE.match(new):
+    elif not security.valid_email(new):
         flash("Enter a valid email address.", "error")
     elif new.lower() == (current_user.email or "").lower():
         flash("That is already your email address.", "error")

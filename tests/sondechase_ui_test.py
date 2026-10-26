@@ -24,14 +24,19 @@ for i, (st, rec) in enumerate((("CHTEST1", "recovered"), ("CHTEST2", "planned"),
 psql("insert into sonde_stations (callsign, lat, lon, mobile, privacy, last_seen, source) values ('W5CAR_chase', 35.5, -92.5, true, 'hidden', now(), 'sondehub')")
 time.sleep(6)
 o = webdriver.ChromeOptions(); o.add_argument("--headless=new"); o.add_argument("--window-size=1400,900")
+# the browser's position is only offered on a secure address, and localhost counts: reach the test portal through an ssh tunnel
+PORT = B.rsplit(":", 1)[1].split("/")[0]
+tun = subprocess.Popen(["ssh", "-q", "-N", "-o", "ExitOnForwardFailure=yes", "-L", f"18438:localhost:{PORT}", "nastemp"])
+time.sleep(4)
+U = "http://localhost:18438"
 d = webdriver.Chrome(options=o)
 try:
-    d.get(B + "/sondes/map"); d.delete_all_cookies(); d.get(B + "/sondes/map"); time.sleep(4)
+    d.get(U + "/sondes/map"); d.delete_all_cookies(); d.get(U + "/sondes/map"); time.sleep(4)
     check("a visitor sees the sign-in note and no chase switch", d.execute_script("return !document.getElementById('ch-on') && /Sign in/.test(document.body.textContent)"))
     for c in adm.cookies: d.add_cookie({"name": c.name, "value": c.value, "path": "/"})
     d.execute_cdp_cmd("Emulation.setGeolocationOverride", {"latitude": 34.9, "longitude": -92.4, "accuracy": 20})
-    d.execute_cdp_cmd("Browser.grantPermissions", {"origin": B, "permissions": ["geolocation"]})
-    d.get(B + "/sondes/map?hours=72"); time.sleep(5)
+    d.execute_cdp_cmd("Browser.grantPermissions", {"origin": U, "permissions": ["geolocation"]})
+    d.get(U + "/sondes/map?hours=72"); time.sleep(5)
     kinds = d.execute_script("return Array.from(document.querySelectorAll('.sm-mk svg')).length")
     check("the map draws the landed balloons", d.execute_script("return smDebug().shown") >= 3, d.execute_script("return smDebug()"))
     # the icons: each recovery state has its own look (blue car disc for planned, green check for recovered, orange cross for not found)
@@ -51,6 +56,7 @@ try:
     check("no script errors on the page", not errs, errs[:2])
 finally:
     d.quit()
+    tun.terminate()
     psql("delete from sonde_recoveries where serial like 'CHTEST%'"); psql("delete from sondes where serial like 'CHTEST%'"); psql("delete from sonde_stations where callsign='W5CAR_chase'")
     for k in ("sonde_chase_mode", "map_panels_open"): psql(f"delete from settings where key='{k}'")
 print("ALL PASS" if not bad else "SOME FAILED")

@@ -92,7 +92,13 @@ def delete(sess_, pw, text="DELETE"):
 check("profile offers Delete My Account", "Delete My Account" in s.get(B + "/my/profile").text)
 check("deletion needs the right password", "password is not correct" in flashes(delete(s, "wrong-password")))
 check("deletion needs the word DELETE", "Type DELETE" in flashes(delete(s, "emailreset-pass1", "delete")))
+# other suites leave extra administrators behind: for this check marty must be the only one, so they step aside and come back
+_others = psql("SELECT ur.user_id || ':' || ur.role_id FROM user_roles ur JOIN roles r ON r.id = ur.role_id JOIN users u ON u.id = ur.user_id WHERE r.is_super_admin AND u.username <> 'marty'").split()
+for _o in _others:
+    psql(f"DELETE FROM user_roles WHERE user_id={_o.split(':')[0]} AND role_id={_o.split(':')[1]}")
 last = delete(adm, PW)
+for _o in _others:
+    psql(f"INSERT INTO user_roles (user_id, role_id) VALUES ({_o.split(':')[0]}, {_o.split(':')[1]}) ON CONFLICT DO NOTHING")
 check("the last administrator cannot delete themselves", "last administrator" in flashes(last), flashes(last))
 check("the administrator account still exists", psql("SELECT COUNT(*) FROM users WHERE username='marty'") == "1")
 r = delete(s, "emailreset-pass1")

@@ -99,9 +99,11 @@ def search(q, lat=None, lon=None, limit=8):
     if len(q) < 2:
         return []
     state = ""
-    m = re.match(r"^(.*?)[,\s]+([A-Za-z]{2})$", q) if len(q) <= 60 else None
-    if m and len(m.group(1)) >= 2 and "," in q:
-        q, state = m.group(1).strip(), m.group(2).upper()
+    if "," in q:   # "Little Rock, AR": a trailing two-letter state, found without a backtracking pattern
+        head, _, tail = q.rpartition(",")
+        tail = tail.strip()
+        if len(head.strip()) >= 2 and len(tail) == 2 and tail.isalpha() and tail.isascii():
+            q, state = head.strip(), tail.upper()
     d = get_db()
     if q.isdigit():
         rows = d.execute("SELECT * FROM places WHERE kind='zip' AND name LIKE %s ORDER BY name LIMIT 40", (q + "%",)).fetchall()

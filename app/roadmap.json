@@ -2,6 +2,12 @@
   "updated": "2026-10-25",
   "items": [
     {
+      "title": "Element X sign-in",
+      "summary": "Make the newer Element X phone app able to sign in with a site account. It needs the Matrix Authentication Service (native OIDC) in front of the chat server; until then the Chat page points phones to the Element Classic app.",
+      "status": "planned",
+      "area": "Community"
+    },
+    {
       "title": "Code scanning review and fixes",
       "summary": "Every alert from the GitHub code scanning of the public repository was triaged: real ones fixed (address check, track parser, server-drawn two-factor QR code, restore column checks, exact name matching, input limits), the rest dismissed with a reason.",
       "status": "done",

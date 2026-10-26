@@ -12,7 +12,7 @@
   <a class="btn small" href="{{ element_url }}" target="_blank" rel="noopener">Open in Its Own Window</a>
   <a class="btn small" href="/my/community">Chat Settings</a>
   {% if push_on %}<a class="btn small" href="/my/community#push-box">Notifications</a>{% endif %}
-  <span class="dim" style="font-size:.84rem">The Element phone app works with the same account: sign in with <span class="mono">{{ matrix_server }}</span>.</span>
+  <span class="dim" style="font-size:.84rem">On a phone, use the <b>Element Classic</b> app (not the newer Element X, which cannot sign in with a site account yet): choose <span class="mono">{{ matrix_server }}</span> as the server, then Continue with Single Sign-On.</span>
 </div>
 {% if ready %}
 <iframe id="mx-frame" class="mx-frame" src="{{ frame_src }}" title="Chat" allow="camera; microphone; clipboard-read; clipboard-write; display-capture; autoplay; fullscreen; notifications" referrerpolicy="origin"></iframe>

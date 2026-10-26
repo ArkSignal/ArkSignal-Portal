@@ -145,13 +145,17 @@ def fmt(value, base):
 
 def parse(raw, base):
     """What was typed -> (value in the stored unit, error). A bare number is in the unit shown; '250 m', '0.5 mi', '800 ft' carry their own."""
-    m = re.match(r"^\s*([0-9]*\.?[0-9]+)\s*([a-zA-Z]*)\s*$", (raw or "")[:40])
-    if not m:
+    text = (raw or "").strip()[:40]   # read by hand (no backtracking pattern): a number, then an optional unit word
+    j = 0
+    while j < len(text) and (text[j] in "0123456789."):
+        j += 1
+    num, unit = text[:j], text[j:].strip()
+    if not num or num.count(".") > 1 or not num[-1].isdigit() or (unit and not (unit.isalpha() and unit.isascii())):
         return None, "Enter a distance such as 800 or 0.5 mi."
-    word = m.group(2).lower()
+    word = unit.lower()
     if word and word not in M_PER:
-        return None, f"Unknown unit '{m.group(2)}': use feet, miles, metres or km."
-    metres = float(m.group(1)) * (M_PER[word] if word else _per_unit(base))
+        return None, f"Unknown unit '{unit}': use feet, miles, metres or km."
+    metres = float(num) * (M_PER[word] if word else _per_unit(base))
     v = metres / BASE_M[base]
     return float(f"{v:.6g}"), None
 

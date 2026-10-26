@@ -10,6 +10,7 @@ from flask_login import current_user
 
 from . import alerts as al
 from . import webhooks
+from .security import valid_email
 from .action_response import action_response
 from .audit import audit
 from .db import get_db
@@ -87,7 +88,7 @@ def profile(user_id):
     from . import stations as st
     if callsign and not st.valid_callsign(callsign):
         return _respond(target, False, "Enter a valid amateur radio callsign such as KD5VCF, or leave it blank.")
-    if len(email) > 254 or not EMAIL_RE.match(email):
+    if not valid_email(email):
         return _respond(target, False, "Enter a valid email address.")
     d = get_db()
     if d.execute("SELECT 1 FROM users WHERE lower(email)=lower(%s) AND id<>%s", (email, target.id)).fetchone():

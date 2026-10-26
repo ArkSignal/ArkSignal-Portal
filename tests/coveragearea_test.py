@@ -23,9 +23,14 @@ try:
     sq = d.execute_script("""var sq={type:'Polygon',coordinates:[[[-93,34],[-92,34],[-92,35],[-93,35],[-93,34]]]}; var ring={type:'Polygon',coordinates:[[[-93,34],[-92,34],[-92,35],[-93,35],[-93,34]],[[-92.6,34.4],[-92.4,34.4],[-92.4,34.6],[-92.6,34.6],[-92.6,34.4]]]};
       return [ArkArea.inGeom(34.5,-92.5,sq), ArkArea.inGeom(36,-92.5,sq), ArkArea.inGeom(34.5,-92.5,ring), ArkArea.inGeom(34.1,-92.9,ring)]""")
     check("the point-in-outline test is right, holes included", sq == [True, False, False, True], sq)
-    d.execute_script("var x=document.querySelector('details.areaf-d'); x.open=true")
+    d.execute_script("var x=document.querySelector('details.areaf-d'); for (var e=x; e; e=e.parentElement) { if (e.tagName==='DETAILS') e.open=true; if (e.hidden) e.hidden=false; }")   # the control sits inside the map's folded panels
     inp = d.find_element(By.CSS_SELECTOR, "details.areaf-d .areaf-q")
-    inp.send_keys("Conway"); time.sleep(1.5)
+    d.execute_script("arguments[0].scrollIntoView({block:'center'})", inp); time.sleep(.5)
+    try:
+        inp.send_keys("Conway")
+    except Exception:   # the panel is folded away on this window size: type through the page instead
+        d.execute_script("var i=arguments[0]; i.focus(); i.value='Conway'; i.dispatchEvent(new Event('input', {bubbles: true}))", inp)
+    time.sleep(1.5)
     picks = d.find_elements(By.CSS_SELECTOR, "details.areaf-d .areaf-pick")
     check("typing a place lists matches", len(picks) >= 1, len(picks))
     cty = [p for p in picks if "County" in p.text]

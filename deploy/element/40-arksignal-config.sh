@@ -8,7 +8,7 @@ fetch() {
 }
 if ! fetch; then
   cat > "$D/config.json" <<JSON
-{"default_server_config":{"m.homeserver":{"base_url":"${MATRIX_BASE_URL}","server_name":"${MATRIX_SERVER_NAME}"}},"disable_custom_urls":true,"disable_guests":true,"brand":"ArkSignal","sso_redirect_options":{"immediate":true}}
+{"default_server_config":{"m.homeserver":{"base_url":"${MATRIX_BASE_URL}","server_name":"${MATRIX_SERVER_NAME}"}},"disable_custom_urls":true,"disable_guests":true,"brand":"ArkSignal","mobile_guide_toast":false,"mobile_builds":{"ios":null,"android":null,"fdroid":null},"sso_redirect_options":{"immediate":true}}
 JSON
 fi
 ( while true; do sleep "${CONFIG_REFRESH:-300}"; fetch; done ) >/dev/null 2>&1 &
