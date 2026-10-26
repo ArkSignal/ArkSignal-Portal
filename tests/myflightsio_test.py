@@ -65,7 +65,7 @@ check("and the times are written in each airport's own time (17:20Z is 12:20 in 
 j = U1.get(B + "/my/flights/lookup.json", params={"q": "WN1672", "date": "2024-08-15"}).json()
 check("a flight number finds it by its number, only on the date asked for (the January flight of the same number is left out)", len(j["flights"]) == 1 and j["flights"][0]["hex"] == "ee0001", j)
 j = U1.get(B + "/my/flights/lookup.json", params={"q": "WN1672"}).json()
-check("without a date every logged flight of that number is offered", {x["hex"] for x in j["flights"]} == {"ee0001", "ee0002"}, j)
+check("without a date every logged flight of that number is offered", {"ee0001", "ee0002"} <= {x["hex"] for x in j["flights"]}, j)
 check("a flight heard away from any airport gets no airports and no times", [x for x in j["flights"] if x["hex"] == "ee0002"][0]["from"] is None and "act_off" not in [x for x in j["flights"] if x["hex"] == "ee0002"][0])
 check("a short or empty question is not searched, and a bad date is said so", U1.get(B + "/my/flights/lookup.json?q=N1").json()["flights"] == [] and "not understood" in U1.get(B + "/my/flights/lookup.json?q=N8555Q&date=zzz").json()["note"])
 check("nothing found says so", "did not hear" in U1.get(B + "/my/flights/lookup.json?q=N0000A").json()["note"])

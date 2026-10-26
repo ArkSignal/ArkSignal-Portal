@@ -58,8 +58,11 @@
     <div class="help"><b>Write this passphrase down and keep it somewhere safe that is not on the hub.</b> Every copy is encrypted with it, because the copies contain the hub's secret keys. Without it a copy cannot be opened, and nobody, including this page, can recover it.</div>
 
     <div class="grp">Small Copy (database, secret keys, Grafana)</div>
+    <label for="os-sm">When to Start</label>
+    <select id="os-sm" name="small_mode" style="max-width:520px"><option value="after_backup" {{ 'selected' if offsite.cfg.small.mode != 'time' }}>Right after the nightly backup (sends that backup: no second dump)</option><option value="time" {{ 'selected' if offsite.cfg.small.mode == 'time' }}>At a set time (makes its own snapshot, removed when the copy ends)</option></select>
+    <div class="help">Right after the nightly backup is the tidy choice: the hub's nightly backup (Backups above) is made first and the small copy sends that same file as soon as it exists, so nothing is dumped twice. The time of day below is used only for the set-time choice. A copy you start by hand always takes a fresh snapshot and removes it afterward.</div>
     <div style="display:flex;gap:14px;flex-wrap:wrap">
-      <div><label for="os-st">Time of Day</label><input type="text" id="os-st" name="small_time" value="{{ offsite.cfg.small.time }}" style="max-width:90px"></div>
+      <div><label for="os-st">Time of Day (set-time choice only)</label><input type="text" id="os-st" name="small_time" value="{{ offsite.cfg.small.time }}" style="max-width:90px"></div>
       <div><label for="os-sd">Every (Days)</label><input type="text" id="os-sd" name="small_every_days" value="{{ offsite.cfg.small.every_days }}" style="max-width:80px"></div>
       <div><label for="os-sk">Copies to Keep</label><input type="text" id="os-sk" name="small_keep" value="{{ offsite.cfg.small.keep }}" style="max-width:80px"></div>
     </div>

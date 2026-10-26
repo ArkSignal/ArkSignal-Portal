@@ -38,7 +38,7 @@ check("settings has a sub-nav of groups", all(x in t for x in ("Aircraft and Fee
 check("settings has a search box", 'id="setsearch"' in t)
 check("every section sits under a group", t.count("<details class=\"panel setsec\"") == len(re.findall(r'<details class="panel setsec" id="sec-[^"]+" data-tab="[a-z-]+"', t)))
 check("the old section anchors still exist", all(f'id="sec-{x}"' in t for x in ("security", "contacts", "backups", "general")))
-check("sections are grouped sensibly", 'id="sec-security" data-tab="site"' in t and 'id="sec-backups" data-tab="updates"' in t and 'id="sec-general" data-tab="site"' in t)
+check("sections are grouped sensibly", 'id="sec-security" data-tab="general"' in t and 'id="sec-backups" data-tab="updates"' in t and 'id="sec-general" data-tab="general"' in t)
 check("no section falls under Other", not re.findall(r'id="(sec-[^"]+)" data-tab="other"', t), re.findall(r'id="(sec-[^"]+)" data-tab="other"', t))
 # U6: coverage map
 r = requests.get(B + "/coverage")

@@ -11,6 +11,7 @@ import hmac
 import json
 import os
 import re
+import time
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -22,7 +23,7 @@ from .action_response import action_response
 from .admin import permission_required
 from .audit import audit
 from .db import get_db
-from .settings import cfg, get_secret, get_setting, set_secret, set_setting
+from .settings import cfg, cfg_int, get_secret, get_setting, set_secret, set_setting
 
 bp = Blueprint("offsite", __name__)
 
@@ -32,7 +33,7 @@ COMMAND_KEY = "offsite_command"
 TEST_KEY = "offsite_test"
 DEFAULTS = {
     "enabled": False, "type": "webdav", "preset": "", "host": "", "port": "", "user": "", "path": "adsb-backups", "endpoint": "", "region": "", "bucket": "", "access_key": "",
-    "small": {"time": "03:30", "every_days": 1, "keep": 14},
+    "small": {"mode": "after_backup", "time": "03:30", "every_days": 1, "keep": 14},
     "big": {"time": "04:30", "every_days": 7, "keep": 4, "globe": True, "prometheus": True},
 }
 HOST_RE = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9.:\-/]{0,250})$")
@@ -116,6 +117,7 @@ def save(form):
         c["region"] = form.get("region", "").strip()[:60]
         c["bucket"] = form.get("bucket", "").strip()[:100]
         c["access_key"] = form.get("access_key", "").strip()[:200]
+        c["small"]["mode"] = "time" if form.get("small_mode") == "time" else "after_backup"
         for kind in ("small", "big"):
             tm = form.get(f"{kind}_time", "").strip()
             if not TIME_RE.match(tm):
@@ -154,6 +156,65 @@ def _last_success(kind):
     return row["t"]
 
 
+def latest_local_backup():
+    """The newest finished nightly (scheduled) database backup on this hub, or None: what the small copy sends in 'right after the nightly backup' mode, so no second dump is made."""
+    now = time.time()
+    for b in bk.list_backups(scan=False):
+        if b["kind"] != "scheduled":
+            continue
+        try:
+            if now - os.path.getmtime(bk.backup_path(b["name"])) < 30:
+                continue   # still being written
+        except (OSError, ValueError):
+            continue
+        return b
+    return None
+
+
+def _last_source():
+    row = get_db().execute("SELECT source_backup FROM offsite_runs WHERE kind='small' AND ok AND source_backup <> '' ORDER BY finished DESC LIMIT 1").fetchone()
+    return row["source_backup"] if row else ""
+
+
+def small_due_after_backup(c, now):
+    """Right after the nightly backup: due when there is a nightly backup that has not been sent yet and the days between copies have passed."""
+    b = latest_local_backup()
+    if not b or b["name"] == _last_source():
+        return False
+    last = _last_success("small")
+    if last and _local(now).date() < _local(last).date() + timedelta(days=int(c["small"]["every_days"])):
+        return False
+    return True
+
+
+def drop_snapshots(where="", params=()):
+    """The database snapshot a small copy makes is only for the upload: once its run has ended the file is removed, so it never sits in Available Backups next to the nightly ones or pushes them out of the keep count."""
+    d = get_db()
+    for r in d.execute("SELECT id, db_backup FROM offsite_runs WHERE db_backup <> '' AND ok IS NOT NULL" + (" AND " + where if where else ""), params).fetchall():
+        try:
+            if bk.valid_name(r["db_backup"]) and os.path.exists(bk.backup_path(r["db_backup"])):
+                bk.delete_backup(r["db_backup"])
+        except (OSError, ValueError):
+            pass
+        d.execute("UPDATE offsite_runs SET db_backup='' WHERE id=%s", (r["id"],))
+    d.commit()
+
+
+def close_stale(everything=False, why=""):
+    """Close runs that never reported back: all of them when the service has just started (nothing can be running), else the ones older than Settings > Backups > Off-Site Copy: Hours Before a Silent Run Is Closed. Returns how many."""
+    d = get_db()
+    if everything:
+        n = d.execute("UPDATE offsite_runs SET finished=now(), ok=FALSE, detail=%s WHERE ok IS NULL", (why or "closed: the backup service restarted before the copy finished",)).rowcount
+    else:
+        hours = max(2, cfg_int("offsite_run_stale_hours"))
+        n = d.execute("UPDATE offsite_runs SET finished=now(), ok=FALSE, detail=%s WHERE ok IS NULL AND started < now() - make_interval(hours => %s)",
+                      (f"closed: no report from the backup service after {hours} hours", hours)).rowcount
+    if n:
+        d.commit()
+    drop_snapshots()
+    return n
+
+
 def _busy(kind, now):
     d = get_db()
     if d.execute("SELECT 1 FROM offsite_runs WHERE kind=%s AND ok IS NULL AND started > %s", (kind, now - timedelta(hours=8))).fetchone():
@@ -180,6 +241,10 @@ def due(now=None):
     out = []
     for kind in ("small", "big"):
         if kind == "big" and not (c["big"]["globe"] or c["big"]["prometheus"]):
+            continue
+        if kind == "small" and c["small"].get("mode", "after_backup") == "after_backup":
+            if small_due_after_backup(c, now) and not _busy(kind, now):
+                out.append(kind)
             continue
         if now >= next_slot(kind, c, now).astimezone(timezone.utc) and not _busy(kind, now):
             out.append(kind)
@@ -243,8 +308,22 @@ def api_config():
     if g:
         return g
     c = load()
+    close_stale()
     return jsonify({"config": c, "ready": configured(c), "due": due(), "command": command(), "now": datetime.now(timezone.utc).isoformat(),
                     "secrets": {"secret": get_secret("offsite_secret"), "key": get_secret("offsite_key"), "passphrase": get_secret("offsite_pass")}})
+
+
+@bp.route("/internal/backup/idle", methods=["POST"])
+@csrf.exempt
+def api_idle():
+    """The backup service says it has just started: no copy can be running, so any run still marked running is dead."""
+    g = _guard()
+    if g:
+        return g
+    n = close_stale(everything=True)
+    if n:
+        audit("offsite.run_closed", detail=f"{n} off-site run(s) closed: the backup service restarted", actor_name="backup service")
+    return jsonify({"ok": True, "closed": n})
 
 
 @bp.route("/internal/backup/start", methods=["POST"])
@@ -260,16 +339,23 @@ def api_start():
     trigger = "manual" if body.get("manual") else "schedule"
     d = get_db()
     db_backup = None
-    if kind == "small":   # a fresh snapshot of the portal's database right now, so the copy is as current as the schedule says
+    use_backup = None
+    mine = False
+    if kind == "small" and trigger == "schedule" and load()["small"].get("mode", "after_backup") == "after_backup":
+        b = latest_local_backup()
+        if b:
+            db_backup = use_backup = b["name"]   # the nightly backup that was just made: sent as it is, kept as it is
+    if kind == "small" and not db_backup:   # a fresh snapshot of the portal's database right now (a manual copy, a copy at a set time, or no nightly backup yet)
+        mine = True
         try:
-            db_backup, _ = bk.create_backup(current_app.config["DATABASE_URL"], "scheduled")
-            bk.apply_retention()
+            db_backup, _ = bk.create_backup(current_app.config["DATABASE_URL"], "scheduled")   # kept only until this run ends (drop_snapshots), and the keep count is left alone
         except Exception as e:
             current_app.logger.warning("off-site run: the database backup could not be made: %s", e)
             return jsonify({"error": "could not create the database backup (the portal log has the reason)"}), 500
     # the service does one copy at a time, so a run of this kind that never reported back is dead (the service restarted or lost the answer): close it
     d.execute("UPDATE offsite_runs SET finished=now(), ok=FALSE, detail='abandoned: the backup service never reported back' WHERE kind=%s AND ok IS NULL", (kind,))
-    rid = d.execute("INSERT INTO offsite_runs (kind, trigger) VALUES (%s,%s) RETURNING id", (kind, trigger)).fetchone()["id"]
+    drop_snapshots()
+    rid = d.execute("INSERT INTO offsite_runs (kind, trigger, db_backup, source_backup) VALUES (%s,%s,%s,%s) RETURNING id", (kind, trigger, db_backup if mine else "", db_backup or "")).fetchone()["id"]
     d.commit()
     cmd = command()
     if cmd and cmd.get("action") == f"run-{kind}":
@@ -288,6 +374,7 @@ def api_report():
     d.execute("UPDATE offsite_runs SET finished=now(), ok=%s, bytes=%s, detail=%s, remote_name=%s WHERE id=%s",
               (bool(b.get("ok")), int(b.get("bytes") or 0), str(b.get("detail") or "")[:1500], str(b.get("remote_name") or "")[:200], int(b.get("run_id") or 0)))
     d.commit()
+    drop_snapshots("id=%s", (int(b.get("run_id") or 0),))
     return jsonify({"ok": True})
 
 

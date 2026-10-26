@@ -168,5 +168,6 @@ psql("DELETE FROM settings WHERE key='myflights_map_track_points'")
 check("another member's map has none of these tracks", not ({t["id"] for t in U2.get(B + "/my/flights/map.json").json().get("tracks", [])} & {t["id"] for t in U1.get(B + "/my/flights/map.json").json()["tracks"]}))
 pg = U1.get(B + "/my/flights/map").text
 check("the map page draws recorded paths colored by height", "recorded path" in pg and "col(t.pts" in pg)
+check("a route whose flights all have a recorded track gets no estimated line under it", "if (!left.length) return;" in pg and "allTracked" not in pg and "dashArray" not in pg)
 psql("DELETE FROM users WHERE username LIKE 'mft%'")
 print("ALL PASS" if ok_all else "SOME FAILED")

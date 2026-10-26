@@ -20,6 +20,8 @@ class H(BaseHTTPRequestHandler):
         SEEN.append((self.path, self.headers.get("x-api-market-key")))
         if self.headers.get("x-api-market-key") != KEY:
             self.send_response(401); self.end_headers(); return
+        if MODE["v"] in ("400", "500", "429"):
+            self.send_response(int(MODE["v"])); self.end_headers(); return
         if MODE["v"] == "404" or "/WN9999/" in self.path:
             self.send_response(404); self.end_headers(); return
         raw = json.dumps(FLIGHT).encode()
@@ -48,6 +50,7 @@ check("the key is never on the Settings page", KEY not in adm.get(B + "/admin/se
 r = look(U1); j = r.json()
 f = (j.get("flights") or [{}])[0]
 check("a flight number and date give the schedule with the airports found", r.status_code == 200 and len(j["flights"]) == 1 and f["number"] == "WN 1672" and f["from"] and f["from"]["code"] in ("LIT", "KLIT") and f["to"] and f["to"]["code"] in ("LAS", "KLAS"), j)
+check("the airports come with their names, and the form shows names with the code beside them in small type", f.get("from_name") and f.get("to_name") and "function apl(" in U1.get(B + "/my/flights/new").text and "apl(f.from_name, f.from_code)" in U1.get(B + "/my/flights/new").text, (f.get("from_name"), f.get("to_name")))
 check("the scheduled times are in each airport's own time (17:00Z is 11:00 in Little Rock, 19:30Z is 11:30 in Las Vegas)", f.get("sched_out") == "2026-11-02T11:00" and f.get("sched_in") == "2026-11-02T11:30", f)
 check("terminals, airline, aircraft, registration and the credit", f.get("terminal_from") == "A" and f.get("terminal_to") == "1" and f.get("airline") == "Southwest Airlines" and f.get("aircraft") == "Boeing 737-800" and f.get("registration") == "N8555Q" and "AeroDataBox" in j.get("credit", ""), j)
 check("the key went in the marketplace header and the request named the flight and date", SEEN and SEEN[0][1] == KEY and "/flights/number/WN1672/2026-11-02" in SEEN[0][0], SEEN[:1])
@@ -73,14 +76,24 @@ setting("schedules_site_month", "1"); time.sleep(7)
 r = look(U2, date="2026-11-13")
 check("the whole site's monthly limit stops every member", "this month have all been used" in r.json().get("note", ""), r.json())
 setting("schedules_site_month", "150"); setting("schedules_per_member_day", "10"); time.sleep(7)
+# no date typed: today's
+import datetime as _dt
+r = look(U1, q="WN 1672", date="")
+_today = [str((_dt.datetime.now(_dt.timezone.utc) + _dt.timedelta(hours=h)).date()) for h in (-12, 0, 12)]
+check("with no date typed the look-up uses today's date and still answers", r.status_code == 200 and r.json().get("flights") and any(("/WN1672/" + d_ in p_ or "/WN%201672/" + d_ in p_) for p_, _k in SEEN[-3:] for d_ in _today), (r.json(), SEEN[-2:]))
 # ---- trouble
 r = look(U1, q="WN9999", date="2026-12-01")
 check("an unknown flight is told plainly", r.json().get("flights") == [] and "no flight with that number" in r.json().get("note", ""), r.json())
 check("a bad number or date is told", "flight number" in look(U1, q="xx").json()["note"] and "date" in look(U1, date="soon").json()["note"])
 setting("schedules_key", "wrong-key"); time.sleep(7)
 r = look(U1, q="WN 22", date="2026-12-05")
-check("a wrong key is told as a problem with the key or plan, and the call is marked failed", "key may be wrong" in r.json().get("note", "") and psql("SELECT COUNT(*) FROM flight_schedule_calls WHERE NOT ok") != "0", r.json())
+check("a wrong key is told as a problem with the key or plan, and the call is marked failed", "did not accept the key" in r.json().get("note", "") and psql("SELECT COUNT(*) FROM flight_schedule_calls WHERE NOT ok") != "0", r.json())
 setting("schedules_key", KEY); time.sleep(7)
+for _mode, _words in (("400", "nearer date"), ("429", "limit has been used"), ("500", "error 500")):
+    MODE["v"] = _mode
+    r = look(U1, q="WN 23" + _mode[0], date="2026-12-06")
+    check(f"an answer of {_mode} from the schedule service is told in its own words ({_words})", _words in r.json().get("note", ""), r.json())
+MODE["v"] = "ok"
 check("another member cannot see the member's counts, and nothing is kept past the cache and call tables", psql("SELECT COUNT(*) FROM flight_schedule_calls WHERE user_id IS NULL") == "0")
 check("the settings are on the Settings page", all(k in adm.get(B + "/admin/settings").text for k in ("schedules_enabled", "schedules_per_member_day", "schedules_site_month")))
 check("the audit log has no key", int(psql(f"SELECT COUNT(*) FROM audit_log WHERE detail LIKE '%{KEY}%'")) == 0)

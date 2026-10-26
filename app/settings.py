@@ -192,6 +192,7 @@ DEFAULTS = {
     "alert_poll_seconds": "15",
     "alert_default_cooldown_minutes": "30",
     "pre_restore_keep": "5",
+    "offsite_run_stale_hours": "12",
     "seo_enabled": "1",
     "seo_description": "Arkansas's open network for sky, weather and radio: live aircraft, radiosondes, weather stations, mesh nodes and repeaters, from receivers run by people across the state.",
     "seo_google_verification": "",

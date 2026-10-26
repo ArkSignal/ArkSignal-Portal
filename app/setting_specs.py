@@ -1142,6 +1142,8 @@ SPECS = [
      "A combined email lists at most this many matches and says how many more there were.", {"lo": 5, "hi": 200}),
     ("Backups", "pre_restore_keep", "Safety Backups to Keep", "int",
      "Before every restore a safety backup is taken. Only the newest this many are kept.", {"lo": 1, "hi": 50}),
+    ("Backups", "offsite_run_stale_hours", "Off-Site Copy: Hours Before a Silent Run Is Closed", "int",
+     "An off-site copy that has not reported back after this many hours is closed as failed (the backup service stopped or lost the answer), so the list does not show it as running forever.", {"lo": 2, "hi": 72}),
 ]
 
 from .features import FEATURES as _F, POLICIES as _P   # noqa: E402

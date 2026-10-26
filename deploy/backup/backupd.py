@@ -324,8 +324,12 @@ if __name__ == "__main__":
     if not TOKEN:
         log("STACK_TOKEN is not set: cannot talk to the portal")
     log("adsb-backup started")
+    announced = False
     while True:
         try:
+            if not announced:
+                api("/internal/backup/idle", {})   # nothing is running in a service that has just started: the portal closes runs it still shows as running
+                announced = True
             tick()
         except Exception as e:   # the portal restarting, a network blip: try again next round
             log(f"tick: {type(e).__name__}: {e}")

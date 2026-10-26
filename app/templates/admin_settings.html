@@ -2,7 +2,7 @@
 {% block title %}Settings{% endblock %}
 {% block content %}
 <h1><span>Admin</span> {{ service_label ~ " " if service_label }}Settings</h1>
-<div class="sub">{% if service %}The settings of this service. {% else %}Every setting on the site, in tabs by service (each service's own Settings page, in the admin menu, shows just its part). {% endif %}Each section saves on its own, and changes take effect immediately; no restart is required.</div>
+<div class="sub">{% if service == "site" %}The settings of the whole site: accounts and sign-in, security, display, public pages, contacts. Every other service has its own Settings page in the admin menu, and <a href="/admin/settings">All Settings (Everything)</a> lists them all in one place. {% elif service %}The settings of this service. {% else %}Every setting on the site, in tabs by service (each service's own Settings page, in the admin menu, shows just its part). {% endif %}Each section saves on its own, and changes take effect immediately; no restart is required.</div>
 {% include "partials/_admin_subnav.html" %}
 
 <div class="subnav" id="settabs" role="tablist" aria-label="Settings groups">

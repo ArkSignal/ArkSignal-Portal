@@ -21,7 +21,7 @@
       <div><label for="lk_d">Date (optional)</label><input type="date" id="lk_d"></div><button class="btn small" type="button" id="lk_go">Look Up</button></div>
     <div id="lk_out" class="dim" style="margin-top:8px;font-size:.88rem"></div>
     {% if schedules_on %}<div class="cm-row" style="margin-top:12px"><button class="btn small neutral" type="button" id="sc_go">Look Up the Airline Schedule</button>
-      <span class="dim" style="font-size:.85rem">Uses the flight number and the date above (or the date in Times). Fills the scheduled times, airports, airline and aircraft the airline planned.</span></div>
+      <span class="dim" style="font-size:.85rem">Uses the flight number and the date above (or the date in Times; today if there is none). Fills the scheduled times, airports, airline and aircraft the airline planned.</span></div>
     <div id="sc_out" class="dim" style="margin-top:8px;font-size:.88rem"></div>{% endif %}
   {% endcall %}
   {% call sec('route', 'The Flight', True) %}
@@ -83,6 +83,7 @@
   var F = document.getElementById("flform"), MAXP = {{ max_pax }}, tok = F.querySelector("[name=csrf_token]").value;
   function $(i) { return document.getElementById(i); }
   function setv(name, v) { var e = F.querySelector("[name=" + name + "]"); if (e && v != null) { e.value = v; e.dispatchEvent(new Event("change", {bubbles: true})); } }
+  function apl(name, code) { return name ? esc(name) + (code ? ' <span class="dim">' + esc(code) + "</span>" : "") : esc(code); }   // an airport by its name, with the code beside it in small type
   function esc(t) { return String(t == null ? "" : t).replace(/[&<>"]/g, function (c) { return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]; }); }
   var applying = false;
   function applySuggest(sg, onlyEmpty) {
@@ -106,11 +107,11 @@
     fetch("/my/flights/lookup.json?q=" + encodeURIComponent(q) + "&date=" + encodeURIComponent(d)).then(function (r) { return r.json(); }).then(function (j) {
       var sg = j.suggest || {}, head = "";
       if (sg.airline || sg.aircraft_type || sg.from) {
-        head = '<p style="margin:0 0 8px"><b>Suggested</b> ' + [sg.airline, sg.flight_no, sg.aircraft_name ? sg.aircraft_name + (sg.aircraft_type ? " (" + sg.aircraft_type + ")" : "") : sg.aircraft_type, sg.from && sg.to ? sg.from.code + " to " + sg.to.code : ""].filter(Boolean).map(esc).join(" &middot; ") + ' <button class="btn small" type="button" id="lk_sg">Use This</button> <span class="dim">' + esc((sg.notes || []).join(" ")) + "</span></p>";
+        head = '<p style="margin:0 0 8px"><b>Suggested</b> ' + [sg.airline, sg.flight_no, sg.aircraft_name ? sg.aircraft_name + (sg.aircraft_type ? " (" + sg.aircraft_type + ")" : "") : sg.aircraft_type, sg.from && sg.to ? (sg.from.name || sg.from.code) + " to " + (sg.to.name || sg.to.code) : ""].filter(Boolean).map(esc).join(" &middot; ") + ' <button class="btn small" type="button" id="lk_sg">Use This</button> <span class="dim">' + esc((sg.notes || []).join(" ")) + "</span></p>";
       }
       if (!j.flights.length) { out.innerHTML = head + esc(j.note || (head ? "" : "Nothing found.")); wireSg(sg); return; }
       out.innerHTML = head + '<table><thead><tr><th>Heard</th><th>Flight</th><th>Aircraft</th><th>From</th><th>To</th><th></th></tr></thead><tbody>' + j.flights.map(function (f, i) {
-        return "<tr><td>" + esc(f.first.slice(0, 16).replace("T", " ")) + " UTC</td><td>" + esc(f.callsign) + "</td><td>" + esc(f.reg) + " " + esc(f.type) + "</td><td>" + (f.from ? esc(f.from.code) : '<span class="dim">not at an airport</span>') + "</td><td>" + (f.to ? esc(f.to.code) : '<span class="dim">not at an airport</span>') + '</td><td><button class="btn small" type="button" data-use="' + i + '">Use</button></td></tr>';
+        return "<tr><td>" + esc(f.first.slice(0, 16).replace("T", " ")) + " UTC</td><td>" + esc(f.callsign) + "</td><td>" + esc(f.reg) + " " + esc(f.type) + "</td><td>" + (f.from ? apl(f.from.name, f.from.code) : '<span class="dim">not at an airport</span>') + "</td><td>" + (f.to ? apl(f.to.name, f.to.code) : '<span class="dim">not at an airport</span>') + '</td><td><button class="btn small" type="button" data-use="' + i + '">Use</button></td></tr>';
       }).join("") + "</tbody></table>";
       wireSg(sg);
       out.querySelectorAll("[data-use]").forEach(function (b) { b.addEventListener("click", function () {
@@ -127,13 +128,13 @@
   var sc = $("sc_go");
   if (sc) sc.addEventListener("click", function () {   // the airline's schedule for a flight number on a date
     var q = ($("lk_q").value || $("flight_no").value).trim(), d = $("lk_d").value || (F.querySelector("[name=act_out]").value || F.querySelector("[name=sched_out]").value || "").slice(0, 10), out = $("sc_out");
-    if (q.length < 3 || !d) { out.textContent = "Type a flight number and choose the date first."; return; }
+    if (q.length < 3) { out.textContent = "Type a flight number first."; return; }
     out.textContent = "Looking...";
-    fetch("/my/flights/schedule.json?q=" + encodeURIComponent(q) + "&date=" + encodeURIComponent(d), {credentials: "same-origin"}).then(function (r) { return r.json(); }).then(function (j) {
+    fetch("/my/flights/schedule.json?q=" + encodeURIComponent(q) + (d ? "&date=" + encodeURIComponent(d) : ""), {credentials: "same-origin"}).then(function (r) { return r.json(); }).then(function (j) {
       if (!j.flights || !j.flights.length) { out.textContent = j.note || "Nothing found."; return; }
       out.innerHTML = '<table><thead><tr><th>Flight</th><th>From</th><th>To</th><th>Aircraft</th><th></th></tr></thead><tbody>' + j.flights.map(function (f, i) {
-        return "<tr><td>" + esc(f.number) + "<br><span class=\"dim\">" + esc(f.airline) + "</span></td><td>" + esc(f.from_code) + (f.sched_out ? "<br><span class=\"dim\">" + esc(f.sched_out.replace("T", " ")) + "</span>" : "") + (f.terminal_from ? "<br><span class=\"dim\">Terminal " + esc(f.terminal_from) + "</span>" : "") +
-          "</td><td>" + esc(f.to_code) + (f.sched_in ? "<br><span class=\"dim\">" + esc(f.sched_in.replace("T", " ")) + "</span>" : "") + (f.terminal_to ? "<br><span class=\"dim\">Terminal " + esc(f.terminal_to) + "</span>" : "") +
+        return "<tr><td>" + esc(f.number) + "<br><span class=\"dim\">" + esc(f.airline) + "</span></td><td>" + apl(f.from_name, f.from_code) + (f.sched_out ? "<br><span class=\"dim\">" + esc(f.sched_out.replace("T", " ")) + "</span>" : "") + (f.terminal_from ? "<br><span class=\"dim\">Terminal " + esc(f.terminal_from) + "</span>" : "") +
+          "</td><td>" + apl(f.to_name, f.to_code) + (f.sched_in ? "<br><span class=\"dim\">" + esc(f.sched_in.replace("T", " ")) + "</span>" : "") + (f.terminal_to ? "<br><span class=\"dim\">Terminal " + esc(f.terminal_to) + "</span>" : "") +
           "</td><td>" + esc(f.aircraft) + " " + esc(f.registration) + '</td><td><button class="btn small" type="button" data-sc="' + i + '">Use</button></td></tr>';
       }).join("") + '</tbody></table><p class="dim" style="margin:6px 0 0">' + esc(j.credit || "") + (j.cached ? " (an answer kept from an earlier look-up)" : "") + "</p>";
       out.querySelectorAll("[data-sc]").forEach(function (b) { b.addEventListener("click", function () {

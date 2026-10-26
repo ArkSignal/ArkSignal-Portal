@@ -11,7 +11,7 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
 from flask_login import current_user, login_required
 
 from . import tzplace
@@ -85,8 +85,13 @@ def _http(number, day):
         with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=cfg_int("schedules_timeout_seconds")) as r:
             return r.status, json.loads(r.read().decode("utf-8", "replace") or "[]")
     except urllib.error.HTTPError as e:
+        try:
+            current_app.logger.warning("schedules: the service answered %s for %s on %s: %s", e.code, number, day, e.read(300).decode("utf-8", "replace"))
+        except Exception:
+            pass
         return e.code, None
     except Exception as e:
+        current_app.logger.warning("schedules: no answer for %s on %s: %s %s", number, day, type(e).__name__, str(e)[:160])
         return 0, type(e).__name__
 
 
@@ -110,7 +115,17 @@ def lookup(user_id, number, day):
     if status != 200 or not isinstance(body, list):
         d.execute("UPDATE flight_schedule_calls SET ok=false WHERE id = (SELECT max(id) FROM flight_schedule_calls WHERE user_id=%s)", (user_id,))
         d.commit()
-        return {"error": "The schedule service did not accept the request (the key may be wrong or its plan used up)." if status in (401, 403, 429) else "The schedule service did not answer. Try again later."}
+        if status in (401, 403):
+            msg = "The schedule service did not accept the key (check the key, and that the marketplace chosen in Settings is the one it was bought from)."
+        elif status == 429:
+            msg = "The schedule service says the plan's limit has been used. Try again later, or fill the times in by hand."
+        elif status in (400, 422):
+            msg = "The schedule service did not accept that flight number or date. It covers recent and coming flights (about the last year and the next few months): try a nearer date."
+        elif status == 0:
+            msg = "The site could not reach the schedule service. Try again later."
+        else:
+            msg = f"The schedule service had a problem (error {status}). Try again later."
+        return {"error": msg}
     flights = [dict(f, sched_out=f["sched_out"].isoformat() if f["sched_out"] else "", sched_in=f["sched_in"].isoformat() if f["sched_in"] else "") for f in parse(body)]
     d.execute("INSERT INTO flight_schedule_cache (key, body) VALUES (%s,%s) ON CONFLICT (key) DO UPDATE SET body=EXCLUDED.body, fetched=now()", (key, json.dumps(flights)))
     d.execute("DELETE FROM flight_schedule_cache WHERE fetched < now() - interval '7 days'")
@@ -131,6 +146,12 @@ def schedule_json():
     day = (request.args.get("date") or "").strip()[:10]
     if not number:
         return jsonify({"flights": [], "note": "Type the flight number, such as WN 1672."})
+    if not day:   # no date typed: today, in the site's display time zone
+        from zoneinfo import ZoneInfo
+        try:
+            day = datetime.now(ZoneInfo(cfg("timezone"))).date().isoformat()
+        except Exception:
+            day = datetime.now(timezone.utc).date().isoformat()
     try:
         datetime.fromisoformat(day)
     except ValueError:
@@ -144,6 +165,8 @@ def schedule_json():
         item = {k: f[k] for k in ("number", "airline", "aircraft", "registration", "terminal_from", "terminal_to")}
         item["from"], item["to"] = a, b
         item["from_code"], item["to_code"] = f["from"]["iata"] or f["from"]["icao"], f["to"]["iata"] or f["to"]["icao"]
+        item["from_name"] = (a or {}).get("name") or f["from"].get("name") or ""
+        item["to_name"] = (b or {}).get("name") or f["to"].get("name") or ""
         for side, ap_, col in (("sched_out", a, "from"), ("sched_in", b, "to")):
             when = _utc(f[side])
             zone = None

@@ -428,7 +428,7 @@ def _airport_of(a):
     code_i, code_a = (a.get("icao") or "").upper(), (a.get("iata") or "").upper()
     r = get_db().execute("SELECT id FROM airports WHERE (%s <> '' AND (icao_code=%s OR ident=%s OR gps_code=%s)) OR (%s <> '' AND iata_code=%s) ORDER BY (icao_code=%s) DESC, id LIMIT 1", (code_i, code_i, code_i, code_i, code_a, code_a, code_i)).fetchone()
     ap = _airport(r["id"]) if r else None
-    return {"id": ap["id"], "code": code_of(ap), "label": f"{ap['name']} ({code_of(ap)})"} if ap else None
+    return {"id": ap["id"], "code": code_of(ap), "name": ap["name"], "city": ap["municipality"] or "", "label": f"{ap['name']} ({code_of(ap)})"} if ap else None
 
 
 def split_flight_number(q):
@@ -504,7 +504,7 @@ def lookup_json():
     for r in rows:
         a, b = _near(r["start_lat"], r["start_lon"]), _near(r["end_lat"], r["end_lon"])
         item = {"hex": r["hex"], "callsign": r["callsign"] or "", "reg": r["reg"] or "", "type": r["type"] or "", "first": r["first_seen"].isoformat(), "last": r["last_seen"].isoformat(), "positions": r["positions"],
-                "from": {"id": a["id"], "code": code_of(a), "label": f"{a['name']} ({code_of(a)})"} if a else None, "to": {"id": b["id"], "code": code_of(b), "label": f"{b['name']} ({code_of(b)})"} if b else None}
+                "from": {"id": a["id"], "code": code_of(a), "name": a["name"], "city": a["municipality"] or "", "label": f"{a['name']} ({code_of(a)})"} if a else None, "to": {"id": b["id"], "code": code_of(b), "name": b["name"], "city": b["municipality"] or "", "label": f"{b['name']} ({code_of(b)})"} if b else None}
         if a and b and a["id"] != b["id"]:   # the times the receivers first and last heard it, written in each airport's own time (the first and last positions are close to takeoff and landing)
             item["act_off"] = local_text(r["first_seen"], tzplace.zone_for(a["country"], a["lat"], a["lon"]))
             item["act_on"] = local_text(r["last_seen"], tzplace.zone_for(b["country"], b["lat"], b["lon"]))

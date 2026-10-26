@@ -45,10 +45,10 @@
   (D.tracks || []).forEach(function (t) { tracked[t.id] = t; t.pts.forEach(function (x) { hi = Math.max(hi, x[2] || 0); }); });
   function col(a) { var k = Math.min(1, Math.max(0, (a || 0) / hi)); return "hsl(" + Math.round(210 - 170 * k) + ",90%," + Math.round(60 - 8 * k) + "%)"; }
   D.routes.forEach(function (r) {
-    var flown = r.flights.filter(function (f) { return tracked[f.id]; }).length;
-    var allTracked = flown === r.flights.length;
-    var line = L.polyline(arc(r.a, r.b, r.alat, r.alon, r.blat, r.blon), {color: "#ff8c42", weight: Math.min(2 + r.count, 8), opacity: allTracked ? .25 : .7, dashArray: flown ? "4 6" : null}).addTo(map);
-    line.bindPopup("<b>" + esc(r.a) + " - " + esc(r.b) + "</b><br>" + r.count + " flight" + (r.count == 1 ? "" : "s") + ", last " + esc(r.last) + "<br>" + flightLinks(r.flights));
+    var left = r.flights.filter(function (f) { return !tracked[f.id]; });
+    if (!left.length) return;   // every flight on this route has its real path drawn: no estimated line under it
+    var line = L.polyline(arc(r.a, r.b, r.alat, r.alon, r.blat, r.blon), {color: "#ff8c42", weight: Math.min(2 + left.length, 8), opacity: .7}).addTo(map);
+    line.bindPopup("<b>" + esc(r.a) + " - " + esc(r.b) + "</b><br>" + left.length + " flight" + (left.length == 1 ? "" : "s") + " without a recorded track, last " + esc(left.reduce(function (m, f) { return f.date > m ? f.date : m; }, "")) + "<br>" + flightLinks(left));
   });
   (D.tracks || []).forEach(function (t) {   // the real recorded path, colored by height like the flight page
     var f = null;

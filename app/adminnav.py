@@ -57,8 +57,8 @@ GROUPS = [
         ("set_updates", "Update Settings", "/admin/settings/updates", "manage_settings"),
     ]),
     ("Site", [
-        ("settings", "Site Settings", "/admin/settings/site", "manage_settings"),
-        ("allsettings", "All Settings", "/admin/settings", "manage_settings"),
+        ("settings", "General Settings", "/admin/settings/site", "manage_settings"),
+        ("allsettings", "All Settings (Everything)", "/admin/settings", "manage_settings"),
         ("google", "Google Sign-In", "/admin/google", "manage_settings"),
         ("apikeys", "API Keys", "/admin/api-keys", "manage_api_keys"),
         ("themes", "Themes", "/admin/themes", "manage_settings"),

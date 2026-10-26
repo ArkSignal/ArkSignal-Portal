@@ -1,5 +1,23 @@
 [
   {
+    "version": "1.8.7",
+    "released": "2026-10-26T18:17:29",
+    "title": "Off-site copy right after the nightly backup (no extra backups), stuck copies close themselves, schedule look-up without a date, and clearer settings menu",
+    "added": [],
+    "improved": [
+      "Admin menu: Site Settings is now General Settings and All Settings is All Settings (Everything), with a line on each page saying what it holds",
+      "Off-site copy: the small copy can start right after the nightly backup and send that same backup (the default), so nothing is dumped twice; a copy at a set time or by hand makes its own snapshot and removes it afterward (Off-Site Copy > Small Copy > When to Start)",
+      "Look It Up on a My Flights form shows airport names (with the code beside them in small type) instead of only codes, for the flights the receivers heard, the suggested route and the airline schedule"
+    ],
+    "fixed": [
+      "Off-site copy: a run that never reported back no longer shows as running forever (it is closed when the backup service restarts, after a few hours, or when you start another copy), and the database snapshot a small copy makes is removed when the copy ends instead of staying in Available Backups",
+      "Airline schedule look-ups say what went wrong (key refused, plan limit used, flight number or date not accepted, service unreachable) instead of one message for everything",
+      "Airline schedule look-up works without a date: it uses today's date",
+      "Flight Map: a flight with a recorded track is drawn only along its real path; the estimated straight line under it is gone (it stays only for flights without a track)"
+    ],
+    "security": []
+  },
+  {
     "version": "1.8.6",
     "released": "2026-10-26T15:10:43",
     "title": "Off-site copy to a NAS over HTTPS (WebDAV) proven end to end, and the two-minute timeout on the first copy fixed",
