@@ -122,7 +122,8 @@ def user_claims(user, scopes):
     c = {"sub": str(user.id)}
     if "profile" in scopes:
         c["preferred_username"] = user.username
-        c["name"] = (user.row.get("display_name") or user.username)
+        from .matrix import chat_name
+        c["name"] = chat_name(user.row.get("display_name"), user.username, user.row.get("callsign"), user.row.get("find_by_callsign"))
     if "email" in scopes and user.row.get("email"):
         c["email"] = user.row["email"]
         c["email_verified"] = bool(user.row.get("email_verified"))

@@ -2,6 +2,12 @@
   "updated": "2026-10-25",
   "items": [
     {
+      "title": "Find members in chat by call sign",
+      "summary": "Every member has a chat account before they open chat, and a member who allows being found by call sign carries it after their name, so a chat search finds them by call sign. Radio bridges now work only on a room the member made themselves.",
+      "status": "done",
+      "area": "Community"
+    },
+    {
       "title": "Element X sign-in",
       "summary": "Make the newer Element X phone app able to sign in with a site account. It needs the Matrix Authentication Service (native OIDC) in front of the chat server; until then the Chat page points phones to the Element Classic app.",
       "status": "planned",

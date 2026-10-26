@@ -330,6 +330,23 @@ def user_exists(lp):
         raise
 
 
+def ensure_member(lp, name):
+    """A chat account for this member with this display name, made without a password (they sign in through the site, which links to it). Returns 'created', 'renamed' or 'same'."""
+    lp = lp.lower()
+    url = "/_synapse/admin/v2/users/" + urllib.parse.quote(uid(lp))
+    try:
+        cur = A("GET", url)
+    except ApiError as e:
+        if e.status != 404:
+            raise
+        A("PUT", url, {"displayname": name, "admin": False})
+        return "created"
+    if name and cur.get("displayname") != name:
+        A("PUT", url, {"displayname": name})
+        return "renamed"
+    return "same"
+
+
 def act_as(lp, method, p, body=None):
     """One call made as a member (a one-minute token minted by the administrator): how a member's own settings are changed for them."""
     t = A("POST", "/_synapse/admin/v1/users/" + urllib.parse.quote(uid(lp)) + "/login", {"valid_until_ms": int((time.time() + 60) * 1000)})["access_token"]
@@ -368,6 +385,20 @@ def sync(c):
     except (OSError, ValueError):
         pass
     prev_locked, prev_ign = set(state.get("locked", [])), set(state.get("ignoring", []))
+    profiles = dict(state.get("profiles", {}))
+    out["provisioned"] = 0
+    for m in c.get("members", [])[:2000]:   # an account for every member, so a search finds them before they open chat; only changes are sent
+        lp, nm = str(m.get("lp", "")).lower(), str(m.get("name", ""))[:80]
+        if not lp or profiles.get(lp) == nm:
+            continue
+        try:
+            if ensure_member(lp, nm) != "same":
+                out["provisioned"] += 1
+            profiles[lp] = nm
+        except ApiError as e:
+            out["errors"].append(f"account {lp}: {e}")
+        if out["provisioned"] >= 300:
+            break   # the rest follows on the next pass
     with open(path("policy.json"), "w") as f:
         json.dump(c.get("policy", {}), f)
     now_locked = set(x.lower() for x in c.get("locked", []))
@@ -408,7 +439,7 @@ def sync(c):
         except ApiError as e:
             out["errors"].append(f"room {r.get('alias')}: {e}")
     with open(path("sync_state.json"), "w") as f:
-        json.dump({"locked": sorted(new_locked), "ignoring": sorted(ignoring), "at": time.time()}, f)
+        json.dump({"locked": sorted(new_locked), "ignoring": sorted(ignoring), "profiles": profiles, "at": time.time()}, f)
     STATE["last_sync"] = {"at": time.time(), **{k: v for k, v in out.items() if k != "errors"}, "errors": out["errors"][:5]}
     return out
 
@@ -511,20 +542,25 @@ def bot_post(room_id, text, html=None):
 
 
 def rooms_of(lp):
-    """The rooms a member is in, each marked encrypted or not: only an unencrypted room can be bridged (the bot could not read an encrypted one, and would not be let to)."""
+    """The rooms a member is in, each marked encrypted or not and whether the member made it: only an unencrypted room can be bridged (the bot could not read an encrypted one, and would not be let to), and only by the person who made it (a standing room, made by the site, or somebody else's room is never theirs to bridge)."""
     out = []
+    me = uid(lp)
     for rid in act_as(lp, "GET", "/_matrix/client/v3/joined_rooms").get("joined_rooms", []):
-        q_ = urllib.parse.quote(rid)
+        name, enc, maker = "", False, ""
         try:
-            name = act_as(lp, "GET", f"/_matrix/client/v3/rooms/{q_}/state/m.room.name").get("name", "")
+            for ev in act_as(lp, "GET", f"/_matrix/client/v3/rooms/{urllib.parse.quote(rid)}/state"):
+                t = ev.get("type")
+                if t == "m.room.name":
+                    name = (ev.get("content") or {}).get("name", "")
+                elif t == "m.room.encryption":
+                    enc = True
+                elif t == "m.room.create":
+                    maker = ev.get("sender", "")
+                    if not maker:
+                        maker = (ev.get("content") or {}).get("creator", "")
         except ApiError:
-            name = ""
-        try:
-            act_as(lp, "GET", f"/_matrix/client/v3/rooms/{q_}/state/m.room.encryption")
-            enc = True
-        except ApiError as e:
-            enc = e.status != 404
-        out.append({"room_id": rid, "name": name or rid, "encrypted": enc})
+            enc = True   # not readable: not offered
+        out.append({"room_id": rid, "name": name or rid, "encrypted": enc, "mine": bool(maker) and maker.lower() == me.lower()})
     return {"rooms": sorted(out, key=lambda r: r["name"].lower())}
 
 
@@ -634,6 +670,11 @@ class H(BaseHTTPRequestHandler):
                 if self.path == "/bridge/post":
                     return self.send({"ok": True, **bot_post(c["room_id"], c["text"], c.get("html"))})
                 return self.send({"ok": True, **rooms_of(c["member"])})
+            except (ApiError, KeyError) as e:
+                return self.send({"ok": False, "error": str(e)}, 502)
+        if self.path == "/ensure":
+            try:
+                return self.send({"ok": True, "result": ensure_member(c["lp"], str(c.get("name", ""))[:80])})
             except (ApiError, KeyError) as e:
                 return self.send({"ok": False, "error": str(e)}, 502)
         if self.path == "/pusher":

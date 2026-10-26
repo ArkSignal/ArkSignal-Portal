@@ -73,7 +73,7 @@ check("the member switches the mesh bridge on for their account", r.get("ok"), r
 room = mx(TA, "POST", "/createRoom", {"name": "Bridge test", "preset": "public_chat", "visibility": "private"}).json()["room_id"]
 enc = mx(TA, "POST", "/createRoom", {"name": "Secret", "preset": "private_chat"}).json()["room_id"]
 page = SA.get(B + "/my/bridges").text
-check("the Radio page lists the member's rooms and marks the encrypted one as not bridgeable", "Bridge test" in page and "Secret (encrypted: cannot be bridged)" in page, re.sub(r"\s+", " ", page)[:300])
+check("the Radio page lists only the member's own rooms the bridge can read: the encrypted one is not shown at all", "Bridge test" in page and "Secret" not in page.split('id="br-room"')[1].split("</select>")[0], re.sub(r"\s+", " ", page)[:300])
 r = post(SA, "/my/bridges/add", kind="mesh", remote="!a1b2c3d4", room_id=enc)
 check("an encrypted room is refused, and the reason is plain", not r.get("ok") and "encrypted" in r.get("message", ""), r)
 r = post(SA, "/my/bridges/add", kind="mesh", remote="!a1b2c3d4", room_id="!notmine:" + SV)
@@ -84,6 +84,22 @@ members = mx(TA, "GET", f"/rooms/{quote(room)}/joined_members").json().get("join
 check("the bridge bot joined the room", f"@arksignal-bridge:{SV}" in members, list(members))
 page = SA.get(B + "/my/bridges").text
 check("the link is listed with the room's name", "Bridge test" in page and "!a1b2c3d4" in page)
+# only the person who made a room can bridge it: not a standing room, not somebody else's room
+gen = requests.get(HS + "/_matrix/client/v3/directory/room/" + quote("#general:" + SV)).json().get("room_id", "")
+mx(TA, "POST", f"/join/{quote(gen)}")
+theirs = mx(TB, "POST", "/createRoom", {"name": "Not yours", "preset": "public_chat", "visibility": "private"}).json()["room_id"]
+mx(TA, "POST", f"/join/{quote(theirs)}")
+page = SA.get(B + "/my/bridges").text
+sel = page.split('id="br-room"')[1].split("</select>")[0]
+check("the Radio page offers only rooms the member made (not General, not somebody else's room)", "Bridge test" in sel and "General" not in sel and "Not yours" not in sel, re.sub(r"\s+", " ", sel)[:300])
+r = post(SA, "/my/bridges/add", kind="mesh", remote="!bbbb2222", room_id=gen)
+check("a standing room cannot be bridged to a mesh node, and the reason is plain", not r.get("ok") and "made a room" in r.get("message", ""), r)
+r = post(SA, "/my/bridges/add", kind="mesh", remote="!cccc3333", room_id=theirs)
+check("nor can somebody else's room", not r.get("ok") and "made a room" in r.get("message", ""), r)
+psql(f"INSERT INTO bridge_links (conv_id, room_id, room_name, kind, remote, created_by) SELECT NULL, '{gen}', 'General', 'mesh', '!dddd4444', id FROM users WHERE username='mxa'")
+ok, msg, _h = act(adm, "/admin/matrix/sync", "/admin/matrix")
+check("a link made earlier on a room that is not the member's own is switched off at the next sync and logged", psql(f"SELECT enabled FROM bridge_links WHERE room_id='{gen}'") == "f" and "only the person who made a room" in psql("SELECT string_agg(detail, '|') FROM audit_log WHERE action='bridge.unlink'"), psql(f"SELECT enabled FROM bridge_links WHERE room_id='{gen}'"))
+psql(f"DELETE FROM bridge_links WHERE room_id='{gen}'")
 
 def send(tk, text):
     return mx(tk, "PUT", f"/rooms/{quote(room)}/send/m.room.message/t{time.time_ns()}", {"msgtype": "m.text", "body": text}).json().get("event_id")

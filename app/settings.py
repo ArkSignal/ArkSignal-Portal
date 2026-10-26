@@ -359,6 +359,7 @@ DEFAULTS = {
     "push_satpass_min_elev": "30",
     "matrix_appservice_url": "http://adsb-portal:8430",
     "matrix_create_rooms": "everyone",
+    "matrix_precreate_members": "1",
     "matrix_invite": "everyone",
     "matrix_auto_join": "1",
     "matrix_rooms": "general|General|Talk about anything;aircraft|Aircraft|Aircraft, ADS-B and the map;weather|Weather|Weather stations, storms and balloons;radio|Radio|Amateur radio, repeaters, nets and mesh;help|Help|Questions about the site",

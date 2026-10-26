@@ -1,5 +1,20 @@
 [
   {
+    "version": "1.8.5",
+    "released": "2026-10-26T11:52:15",
+    "title": "Find members in chat by call sign, the Chat button works for members who never opened chat, and radio bridges only on a member's own room",
+    "added": [
+      "Chat finds members by call sign: every active member has a chat account (made ahead of time), and a member who allows being found by call sign carries it after their name in chat, so a search for the call sign finds them (Settings > Matrix Chat > Make a Chat Account for Every Member)"
+    ],
+    "improved": [
+      "Radio bridges: only the person who made a chat room can bridge it to an APRS call sign or mesh node; the standing rooms and other people's rooms cannot be bridged, and earlier links on such rooms are switched off"
+    ],
+    "fixed": [
+      "The Chat button on a friend or member who had never opened chat no longer says the profile could not be loaded: their chat account is made when you click it"
+    ],
+    "security": []
+  },
+  {
     "version": "1.8.4",
     "released": "2026-10-26T08:10:17",
     "title": "Planefence shows its table again, chat points phones to the Element Classic app, and more code scanning fixes",

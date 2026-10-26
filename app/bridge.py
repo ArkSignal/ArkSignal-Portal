@@ -123,6 +123,26 @@ def forward(conv_id, sender_id, body):
     return _forward(links, sender_id, body)
 
 
+def drop_unowned_links():
+    """Room links must belong to the room's maker: any link on a standing room or on somebody else's room (made before this rule) is switched off and logged. Returns how many."""
+    from . import matrix
+    d = get_db()
+    n = 0
+    for who in d.execute("SELECT DISTINCT l.created_by, u.username FROM bridge_links l JOIN users u ON u.id = l.created_by WHERE l.room_id IS NOT NULL AND l.enabled").fetchall():
+        ok, got = matrix.rooms_of(who["username"])
+        if not ok:
+            continue
+        made = {r["room_id"] for r in got if r.get("mine")}
+        for l in d.execute("SELECT id, room_id, room_name, kind, remote FROM bridge_links WHERE created_by=%s AND room_id IS NOT NULL AND enabled", (who["created_by"],)).fetchall():
+            if l["room_id"] not in made:
+                d.execute("UPDATE bridge_links SET enabled=FALSE WHERE id=%s", (l["id"],))
+                from .audit import audit
+                audit("bridge.unlink", target=l["remote"], detail=f"{l['kind']} link to room {l['room_name']} switched off: only the person who made a room can bridge it", actor_name="bridge")
+                n += 1
+    d.commit()
+    return n
+
+
 def forward_room(room_id, sender_id, body):
     """The same for a Matrix room: a text message the member who made the link wrote in the room goes out over the link."""
     links = get_db().execute("SELECT * FROM bridge_links WHERE room_id=%s AND enabled AND created_by=%s", (room_id, sender_id)).fetchall()
@@ -309,7 +329,7 @@ def page():
     if in_matrix:
         links = d.execute("SELECT l.*, COALESCE(NULLIF(l.room_name, ''), l.room_id) AS title FROM bridge_links l WHERE l.created_by=%s AND l.room_id IS NOT NULL ORDER BY l.id", (me,)).fetchall()
         ok, got = matrix.rooms_of(current_user.username)
-        rooms, rooms_note = (got, "") if ok else ([], got)
+        rooms, rooms_note = ([r for r in got if r.get("mine") and not r["encrypted"]], "") if ok else ([], got)   # only rooms this member made that the bridge can read: nothing else is shown
         convs = []
     else:
         links = d.execute("SELECT l.*, COALESCE(NULLIF(c.name, ''), 'Chat #' || c.id) AS title FROM bridge_links l JOIN convs c ON c.id = l.conv_id WHERE l.created_by=%s ORDER BY l.id", (me,)).fetchall()
@@ -365,6 +385,8 @@ def add():
         mine = {r["room_id"]: r for r in got} if ok else {}
         if room_id not in mine:
             return _json(False, "Choose one of your rooms." if ok else got)
+        if not mine[room_id].get("mine"):
+            return _json(False, "Only the person who made a room can bridge it. The standing rooms (General, Aircraft, Weather, Radio and Help) and other people's rooms cannot be bridged: make your own room in Chat and bridge that one.")
         if mine[room_id]["encrypted"]:
             return _json(False, "That room is end-to-end encrypted, so the bridge could not read it. Use a room that is not encrypted (a room made as public, or with encryption left off).")
         room_name = mine[room_id]["name"][:120]

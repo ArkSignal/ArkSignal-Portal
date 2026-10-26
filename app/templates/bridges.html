@@ -48,9 +48,9 @@
     <input type="text" id="br-remote" name="remote" maxlength="20" required style="max-width:260px">
     {% if in_matrix %}
     <label for="br-room">Room</label>
-    <select id="br-room" name="room_id" style="max-width:420px">{% for r in rooms %}<option value="{{ r.room_id }}"{{ ' disabled' if r.encrypted }}>{{ r.name }}{{ ' (encrypted: cannot be bridged)' if r.encrypted }}</option>{% endfor %}</select>
+    <select id="br-room" name="room_id" style="max-width:420px">{% for r in rooms %}<option value="{{ r.room_id }}">{{ r.name }}</option>{% endfor %}</select>
     {% if rooms_note %}<p class="help">{{ rooms_note }}</p>{% endif %}
-    <p class="help">Only a room that is not end-to-end encrypted can be linked, because the bridge has to be able to read it: make a room in <a href="/chat/">Chat</a> with encryption left off, or use a standing room. The bridge joins the room as <span class="mono">ArkSignal Bridge</span> (you need the right to invite people there) and the people in the room see the radio messages and who they came from.</p>
+    <p class="help">Only a room that is not end-to-end encrypted can be linked, because the bridge has to be able to read it: make a room of your own in <a href="/chat/">Chat</a> with encryption left off. Only the person who made a room can bridge it: the standing rooms and other people's rooms cannot be bridged. The bridge joins the room as <span class="mono">ArkSignal Bridge</span> (you need the right to invite people there) and the people in the room see the radio messages and who they came from.</p>
     {% else %}
     <label for="br-conv">Chat</label>
     <select id="br-conv" name="conv_id" style="max-width:360px">{% for c in convs %}<option value="{{ c.id }}">{{ c.name or c.others or ('Chat ' ~ c.id) }}{{ ' (group)' if c.kind == 'group' }}</option>{% endfor %}</select>

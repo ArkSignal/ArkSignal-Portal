@@ -95,7 +95,8 @@ room = mx(TA, "POST", "/createRoom", {"name": "chat"}).json()["room_id"]
 check("friends only: inviting someone who is not a friend is refused", mx(TA, "POST", f"/rooms/{quote(room)}/invite", {"user_id": f"@mxb:{SV}"}).status_code == 403)
 psql("INSERT INTO friendships (user_a, user_b, status, requested_by) SELECT a.id, b.id, 'accepted', a.id FROM users a, users b WHERE a.username='mxa' AND b.username='mxb' ON CONFLICT DO NOTHING")
 sync(); time.sleep(1)
-check("friends only: a friend can be invited", mx(TA, "POST", f"/rooms/{quote(room)}/invite", {"user_id": f"@mxb:{SV}"}).status_code == 200)
+_inv = mx(TA, "POST", f"/rooms/{quote(room)}/invite", {"user_id": f"@mxb:{SV}"})
+check("friends only: a friend can be invited", _inv.status_code == 200, (_inv.status_code, _inv.text[:200], mx(TA, "GET", "/account/whoami").text))
 setting("matrix_invite", "moderators"); sync(); time.sleep(1)
 room2 = mx(TA, "POST", "/createRoom", {"name": "chat2"}).json()["room_id"]
 check("moderators only: even a friend cannot be invited by an ordinary member", mx(TA, "POST", f"/rooms/{quote(room2)}/invite", {"user_id": f"@mxb:{SV}"}).status_code == 403)

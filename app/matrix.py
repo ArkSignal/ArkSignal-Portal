@@ -153,6 +153,7 @@ def framed_page(dm=None, room=None):
     base = cfg("matrix_element_url").strip().rstrip("/")
     tail = ""
     if dm:
+        ensure_member(dm)   # a member who has never opened chat gets their chat account now, so there is someone to talk to
         tail = "/#/user/@" + dm.lower() + ":" + cfg("matrix_server_name").strip()
     elif room:
         tail = "/#/room/" + room
@@ -225,8 +226,35 @@ def policy():
     return {"create": cfg("matrix_create_rooms"), "invite": cfg("matrix_invite"), "moderators": moderators(), "friends": friends_map(), "contact": contact_policies(), "blocks": ignores()}
 
 
+def chat_name(display_name, username, callsign, findable):
+    """The name a member carries in chat: their display name, with their call sign after it when they allowed being found by call sign (so a search for the call sign finds them)."""
+    base = (display_name or username or "").strip() or username
+    cs = (callsign or "").strip().upper()
+    if findable and cs and cs.lower() not in base.lower():
+        base = f"{base} ({cs})"
+    return base[:80]
+
+
+def members_payload():
+    """[{lp, name}] for every active member, so the chat server has an account for each one before they ever open chat (a search finds them and a chat with them can start at once)."""
+    if cfg("matrix_precreate_members") != "1":
+        return []
+    rows = get_db().execute("SELECT lower(username) AS lp, username, display_name, callsign, find_by_callsign FROM users WHERE NOT disabled ORDER BY id").fetchall()
+    return [{"lp": r["lp"], "name": chat_name(r["display_name"], r["username"], r["callsign"], r["find_by_callsign"])} for r in rows]
+
+
+def ensure_member(username):
+    """Make sure one member has a chat account right now (the Chat button on a friend or member page): (ok, message)."""
+    if cfg("matrix_precreate_members") != "1":
+        return True, ""
+    r = get_db().execute("SELECT lower(username) AS lp, username, display_name, callsign, find_by_callsign FROM users WHERE lower(username)=lower(%s) AND NOT disabled", (username or "",)).fetchone()
+    if not r:
+        return False, "No such member."
+    return call("/ensure", "POST", {"lp": r["lp"], "name": chat_name(r["display_name"], r["username"], r["callsign"], r["find_by_callsign"])}, timeout=20)
+
+
 def sync_payload():
-    return {"locked": locked_names(), "ignores": ignores(), "moderators": moderators(), "rooms": rooms(), "policy": policy()}
+    return {"locked": locked_names(), "ignores": ignores(), "moderators": moderators(), "rooms": rooms(), "policy": policy(), "members": members_payload()}
 
 
 def sync_now():
@@ -235,8 +263,13 @@ def sync_now():
     cached("matrix_status", lambda: None, 0)
     if not ok:
         return False, d
+    try:
+        from .bridge import drop_unowned_links
+        drop_unowned_links()
+    except Exception as e:
+        print("matrix: room link check:", type(e).__name__, str(e)[:120], flush=True)
     errs = d.get("errors") or []
-    note = f"Synced: {d.get('locked', 0)} locked, {d.get('unlocked', 0)} unlocked, {d.get('ignored', 0)} ignore lists, {d.get('rooms', 0)} standing rooms."
+    note = f"Synced: {d.get('provisioned', 0)} accounts made or renamed, {d.get('locked', 0)} locked, {d.get('unlocked', 0)} unlocked, {d.get('ignored', 0)} ignore lists, {d.get('rooms', 0)} standing rooms."
     return (not errs), (note + (" Trouble: " + "; ".join(errs[:3]) if errs else ""))
 
 
