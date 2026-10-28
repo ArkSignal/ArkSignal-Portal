@@ -1,9 +1,9 @@
 # The network's own address search: Photon (komoot/photon, Apache-2.0) serving the US index that GraphHopper publishes weekly
 # (https://download1.graphhopper.com/public/, OpenStreetMap data, ODbL). Built by build.yml as mallison01/adsb-photon and released with everything else.
 # The index is NOT in the image: the entrypoint downloads, checks and unpacks it into /data (the hub's /opt/adsb/photon) the first time, then serves it.
-# The 1.0 index goes with Photon 1.0.x; bump PHOTON_VERSION and INDEX_VERSION together (the download site says which index fits which version).
+# Photon 1.3.0 opens the existing 1.0 index as it is (checked 2026-10-28 on a copy: status, forward and reverse answers), so a version bump needs no new download; a new index is only needed for new data.
 FROM eclipse-temurin:21-jre
-ARG PHOTON_VERSION=1.0.1
+ARG PHOTON_VERSION=1.3.0
 RUN apt-get update && apt-get install -y --no-install-recommends wget ca-certificates pbzip2 && rm -rf /var/lib/apt/lists/* \
  && mkdir -p /photon /data && wget -q -O /photon/photon.jar https://github.com/komoot/photon/releases/download/${PHOTON_VERSION}/photon-${PHOTON_VERSION}.jar
 COPY entrypoint.sh /entrypoint.sh

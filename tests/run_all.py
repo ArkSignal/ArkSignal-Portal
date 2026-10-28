@@ -10,7 +10,7 @@ for _ in range(60):
     except Exception:
         pass
     time.sleep(2)
-time.sleep(5)
+time.sleep(30)
 
 # the test portal does not listen to SondeHub (the suites that need balloons seed them through the collector); a live feed in one web worker skews which worker answers, which the timing suites assume is even (done first of all: the feed starts about 40 seconds after the portal does, and a flight it stored before this would break the counts)
 subprocess.run(["ssh", "-q", "nastemp", "echo $TEST_SUDO_PASSWORD | sudo -S -p '' /usr/local/bin/docker exec adsb-portal-db psql -U portal -d portal -c \"INSERT INTO settings (key, value) VALUES ('sonde_live_enabled','0') ON CONFLICT (key) DO UPDATE SET value='0'\""], capture_output=True)

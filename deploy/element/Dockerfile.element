@@ -1,7 +1,7 @@
 # Element Web for the chat page (ArkSignal): the project's own image, pinned to one Element release and moved forward on purpose. Built by build.yml as adsb-element and released with everything else.
 # Element is Apache-2.0 licensed (AGPL-3.0 for releases from 1.11.x on: see DATA_SOURCES_TERMS.md). The portal makes the configuration (the Matrix address, the brand, the theme, what is switched off) and this image fetches it
 # from the portal at start and every few minutes (CONFIG_URL), so changing a setting on the site changes the chat without a new image. The page may be shown only inside the site's own pages (FRAME_ANCESTORS).
-FROM vectorim/element-web:v1.12.32
+FROM vectorim/element-web:v1.12.33
 COPY deploy/element/default.conf.template /etc/nginx/templates/default.conf.template
 COPY --chmod=755 deploy/element/40-arksignal-config.sh /docker-entrypoint.d/40-arksignal-config.sh
 COPY BUILD_INFO /BUILD_INFO
