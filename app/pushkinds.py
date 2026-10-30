@@ -1,4 +1,4 @@
-"""Notifications for every kind of alert: ONE registry of the kinds, one switch for each in My Account > Community Settings > Notifications, and the watcher that raises the kinds that depend on a place.
+"""Notifications for every kind of alert: ONE registry of the kinds, one switch for each in My Account > Alerts and Notifications > Notifications, and the watcher that raises the kinds that depend on a place.
 
 Each kind has a key, a label, who may get it (everyone signed in, or administrators), a default, and a site switch (Settings > Matrix Chat: Notification Kinds, a list of the kinds the site does not offer). A member's choice
 is kept in `push_prefs`, except three kinds that already had a home and keep it so the old pages stay true: friend notices (`users.push_friends`), mesh node alerts (`mesh_alert_prefs.by_push`) and, for aircraft alerts,

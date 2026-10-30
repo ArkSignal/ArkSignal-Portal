@@ -19,6 +19,20 @@
     <form class="inline" method="post" action="/admin/communities/links/{{ l.id }}/approve"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small" type="submit">Approve</button></form>
     <form class="inline" method="post" action="/admin/communities/links/{{ l.id }}/reject" data-confirm="Reject this link?"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small warn" type="submit">Reject</button></form></td></tr>{% endfor %}</tbody></table>
 {% endcall %}{% endif %}
+{% call sec('presets', 'Public Channel Presets', False) %}
+  <p style="margin-top:0">The open channels in wide use on Meshtastic and MeshCore. Tick the ones to list, then choose where. A listed channel is public, shared on the default key, with positions no more exact than the public limit and no uplink or downlink; a community manager can change those afterward. Listing a channel also adds its name to the Public Channels setting, so the public rules cover it.</p>
+  <p class="dim" style="font-size:.85rem">The FCC's 902 to 928 MHz rule asks for 500 kHz of bandwidth from digitally modulated systems. Meshtastic's 2.8.1 alpha already starts a new US node on LongTurbo from its own menu, while its apps still start on LongFast; MeshCore's US list is still 910.525 MHz at 62.5 kHz, with a 500 kHz proposal open. This list follows what the projects publish and can change; nodes only hear each other on the same settings.</p>
+  <form method="post" action="/admin/communities/presets/current" style="margin-bottom:10px"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p style="margin:0 0 6px">The current public channel is <b>{{ presets | selectattr('id', 'equalto', current_preset) | map(attribute='name') | first }}</b> (change it under Settings > Mesh Nodes > Current Public Channel).</p>
+    <button class="btn small" type="submit">List the Current Public Channel on All Communities</button></form>
+  <form method="post" action="/admin/communities/presets/add"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div style="overflow-x:auto"><table><thead><tr><th></th><th>Channel</th><th>System</th><th>Radio</th><th>Status</th><th>About</th></tr></thead><tbody>
+  {% for p in presets %}<tr><td>{% if p.addable %}<input type="checkbox" name="preset" value="{{ p.id }}" aria-label="List {{ p.name }}">{% endif %}</td><td><b>{{ p.name }}</b>{% if p.id == current_preset %} <span class="tag">current</span>{% endif %}</td><td>{{ p.system }}</td><td>{{ radio(p) }}</td><td>{{ status_names[p.status] }}</td><td>{{ p.about }}</td></tr>{% endfor %}</tbody></table></div>
+  <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;margin-top:10px">
+    <div><label for="pw">Where</label><select id="pw" name="which"><option value="all">All communities</option><option value="chosen">Only the ones ticked</option></select></div>
+    <div>{% for c in rows %}<label style="display:inline-flex;gap:4px;margin-right:12px"><input type="checkbox" name="community" value="{{ c.slug }}"> {{ c.name }}</label>{% endfor %}</div>
+    <button class="btn" type="submit">List the Ticked Channels</button></div></form>
+{% endcall %}
 {% call sec('make', 'Make a Community', True) %}
   <form method="post" action="/admin/communities/create" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div><label for="cn">Name</label><input type="text" id="cn" name="name" maxlength="60" required></div>

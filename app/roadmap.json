@@ -1273,6 +1273,60 @@
       "summary": "PHP in Planefence is on the patched 8.4.27; the chat server, Element web app and address search (Photon 1.3.0) move to newer releases in the next release. The hub, Nginx Proxy Manager, Portainer and Proxmox update steps are listed in SECURITY_UPDATES_2026-10.md.",
       "status": "done",
       "area": "Security"
+    },
+    {
+      "title": "Join page address box: clearer when empty",
+      "summary": "The Join Page Server Address setting looks unset when empty, but the pages then use the Feed host name. Reword the help text and show the fallback address as placeholder text.",
+      "status": "done",
+      "area": "Mesh"
+    },
+    {
+      "title": "Define the Public channel in admin and add it to communities",
+      "summary": "Define the public (default-key) channel once in admin, then add it to mesh communities with one click instead of typing it in each one.",
+      "status": "done",
+      "area": "Mesh"
+    },
+    {
+      "title": "Presets for the public mesh channels",
+      "summary": "A list of the public Meshtastic and MeshCore channels in wide use, including the 500 kHz presets (LongTurbo, MediumTurbo, ShortTurbo), to list on all or chosen mesh communities from Admin > Mesh Communities, or one at a time from a community's Channels page.",
+      "status": "done",
+      "area": "Mesh"
+    },
+    {
+      "title": "Mesh weather on the weather map",
+      "summary": "Mesh nodes with weather sensors are a source on the weather map (Show > Weather Sources > Mesh Nodes), drawn like the other stations and included in the heat map and wind streams.",
+      "status": "done",
+      "area": "Mesh"
+    },
+    {
+      "title": "Friendly names in Heard By",
+      "summary": "Gateways in a node's Heard By table show the node's name, like the rest of the site.",
+      "status": "done",
+      "area": "Mesh"
+    },
+    {
+      "title": "User name goes to My Account",
+      "summary": "Clicking the user name in the top bar opens My Account.",
+      "status": "done",
+      "area": "Navigation"
+    },
+    {
+      "title": "Notifications in the account group",
+      "summary": "My Account lists Notifications with the account pages, not under Community.",
+      "status": "done",
+      "area": "Navigation"
+    },
+    {
+      "title": "Address and ZIP search in My Places",
+      "summary": "Find a place by address or ZIP when location sharing is not available.",
+      "status": "done",
+      "area": "Account"
+    },
+    {
+      "title": "APRS stations wrongly shown as ambulances",
+      "summary": "A station's kind now follows its symbol table as well as its symbol letter, so ARES, RACES and WinLink stations are no longer drawn as ambulances, fire trucks, police or repeaters.",
+      "status": "done",
+      "area": "APRS"
     }
   ]
 }

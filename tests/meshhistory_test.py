@@ -104,11 +104,20 @@ check("a bad node id is refused", anon.get(B + "/api/mesh/zzzz/history.json").st
 w = anon.get(B + "/mesh/weather")
 check("Mesh Weather lists the node with its newest values and the menu has it", w.status_code == 200 and "Hist Test Node" in w.text and "No Sensor Node" not in w.text and 'href="/mesh/weather"' in anon.get(B + "/mesh/").text)
 check("Mesh Weather follows the units", "°F" in anon.get(B + "/mesh/weather?units=imperial").text and "°C" in anon.get(B + "/mesh/weather?units=metric").text)
+mw = [x for x in anon.get(B + "/api/weather.json?sources=mesh").json()["stations"] if x["id"] == "!" + slug]
+check("the Weather Map has the node as a mesh source with its place, name and link", len(mw) == 1 and mw[0]["src"] == "mesh" and mw[0]["name"] == "Hist Test Node" and abs(mw[0]["lat"] - 34.8) < 0.01 and mw[0]["href"] == "/mesh/" + slug, mw)
+check("a node with no sensors is not on the Weather Map", not any(x["id"] == "!%08x" % M for x in anon.get(B + "/api/weather.json?sources=mesh").json()["stations"]))
+check("the mesh source is not in the default members list, and a view that does not hold the node leaves it out", not any(x["id"] == "!" + slug for x in anon.get(B + "/api/weather.json").json()["stations"]) and not any(x["id"] == "!" + slug for x in anon.get(B + "/api/weather.json?sources=mesh&bbox=30,-100,31,-99").json()["stations"]))
+check("the Weather Map has the Mesh Nodes switch", 'data-src="mesh"' in anon.get(B + "/weather/map").text)
 
+send(envelope(M, 3, sfx(1, int(34.9 * 1e7)) + sfx(2, int(-92.4 * 1e7)) + vi(3, 100) + vi(23, 16), gateway="!" + slug))
+check("Heard By names the gateway with its friendly name, linked to its page", re.search(rf'<a href="/mesh/{slug}"[^>]*>Hist Test Node</a>', anon.get(B + "/mesh/%08x" % M).text) is not None)
 # a node taken down is not charted or listed
 adm = sess("marty", PW)
 act(adm, "/admin/mesh/hide", "/admin/mesh", node="!" + slug, reason="history test")
+check("a node taken down is not named in Heard By", "Hist Test Node" not in anon.get(B + "/mesh/%08x" % M).text)
 check("a hidden node has no history and is not on Mesh Weather", requests.get(P + f"/nodes/!{slug}/history", timeout=10).status_code == 404 and "Hist Test Node" not in anon.get(B + "/mesh/weather").text and anon.get(B + f"/api/mesh/{slug}/history.json").status_code == 404)
+check("a hidden node is not on the Weather Map either", not any(x["id"] == "!" + slug for x in anon.get(B + "/api/weather.json?sources=mesh").json()["stations"]))
 act(adm, "/admin/mesh/unhide", "/admin/mesh", node="!" + slug)
 st = adm.get(B + "/admin/settings/radio").text
 check("the retention choices are settings", "Keep Node Readings For" in st and "Keep One Reading per Node Every" in st)

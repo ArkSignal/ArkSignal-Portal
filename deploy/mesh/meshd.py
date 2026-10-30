@@ -1553,11 +1553,13 @@ class H(BaseHTTPRequestHandler):
                         return self.send({"error": "not found"}, 404)
                     hb = c.execute("SELECT gateway, snr, rssi, best_snr, ts, count FROM heard WHERE node_id=%s ORDER BY ts DESC LIMIT 30", (nid,)).fetchall()
                     gw_of = c.execute("SELECT count(*) AS n FROM heard WHERE lower(gateway) = %s", ("!%08x" % nid,)).fetchone()["n"]
+                    gw_ids = {g: parse_id(g) for g in {h["gateway"] for h in hb}}   # the gateways' friendly names (a node taken down is not named)
+                    gw_names = {r2["node_id"]: r2["long_name"] or r2["short_name"] or "" for r2 in c.execute("SELECT n.node_id, n.long_name, n.short_name FROM nodes n WHERE n.node_id = ANY(%s) AND NOT EXISTS (SELECT 1 FROM hidden x WHERE x.node_key = '!' || lpad(to_hex(n.node_id), 8, '0'))", ([i for i in gw_ids.values() if i is not None],)).fetchall()}
                     nb = c.execute("SELECT l.a, l.b, l.snr, l.last_seen, o.long_name, o.short_name FROM links l JOIN nodes o ON o.node_id = CASE WHEN l.a = %s THEN l.b ELSE l.a END WHERE l.a = %s OR l.b = %s ORDER BY l.last_seen DESC LIMIT 100", (nid, nid, nid)).fetchall()
                     nb += [dict(r2, long_name="", short_name="") for r2 in c.execute("SELECT l.a, l.b, l.snr, l.last_seen FROM links l WHERE l.a = %s AND NOT EXISTS (SELECT 1 FROM nodes o WHERE o.node_id = l.b)", (nid,)).fetchall()]
                 neighbors = [{"id": "!%08x" % (x["b"] if x["a"] == nid else x["a"]), "slug": "%08x" % (x["b"] if x["a"] == nid else x["a"]), "name": x["long_name"] or x["short_name"] or "", "snr": x["snr"],
                               "direction": "hears" if x["a"] == nid else "heard_by", "last_seen": iso(x["last_seen"])} for x in nb]
-                return self.send({"node": node_row(r), "heard_by": [dict({k: iso(v) for k, v in h.items()}, slug=h["gateway"].lstrip("!")) for h in hb], "gateway_for": gw_of, "neighbors": neighbors})
+                return self.send({"node": node_row(r), "heard_by": [dict({k: iso(v) for k, v in h.items()}, slug=h["gateway"].lstrip("!"), name=gw_names.get(gw_ids.get(h["gateway"]), "")) for h in hb], "gateway_for": gw_of, "neighbors": neighbors})
             if p == "/links":
                 days_h = min(int(q.get("hours") or 336), 24 * 365)
                 with db() as c:

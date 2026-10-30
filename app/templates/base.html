@@ -449,7 +449,7 @@ html.kiosk main{padding-top:0!important}</style>
     {% if current_user.has_admin_access %}<a href="/admin/">Admin</a>{% endif %}
     <a href="/my/alerts" id="nav-alerts" style="{{ '' if alerts_unseen else 'display:none' }}" class="alertbadge">Alerts <b id="nav-alerts-n">{{ alerts_unseen }}</b></a>
     {% set me_n = (chat_unread or 0) + (pm_unread or 0) + (friend_requests or 0) %}
-    <details class="navmenu" id="me-menu"><summary>{{ current_user.label }} <span class="msgbadge" id="nb-me" style="{{ '' if me_n else 'display:none' }}" title="New chats, messages or friend requests">{{ me_n }}</span></summary>
+    <details class="navmenu" id="me-menu"><summary><a class="gl" href="/my/account">{{ current_user.label }}</a> <span class="msgbadge" id="nb-me" style="{{ '' if me_n else 'display:none' }}" title="New chats, messages or friend requests">{{ me_n }}</span></summary>
       <div class="navdrop" style="left:auto;right:0">
         <a href="/my/account">My Account</a>
         {% if chat_on %}<a href="/chat/">Chat <span class="msgbadge" id="nb-chat" style="{{ '' if chat_unread else 'display:none' }}">{{ chat_unread }}</span></a>{% endif %}
@@ -585,7 +585,7 @@ html.kiosk main{padding-top:0!important}</style>
 })();
 // In the phone drawer a tap anywhere on a group's row opens it (the group name is also a link, which used to take the tap and leave the page instead).
 document.addEventListener("click", function (e) {
-  var a = e.target.closest && e.target.closest("nav.open details.navmenu>summary a.gl");
+  var a = e.target.closest && e.target.closest("nav.open details.navmenu:not(#me-menu)>summary a.gl");
   if (a) { e.preventDefault(); var d = a.closest("details"); d.open = !d.open; }
 });
 // The bars run edge to edge: measure the window without its scroll bar so they line up exactly.

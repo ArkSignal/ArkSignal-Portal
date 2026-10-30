@@ -3,8 +3,10 @@
   ('Account', [
     ('account', 'Overview', '/my/account', 1),
     ('profile', 'Profile', '/my/profile', 1),
-    ('display', 'Display and Maps', '/my/display', 1),
-    ('alerts', 'Aircraft Alerts', '/my/alerts', 1)]),
+    ('display', 'Display and Maps', '/my/display', 1)]),
+  ('Alerts and Notifications', [
+    ('alerts', 'Aircraft Alerts', '/my/alerts', 1),
+    ('notifications', 'Notifications', '/my/notifications', push_on_site)]),
   ('Security', [
     ('password', 'Password', '/my/password', 1),
     ('twofactor', 'Two-Factor', '/my/two-factor', 1),
@@ -32,7 +34,6 @@
     ('flightshares', 'Shared Flights', '/my/flights/shares', myflights_on and myflights_share_on),
     ('flightimport', 'Import and Export', '/my/flights/import', myflights_on)]),
   ('Community Settings', [
-    ('notifications', 'Notifications', '/my/notifications', push_on_site),
     ('community', 'Chat, Messages and Friends', '/my/community', chat_on or pm_on or friends_on or matrix_on),
     ('bridges', 'Radio', '/my/bridges', bridges_on)])] %}
 {% set here = namespace(label='Account') %}

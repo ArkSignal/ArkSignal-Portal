@@ -64,6 +64,7 @@ def init_db():
                 c.execute("""CREATE TABLE IF NOT EXISTS weather (call TEXT PRIMARY KEY, ts TIMESTAMPTZ NOT NULL, lat DOUBLE PRECISION, lon DOUBLE PRECISION, temp_c DOUBLE PRECISION, wind_dir INT, wind_ms DOUBLE PRECISION,
                     gust_ms DOUBLE PRECISION, humidity INT, pressure_hpa DOUBLE PRECISION, rain_1h_mm DOUBLE PRECISION, rain_24h_mm DOUBLE PRECISION, rain_mid_mm DOUBLE PRECISION, luminosity INT)""")
                 c.execute("CREATE TABLE IF NOT EXISTS hidden (call TEXT PRIMARY KEY, reason TEXT NOT NULL DEFAULT '', added TIMESTAMPTZ NOT NULL DEFAULT now())")
+                c.execute("UPDATE stations SET kind = 'fixed' WHERE kind IN ('ambulance', 'fire', 'police', 'repeater') AND symbol_table <> '/'")   # stations kept before the table was taken into account
             return
         except Exception as e:
             print("waiting for the database:", str(e)[:100], flush=True)
@@ -108,10 +109,15 @@ SYMBOL_KIND = {"_": "weather", "#": "digipeater", "&": "gateway", "I": "igate", 
                "b": "mobile", "[": "mobile", "O": "balloon", "^": "aircraft", "X": "mobile", "j": "mobile", "v": "mobile", "Y": "mobile", "s": "mobile", "p": "mobile"}
 
 
+# These letters mean a vehicle or a repeater only in the primary table ("/"); in the alternate table ("\\" or an overlay letter or digit) "a" is ARES/RACES/WinLink, "!" an emergency,
+# "f" and "r" something else again, so a station using them there is an ordinary station.
+PRIMARY_ONLY = {"a", "f", "!", "r"}
+
+
 def kind_of(sym, table, speed, weather):
     if weather and sym == "_":
         return "weather"
-    k = SYMBOL_KIND.get(sym or "", "fixed")
+    k = "fixed" if sym in PRIMARY_ONLY and table != "/" else SYMBOL_KIND.get(sym or "", "fixed")
     if k == "fixed" and speed and speed > 3:
         return "mobile"
     return k

@@ -4,7 +4,7 @@ import ipaddress
 import re
 from urllib.parse import urlparse
 
-from . import privacy
+from . import mesh_presets, privacy
 
 ICON_CHOICES = [("0.8", "Small"), ("1", "Medium"), ("1.3", "Normal (same size as the classic map)"), ("1.7", "Large"), ("2.2", "Extra large")]
 PERIOD_CHOICES = [("24h", "24 hours"), ("7d", "7 days"), ("30d", "30 days")]
@@ -492,7 +492,8 @@ SPECS = [
     ("Mesh Nodes", "mesh_owner_alert_combine_minutes", "Owner Alerts: Combine Messages Within (Minutes)", "int", "Alerts for one person that arrive within this time go in one email or webhook message.", {"lo": 0, "hi": 1440}),
     ("Mesh Nodes", "mesh_owner_alert_per_day", "Owner Alerts: Most Messages per Person per Day", "int", "The most owner-alert emails (and the same number of webhook messages) one person gets in 24 hours; the rest wait in their list.", {"lo": 1, "hi": 200}),
     ("Mesh Nodes", "mesh_owner_alert_keep_days", "Owner Alerts: Keep the List for (Days)", "int", "How long the alert list on My Mesh Nodes is kept.", {"lo": 1, "hi": 365}),
-    ("Mesh Nodes", "mesh_public_channels", "Public Channels (Default Key)", "text", "The channel names that use the default key, separated by commas. Packets on these are held to the public rules.", {"max": 300}),
+    ("Mesh Nodes", "mesh_public_current", "Current Public Channel", "select", "The public channel the site recommends today, marked on Admin > Mesh Communities and chosen first in each community's List a Public Channel box. Change it when the Meshtastic default changes (for example from LongFast to LongTurbo).", {"choices": mesh_presets.choices()}),
+    ("Mesh Nodes", "mesh_public_channels", "Public Channels (Default Key)", "text", "The channel names that use the default key, separated by commas. Packets on these are held to the public rules. Listing a public channel on Admin > Mesh Communities adds its name here.", {"max": 300}),
     ("Mesh Nodes", "mesh_public_portnums", "Port Numbers Kept on Public Channels", "text", "The port numbers the public server prioritizes (text 1, position 3, node info 4, routing 5, compressed text 7, telemetry 67, map report 73) plus Neighbor Info (71), which the site reads on purpose. Text is never stored by this site.", {"max": 120}),
     ("Mesh Nodes", "mesh_public_max_bits", "Most Exact Position on Public Channels (Bits)", "int", "The public server shares only positions of 10 to 16 bits. A position that comes in without a precision, or with more bits than this, is cut to this many bits (16 is about 700 meters).", {"lo": 10, "hi": 16}),
     ("Mesh Nodes", "mesh_plan_radius_km", "Router Planning: Reach of a New Router (km)", "int", "How far a new router is assumed to help the nodes around it on Mesh Coverage Planning. A rule of thumb, not a prediction: terrain and antenna height decide the real reach.", {"lo": 2, "hi": 100}),
@@ -549,7 +550,7 @@ SPECS = [
     ("Mesh Nodes", "mesh_north", "Area Kept: North Edge (Degrees)", "float", "The north edge of the area nodes are kept in.", {"lo": -90, "hi": 90}),
     ("Mesh Nodes", "mesh_east", "Area Kept: East Edge (Degrees)", "float", "The east edge of the area nodes are kept in.", {"lo": -180, "hi": 180}),
     ("Mesh Nodes", "mesh_keep_days", "Forget a Node Not Heard For (Days)", "int", "A node not heard for this long is removed; it comes back by itself when it is heard again.", {"lo": 1, "hi": 730}),
-    ("Mesh Nodes", "mesh_join_host", "Join Page: Server Address Nodes Use", "text", "The address nodes connect to, shown on My Mesh Nodes and the How to Feed page, once the public listener of our broker is open (the certificate and the router forward are the administrator's step). Empty shows that the broker is not open yet.", {"max": 200, "optional": True}),
+    ("Mesh Nodes", "mesh_join_host", "Join Page: Server Address Nodes Use", "text", "The address nodes connect to, shown on My Mesh Nodes and the How to Feed page. Leave it empty to use the Feed host name (shown in grey in the box); fill it in only when nodes should connect to a different address. The pages say the broker is open once its certificate is found (the certificate and the router forward are the administrator's step).", {"max": 200, "optional": True, "fallback": "feed_host"}),
     ("Mesh Nodes", "mesh_join_port", "Join Page: Port", "text", "Usually 8883 (TLS).", {}),
     ("Mesh Nodes", "mesh_max_per_user", "Mesh Logins Per Member", "int", "How many broker logins one member can make on My Mesh Nodes (administrators can add more for them). Each login is its own username and password.", {"lo": 1, "hi": 50}),
     ("Mesh Nodes", "mesh_max_claims", "Node Claims Per Member", "int", "How many nodes one member can claim (administrators can claim more for them).", {"lo": 1, "hi": 100}),

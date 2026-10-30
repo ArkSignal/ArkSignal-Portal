@@ -1,5 +1,26 @@
 [
   {
+    "version": "1.8.9",
+    "released": "2026-10-29T12:00:00",
+    "title": "Public channel presets, mesh weather on the weather map, My Places address search, and account menu and APRS fixes",
+    "added": [
+      "Public channel presets for mesh communities: the open Meshtastic channels in wide use (LongFast, MediumFast and the rest, plus the 500 kHz LongTurbo, MediumTurbo and ShortTurbo that the FCC's 902 to 928 MHz rule points to), listed on all or chosen communities from Admin > Mesh Communities, or one at a time by a community manager. Ham-band and MeshCore rows are shown for their radio settings.",
+      "A Current Public Channel setting (Settings > Mesh Nodes): the channel the site recommends is marked on Admin > Mesh Communities, can be listed on every community with one click, and is chosen first in each community's List a Public Channel box.",
+      "Mesh weather on the Weather Map: a new Mesh Nodes choice under Weather Sources draws the mesh nodes that report weather sensors, with their readings, like the other stations. They are included in the heat map and wind streams, and a node taken down on request is left out.",
+      "My Places (on the Notifications page) can find an address, city or ZIP code and fill in the name and coordinates, so there is no need to use your location or type them."
+    ],
+    "improved": [
+      "The Join Page server address setting now says that an empty box uses the Feed host name, and shows that name in grey in the box.",
+      "The user name in the top bar now takes you straight to My Account.",
+      "Notifications moved out of Community Settings into a new Alerts and Notifications group in the My Account menu, with Aircraft Alerts."
+    ],
+    "fixed": [
+      "A mesh node's Heard By table now shows each gateway's friendly name instead of its raw id.",
+      "APRS stations that were wrongly shown as ambulances, fire trucks, police or repeaters (an ARES, RACES or WinLink symbol uses the same letter in another symbol table) are shown as ordinary stations."
+    ],
+    "security": []
+  },
+  {
     "version": "1.8.8",
     "released": "2026-10-28T12:00:00",
     "title": "Security update check: newer chat server, Element web app and address search",

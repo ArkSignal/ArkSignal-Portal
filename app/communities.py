@@ -17,6 +17,7 @@ from flask_login import current_user, login_required
 
 from . import mesh as ms
 from . import mesh_channels as mc
+from . import mesh_presets as presets
 from . import social, vault
 from .action_response import action_response
 from .admin import permission_required
@@ -320,7 +321,7 @@ def _render(slug, sec):
         ctx["invites"] = d.execute("SELECT * FROM community_invites WHERE community_id=%s AND state='pending' AND expires_at > now() ORDER BY created_at DESC", (c["id"],)).fetchall()
     ctx["channels"] = channels_for(c, rank) if sec == "channels" else []
     if sec == "channels":
-        ctx.update(precisions=mc.PRECISIONS, precision_km=mc.PRECISION_KM, max_channels=cfg_int("mesh_community_max_channels"), channel_total=d.execute("SELECT COUNT(*) AS n FROM community_channels WHERE community_id=%s", (c["id"],)).fetchone()["n"])
+        ctx.update(addable_presets=presets.addable(), preset_label=presets.label, current_preset=presets.current(cfg("mesh_public_current")), precisions=mc.PRECISIONS, precision_km=mc.PRECISION_KM, max_channels=cfg_int("mesh_community_max_channels"), channel_total=d.execute("SELECT COUNT(*) AS n FROM community_channels WHERE community_id=%s", (c["id"],)).fetchone()["n"])
     if can(rank, "choose_nodes"):
         ctx["picks"] = d.execute("SELECT * FROM community_nodes WHERE community_id=%s ORDER BY mode, node_key", (c["id"],)).fetchall()
     if can(rank, "manage_logins"):
@@ -462,6 +463,45 @@ def channel_add(slug):
     d.commit()
     audit("community.channel", target=slug, detail=f"made {name} ({opts['visibility']}, {key_kind} key)")
     return _back(slug, True, f"Channel {name} is listed.", "channels")
+
+
+def _list_preset(c, pr, user_id):
+    """List one default-key preset channel on a community: public, position no more exact than the public limit, no uplink or downlink. Returns (listed, reason)."""
+    d = get_db()
+    if d.execute("SELECT 1 FROM community_channels WHERE community_id=%s AND lower(name)=lower(%s)", (c["id"], pr["name"])).fetchone():
+        return False, "already listed"
+    if d.execute("SELECT COUNT(*) AS n FROM community_channels WHERE community_id=%s", (c["id"],)).fetchone()["n"] >= cfg_int("mesh_community_max_channels"):
+        return False, "full"
+    bits = cfg_int("mesh_public_max_bits")
+    bits = bits if bits in mc.PRECISIONS else 16
+    d.execute("INSERT INTO community_channels (community_id, name, visibility, min_role, key_kind, psk_sealed, uplink, downlink, precision, note, created_by) VALUES (%s,%s,'public','viewer','default','',false,false,%s,%s,%s)",
+              (c["id"], pr["name"], bits, f"{pr['system']} preset, {presets.radio(pr)}", user_id))
+    d.commit()
+    return True, ""
+
+
+def _note_public_name(name):
+    """The public rules apply to the names in the Public Channels setting, so a preset that is listed is added to it."""
+    from .settings import set_setting
+    have = [x.strip() for x in (cfg("mesh_public_channels") or "").split(",") if x.strip()]
+    if name.lower() not in [x.lower() for x in have]:
+        have.append(name)
+        set_setting("mesh_public_channels", ",".join(have)[:300])
+
+
+@bp.route("/mesh/c/<slug>/channels/add-preset", methods=["POST"])
+@login_required
+def channel_add_preset(slug):
+    c, _r = _ctx(slug, "manage_channels")
+    pr = presets.by_id(request.form.get("preset", ""))
+    if not pr or not pr["addable"]:
+        return _back(slug, False, "Choose one of the public channels in the list.", "channels")
+    ok, why = _list_preset(c, pr, current_user.id)
+    if not ok:
+        return _back(slug, False, "The community lists this channel already." if why == "already listed" else f"A community can list {cfg_int('mesh_community_max_channels')} channels. Remove one first.", "channels")
+    _note_public_name(pr["name"])
+    audit("community.channel", target=slug, detail=f"listed the public preset {pr['name']}")
+    return _back(slug, True, f"Channel {pr['name']} is listed.", "channels")
 
 
 @bp.route("/mesh/c/<slug>/channels/<int:cid>/save", methods=["POST"])
@@ -948,7 +988,7 @@ def admin():
     rows = d.execute("SELECT c.*, (SELECT COUNT(*) FROM community_members m WHERE m.community_id = c.id) AS team, (SELECT u.username FROM community_members m JOIN users u ON u.id = m.user_id WHERE m.community_id = c.id AND m.role = 'owner' LIMIT 1) AS owner "
                      "FROM communities c ORDER BY lower(c.name)").fetchall()
     from . import meshlinks
-    return render_template("admin_communities.html", active="communities", rows=rows, seeds=SEEDS, pending=meshlinks.pending_for_admin())
+    return render_template("admin_communities.html", active="communities", rows=rows, seeds=SEEDS, pending=meshlinks.pending_for_admin(), presets=presets.PRESETS, status_names=presets.STATUS, radio=presets.radio, current_preset=presets.current(cfg("mesh_public_current")))
 
 
 SEEDS = [("LR Mesh", "lr-mesh", "https://lrme.sh/", "Central Arkansas Meshtastic."), ("NWA Mesh", "nwa-mesh", "https://nwame.sh/", "Northwest Arkansas Meshtastic."),
@@ -957,6 +997,44 @@ SEEDS = [("LR Mesh", "lr-mesh", "https://lrme.sh/", "Central Arkansas Meshtastic
 
 def _slugify(name):
     return re.sub(r"-+", "-", re.sub(r"[^a-z0-9]+", "-", (name or "").lower())).strip("-")[:40]
+
+
+@bp.route("/admin/communities/presets/add", methods=["POST"])
+@permission_required("manage_map_data")
+def admin_presets_add():
+    prs = [p for p in (presets.by_id(x) for x in request.form.getlist("preset")) if p and p["addable"]]
+    if not prs:
+        return action_response(False, "Tick at least one public channel in the list.", redirect_endpoint="communities.admin")
+    d = get_db()
+    if request.form.get("which") == "all":
+        cs = d.execute("SELECT * FROM communities ORDER BY lower(name)").fetchall()
+    else:
+        cs = [x for x in (get(s) for s in request.form.getlist("community")) if x]
+    if not cs:
+        return action_response(False, "Choose All Communities or tick at least one community.", redirect_endpoint="communities.admin")
+    made = skipped = 0
+    for c in cs:
+        for pr in prs:
+            ok, _why = _list_preset(c, pr, current_user.id)
+            made += 1 if ok else 0
+            skipped += 0 if ok else 1
+    for pr in prs:
+        _note_public_name(pr["name"])
+    audit("community.channel", detail=f"listed {', '.join(p['name'] for p in prs)} on {len(cs)} communities ({made} made, {skipped} already there or full)")
+    return action_response(True, f"{made} channel{'s' if made != 1 else ''} listed on {len(cs)} communit{'ies' if len(cs) != 1 else 'y'}." + (f" {skipped} skipped (already listed, or the community is full)." if skipped else ""), redirect_endpoint="communities.admin")
+
+
+@bp.route("/admin/communities/presets/current", methods=["POST"])
+@permission_required("manage_map_data")
+def admin_presets_current():
+    """List the current public channel on every community that does not have it yet."""
+    pr = presets.by_id(presets.current(cfg("mesh_public_current")))
+    d = get_db()
+    cs = d.execute("SELECT * FROM communities ORDER BY lower(name)").fetchall()
+    made = sum(1 for c in cs if _list_preset(c, pr, current_user.id)[0])
+    _note_public_name(pr["name"])
+    audit("community.channel", detail=f"listed the current public channel {pr['name']} on {len(cs)} communities ({made} made)")
+    return action_response(True, f"{pr['name']} is listed on {made} communit{'ies' if made != 1 else 'y'}." + (f" {len(cs) - made} had it already or were full." if len(cs) != made else ""), redirect_endpoint="communities.admin")
 
 
 @bp.route("/admin/communities/create", methods=["POST"])

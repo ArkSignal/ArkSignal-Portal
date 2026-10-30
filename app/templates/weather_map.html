@@ -13,7 +13,8 @@
       <div class="lv-row" id="wm-src" style="flex-direction:column;align-items:flex-start">
         <label><input type="checkbox" data-src="members" checked> Members' stations</label>
         <label title="CWOP and amateur weather stations heard on the APRS network"><input type="checkbox" data-src="aprs"> APRS stations</label>
-        <label title="Airport weather reports (METAR). The airports APRS also carries are drawn once, from here"><input type="checkbox" data-src="airport"> Airport weather</label></div>
+        <label title="Airport weather reports (METAR). The airports APRS also carries are drawn once, from here"><input type="checkbox" data-src="airport"> Airport weather</label>
+        <label title="Mesh nodes (Meshtastic) that report weather sensors; the same readings as the Mesh Weather page"><input type="checkbox" data-src="mesh"> Mesh nodes</label></div>
       <div class="lv-sub">Weather Across the Map</div>
       <div class="lv-row" style="flex-direction:column;align-items:flex-start" id="wm-surf">
         <label title="Colors blended across the map from every station shown"><input type="checkbox" id="wm-heat"> Heat map</label>
@@ -47,9 +48,9 @@
   function heatKey() { return surf && (surf.mode() === "heat" || surf.mode() === "both") && heatMetric && heatMetric !== wx.state.metric ? heatMetric : ""; }   // the heat map's own reading, when it differs from the labels
   // ---- the stations (the shared component, so a marker looks the same here, on the live map and on the Weather page)
   var sortKey = "val", sortDir = -1, cardId = null;
-  var SRC = {members: true, aprs: false, airport: false};   // which weather sources are drawn (remembered in this browser; ?sources=members,aprs,airport in a link)
+  var SRC = {members: true, aprs: false, airport: false, mesh: false};   // which weather sources are drawn (remembered in this browser; ?sources=members,aprs,airport,mesh in a link)
   try { var sv = JSON.parse(ArkShell.pref("wm.sources") || "null"); if (sv) SRC = sv; } catch (e) {}
-  if (q.get("sources")) { SRC = {members: false, aprs: false, airport: false}; q.get("sources").split(",").forEach(function (k) { if (k in SRC) SRC[k] = true; }); }
+  if (q.get("sources")) { SRC = {members: false, aprs: false, airport: false, mesh: false}; q.get("sources").split(",").forEach(function (k) { if (k in SRC) SRC[k] = true; }); }
   function srcList() { var l = Object.keys(SRC).filter(function (k) { return SRC[k]; }); return (l.length ? l : ["members"]).join(","); }
   document.querySelectorAll("#wm-src input").forEach(function (cb) { cb.checked = !!SRC[cb.getAttribute("data-src")]; });
   var surf = null, surfMode = q.get("surface") || ArkShell.pref("wm.surface") || "off";
@@ -119,7 +120,7 @@
     function k(label, key, kind) { return r[key] != null ? "<div>" + label + "</div><div>" + C(kind, r[key], u).join(" ") + "</div>" : ""; }
     var cond = pt.cond ? '<div style="display:flex;gap:10px;align-items:center;margin-top:8px">' + ArkWx.icon(pt.cond[0], "cond-" + pt.cond[0]).replace('<svg ', '<svg style="width:40px;height:40px" ') + "<div><b>" + ArkWx.esc(pt.cond[1]) + "</b></div></div>" : "";
     var openNow = Array.prototype.map.call($("c-body").querySelectorAll("details.csec"), function (d) { return d.open; });   // keep the sections as the visitor left them when the card is refreshed
-    $("c-name").textContent = pt.id; if (window.ArkCall) ArkCall.tag($("c-name"), pt.src === "aprs" ? pt.id : "");   // an APRS station's id is its call sign
+    $("c-name").textContent = pt.src === "mesh" ? pt.name : pt.id; if (window.ArkCall) ArkCall.tag($("c-name"), pt.src === "aprs" ? pt.id : "");   // an APRS station's id is its call sign
     $("c-sub").textContent = (pt.name !== pt.id ? pt.name + " · " : "") + (pt.owner ? pt.owner + " · " : "") + (pt.approx ? "approximate position · " : "") + (pt.online ? "reporting" : "not reporting");
     $("c-page").href = pt.href;
     $("c-body").innerHTML = cond +
@@ -131,7 +132,7 @@
     card.style.display = "block"; $("lv").classList.add("has-card");
     $("c-follow").onclick = function () { wx.open(id); };
     $("c-close").onclick = function () { cardId = null; wx.select(null); card.style.display = "none"; $("lv").classList.remove("has-card"); renderList(); };
-    if (pt.src && pt.src !== "members") { $("wm-sp").innerHTML = '<span class="dim">' + (pt.src === "aprs" ? "APRS stations send the latest reading only; no history is kept here." : "Airport weather is the latest report; no history is kept here.") + "</span>"; return; }
+    if (pt.src && pt.src !== "members") { $("wm-sp").innerHTML = '<span class="dim">' + (pt.src === "aprs" ? "APRS stations send the latest reading only; no history is kept here." : pt.src === "mesh" ? "Mesh nodes send the latest reading; the node page has its history." : "Airport weather is the latest report; no history is kept here.") + "</span>"; return; }
     try {
       var d = await (await fetch("/api/weather/" + encodeURIComponent(id) + "/series.json?period=24h")).json();
       if (cardId !== id) return;

@@ -1,5 +1,5 @@
 """Weather from every source in one format, for the Weather Map and the statistics: the members' own stations (app/weather.py), the APRS weather stations (CWOP and amateur stations heard on APRS-IS) and airport weather
-(METAR from the Aviation Weather Center). Each station comes out as the same kind of point the members' stations are (readings in the stored imperial units under `r`), tagged `src` = members, aprs or airport.
+(METAR from the Aviation Weather Center) and the mesh nodes that report weather sensors (Meshtastic environment telemetry, the same readings as the Mesh Weather page). Each station comes out as the same kind of point the members' stations are (readings in the stored imperial units under `r`), tagged `src` = members, aprs, airport or mesh.
 
 APRS carries the airports' own observations too (call signs such as KXNA are the airport's METAR relayed through CWOP/MADIS), so the same weather would be drawn twice. An APRS station whose call sign is an airport's
 code is an airport station: it is left out of the APRS source while the airport source is on, and any APRS view can hide airport stations with its own filter. Positions of APRS and airport stations are public data."""
@@ -12,7 +12,7 @@ from .cache import cached
 from .db import get_db
 from .settings import cfg, cfg_int, map_area
 
-SOURCES = (("members", "Members' stations"), ("aprs", "APRS stations"), ("airport", "Airport weather"))
+SOURCES = (("members", "Members' stations"), ("aprs", "APRS stations"), ("airport", "Airport weather"), ("mesh", "Mesh nodes"))
 _codes = {"at": 0.0, "set": set(), "names": {}}
 _lock = threading.Lock()
 
@@ -91,6 +91,27 @@ def aprs_points(units="imperial", include_airports=False, bbox=None):
         if w.get("rain_24h_mm") is not None:
             r["rain_day_in"] = round(w["rain_24h_mm"] * 0.03937, 2)   # APRS reports the last 24 hours, the closest thing to "today"
         out.append(_point(units, w["call"], w["call"], w["lat"], w["lon"], r, w.get("wind_dir"), "aprs", "/aprs/" + w["call"].replace("/", "~"), _age(w.get("ts")), "APRS", w.get("ts")))
+    return out
+
+
+def mesh_points(units="imperial", bbox=None):
+    """The mesh nodes with weather sensors and a position, as map points (the readings of the last day; a node whose last reading is older than the stale limit is drawn as not reporting)."""
+    if cfg("mesh_enabled") != "1":
+        return []
+    from . import mesh as ms
+    rows = ms.weather(24)
+    out = []
+    for n in rows:
+        if n.get("lat") is None or n.get("lon") is None:
+            continue
+        if bbox and not (bbox[0] <= n["lat"] <= bbox[2] and bbox[1] <= n["lon"] <= bbox[3]):
+            continue
+        r = _imperial(n.get("temp_c"), n.get("wind_ms"), n.get("gust_ms"), n.get("pressure_hpa"), None, n.get("humidity"))
+        if n.get("rain_1h_mm") is not None:
+            r["rain_rate_in"] = round(n["rain_1h_mm"] * 0.03937, 2)   # millimeters in the last hour, the rate the other stations show
+        if not r:
+            continue
+        out.append(_point(units, n["id"], n.get("name") or n["id"], n["lat"], n["lon"], r, n.get("wind_dir"), "mesh", "/mesh/" + n["slug"], _age(n.get("ts")), "Mesh", n.get("ts")))
     return out
 
 
@@ -201,6 +222,8 @@ def points(sources, units="imperial", bbox=None, info=None):
             out.append(p)
     if "airport" in sources:
         out += airport_points(units, bbox, info)
+    if "mesh" in sources:
+        out += mesh_points(units, bbox)
     if "aprs" in sources:
         out += aprs_points(units, include_airports="airport" not in sources, bbox=bbox)   # with the airport source off, the airports APRS carries are shown as APRS stations rather than lost
     return out

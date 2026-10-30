@@ -88,6 +88,12 @@
   </div>
   {% else %}<p class="dim" style="margin:0">{{ 'No channel is listed yet.' if channel_total == 0 else "None of this community's channels is open to you." }}</p>{% endfor %}
 {% endcall %}
+{% if can('manage_channels') %}{% call sec('addpreset', 'List a Public Channel', False) %}
+  <form method="post" action="/mesh/c/{{ c.slug }}/channels/add-preset">{{ csrf() }}
+    <p style="margin-top:0">The open channels people use on Meshtastic, with the default key every radio already has. Pick one and it is listed for everyone, with the same QR code and address as any other channel. Radios only hear each other on the same modem preset, so list the one your mesh uses.</p>
+    <div class="cm-row"><div><label for="pp">Public channel</label><select id="pp" name="preset">{% for p in addable_presets %}<option value="{{ p.id }}" {{ 'selected' if p.id == current_preset }}>{{ preset_label(p) }}{{ ' (current)' if p.id == current_preset }}</option>{% endfor %}</select></div></div>
+    <p><button class="btn small" type="submit">List the Public Channel</button></p></form>
+{% endcall %}{% endif %}
 {% if can('manage_channels') %}{% call sec('addchannel', 'List a Channel', False) %}
   <form method="post" action="/mesh/c/{{ c.slug }}/channels/add">{{ csrf() }}
     <div class="cm-row"><div><label for="cn">Name (up to 11 letters, digits, - or _)</label><input type="text" id="cn" name="name" maxlength="11" required></div>
@@ -136,7 +142,7 @@
     <div><label for="el">Logo Address (https)</label><input type="text" id="el" name="logo_url" value="{{ c.logo_url }}" style="min-width:260px"></div></div>
     <label for="ea">About</label><textarea id="ea" name="about" rows="5" maxlength="4000" style="width:100%;max-width:640px">{{ c.about }}</textarea>
     <h3>How to Join</h3>
-    <div class="cm-row"><div><label for="jc">Channel</label><input type="text" id="jc" name="join_channel" value="{{ c.join_channel }}" maxlength="60"></div><div><label for="jp">Modem Preset</label><input type="text" id="jp" name="join_preset" value="{{ c.join_preset }}" maxlength="40"></div><div><label for="jr">Region</label><input type="text" id="jr" name="join_region" value="{{ c.join_region }}" maxlength="40"></div></div>
+    <div class="cm-row"><div><label for="jc">Channel</label><input type="text" id="jc" name="join_channel" value="{{ c.join_channel }}" maxlength="60"></div><div><label for="jp">Modem Preset</label><input type="text" id="jp" name="join_preset" value="{{ c.join_preset }}" maxlength="40" list="jp-list"><datalist id="jp-list"><option value="LongFast"><option value="LongTurbo"><option value="MediumFast"><option value="MediumTurbo"><option value="ShortTurbo"><option value="LongModerate"><option value="MeshCore USA (910.525 MHz, 62.5 kHz)"></datalist></div><div><label for="jr">Region</label><input type="text" id="jr" name="join_region" value="{{ c.join_region }}" maxlength="40"></div></div>
     <label for="js">Steps</label><textarea id="js" name="join_steps" rows="4" maxlength="3000" style="width:100%;max-width:640px">{{ c.join_steps }}</textarea>
     <p><button class="btn" type="submit">Save</button></p></form>
 {% endcall %}

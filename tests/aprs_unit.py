@@ -72,5 +72,12 @@ with a.db() as c:
     new = c.execute("SELECT COUNT(*) AS n FROM stations WHERE call = 'W5CAR-7'").fetchone()["n"]
 check("a new SSID of a hidden call sign is not stored", new == 0, new)
 
+# the symbol table decides what a letter means: "a" is an ambulance only in the primary table (an overlay on the alternate table is ARES, RACES or WinLink)
+k = a.kind_of
+check("an ambulance symbol in the primary table is an ambulance", k("a", "/", 0, False) == "ambulance")
+check("the same letter in the alternate table or with an overlay is an ordinary station", k("a", "L", 0, False) == "fixed" and k("a", "\\", 0, False) == "fixed" and k("a", "W", 0, False) == "fixed")
+check("fire, police and repeater are those only in the primary table", (k("f", "/", 0, False), k("!", "/", 0, False), k("r", "/", 0, False)) == ("fire", "police", "repeater") and (k("f", "\\", 0, False), k("!", "D", 0, False), k("r", "H", 0, False)) == ("fixed", "fixed", "fixed"))
+check("a digipeater is one in either table, and a moving station is mobile", k("#", "/", 0, False) == "digipeater" and k("#", "L", 0, False) == "digipeater" and k("a", "L", 20, False) == "mobile")
+
 clean()
 print("ALL PASS" if ok_all else "SOME FAILED")

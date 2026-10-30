@@ -100,7 +100,7 @@
     <input type="password" id="{{ s.key }}" name="{{ s.key }}" autocomplete="new-password" placeholder="{{ 'saved: leave blank to keep it' if v[s.key] else 'not set' }}" style="max-width:100%">
     {% if v[s.key] %}<label class="check"><input type="checkbox" name="{{ s.key }}__clear" value="1"><span>Remove the saved value</span></label>{% endif %}
     {% else %}
-    <input type="text" id="{{ s.key }}" name="{{ s.key }}" value="{{ v[s.key] }}" style="max-width:{{ '120px' if s.kind in ('int','float') else '100%' }}">
+    <input type="text" id="{{ s.key }}" name="{{ s.key }}" value="{{ v[s.key] }}"{% if s.extra.fallback %} placeholder="{{ v[s.extra.fallback] }}"{% endif %} style="max-width:{{ '120px' if s.kind in ('int','float') else '100%' }}">
     {% endif %}
     <div class="help">{{ s.help }}</div>
     {% endfor %}

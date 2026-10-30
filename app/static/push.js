@@ -1,4 +1,4 @@
-/* Notifications for this device: makes (or removes) the browser's push subscription and tells the site. Used by My Account > Community Settings and the Chat page. */
+/* Notifications for this device: makes (or removes) the browser's push subscription and tells the site. Used by My Account > Alerts and Notifications and the Chat page. */
 window.ArkPush = (function () {
   var csrf = "";
   function supported() { return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window; }

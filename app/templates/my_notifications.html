@@ -39,6 +39,12 @@
   <p class="dim" style="margin-top:0">Weather, earthquake, river and satellite notifications are about places you name here, each with a distance around it. You can keep {{ max_places }} places.</p>
   {% for p in places %}<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:6px 0;border-bottom:1px solid color-mix(in srgb, var(--line) 50%, transparent)"><b>{{ p.name }}</b><span class="dim" style="font-size:.85rem">{{ '%.4f' % p.lat }}, {{ '%.4f' % p.lon }}, {{ p.radius_km | round | int }} km around</span>
     <form class="inline" method="post" action="/my/notifications/places/{{ p.id }}/remove" data-confirm="Remove {{ p.name }}?" style="margin-left:auto"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small warn" type="submit">Remove</button></form></div>{% endfor %}
+  <div id="pl-find" style="margin-top:12px">
+    <label for="pl-q">Find an address, city or ZIP code</label>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input id="pl-q" type="text" maxlength="120" placeholder="72201, Conway AR, 1 Main St Little Rock" autocomplete="off" style="width:min(100%,360px)"><button class="btn small neutral" type="button" id="pl-go">Find</button></div>
+    <p class="dim" id="pl-note" style="font-size:.85rem;margin:6px 0 0" aria-live="polite">Pick a result and the name and coordinates below are filled in. No need to use your location or type coordinates.</p>
+    <div id="pl-res" style="display:flex;flex-direction:column;gap:4px;align-items:flex-start;margin-top:6px"></div>
+  </div>
   <form method="post" action="/my/notifications/places/add" class="cm-row" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-top:12px" id="np-add">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div><label for="pl-name">Name</label><input id="pl-name" name="name" maxlength="40" required placeholder="Home" style="width:140px"></div>
@@ -49,6 +55,29 @@
   </form>
   <script nonce="{{ csp_nonce() }}">
   (function () {
+    var q = document.getElementById("pl-q"), go = document.getElementById("pl-go"), res = document.getElementById("pl-res"), note = document.getElementById("pl-note");
+    if (q && go) {
+      function find() {
+        var t = q.value.trim(); if (t.length < 2) { note.textContent = "Type a ZIP code, a city or an address first."; return; }
+        note.textContent = "Looking..."; res.textContent = "";
+        fetch("/api/geocode.json?q=" + encodeURIComponent(t)).then(function (r) { return r.json(); }).then(function (d) {
+          var list = d.results || [];
+          if (d.error) { note.textContent = "Too many searches just now. Wait a moment and try again."; return; }
+          note.textContent = list.length ? "Pick one:" : "Nothing was found. Try a ZIP code, or a city with its state (Conway, AR).";
+          list.forEach(function (x) {
+            var bt = document.createElement("button"); bt.type = "button"; bt.className = "btn small neutral"; bt.style.textAlign = "left"; bt.textContent = x.label;
+            bt.addEventListener("click", function () {
+              document.getElementById("pl-lat").value = Number(x.lat).toFixed(4); document.getElementById("pl-lon").value = Number(x.lon).toFixed(4);
+              var nm = document.getElementById("pl-name"); if (!nm.value) nm.value = String(x.label).split(",")[0].slice(0, 40);
+              note.textContent = "Filled in: " + x.label + ". Check the name and distance, then press Add Place."; res.textContent = "";
+            });
+            res.appendChild(bt);
+          });
+        }).catch(function () { note.textContent = "The search did not answer. You can still use your location or type the coordinates."; });
+      }
+      go.addEventListener("click", find);
+      q.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); find(); } });
+    }
     var b = document.getElementById("pl-here");
     if (!b) return;
     if (!navigator.geolocation) { b.style.display = "none"; return; }

@@ -18,10 +18,10 @@ def menu(html):
     links = re.findall(r'<a class="(?:active)?" href="([^"]+)"[^>]*>([^<]+)', side)
     return side, groups, [l[1].strip() for l in links], re.findall(r'<a class="active" href="([^"]+)"', side)
 side, groups, labels, active = menu(acc.text)
-check("the menu is grouped in this order: Account, Security, My Stations, Flights, Community Settings", [g.strip() for g in groups] == ["Account", "Security", "My Stations", "Flights", "Community Settings"], groups)
+check("the menu is grouped in this order: Account, Alerts and Notifications, Security, My Stations, Flights, Community Settings", [g.strip() for g in groups] == ["Account", "Alerts and Notifications", "Security", "My Stations", "Flights", "Community Settings"], groups)
 heads = re.findall(r'<button type="button" class="my-side-head"[^>]*aria-expanded="(\w+)"', side)
-check("the group holding the current page is open and the others are closed (one open at a time by script)", heads == ["true", "false", "false", "false", "false"] and side.count(" hidden>") == 4 and "one group open at a time" in acc.text and 'class="my-side-group has-current expanded"' in acc.text, heads)
-check("Overview comes first, then Profile, then the security pages just after the My Account group, then the stations", labels[:2] == ["Overview", "Profile"] and labels.index("Password") == labels.index("Aircraft Alerts") + 1 and labels.index("Password") < labels.index("My Feeders"), labels)
+check("the group holding the current page is open and the others are closed (one open at a time by script)", heads == ["true", "false", "false", "false", "false", "false"] and side.count(" hidden>") == 5 and "one group open at a time" in acc.text and 'class="my-side-group has-current expanded"' in acc.text, heads)
+check("Overview comes first, then Profile, then the security pages just after the My Account group, then the stations", labels[:2] == ["Overview", "Profile"] and labels.index("Password") == labels.index("Notifications") + 1 and labels.index("Password") < labels.index("My Feeders"), labels)
 check("the Overview entry is marked as the current page", active == ["/my/account"], active)
 check("a feature that is off is not in the menu (no mesh, ACARS, AIS, Remote ID, repeaters entries by default)", all(x not in labels for x in ("My Mesh Nodes", "Mesh Channels", "My ACARS Stations")), labels)
 pages = [("/my/profile", "/my/profile"), ("/my/display", "/my/display"), ("/my/alerts", "/my/alerts"), ("/my/stations", "/my/stations"), ("/my/", "/my/"), ("/my/weather", "/my/weather"), ("/my/sondes", "/my/sondes"),
