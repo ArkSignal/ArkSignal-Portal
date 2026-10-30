@@ -19,7 +19,7 @@ from . import backup as bk
 AREAS = [
     ("accounts", "Accounts and Roles", "People who can sign in, their roles and permissions, two-factor recovery codes, passkeys", ["users", "roles", "role_permissions", "user_roles", "recovery_codes", "passkeys"]),
     ("stations", "Stations", "Every station: name, owner, location, privacy, website, MLAT user name", ["feeders"]),
-    ("station_history", "Station Statistics and Events", "Message rates, range history, connection events", ["feeder_samples", "feeder_hourly", "feeder_range", "feeder_events"]),
+    ("station_history", "Station Statistics and Events", "Message rates, range history, connection events", ["feeder_samples", "feeder_hourly", "feeder_range", "feeder_events", "feeder_uat"]),
     ("weather", "Weather Stations and Readings", "Members' weather stations (their upload addresses and sealed keys included), their readings and the hourly history", ["wx_stations", "wx_push", "wx_readings", "wx_hourly", "wx_obs", "wx_station_dir"]),
     ("sondes", "Radiosondes and Balloons", "Recorded balloon flights with their tracks, which receiving stations heard them, the receiving stations (claims included) and the launch sites", ["sondes", "sonde_points", "sonde_heard", "sonde_stations", "sonde_sites", "sonde_recoveries", "sonde_chase_share", "sonde_history_months", "sonde_history_skipped"]),
     ("mapdata", "Map Data", "Hospitals, places, county outlines, air ambulances, interesting aircraft and the address lookup cache", ["hospitals", "hospital_rings", "place_media", "roads", "places", "counties", "sat_tle", "hems_aircraft", "interesting_aircraft", "geocode_cache"]),

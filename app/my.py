@@ -242,7 +242,7 @@ def feeder(uuid):
     return render_template("my_feeder.html", managing=_managing(f), wx=wxrow, wx_on=cfg("wx_enabled") == "1", f=f, privacy=st.PRIVACY, setup_fields=st.SETUP_FIELDS,
                            opts=_station_options(f), map_lat=cfg("map_lat"), map_lon=cfg("map_lon"), map_zoom=cfg("map_zoom"),
                            chart=fd.line_chart(points, period), uptime=uptime, period=period, periods=fd.PERIODS,
-                           latest=points[-1] if points else None, events=fd.feeder_events(uuid, 30), mlat=__import__("app.mlat", fromlist=["x"]).station_state(uuid),
+                           latest=points[-1] if points else None, events=fd.feeder_events(uuid, 30), mlat=__import__("app.mlat", fromlist=["x"]).station_state(uuid), uat=__import__("app.uatfeed", fromlist=["x"]).station_state(uuid),
                            rng=rangestats.station(uuid, 30), rng_chart=rangestats.polar_svg(rangestats.station(uuid, 30)["sectors"]))
 
 

@@ -54,7 +54,7 @@
 <div class="tfilterbar"><input type="search" class="tfilter" data-table="#feeders-tbl" placeholder="Search feeders by name, station ID, UUID, IP address or owner" aria-label="Search feeders by name, station ID, UUID, IP address or owner"><span class="dim tcount"></span></div>
 {% call sec('feeders', 'Feeders', True, True) %}
   <table class="sortable" id="feeders-tbl">
-    <tr><th data-sort="text">Status</th><th data-sort="text">Feeder</th><th data-sort="text">IP Address</th><th data-sort="text">Owner</th><th data-sort="num">Msgs/s</th><th data-sort="num">Pos/s</th><th data-sort="text">MLAT</th><th data-sort="num">Uptime 24h</th><th data-sort="text">Last Seen</th><th>Actions</th></tr>
+    <tr><th data-sort="text">Status</th><th data-sort="text">Feeder</th><th data-sort="text">IP Address</th><th data-sort="text">Owner</th><th data-sort="num">Msgs/s</th><th data-sort="num">Pos/s</th><th data-sort="text">MLAT</th>{% if uat_on %}<th data-sort="text">UAT</th>{% endif %}<th data-sort="num">Uptime 24h</th><th data-sort="text">Last Seen</th><th>Actions</th></tr>
     {% for f in feeders %}
     <tr data-search="{{ f.name }} {{ f.station_id }} {{ f.uuid }} {{ f.last_ip }} {{ f.owner_name or 'Unclaimed' }} {{ 'banned' if f.banned else ('online' if f.online else 'offline') }}">
       <td>{% if f.banned %}<span class="tag off">banned</span>{% elif f.online %}<span class="tag live">online</span>{% else %}<span class="tag off">offline</span>{% endif %}</td>
@@ -64,6 +64,7 @@
       <td class="mono">{{ '%.1f' % f.msg_per_s if f.online and f.msg_per_s is not none else '-' }}</td>
       <td class="mono">{{ '%.1f' % f.pos_per_s if f.online and f.pos_per_s is not none else '-' }}</td>
       <td>{% if f.mlat %}<span class="tag live">working</span>{% else %}<span class="dim">-</span>{% endif %}</td>
+      {% if uat_on %}<td>{% if f.uat %}<span class="tag live">receiving</span>{% else %}<span class="dim">-</span>{% endif %}</td>{% endif %}
       <td class="mono">{{ '%.1f' % f.uptime_24h }}%</td>
       <td class="dim" data-v="{{ f.last_seen or '' }}">{{ 'now' if f.online else (f.last_seen | localtime) }}</td>
       <td style="white-space:nowrap">

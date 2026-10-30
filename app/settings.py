@@ -774,6 +774,7 @@ DEFAULTS = {
     "hub_beast_host": "",
     "hub_beast_port": "30006",
     "receiver_seen_seconds": "60",
+    "uat_recent_minutes": "30",
     "receiver_retry_seconds": "10",
     "lookups_enabled": "1",
     "photo_api_url": "https://api.planespotters.net/pub/photos",

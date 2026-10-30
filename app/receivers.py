@@ -20,6 +20,7 @@ _seen = {}          # receiver id (16 hex chars) -> {aircraft address (6 hex cha
 _seen_pos = {}      # same, but only for messages that carry a position (used for range)
 _state = {"connected": False, "last_data": 0.0, "error": "", "messages": 0}
 
+_UAT_MARKER = bytes.fromhex("ff004d4c4155")   # what readsb puts in place of the time stamp on a message that came from a UAT decoder
 BEAST_LENGTH = {0x31: 9, 0x32: 14, 0x33: 21, 0xE3: 8}   # bytes that follow the type byte
 ESC = 0x1A
 
@@ -35,6 +36,7 @@ class Parser:
     def __init__(self):
         self.buf = bytearray()
         self.receiver = None
+        self.uat = []   # (receiver id, aircraft address) of the messages that carry the UAT marker (see uatfeed.py); the reader takes them after each feed
 
     def feed(self, data):
         """Yield (receiver id, aircraft address, carries a position) for every message that carries an address."""
@@ -73,6 +75,8 @@ class Parser:
                 msg = body[7:]
                 df = msg[0] >> 3
                 if df in (11, 17, 18) and len(msg) >= 4:   # the address is in the clear for these formats
+                    if bytes(body[:6]) == _UAT_MARKER:
+                        self.uat.append((self.receiver, msg[1:4].hex()))
                     out.append((self.receiver, msg[1:4].hex(), df in (17, 18) and len(msg) > 4 and (9 <= msg[4] >> 3 <= 18 or 20 <= msg[4] >> 3 <= 22)))
             i = j
         del buf[:i]
@@ -169,6 +173,10 @@ def start_receivers(app):
                         pairs = parser.feed(data)
                         if pairs:
                             _remember(pairs, now)
+                        if parser.uat:
+                            from . import uatfeed
+                            uatfeed.note(parser.uat, now)
+                            parser.uat = []
                         if now - last_prune > 10:
                             with app.app_context():
                                 _prune(now, cfg_int("receiver_seen_seconds") * 2)
@@ -180,6 +188,8 @@ def start_receivers(app):
                 wait = cfg_int("receiver_retry_seconds")
             time.sleep(wait)
     threading.Thread(target=loop, name="receivers", daemon=True).start()
+    from . import uatfeed
+    uatfeed.start(app)
     start_range_sampler(app)
 
 

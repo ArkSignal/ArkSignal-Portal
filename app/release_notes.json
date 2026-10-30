@@ -1,5 +1,16 @@
 [
   {
+    "version": "1.8.11",
+    "released": "2026-10-29T21:00:00",
+    "title": "UAT (978 MHz) shown per station",
+    "added": [
+      "UAT (978 MHz) is now shown per station: a station that sends UAT aircraft through its normal feed gets a UAT tag on the station list and its page, a UAT section on My Station, a line in Am I Feeding, a column in the admin list, a flag in the public station data, and Service Status counts the stations sending UAT. The UAT page has a section on how to tell it works."
+    ],
+    "improved": [],
+    "fixed": [],
+    "security": []
+  },
+  {
     "version": "1.8.10",
     "released": "2026-10-29T18:00:00",
     "title": "Station and node labels checked against the published lists (APRS, river traffic, mesh)",

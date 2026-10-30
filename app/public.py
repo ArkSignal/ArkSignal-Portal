@@ -75,8 +75,11 @@ def feeders():
     rows = fd.public_feeders(period, sort)
     from . import mlat
     mlat_ok = mlat.working_uuids()
+    from . import uatfeed
+    uat_ok = uatfeed.receiving_uuids()
     for r in rows:
         r["mlat"] = r.get("uuid") in mlat_ok
+        r["uat"] = r.get("uuid") in uat_ok
     from . import achievements as ach
     badges = ach.for_all()
     holders = {}
@@ -101,9 +104,10 @@ def feeder_public(station_id):
     from . import mlat
     from . import weather as _wx
     wxrow = _wx.get_public(f["station_id"]) if cfg("wx_enabled") == "1" else None
+    from . import uatfeed
     from . import achievements as ach
     mine = ach.for_all().get(f["uuid"], [])
-    return render_template("feeder_public.html", achv=mine, achv_defs={c: t for c, _l, t in ach.definitions()}, wx=wxrow, mlat_ok=f["uuid"] in mlat.working_uuids(), f=f, loc=loc, badge=cfg("official_badge_text"), approx=(f["privacy"] or "general") != "exact", radius_m=privacy.radius_m(f["privacy"] or "general"),
+    return render_template("feeder_public.html", achv=mine, achv_defs={c: t for c, _l, t in ach.definitions()}, wx=wxrow, mlat_ok=f["uuid"] in mlat.working_uuids(), uat_ok=f["uuid"] in uatfeed.receiving_uuids(), f=f, loc=loc, badge=cfg("official_badge_text"), approx=(f["privacy"] or "general") != "exact", radius_m=privacy.radius_m(f["privacy"] or "general"),
                            chart=fd.line_chart(points, period), uptime=uptime, period=period, periods=fd.PERIODS,
                            latest=points[-1] if points else None, rng=rangestats.station(f["uuid"], 30), rng_chart=rangestats.polar_svg(rangestats.station(f['uuid'], 30)['sectors']), setup_fields=__import__("app.stations", fromlist=["x"]).SETUP_FIELDS,
                            map_zoom=cfg("map_zoom"))
@@ -115,8 +119,9 @@ def api_feeders():
     rows = fd.public_feeders("24h", "positions")
     tot = fd.network_totals()
     out = []
-    from . import mlat
+    from . import mlat, uatfeed
     mlat_ok = mlat.working_uuids()
+    uat_ok = uatfeed.receiving_uuids()
     for r in rows:
         loc = fd.public_location(r)
         out.append({"station_id": r["station_id"], "name": r["name"], "online": bool(r["online"]), "official": bool(r["official"]),
@@ -125,7 +130,7 @@ def api_feeders():
                     "lat": loc[0] if loc else None, "lon": loc[1] if loc else None,
                     "location_precision": None if not loc else ("exact" if r["privacy"] == "exact" else "approximate"),
                     "positions_per_day_24h": round(r["positions_per_day"]), "uptime_24h": round(r["uptime"], 1),
-                    "max_range_nm_30d": round(r["max_range_30d"]), "mlat": r["uuid"] in mlat_ok})
+                    "max_range_nm_30d": round(r["max_range_30d"]), "mlat": r["uuid"] in mlat_ok, "uat": r["uuid"] in uat_ok})
     return jsonify({"totals": {"feeders_online": tot["online"], "feeders_claimed": tot["claimed"], "feeders_seen": tot["total"],
                                "messages_per_second": round(tot["msgs"], 1), "positions_per_second": round(tot["pos"], 1)},
                     "feeders": out})
@@ -268,11 +273,12 @@ def feed_check():
     ip = client_ip()
     found = []
     if check:
-        from . import mlat
+        from . import mlat, uatfeed
         for r in fd.feeders_for_ip(ip, cfg_int("check_feeding_hours")):
             r = dict(r)
-            full = r.pop("full_uuid", None)   # the real UUID is used here only, to look up MLAT; the page never gets it for a claimed station
+            full = r.pop("full_uuid", None)   # the real UUID is used here only, to look up MLAT and UAT; the page never gets it for a claimed station
             r["mlat"] = mlat.station_state(full)
+            r["uat"] = uatfeed.station_state(full)
             found.append(r)
     wx_rows = []
     if check and cfg("wx_enabled") == "1" and current_user.is_authenticated:

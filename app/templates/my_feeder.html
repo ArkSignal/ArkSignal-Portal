@@ -16,6 +16,13 @@
   <div class="panel tile"><div class="tv">{{ '%.1f' % latest[2] if latest else '-' }}</div><div class="tl">Positions/s (latest)</div></div>
 </div>
 
+{% if uat %}
+<details class="panel setsec" id="sec-uat" open style="margin-top:14px"><summary><span class="role-name">UAT (978 MHz)</span></summary><div class="secbody">
+  <p style="margin:0 0 8px">{% if uat.state == 'receiving' %}<span class="tag live">receiving</span>{% elif uat.state == 'earlier' %}<span class="tag off">earlier</span>{% else %}<span class="tag off">none yet</span>{% endif %}
+    {{ uat.text }}</p>
+  {% if uat.state != 'receiving' %}<div class="help">A 978 MHz radio and the dump978 container send UAT through the same feed line as your 1090 MHz aircraft, so there is nothing extra to switch on here. See the <a href="/feed/uat">UAT page</a> for the setup.</div>{% endif %}
+</div></details>
+{% endif %}
 {% if mlat %}
 <details class="panel setsec" id="sec-mlat" open style="margin-top:14px"><summary><span class="role-name">MLAT</span></summary><div class="secbody">
   <p style="margin:0 0 8px">{% if mlat.state == 'working' %}<span class="tag live">working</span>{% elif mlat.state == 'off' %}<span class="tag off">not connected</span>{% else %}<span class="tag off">{{ mlat.state }}</span>{% endif %}

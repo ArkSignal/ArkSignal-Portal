@@ -714,7 +714,9 @@ def feeders_list():
     from .settings import get_setting
     from . import mlat
     mlat_ok = mlat.working_uuids()
-    return render_template("admin_feeders.html", active="feeders", privacy=st.PRIVACY, setup_fields=st.SETUP_FIELDS, default_privacy=cfg("default_privacy"), feeders=[dict(f, mlat=f["uuid"] in mlat_ok) for f in fd.list_feeders()],
+    from . import uatfeed
+    uat_ok = uatfeed.receiving_uuids()
+    return render_template("admin_feeders.html", active="feeders", privacy=st.PRIVACY, setup_fields=st.SETUP_FIELDS, default_privacy=cfg("default_privacy"), feeders=[dict(f, mlat=f["uuid"] in mlat_ok, uat=f["uuid"] in uat_ok) for f in fd.list_feeders()], uat_on=cfg("uat_enabled") == "1",
                            hub_configured=bool(current_app.config.get("HUB_URL")),
                            last_ok=get_setting("collector_last_ok"), last_error=get_setting("collector_last_error"))
 
@@ -829,7 +831,7 @@ def feeder_detail(uuid):
     points, uptime = fd.series(uuid, period)
     return render_template("admin_feeder.html", active="feeders", f=f, events=fd.feeder_events(uuid),
                            chart=fd.line_chart(points, period), uptime=uptime, period=period, periods=fd.PERIODS,
-                           latest=points[-1] if points else None, mlat=_mlat_row(uuid),
+                           latest=points[-1] if points else None, mlat=_mlat_row(uuid), uat=__import__("app.uatfeed", fromlist=["x"]).station_state(uuid),
                            all_users=get_db().execute("SELECT id, username FROM users ORDER BY lower(username)").fetchall())
 
 

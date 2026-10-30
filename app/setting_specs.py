@@ -682,6 +682,8 @@ SPECS = [
      "The hub's beast reduce output port, the one that carries each feeder's receiver ID (30006 in the standard hub setup).", {"lo": 1, "hi": 65535}),
     ("Feeder Filter", "receiver_seen_seconds", "Feeder Aircraft Memory (Seconds)", "int",
      "An aircraft counts as heard by a feeder for this long after the feeder's last message about it.", {"lo": 10, "hi": 600}),
+    ("Feeder Filter", "uat_recent_minutes", "UAT Counts as Receiving For (Minutes)", "int",
+     "A station is shown as sending UAT (978 MHz) when UAT aircraft came through it within this many minutes. It reads the same receiver feed as the filter above.", {"lo": 1, "hi": 1440}),
     ("Feeder Filter", "receiver_retry_seconds", "Receiver Feed Reconnect Delay (Seconds)", "int",
      "How long to wait before reconnecting when the hub's receiver feed drops.", {"lo": 2, "hi": 300}),
     ("Home Page and Live Map", "live_columns", "Default Aircraft List Columns", "collist",

@@ -10,6 +10,7 @@
 <div class="tiles">
   <div class="panel tile"><div class="tv">{% if f.online %}Online{% else %}Offline{% endif %}</div><div class="tl">Status</div></div>
   {% if mlat_ok %}<div class="panel tile"><div class="tv">Working</div><div class="tl">MLAT</div></div>{% endif %}
+  {% if uat_ok %}<div class="panel tile"><div class="tv">Receiving</div><div class="tl">UAT (978 MHz)</div></div>{% endif %}
   <div class="panel tile"><div class="tv">{{ '%.1f' % uptime }}%</div><div class="tl">Uptime ({{ periods[period][0] }})</div></div>
   <div class="panel tile"><div class="tv">{{ '%.1f' % latest[1] if latest else '-' }}</div><div class="tl">Msgs/s (latest)</div></div>
   <div class="panel tile"><div class="tv">{{ '%.1f' % latest[2] if latest else '-' }}</div><div class="tl">Positions/s (latest)</div></div>

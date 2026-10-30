@@ -32,7 +32,7 @@
       <td class="mono">{{ r.rank }}</td>
       <td><a href="/feeders/{{ r.station_id }}"><b class="mono">{{ r.station_id }}</b></a>{% if r.official %} <span class="tag admin">{{ badge }}</span>{% endif %}{% for code, label in badges.get(r.uuid, []) %} <span class="tag live achv" title="{{ label }}">{{ label }}</span>{% endfor %}{% if r.name %}<br><span class="dim">{{ r.name }}</span>{% endif %}<br><a href="/{{ r.station_id }}" style="font-size:.78rem">Live map for this station</a>{% if feeder_stats %} &middot; <a href="/view/network-feeders?station={{ r.station_id }}" style="font-size:.78rem">Statistics</a>{% endif %}</td>
       <td>{{ r.owner_display or r.owner_name }}{% if r.owner_callsign %}<br><span class="dim mono">{{ r.owner_callsign | cs }}</span>{% endif %}</td>
-      <td>{% if r.online %}<span class="tag live">online</span>{% else %}<span class="tag off">offline</span>{% endif %}{% if r.mlat %} <span class="tag live" title="This feeder contributes to multilateration">MLAT</span>{% endif %}</td>
+      <td>{% if r.online %}<span class="tag live">online</span>{% else %}<span class="tag off">offline</span>{% endif %}{% if r.mlat %} <span class="tag live" title="This feeder contributes to multilateration">MLAT</span>{% endif %}{% if r.uat %} <span class="tag live" title="UAT (978 MHz) aircraft came through this feeder recently">UAT</span>{% endif %}</td>
       <td class="mono">{{ '{:,.0f}'.format(r.positions_per_day) }}</td>
       <td class="mono">{{ '{:,.0f}'.format(r.messages_per_day) }}</td>
       <td class="mono">{{ '%.1f' % r.uptime }}%</td>

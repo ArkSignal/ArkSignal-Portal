@@ -18,6 +18,9 @@
         <span class="mono copyable">{{ r.uuid }}</span> &mdash; not claimed yet. <a href="/my/claim">Claim this feeder</a>
       {% endif %}
       <span class="dim"> &middot; last seen {{ 'now' if r.online else (r.last_seen | localtime) }}</span>
+      {% if r.uat %}<div style="margin-top:6px"><b>UAT (978 MHz):</b>
+        {% if r.uat.state == 'receiving' %}<span class="tag live">receiving</span>{% elif r.uat.state == 'earlier' %}<span class="tag off">earlier</span>{% else %}<span class="tag off">none yet</span>{% endif %}
+        <span class="dim">{{ r.uat.text }}{% if r.uat.state != 'receiving' %} Only needed if you have a 978 MHz radio: see the <a href="/feed/uat">UAT page</a>.{% endif %}</span></div>{% endif %}
       {% if r.mlat %}<div style="margin-top:6px"><b>MLAT:</b>
         {% if r.mlat.state == 'working' %}<span class="tag live">working</span>{% elif r.mlat.state == 'off' %}<span class="tag off">not connected</span>{% else %}<span class="tag off">{{ r.mlat.state }}</span>{% endif %}
         <span class="dim">{{ r.mlat.text }}{% if r.mlat.state == 'off' %} Add the MLAT line shown on the <a href="/feed/adsb">ADS-B page</a>, set <span class="mono">MLAT_USER</span> and exact coordinates, and recreate the container.{% endif %}</span></div>{% endif %}

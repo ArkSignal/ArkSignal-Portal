@@ -98,7 +98,9 @@ def _uat_check():
     if data is None:
         return _c("uat", "UAT (978 MHz)", "down", "UAT data is not available right now.", f"The hub could not be read ({err}).")
     n = sum(1 for a in data["aircraft"] if str(a.get("src") or "").startswith(("uat", "adsr")))
-    return _c("uat", "UAT (978 MHz)", "ok", f"{n} aircraft arriving by UAT or ADS-R right now.", "UAT aircraft reach the hub through stations' normal feed and are reported by readsb as ADS-R; the count is aircraft whose source is ADS-R or UAT.")
+    from . import uatfeed
+    st = uatfeed.network_count()
+    return _c("uat", "UAT (978 MHz)", "ok", f"{n} aircraft arriving by UAT or ADS-R right now; {st} station{'' if st == 1 else 's'} sending UAT.", "UAT aircraft reach the hub through stations' normal feed and are reported by readsb as ADS-R, so the aircraft count includes ADS-R rebroadcasts from ground stations. A station is counted as sending UAT when messages marked as coming from a UAT decoder came through it recently (Settings > Feeder Filter > UAT Counts as Receiving For).")
 
 
 def _weather_check():

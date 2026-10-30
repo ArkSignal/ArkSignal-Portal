@@ -134,6 +134,13 @@ CREATE TABLE IF NOT EXISTS feeder_range (
     PRIMARY KEY (feeder_uuid, day, sector)
 );
 
+CREATE TABLE IF NOT EXISTS feeder_uat (
+    feeder_uuid TEXT PRIMARY KEY REFERENCES feeders(uuid) ON DELETE CASCADE,
+    first_seen TIMESTAMPTZ NOT NULL,
+    last_seen TIMESTAMPTZ NOT NULL,
+    aircraft_hour INTEGER NOT NULL DEFAULT 0
+);
+
 CREATE TABLE IF NOT EXISTS feeder_samples (
     feeder_uuid TEXT NOT NULL REFERENCES feeders(uuid) ON DELETE CASCADE,
     ts TIMESTAMPTZ NOT NULL,

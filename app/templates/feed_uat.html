@@ -80,6 +80,16 @@
 
 {{ after('uat') }}
 
+{% call sec('check', 'How to Tell It Works', True) %}
+  <p style="margin-top:0">The site can tell which stations send UAT: every message a 978 MHz radio decodes is marked as UAT on its way through your ultrafeeder, and the hub knows which station sent it. So there is nothing to switch on, and nothing for you to report.</p>
+  <ul class="plain">
+    <li><b>Your station page</b> (My Account &gt; My Stations &gt; My Feeders, then your station) has a <b>UAT (978 MHz)</b> section that says <span class="tag live">receiving</span> with the time of the last message and the number of UAT aircraft in the last hour.</li>
+    <li><b>Am I Feeding</b> shows the same line next to your station.</li>
+    <li><b>The public station list</b> and each station's page show a <span class="tag live">UAT</span> tag while a station is sending UAT, and the public data (<span class="mono">/api/feeders.json</span>) has a <span class="mono">uat</span> flag.</li>
+  </ul>
+  <p style="margin-bottom:0">A station that has sent no UAT shows <span class="tag off">none yet</span>. That is not proof of a fault: UAT is used only by some aircraft, mostly below 18,000 feet, so a quiet stretch with no UAT aircraft in range looks the same as a radio that is not connected. Watch for a few hours around busy flying times, and check <span class="mono">docker logs dump978</span> if it never shows.</p>
+{% endcall %}
+
 {% call sec('ports', 'Ports and Firewall', False, True) %}
   <p style="margin-top:0">UAT needs nothing extra. dump978 hands its data to the ultrafeeder on the same computer (port <span class="mono">30978</span>, local only), and your 978 MHz aircraft go out with the normal feed:</p>
   <table>

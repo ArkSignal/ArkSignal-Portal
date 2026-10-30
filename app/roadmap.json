@@ -1333,6 +1333,12 @@
       "summary": "Every code-to-label table was checked against the published lists (APRS symbols, Meshtastic roles and hardware, MeshCore types, Remote ID, AIS); misreads were fixed and the sources are written down in LABEL_SOURCES.md.",
       "status": "done",
       "area": "Data"
+    },
+    {
+      "title": "Show which stations send UAT (978 MHz)",
+      "summary": "Stations that send UAT through their normal feed are shown with a UAT tag on the station lists and pages, in My Station, Am I Feeding, the admin list, the public data and Service Status.",
+      "status": "done",
+      "area": "Feeders"
     }
   ]
 }

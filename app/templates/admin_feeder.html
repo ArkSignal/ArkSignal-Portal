@@ -20,6 +20,7 @@
     <tr><th>IP Address</th><td class="mono">{{ f.last_ip or '' }}</td></tr>
     <tr><th>First Seen</th><td>{{ f.first_seen | localtime("%Y-%m-%d %H:%M:%S") }}</td></tr>
     <tr><th>Last Seen</th><td>{{ 'now' if f.online else (f.last_seen | localtime("%Y-%m-%d %H:%M:%S")) }}</td></tr>
+    {% if uat %}<tr><th>UAT (978 MHz)</th><td>{{ uat.text }}</td></tr>{% endif %}
     {% if mlat %}<tr><th>MLAT</th><td>Connected, {{ mlat.message_rate }} msgs/s, {{ mlat.peer_count }} peers, {{ '%.1f' % mlat.outlier_percent }}% outliers{% if mlat.bad_sync_timeout %} <span style="color:#ff7a59">(sync timed out)</span>{% endif %}</td></tr>{% endif %}
     <tr><th>Connected Since</th><td>{{ f.connected_since | localtime("%Y-%m-%d %H:%M:%S") if f.online and f.connected_since else '' }}</td></tr>
   </table>
