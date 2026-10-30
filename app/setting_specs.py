@@ -588,7 +588,7 @@ SPECS = [
     ("APRS", "aprs_radius_km", "Area to Read (Kilometers From the Map Center)", "int",
      "The service asks APRS-IS only for stations inside this distance of the map center (Settings > Map Defaults). Bigger areas mean far more packets.", {"lo": 20, "hi": 1000}),
     ("APRS", "aprs_trail_hours", "Keep a Moving Station's Trail (Hours)", "int",
-     "A station that moves keeps only this much trail. Fixed stations keep none; only the latest position is stored.", {"lo": 1, "hi": 48}),
+     "A station that moves keeps only this much trail. Stations that do not move keep none; only the latest position is stored.", {"lo": 1, "hi": 48}),
     ("APRS", "aprs_keep_days", "Forget a Station Not Heard For (Days)", "int",
      "Stations and weather observations not heard for this long are removed.", {"lo": 1, "hi": 365}),
     ("APRS", "aprs_window_hours", "Pages Show Stations Heard In The Last (Hours)", "int",

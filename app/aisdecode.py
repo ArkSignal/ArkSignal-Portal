@@ -10,22 +10,23 @@ character) and a check sum. This module checks the sum, joins multi-part message
 knots, courses degrees; sizes are meters. Nothing here touches the network or a database."""
 
 STATUS = {0: "Under way using engine", 1: "At anchor", 2: "Not under command", 3: "Restricted maneuverability", 4: "Constrained by draught", 5: "Moored", 6: "Aground", 7: "Engaged in fishing",
-          8: "Under way sailing", 11: "Towing astern", 12: "Pushing ahead or towing alongside", 14: "Emergency beacon", 15: "Not defined"}
+          8: "Under way sailing", 11: "Towing astern", 12: "Pushing ahead or towing alongside", 14: "AIS-SART, MOB-AIS or EPIRB-AIS (active)", 15: "Not defined"}
 
 
 def ship_type_name(t):
     """What a ship type number means (the first digit is the group; the second, the cargo or detail)."""
     if t is None or t == 0:
         return "Not stated"
-    names = {20: "Wing in ground", 30: "Fishing", 31: "Towing", 32: "Towing (large)", 33: "Dredging or underwater work", 34: "Diving", 35: "Military", 36: "Sailing", 37: "Pleasure craft",
-             50: "Pilot vessel", 51: "Search and rescue", 52: "Tug", 53: "Port tender", 54: "Anti-pollution", 55: "Law enforcement", 58: "Medical", 59: "Special craft"}
-    if t in names:
-        return names[t]
-    g = t // 10
-    base = {6: "Passenger", 7: "Cargo", 8: "Tanker", 9: "Other"}.get(g)
-    if base:
+    # ITU-R M.1371 ship and cargo type: 20 to 24 wing in ground, 30 to 39 and 50 to 59 special craft, 40 to 49 high speed craft, 60 to 99 by kind with the cargo hazard in the second digit.
+    # A number the table leaves reserved or spare is shown as its number, never as a neighbor's name.
+    exact = {30: "Fishing", 31: "Towing", 32: "Towing (large)", 33: "Dredging or underwater work", 34: "Diving", 35: "Military", 36: "Sailing", 37: "Pleasure craft",
+             50: "Pilot vessel", 51: "Search and rescue", 52: "Tug", 53: "Port tender", 54: "Anti-pollution", 55: "Law enforcement", 58: "Medical transport", 59: "Noncombatant ship"}
+    if t in exact:
+        return exact[t]
+    base = {2: "Wing in ground", 4: "High speed craft", 6: "Passenger", 7: "Cargo", 8: "Tanker", 9: "Other"}.get(t // 10)
+    if base and not (t // 10 == 2 and t > 24):
         return base
-    return names.get(g * 10, "Type " + str(t))
+    return "Type " + str(t)
 
 
 def category(t):
@@ -45,7 +46,7 @@ def category(t):
         return "passenger"
     if t == 30:
         return "fishing"
-    if g == 5 or t in (33, 34, 35):
+    if t in (33, 34, 50, 51, 53, 54, 55, 58):
         return "service"
     return "other"
 

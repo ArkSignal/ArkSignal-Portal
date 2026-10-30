@@ -25,7 +25,7 @@ from .settings import cfg, cfg_int, map_area
 
 bp = Blueprint("ais", __name__)
 
-CATEGORIES = {"tow": ("Towboats and tugs", "#ffb454"), "cargo": ("Cargo ships and barges", "#4fb3ff"), "tanker": ("Tankers", "#ff6b6b"), "passenger": ("Passenger vessels", "#c58bff"),
+CATEGORIES = {"tow": ("Towboats and tugs", "#ffb454"), "cargo": ("Cargo ships", "#4fb3ff"), "tanker": ("Tankers", "#ff6b6b"), "passenger": ("Passenger vessels", "#c58bff"),
               "pleasure": ("Pleasure craft and sailing", "#3ee6a8"), "fishing": ("Fishing", "#8fe36e"), "service": ("Service, pilot, rescue and law enforcement", "#ffd24f"), "other": ("Other", "#9fb0c8"),
               "unknown": ("Type not stated", "#7b8794")}
 CREDIT = "Positions and details are what vessels broadcast over AIS, received by members' own receivers"

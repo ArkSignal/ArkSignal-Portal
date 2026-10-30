@@ -72,6 +72,9 @@ a2 = ad.Assembler()
 sa, sb = static_b(338123456, "RIVER RAT", "WDD9999", 37)
 na, nb = a2.feed(sa, 0), a2.feed(sb, 0)
 check("a Class B craft's two static messages give its name, then its type, call sign and size", na and na["name"] == "RIVER RAT" and nb and nb["ship_type"] == 37 and nb["callsign"] == "WDD9999" and nb["to_bow"] == 10 and nb["to_stern"] == 3, (na, nb))
+check("ship types follow ITU-R M.1371: reserved numbers are not given a neighbor's name", ad.ship_type_name(38) == "Type 38" and ad.ship_type_name(56) == "Type 56" and ad.ship_type_name(57) == "Type 57" and ad.ship_type_name(25) == "Type 25" and ad.ship_type_name(41) == "High speed craft" and ad.ship_type_name(21) == "Wing in ground" and ad.ship_type_name(59) == "Noncombatant ship" and ad.ship_type_name(58) == "Medical transport", [ad.ship_type_name(x) for x in (38, 56, 57, 25, 41, 21, 59, 58)])
+check("military and noncombatant ships are not in the service group", ad.category(35) == "other" and ad.category(59) == "other" and ad.category(55) == "service" and ad.category(33) == "service" and ad.category(56) == "other")
+check("navigation status 14 is named as the beacons it is", "SART" in ad.STATUS[14] and ad.STATUS.get(9) is None)
 check("ship types and kinds are named", ad.ship_type_name(31) == "Towing" and ad.ship_type_name(79) == "Cargo" and ad.ship_type_name(89) == "Tanker" and ad.category(31) == "tow" and ad.category(52) == "tow" and ad.category(37) == "pleasure" and ad.category(0) == "unknown" and ad.category(60) == "passenger")
 
 # ---- the service

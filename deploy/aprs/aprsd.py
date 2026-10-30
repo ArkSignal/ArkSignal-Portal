@@ -64,7 +64,10 @@ def init_db():
                 c.execute("""CREATE TABLE IF NOT EXISTS weather (call TEXT PRIMARY KEY, ts TIMESTAMPTZ NOT NULL, lat DOUBLE PRECISION, lon DOUBLE PRECISION, temp_c DOUBLE PRECISION, wind_dir INT, wind_ms DOUBLE PRECISION,
                     gust_ms DOUBLE PRECISION, humidity INT, pressure_hpa DOUBLE PRECISION, rain_1h_mm DOUBLE PRECISION, rain_24h_mm DOUBLE PRECISION, rain_mid_mm DOUBLE PRECISION, luminosity INT)""")
                 c.execute("CREATE TABLE IF NOT EXISTS hidden (call TEXT PRIMARY KEY, reason TEXT NOT NULL DEFAULT '', added TIMESTAMPTZ NOT NULL DEFAULT now())")
-                c.execute("UPDATE stations SET kind = 'fixed' WHERE kind IN ('ambulance', 'fire', 'police', 'repeater') AND symbol_table <> '/'")   # stations kept before the table was taken into account
+                for r in c.execute("SELECT call, symbol_table, symbol, speed_kmh, kind FROM stations WHERE kind <> 'weather'").fetchall():   # stations kept before the table was taken into account get the kind the symbol set gives them
+                    k = kind_of(r["symbol"], r["symbol_table"], r["speed_kmh"], False)
+                    if k != r["kind"]:
+                        c.execute("UPDATE stations SET kind = %s WHERE call = %s", (k, r["call"]))
             return
         except Exception as e:
             print("waiting for the database:", str(e)[:100], flush=True)
@@ -105,19 +108,22 @@ def configured():
 # ------------------------------------------------------------------ packets
 
 CALL_RE = re.compile(r"^[A-Za-z0-9]{1,2}[0-9][A-Za-z0-9]{0,4}(-[0-9]{1,2})?$|^[A-Za-z0-9-]{3,9}$")
-SYMBOL_KIND = {"_": "weather", "#": "digipeater", "&": "gateway", "I": "igate", "r": "repeater", "a": "ambulance", "f": "fire", "!": "police", "'": "mobile", ">": "mobile", "<": "mobile", "k": "mobile", "u": "mobile",
-               "b": "mobile", "[": "mobile", "O": "balloon", "^": "aircraft", "X": "mobile", "j": "mobile", "v": "mobile", "Y": "mobile", "s": "mobile", "p": "mobile"}
-
-
-# These letters mean a vehicle or a repeater only in the primary table ("/"); in the alternate table ("\\" or an overlay letter or digit) "a" is ARES/RACES/WinLink, "!" an emergency,
-# "f" and "r" something else again, so a station using them there is an ordinary station.
-PRIMARY_ONLY = {"a", "f", "!", "r"}
+# What a symbol means is from the APRS symbol set (aprs.org/symbols/symbolsX.txt) and depends on the table character: a slash is the primary table, a backslash the alternate table, and a letter or
+# digit is an overlay on the alternate table. SYMBOL_KIND holds the symbols that mean the same in both tables; PRIMARY_KIND holds those that mean this only in the primary table (in the alternate
+# table the same character is something else: "a" is ARRL, ARES, WinLink or D-Star there, "r" Restrooms, "X" Pharmacy). Anything not listed is an ordinary station.
+SYMBOL_KIND = {"_": "weather", "#": "digipeater", "&": "gateway", "k": "mobile", "u": "mobile", "[": "mobile", ">": "mobile", "s": "mobile", "v": "mobile", "O": "balloon", "^": "aircraft"}
+PRIMARY_KIND = {"a": "ambulance", "f": "fire", "!": "police", "P": "police", "r": "repeater", "'": "aircraft", "X": "aircraft", "<": "mobile", "b": "mobile", "j": "mobile", "Y": "mobile", "p": "mobile"}
+IGATE_OVERLAYS = {"I", "R", "T", "2"}   # "&" with one of these overlays is an IGate (I two-way, R receive only, T and 2 one- and two-hop message transmit)
 
 
 def kind_of(sym, table, speed, weather):
     if weather and sym == "_":
         return "weather"
-    k = "fixed" if sym in PRIMARY_ONLY and table != "/" else SYMBOL_KIND.get(sym or "", "fixed")
+    if sym == "&" and table in IGATE_OVERLAYS:
+        return "igate"
+    k = PRIMARY_KIND.get(sym or "", "fixed") if table == "/" else "fixed"
+    if k == "fixed":
+        k = SYMBOL_KIND.get(sym or "", "fixed")
     if k == "fixed" and speed and speed > 3:
         return "mobile"
     return k

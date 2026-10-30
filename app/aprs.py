@@ -9,7 +9,7 @@ from .cache import cached
 from .db import get_db
 from .settings import cfg, cfg_int
 
-KIND_LABELS = {"fixed": "Fixed station", "mobile": "Mobile station", "weather": "Weather station", "digipeater": "Digipeater", "gateway": "Gateway", "igate": "IGate", "repeater": "Repeater",
+KIND_LABELS = {"fixed": "Other station", "mobile": "Mobile station", "weather": "Weather station", "digipeater": "Digipeater", "gateway": "Gateway", "igate": "IGate", "repeater": "Repeater",
                "object": "Object", "ambulance": "Ambulance", "fire": "Fire", "police": "Police", "balloon": "Balloon", "aircraft": "Aircraft"}
 CREDIT = "APRS data: the amateur radio APRS-IS network, read-only"
 

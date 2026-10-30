@@ -79,5 +79,13 @@ check("the same letter in the alternate table or with an overlay is an ordinary 
 check("fire, police and repeater are those only in the primary table", (k("f", "/", 0, False), k("!", "/", 0, False), k("r", "/", 0, False)) == ("fire", "police", "repeater") and (k("f", "\\", 0, False), k("!", "D", 0, False), k("r", "H", 0, False)) == ("fixed", "fixed", "fixed"))
 check("a digipeater is one in either table, and a moving station is mobile", k("#", "/", 0, False) == "digipeater" and k("#", "L", 0, False) == "digipeater" and k("a", "L", 20, False) == "mobile")
 
+# the full symbol set (aprs.org/symbols/symbolsX.txt): primary-only symbols, the ones that mean the same in both tables, and the IGate overlays
+check("small aircraft and helicopter are aircraft in the primary table only", (k("'", "/", 0, False), k("X", "/", 0, False)) == ("aircraft", "aircraft") and (k("'", "\\", 0, False), k("X", "\\", 0, False)) == ("fixed", "fixed"))
+check("a police symbol (/! or /P) is police, the alternate ones are not", (k("!", "/", 0, False), k("P", "/", 0, False)) == ("police", "police") and (k("!", "\\", 0, False), k("P", "\\", 0, False)) == ("fixed", "fixed"))
+check("motorcycle, bike, jeep, yacht and rover are vehicles in the primary table only", all(k(c, "/", 0, False) == "mobile" for c in "<bjYp") and all(k(c, "\\", 0, False) == "fixed" for c in "<bjYp"))
+check("car, truck, van, ship, person are vehicles in both tables, aircraft ^ and balloon O too", all(k(c, t, 0, False) == "mobile" for c in ">kuvs[" for t in ("/", "\\", "D")) and k("^", "\\", 0, False) == "aircraft" and k("O", "/", 0, False) == "balloon")
+check("an IGate is the gateway symbol with the I, R, T or 2 overlay, and a plain gateway stays a gateway", all(k("&", o, 0, False) == "igate" for o in "IRT2") and k("&", "/", 0, False) == "gateway" and k("&", "\\", 0, False) == "gateway")
+check("the TCP/IP symbol I is not called an IGate", k("I", "/", 0, False) == "fixed" and k("I", "\\", 0, False) == "fixed")
+
 clean()
 print("ALL PASS" if ok_all else "SOME FAILED")
