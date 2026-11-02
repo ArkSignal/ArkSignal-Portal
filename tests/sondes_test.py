@@ -266,8 +266,12 @@ import glob, os
 names = set()
 for fpath in glob.glob(os.path.join("..", "deploy", "grafana", "*-dashboard.json")):
     names |= set(re.findall(r"adsb_portal_[a-z0-9_]+", open(fpath, encoding="utf-8").read()))
-missing = sorted(n for n in names if n not in mt)
-check("every metric the Grafana dashboards chart is served by /metrics", len(names) > 20 and not missing, missing)
+psql("insert into settings (key, value) values ('uat_enabled','1') on conflict (key) do update set value='1'")   # the UAT numbers are served only while UAT is on
+time.sleep(2)
+served = anon.get(B + "/metrics").text
+psql("delete from settings where key='uat_enabled'")
+missing = sorted(n for n in names if n not in served)
+check("every metric the Grafana dashboards chart is served by /metrics (UAT switched on)", len(names) > 20 and not missing, missing)
 check("the new dashboards are valid and named for what they show", all(json.load(open(os.path.join("..", "deploy", "grafana", f), encoding="utf-8"))["title"] == t for f, t in (("weather-dashboard.json", "Weather Dashboard"), ("sondes-dashboard.json", "Radiosonde Dashboard"), ("feeders-dashboard.json", "Aircraft Feeder Statistics"), ("ultrafeeder-dashboard.json", "Aircraft Statistics"))))
 check("the Places menu has the County Map", 'href="/counties/"' in nav and "County Map" in nav)
 home = anon.get(B + "/").text

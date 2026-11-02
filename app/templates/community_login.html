@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}{{ a.label or a.username }}{% endblock %}
+{% block content %}
+<h1>Broker Login <span>{{ a.label or a.username }}</span></h1>
+<div class="sub">{{ c.name }} &middot; {{ 'private feed' if private else 'uplink and downlink' if a.link == 'down' else 'uplink only' }} &middot; {% if a.disabled %}switched off: its gateway is refused{% else %}active{% endif %}</div>
+<p><a href="/mesh/c/{{ c.slug }}/logins">&larr; Broker Logins</a></p>
+<div class="panel">
+  <p style="margin-top:0">Anyone who has this login can send to the broker as this community's gateway, so keep it to the team. Each opening of this page is logged. If it leaks, make a new password from Broker Logins.</p>
+  <table style="max-width:640px">
+    <tr><th style="width:200px">MQTT server</th><td class="mono copyable">{{ info.host or '(not open yet)' }}</td></tr>
+    <tr><th>Port{{ '' if private else ' (TLS)' if info.tls else '' }}</th><td class="mono copyable">{{ info.port }}</td></tr>
+    <tr><th>Username</th><td class="mono copyable">{{ a.username }}</td></tr>
+    <tr><th>Password</th><td class="mono copyable">{{ password }}</td></tr>
+    <tr><th>Meshtastic root topic</th><td class="mono copyable">{{ info.root }}</td></tr>
+  </table>
+  {% if private %}
+  <p class="dim">The server address is the tunnel's own address, so it is reached only with the tunnel up. TLS is off (the tunnel is already encrypted). This login works only through the tunnel peer it is bound to:
+    {% if peer %}<a href="/mesh/c/{{ c.slug }}/tunnel/{{ peer.id }}">{{ peer.label }}</a> ({{ peer.ip }}).{% else %}none yet; make a peer for it under Tunnel for Private Gateways.{% endif %}</p>
+  {% else %}
+  {% with host = info.host or 'MQTT_SERVER', port = info.port, topic = info.root, user = a.username, pw = password %}{% include "partials/_mesh_cmds.html" %}{% endwith %}
+  {% endif %}
+</div>
+{% endblock %}

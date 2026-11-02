@@ -4,6 +4,10 @@ import base64, os, struct, subprocess, time, requests
 os.environ["TEST_HOST"] = "test-box.invalid"
 exec(open("roles_test.py", encoding="utf-8").read().split("ok_all=True")[0])
 ok_all = True
+def psql(sql):
+    return subprocess.run(["ssh", "-q", "nastemp", f"echo $TEST_SUDO_PASSWORD | sudo -S -p '' /usr/local/bin/docker exec adsb-portal-db psql -U portal -d portal -tA -c \"{sql}\""], capture_output=True, text=True, timeout=60).stdout.strip()
+def setting(k, v): psql(f"INSERT INTO settings (key, value) VALUES ('{k}','{v}') ON CONFLICT (key) DO UPDATE SET value='{v}'")
+setting("mesh_enabled", "1"); time.sleep(3)   # the Mesh Map is only there while the mesh is on
 def check(n, c, x=""):
     global ok_all
     print(("PASS " if c else "FAIL ") + n, "" if c else x); ok_all &= bool(c)
@@ -54,4 +58,5 @@ try:
 finally:
     d.quit()
     subprocess.run(["ssh", "-q", "nastemp", "echo $TEST_SUDO_PASSWORD | sudo -S -p '' /usr/local/bin/docker exec mesh-db psql -U mesh -d mesh -tA -c \"DELETE FROM nodes WHERE long_name LIKE 'COL Node%'\""], capture_output=True, text=True, timeout=60)
+setting("mesh_enabled", "0")
 print("ALL PASS" if ok_all else "SOME FAILED")

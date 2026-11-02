@@ -64,6 +64,10 @@ GEN="$C/mosquitto.generated.conf"
   echo "message_size_limit 8192"   # a Meshtastic packet is a few hundred bytes: nothing larger is carried
   echo "max_keepalive 1800"
   echo "listener 1883"
+  # the private feed (request 205): plain MQTT, never published on the host; only the tunnel container reaches it, and the tunnel is what makes the gateway's firmware see a private address
+  echo "listener 1884"
+  echo "protocol mqtt"
+  echo "max_connections 100"
   if [ -s "$C/certs/fullchain.pem" ] && [ -s "$C/certs/privkey.pem" ]; then
     echo "listener 8883"
     echo "protocol mqtt"

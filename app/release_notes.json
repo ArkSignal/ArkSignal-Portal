@@ -1,5 +1,31 @@
 [
   {
+    "version": "next",
+    "released": null,
+    "title": "Coming in the next release",
+    "added": [],
+    "improved": [],
+    "fixed": [],
+    "security": []
+  },
+  {
+    "version": "1.9.0",
+    "released": "2026-11-02T21:00:00",
+    "title": "Private mesh feed, MQTT export and UAT panels",
+    "added": [
+      "Private mesh feed: a community can have gateways that send to a private broker through a WireGuard tunnel. The community's team sees every node those gateways hear on a private map (the site's administrators see all communities), whatever the nodes' OK to MQTT setting says. What the public Meshtastic server would have accepted still goes on to the public maps. It is off until an administrator switches it on.",
+      "Private feed logins work only through their own tunnel peer: the tunnel is locked down so each peer reaches only the private broker, and a Private feed login is bound to the peer's tunnel address (the setup page now shows each command in a copyable block).",
+      "Mesh traffic can be sent on to other MQTT brokers: administrators make connectors, each with its own filters (public or private feed, communities, channels, message types, position accuracy, a mimic-public preset) and a rate cap. It is off until the site switch is turned on.",
+      "Community teams can open a broker login or a tunnel peer again at any time to see its password, address, configuration and QR code (every opening is logged), like a member can with their own login. A tunnel peer made before this can be given a New Key.",
+      "Network Feeders and the UAT dashboards show UAT (978 MHz) aircraft per station, with the traffic map filtered to UAT; panels that needed a local 978 radio were replaced by ones fed from the stations' own UAT data."
+    ],
+    "improved": [],
+    "fixed": [
+      "Weather Map: stations (above all the airports) no longer blink out and back, and the combined labels no longer merge and split again by themselves, when the kept airport weather expires."
+    ],
+    "security": []
+  },
+  {
     "version": "1.8.11",
     "released": "2026-10-29T21:00:00",
     "title": "UAT (978 MHz) shown per station",

@@ -70,7 +70,7 @@ edit dashboards. Everyone else sees them read-only without signing in.
 
 ## Notes
 
-- The panels about UAT 978 show no data because the hub has no UAT receiver. Collapse that row if you like.
+- The hub has no 978 MHz receiver of its own. The UAT panels on the Ultrafeeder dashboard read series named as a local dump978 would write them (job `dump978`); the portal writes those from the UAT aircraft the stations deliver (`/metrics/dump978`, scraped by the `dump978` job in `prometheus.yml`). The polar plot (a panel plugin Grafana 13 no longer loads) and the autogain panel (a local radio's setting) are replaced by the farthest UAT aircraft per station and the UAT aircraft per station. The Network Feeders dashboard also shows who sends UAT. The UAT Traffic panel is the hub's map filtered to the UAT source (`filterSources=uat`). `HUB_MAP_PATH` (default `/map`) is where the hub's map is below `HUB_PUBLIC_URL`; the test box sets it empty because its hub serves the map at the root.
 - Grafana 13 no longer loads the old Angular panel plugins that the original instructions install; the only panel
   that used them is the UAT polar plot, so no plugins are installed.
 - Prometheus keeps 1095 days (`--storage.tsdb.retention.time=1095d`), matching the hub's history policy.

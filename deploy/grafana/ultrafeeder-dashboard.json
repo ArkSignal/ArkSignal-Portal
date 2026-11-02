@@ -10,114 +10,6 @@
     }
   ],
   "__elements": {
-    "e5c01684-6e48-49d8-a8b2-9f8899a0d3d3": {
-      "name": "Total UAT Aircraft",
-      "uid": "e5c01684-6e48-49d8-a8b2-9f8899a0d3d3",
-      "kind": 1,
-      "model": {
-        "datasource": {
-          "type": "prometheus",
-          "uid": "${DS_PROMETHEUS}"
-        },
-        "description": "",
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "palette-classic"
-            },
-            "custom": {
-              "axisCenteredZero": false,
-              "axisColorMode": "text",
-              "axisLabel": "",
-              "axisPlacement": "auto",
-              "fillOpacity": 80,
-              "gradientMode": "none",
-              "hideFrom": {
-                "legend": false,
-                "tooltip": false,
-                "viz": false
-              },
-              "lineWidth": 1,
-              "scaleDistribution": {
-                "type": "linear"
-              },
-              "thresholdsStyle": {
-                "mode": "dashed"
-              }
-            },
-            "mappings": [],
-            "noValue": "0",
-            "thresholds": {
-              "mode": "percentage",
-              "steps": [
-                {
-                  "color": "green",
-                  "value": null
-                },
-                {
-                  "color": "red",
-                  "value": 100
-                }
-              ]
-            }
-          },
-          "overrides": []
-        },
-        "libraryPanel": {
-          "name": "Total UAT Aircraft",
-          "uid": "${DS_PROMETHEUS}"
-        },
-        "options": {
-          "barRadius": 0,
-          "barWidth": 0.97,
-          "fullHighlight": false,
-          "groupWidth": 0.7,
-          "legend": {
-            "calcs": [],
-            "displayMode": "list",
-            "placement": "bottom",
-            "showLegend": true
-          },
-          "orientation": "auto",
-          "showValue": "auto",
-          "stacking": "normal",
-          "tooltip": {
-            "mode": "multi",
-            "sort": "none"
-          },
-          "xField": "Time",
-          "xTickLabelRotation": 0,
-          "xTickLabelSpacing": 100
-        },
-        "targets": [
-          {
-            "datasource": {
-              "type": "prometheus",
-              "uid": "${DS_PROMETHEUS}"
-            },
-            "editorMode": "builder",
-            "expr": "count(aircraft_position_lat{job=\"dump978\", airground_state=\"ground\"})",
-            "legendFormat": "Aircraft (on ground)",
-            "range": true,
-            "refId": "A"
-          },
-          {
-            "datasource": {
-              "type": "prometheus",
-              "uid": "${DS_PROMETHEUS}"
-            },
-            "editorMode": "builder",
-            "expr": "count(aircraft_position_lat{job=\"dump978\", airground_state=\"airborne\"})",
-            "hide": false,
-            "legendFormat": "Aircraft (airborne)",
-            "range": true,
-            "refId": "B"
-          }
-        ],
-        "title": "Total UAT Aircraft",
-        "type": "barchart"
-      }
-    },
     "be5fadf4-47d6-4944-b6a5-38438e1c3c62": {
       "name": "UAT Signal Strength (RSSI)",
       "uid": "be5fadf4-47d6-4944-b6a5-38438e1c3c62",
@@ -249,343 +141,6 @@
         ],
         "title": "UAT Signal Strength (RSSI)",
         "type": "timeseries"
-      }
-    },
-    "de2f1a3b-0605-4b2c-8eff-9ccd1ac9c34e": {
-      "name": "UAT Max Distance Polar Plot",
-      "uid": "de2f1a3b-0605-4b2c-8eff-9ccd1ac9c34e",
-      "kind": 1,
-      "model": {
-        "datasource": {
-          "type": "prometheus",
-          "uid": "${DS_PROMETHEUS}"
-        },
-        "bgColor": null,
-        "description": "",
-        "libraryPanel": {
-          "name": "UAT Max Distance Polar Plot",
-          "uid": ""
-        },
-        "radarSettings": {
-          "animationDurationMs": 0,
-          "aspectRatio": 2.2,
-          "autoScale": true,
-          "drawTicksBackground": false,
-          "fontColor": "#00000000",
-          "fontSize": "0",
-          "gridColor": "#80808036",
-          "ignoreTimeInfluxDB": false,
-          "legendType": "right",
-          "limitAspectRatio": false,
-          "scaleMax": 0,
-          "scaleMin": 0,
-          "scaleStep": 0,
-          "seriesAlias": ""
-        },
-        "targets": [
-          {
-            "datasource": {
-              "type": "prometheus",
-              "uid": "${DS_PROMETHEUS}"
-            },
-            "editorMode": "builder",
-            "expr": "polar_range_range{job=\"dump978\"}",
-            "format": "time_series",
-            "legendFormat": "__auto",
-            "range": true,
-            "refId": "A"
-          }
-        ],
-        "title": "UAT Max Distance Polar Plot",
-        "type": "snuids-radar-panel"
-      }
-    },
-    "d0cdd767-8616-41ee-b71a-00e288da160e": {
-      "name": "UAT Autogain Value",
-      "uid": "d0cdd767-8616-41ee-b71a-00e288da160e",
-      "kind": 1,
-      "model": {
-        "datasource": {
-          "type": "prometheus",
-          "uid": "${DS_PROMETHEUS}"
-        },
-        "description": "",
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "palette-classic"
-            },
-            "custom": {
-              "axisCenteredZero": false,
-              "axisColorMode": "text",
-              "axisLabel": "",
-              "axisPlacement": "auto",
-              "barAlignment": 0,
-              "drawStyle": "line",
-              "fillOpacity": 0,
-              "gradientMode": "none",
-              "hideFrom": {
-                "legend": false,
-                "tooltip": false,
-                "viz": false
-              },
-              "lineInterpolation": "linear",
-              "lineWidth": 1,
-              "pointSize": 5,
-              "scaleDistribution": {
-                "type": "linear"
-              },
-              "showPoints": "auto",
-              "spanNulls": false,
-              "stacking": {
-                "group": "A",
-                "mode": "none"
-              },
-              "thresholdsStyle": {
-                "mode": "off"
-              }
-            },
-            "mappings": [],
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                {
-                  "color": "green",
-                  "value": null
-                },
-                {
-                  "color": "red",
-                  "value": 80
-                }
-              ]
-            },
-            "unit": "dB"
-          },
-          "overrides": []
-        },
-        "libraryPanel": {
-          "name": "UAT Autogain Value",
-          "uid": ""
-        },
-        "options": {
-          "legend": {
-            "calcs": [],
-            "displayMode": "list",
-            "placement": "bottom",
-            "showLegend": true
-          },
-          "tooltip": {
-            "mode": "single",
-            "sort": "none"
-          }
-        },
-        "targets": [
-          {
-            "datasource": {
-              "type": "prometheus",
-              "uid": "${DS_PROMETHEUS}"
-            },
-            "editorMode": "builder",
-            "expr": "autogain_autogain_current_value{job=\"dump978\"}",
-            "legendFormat": "Current Autogain",
-            "range": true,
-            "refId": "A"
-          },
-          {
-            "datasource": {
-              "type": "prometheus",
-              "uid": "${DS_PROMETHEUS}"
-            },
-            "editorMode": "builder",
-            "expr": "autogain_autogain_max_value{job=\"dump978\"}",
-            "hide": false,
-            "legendFormat": "Max Autogain",
-            "range": true,
-            "refId": "B"
-          },
-          {
-            "datasource": {
-              "type": "prometheus",
-              "uid": "${DS_PROMETHEUS}"
-            },
-            "editorMode": "builder",
-            "expr": "autogain_autogain_min_value{job=\"dump978\"}",
-            "hide": false,
-            "legendFormat": "Min Autogain",
-            "range": true,
-            "refId": "C"
-          }
-        ],
-        "title": "UAT Autogain Value",
-        "type": "timeseries"
-      }
-    },
-    "e1af84b4-3fbb-4a9d-98fb-b4d488a6e414": {
-      "name": "List of UAT Aircrafts",
-      "uid": "e1af84b4-3fbb-4a9d-98fb-b4d488a6e414",
-      "kind": 1,
-      "model": {
-        "datasource": {
-          "type": "prometheus",
-          "uid": "${DS_PROMETHEUS}"
-        },
-        "description": "Aircraft list",
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "fixedColor": "orange",
-              "mode": "fixed"
-            },
-            "custom": {
-              "align": "auto",
-              "cellOptions": {
-                "type": "auto"
-              },
-              "filterable": true,
-              "inspect": false
-            },
-            "mappings": [],
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                {
-                  "color": "green",
-                  "value": null
-                }
-              ]
-            }
-          },
-          "overrides": [
-            {
-              "matcher": {
-                "id": "byName",
-                "options": "nav_modes"
-              },
-              "properties": [
-                {
-                  "id": "custom.hidden",
-                  "value": false
-                }
-              ]
-            },
-            {
-              "matcher": {
-                "id": "byName",
-                "options": "Time"
-              },
-              "properties": [
-                {
-                  "id": "custom.hidden",
-                  "value": true
-                }
-              ]
-            },
-            {
-              "matcher": {
-                "id": "byName",
-                "options": "address"
-              },
-              "properties": [
-                {
-                  "id": "displayName",
-                  "value": "Hex ID"
-                }
-              ]
-            },
-            {
-              "matcher": {
-                "id": "byName",
-                "options": "airground_state"
-              },
-              "properties": [
-                {
-                  "id": "displayName",
-                  "value": "Ground/Airborne"
-                }
-              ]
-            },
-            {
-              "matcher": {
-                "id": "byName",
-                "options": "Value"
-              },
-              "properties": [
-                {
-                  "id": "custom.hidden",
-                  "value": true
-                }
-              ]
-            }
-          ]
-        },
-        "hideTimeOverride": true,
-        "interval": "15m",
-        "libraryPanel": {
-          "name": "List of UAT Aircrafts",
-          "uid": ""
-        },
-        "options": {
-          "cellHeight": "sm",
-          "footer": {
-            "countRows": false,
-            "enablePagination": true,
-            "fields": [],
-            "reducer": [
-              "sum"
-            ],
-            "show": false
-          },
-          "showHeader": true
-        },
-        "pluginVersion": "9.5.2",
-        "targets": [
-          {
-            "datasource": {
-              "type": "prometheus",
-              "uid": "${DS_PROMETHEUS}"
-            },
-            "editorMode": "builder",
-            "exemplar": false,
-            "expr": "count by(address, callsign, airground_state) (aircraft_position_lon{job=\"dump978\"})",
-            "format": "table",
-            "instant": true,
-            "interval": "",
-            "legendFormat": "__auto",
-            "range": false,
-            "refId": "A"
-          }
-        ],
-        "title": "List of UAT Aircrafts",
-        "transparent": true,
-        "type": "table"
-      }
-    },
-    "aa6203e2-9e3a-49c7-9364-90cae089d675": {
-      "name": "UAT Traffic",
-      "uid": "aa6203e2-9e3a-49c7-9364-90cae089d675",
-      "kind": 1,
-      "model": {
-        "datasource": {
-          "type": "prometheus",
-          "uid": "${DS_PROMETHEUS}"
-        },
-        "description": "",
-        "libraryPanel": {
-          "name": "UAT Traffic",
-          "uid": ""
-        },
-        "options": {
-          "code": {
-            "language": "html",
-            "showLineNumbers": false,
-            "showMiniMap": false
-          },
-          "content": "\n<!-- replace http://feeder_url:30980/skyaware978/ with the URL of your skyaware978 map -->\n<iframe src=\"http://feeder_url:30980/skyaware978/\" title=\"SkyAware978\" style=\"width:100%; height:100%; padding:0; margin:0; border:none;\"></iframe>",
-          "mode": "html"
-        },
-        "pluginVersion": "9.5.2",
-        "title": "UAT Traffic",
-        "type": "text"
       }
     }
   },
@@ -1891,16 +1446,69 @@
       "type": "row"
     },
     {
+      "id": 51,
+      "type": "timeseries",
+      "title": "Total UAT Aircraft",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
         "y": 70
       },
-      "id": 51,
-      "libraryPanel": {
-        "uid": "e5c01684-6e48-49d8-a8b2-9f8899a0d3d3",
-        "name": "Total UAT Aircraft"
+      "description": "UAT aircraft the stations delivered, with a position, on the ground and in the air (the hub has no 978 MHz radio of its own).",
+      "targets": [
+        {
+          "expr": "count(aircraft_position_lat{job=\"dump978\", airground_state=\"ground\"}) or vector(0)",
+          "legendFormat": "Aircraft (on ground)",
+          "range": true,
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          }
+        },
+        {
+          "expr": "count(aircraft_position_lat{job=\"dump978\", airground_state=\"airborne\"}) or vector(0)",
+          "legendFormat": "Aircraft (airborne)",
+          "range": true,
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "noValue": "0",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
       }
     },
     {
@@ -1917,42 +1525,156 @@
       }
     },
     {
+      "id": 53,
+      "type": "bargauge",
+      "title": "UAT Farthest Aircraft by Station (nm)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
         "y": 78
       },
-      "id": 53,
-      "libraryPanel": {
-        "uid": "de2f1a3b-0605-4b2c-8eff-9ccd1ac9c34e",
-        "name": "UAT Max Distance Polar Plot"
+      "description": "How far each station's farthest UAT aircraft was in the last hour (only distances are shown, never where a station is).",
+      "targets": [
+        {
+          "expr": "adsb_portal_station_uat_max_range_nm > 0",
+          "legendFormat": "{{station}}",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
       }
     },
     {
+      "id": 54,
+      "type": "timeseries",
+      "title": "UAT Aircraft by Station, Last Hour",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
         "y": 78
       },
-      "id": 54,
-      "libraryPanel": {
-        "uid": "d0cdd767-8616-41ee-b71a-00e288da160e",
-        "name": "UAT Autogain Value"
+      "targets": [
+        {
+          "expr": "adsb_portal_station_uat_aircraft_hour",
+          "legendFormat": "{{station}}",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ]
+        }
       }
     },
     {
+      "id": 57,
+      "type": "table",
+      "title": "UAT Aircraft Seen in the Last Hour",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
       "gridPos": {
         "h": 10,
         "w": 24,
         "x": 0,
         "y": 86
       },
-      "id": 57,
-      "libraryPanel": {
-        "uid": "e1af84b4-3fbb-4a9d-98fb-b4d488a6e414",
-        "name": "List of UAT Aircrafts"
+      "description": "UAT aircraft the stations delivered with a position in the last hour (UAT traffic is rare, so a list of what is in the air this second would mostly be empty).",
+      "targets": [
+        {
+          "expr": "count by(address, callsign, airground_state) (last_over_time(aircraft_position_lon{job=\"dump978\"}[1h]))",
+          "format": "table",
+          "instant": true,
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          }
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value": true
+            },
+            "indexByName": {
+              "address": 0,
+              "callsign": 1,
+              "airground_state": 2
+            },
+            "renameByName": {
+              "address": "Address (hex)",
+              "callsign": "Call sign",
+              "airground_state": "State"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "filterable": true
+          },
+          "noValue": "No UAT aircraft in the last hour"
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
       }
     },
     {
@@ -2030,73 +1752,14 @@
         "y": 119
       },
       "id": 55,
-      "libraryPanel": {
-        "description": "",
-        "folderId": 27,
-        "folderUid": "f21eb245-edd9-4ed4-97b5-cf06f81f955e",
-        "id": 17,
-        "kind": 1,
-        "meta": {
-          "connectedDashboards": 0,
-          "created": "2023-05-22T16:49:47.444233848Z",
-          "createdBy": {
-            "avatarUrl": "/gfna/avatar/46d229b033af06a191ff2267bca9ae56",
-            "id": 1,
-            "name": "admin"
-          },
-          "folderName": "templates",
-          "folderUid": "f21eb245-edd9-4ed4-97b5-cf06f81f955e",
-          "updated": "2023-05-22T16:49:47.44423392Z",
-          "updatedBy": {
-            "avatarUrl": "/gfna/avatar/46d229b033af06a191ff2267bca9ae56",
-            "id": 1,
-            "name": "admin"
-          }
-        },
-        "model": {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "description": "",
-          "gridPos": {
-            "h": 20,
-            "w": 24,
-            "x": 0,
-            "y": 111
-          },
-          "id": 55,
-          "libraryPanel": {
-            "name": "UAT Traffic",
-            "uid": ""
-          },
-          "options": {
-            "code": {
-              "language": "html",
-              "showLineNumbers": false,
-              "showMiniMap": false
-            },
-            "content": "\n<!-- replace http://feeder_url:30980/skyaware978/ with the URL of your skyaware978 map -->\n<iframe src=\"http://feeder_url:30980/skyaware978/\" title=\"SkyAware978\" style=\"width:100%; height:100%; padding:0; margin:0; border:none;\"></iframe>",
-            "mode": "html"
-          },
-          "pluginVersion": "9.5.2",
-          "title": "UAT Traffic",
-          "type": "text"
-        },
-        "name": "UAT Traffic",
-        "orgId": 2,
-        "type": "text",
-        "uid": "aa6203e2-9e3a-49c7-9364-90cae089d675",
-        "version": 1
-      },
       "options": {
         "code": {
           "language": "html",
           "showLineNumbers": false,
           "showMiniMap": false
         },
-        "content": "\n<!-- replace http://feeder_url:30980/skyaware978/ with the URL of your skyaware978 map -->\n<iframe src=\"http://feeder_url:30980/skyaware978/\" title=\"SkyAware978\" style=\"width:100%; height:100%; padding:0; margin:0; border:none;\"></iframe>",
-        "mode": "html"
+        "mode": "html",
+        "content": "\n\n<iframe src=\"http://feeder_url/uat-map\" title=\"UAT Traffic\" style=\"width:100%; height:100%; padding:0; margin:0; border:none;\"></iframe>"
       },
       "pluginVersion": "9.5.2",
       "title": "UAT Traffic",

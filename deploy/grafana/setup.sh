@@ -50,8 +50,11 @@ fi
 
 # Point the dashboard's heatmap and graphs panels at the hub's public address, and open the heatmap on the network's area
 # (the original centres on "the receiver", which a hub with no antenna of its own does not have, so it opened mid-ocean).
+# HUB_MAP_PATH is where the hub's map is below HUB_PUBLIC_URL: /map unless the variable is set (empty: the map is at the root, as on the test hub).
+# The UAT Traffic panel is the same map filtered to the UAT source (tar1090's filterSources, its own UAT / ADS-R group); the hub has no 978 MHz radio, so there is no SkyAware978 map to show.
 sed -e "s#http://feeder_url/graphs1090#${HUB_PUBLIC_URL}/graphs1090/#g" \
-    -e "s#http://feeder_url?heatmap#${HUB_PUBLIC_URL}/map/?heatmap#g" \
+    -e "s#http://feeder_url?heatmap#${HUB_PUBLIC_URL}${HUB_MAP_PATH-/map}/?heatmap#g" \
+    -e "s#http://feeder_url/uat-map#${HUB_PUBLIC_URL}${HUB_MAP_PATH-/map}/?filterSources=uat,adsr\&hideSideBar\&hideButtons\&lat=${MAP_LAT:-34.80}\&lon=${MAP_LON:--92.30}\&zoom=${MAP_ZOOM:-7}#g" \
     -e "s#centerReceiver&zoom=7#lat=${MAP_LAT:-34.80}\&lon=${MAP_LON:--92.30}\&zoom=${MAP_ZOOM:-7}#g" \
     /dash/ultrafeeder-dashboard.json > /tmp/dash.json
 

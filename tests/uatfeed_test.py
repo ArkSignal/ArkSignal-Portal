@@ -88,6 +88,29 @@ my2 = adm.get(B + "/my/feeders/" + QUIET_UUID).text
 pg2 = requests.get(B + "/feeders").text
 check("past the window it says UAT last came through hours ago", "UAT last came through this station" in my2 and "3 hours ago" in my2 and "earlier" in my2, re.findall(r"UAT[^<]{0,100}", my2)[:3])
 check("and the public list does not tag it", "UAT</span>" not in (re.search(r"<tr[^>]*>(?:(?!</tr>).)*QUIET-1(?:(?!</tr>).)*</tr>", pg2, re.S) or [""])[0] if re.search(r"<tr[^>]*>(?:(?!</tr>).)*QUIET-1(?:(?!</tr>).)*</tr>", pg2, re.S) else True)
+mt = requests.get(B + "/metrics").text
+check("the metrics say how many stations send UAT and each named station's UAT aircraft (for the Network Feeders dashboard)", re.search(r"adsb_portal_stations_sending_uat [1-9]", mt) is not None and "adsb_portal_station_uat_aircraft_hour" in mt, mt[-300:])
+import json as _j
+dash = open("../deploy/grafana/feeders-dashboard.json", encoding="utf-8").read(); uf = open("../deploy/grafana/ultrafeeder-dashboard.json", encoding="utf-8").read()
+dj = _j.loads(uf)
+titles = [(x.get("libraryPanel") or {}).get("name") or x.get("title") for x in dj["panels"]]
+check("the Aircraft Statistics UAT row keeps its panels, fed from what the stations deliver (the polar plot and autogain, which need a local radio, became farthest-by-station and aircraft-by-station)",
+      all(t in titles for t in ("Total UAT Aircraft", "UAT Signal Strength (RSSI)", "UAT Aircraft Seen in the Last Hour", "UAT Farthest Aircraft by Station (nm)", "UAT Aircraft by Station, Last Hour")) and "adsb_portal_station_uat_max_range_nm" in uf and "adsb_portal_station_uat_aircraft_hour" in dash)
+check("the UAT Traffic panel is the hub map filtered to UAT (not the SkyAware978 page a local radio has), and setup.sh fills in its address", "http://feeder_url/uat-map" in uf and "feeder_url/uat-map" in open("../deploy/grafana/setup.sh", encoding="utf-8").read() and "filterSources=uat" in open("../deploy/grafana/setup.sh", encoding="utf-8").read())
+check("UAT Traffic is an ordinary text panel (a library panel is drawn from Grafana's stored copy and kept the old placeholder address) and no old address is left", all("libraryPanel" not in x for x in dj["panels"] if x.get("title") == "UAT Traffic") and "feeder_url:30980" not in uf)
+check("Prometheus scrapes the portal as the job the UAT panels read (dump978)", 'job_name: "dump978"' in open("../deploy/grafana/prometheus.yml", encoding="utf-8").read() and "/metrics/dump978" in open("../deploy/grafana/prometheus.yml", encoding="utf-8").read())
+air = [a for a in requests.get(B + "/api/aircraft.json").json().get("aircraft", []) if a.get("lat") is not None and a.get("hex")]
+if air:
+    hx = air[0]["hex"]
+    psql(f"INSERT INTO feeder_uat_aircraft (feeder_uuid, icao, last_seen) VALUES ('{UAT_UUID}', '{hx}', now()) ON CONFLICT (feeder_uuid, icao) DO UPDATE SET last_seen = now()")
+    time.sleep(2)
+    dm = requests.get(B + "/metrics/dump978").text
+    check("the dump978-style series carry a UAT aircraft the stations delivered, with its position and signal", f'aircraft_position_lat{{address="{hx}"' in dm and f'aircraft_position_lon{{address="{hx}"' in dm and "airground_state=" in dm, dm[:400])
+    check("where the aircraft was is kept, for the farthest-aircraft figure after the hub has dropped it", psql(f"SELECT lat IS NOT NULL AND lon IS NOT NULL FROM feeder_uat_aircraft WHERE icao = '{hx}' LIMIT 1") == "t")
+    check("and only UAT aircraft (the others the hub tracks are not in it)", dm.count("aircraft_position_lat{") <= 3, dm.count("aircraft_position_lat{"))
+    psql(f"DELETE FROM feeder_uat_aircraft WHERE icao = '{hx}'")
+else:
+    print("SKIP the dump978 series check: the test hub has no aircraft with a position right now")
 setting("uat_enabled", "0")
 time.sleep(1)
 check("with the UAT pages switched off nothing about UAT is shown", 'id="sec-uat"' not in adm.get(B + "/my/feeders/" + UAT_UUID).text and requests.get(B + "/api/feeders.json").json()["feeders"] is not None)

@@ -12,3 +12,9 @@ scrape_configs:
     scrape_interval: 30s
     static_configs:
       - targets: ["adsb-portal:8430"]
+  # The UAT aircraft the stations deliver, in the series names the Ultrafeeder dashboard's UAT panels expect from a local dump978 (the hub has no 978 MHz radio of its own).
+  - job_name: "dump978"
+    metrics_path: /metrics/dump978
+    scrape_interval: 30s
+    static_configs:
+      - targets: ["adsb-portal:8430"]

@@ -269,21 +269,37 @@
 
 {% elif cur == 'logins' %}
 {% call sec('logins', 'Broker Logins for the Gateways (' ~ logins | length ~ ' of ' ~ login_limit ~ ')', True, True) %}
-  <p style="margin-top:0">A gateway node sends what it hears to this site's broker with its own login. These logins can publish to the mesh topics and read nothing. The password is shown once, when the login is made or changed. The site's administrators set the rate rules and loop guards.</p>
+  <p style="margin-top:0">A gateway node sends what it hears to this site's broker with its own login. These logins can publish to the mesh topics and read nothing. Open a login to see its address and password again. The site's administrators set the rate rules and loop guards.</p>
   {% if logins %}<table><thead><tr><th>Login</th><th>Label</th><th>Kind</th><th>State</th><th></th></tr></thead><tbody>
-  {% for a in logins %}<tr><td class="mono">{{ a.username }}</td><td>{{ a.label }}</td><td>{{ 'uplink and downlink' if a.link == 'down' else 'uplink only' }}</td><td>{{ 'off' if a.disabled else 'on' }}</td><td>
+  {% for a in logins %}<tr><td class="mono"><a href="/mesh/c/{{ c.slug }}/logins/{{ a.id }}">{{ a.username }}</a></td><td>{{ a.label }}</td><td>{{ 'private feed' if a.link == 'private' else 'uplink and downlink' if a.link == 'down' else 'uplink only' }}</td><td>{{ 'off' if a.disabled else 'on' }}</td><td>
+    <a class="btn small neutral" href="/mesh/c/{{ c.slug }}/logins/{{ a.id }}">Show</a>
     <form class="inline" method="post" action="/mesh/c/{{ c.slug }}/logins/{{ a.id }}/password" data-confirm="Make a new password? The gateway stops connecting until it is given the new one.">{{ csrf() }}<button class="btn small neutral" type="submit">New Password</button></form>
     <form class="inline" method="post" action="/mesh/c/{{ c.slug }}/logins/{{ a.id }}/{{ 'enable' if a.disabled else 'disable' }}">{{ csrf() }}<button class="btn small neutral" type="submit">{{ 'Switch On' if a.disabled else 'Switch Off' }}</button></form>
     <form class="inline" method="post" action="/mesh/c/{{ c.slug }}/logins/{{ a.id }}/delete" data-confirm="Delete this login? The gateway is refused at once.">{{ csrf() }}<button class="btn small warn" type="submit">Delete</button></form></td></tr>{% endfor %}</tbody></table>{% else %}<p class="dim">No logins yet.</p>{% endif %}
   <form method="post" action="/mesh/c/{{ c.slug }}/logins/add" class="cm-row">{{ csrf() }}<div><label for="gl">Label (for example the node's name)</label><input type="text" id="gl" name="label" maxlength="60"></div>
-    <div><label for="gk">Kind</label><select id="gk" name="link"><option value="up">Uplink only (sends what it hears)</option><option value="down">Uplink and downlink (also carries the community's channel to a remote place)</option></select></div><button class="btn small" type="submit">Make a Login</button></form>
+    <div><label for="gk">Kind</label><select id="gk" name="link"><option value="up">Uplink only (sends what it hears)</option><option value="down">Uplink and downlink (also carries the community's channel to a remote place)</option>{% if private_feed %}<option value="private">Private feed (for a gateway on the private broker; everything it hears stays on the private map)</option>{% endif %}</select></div><button class="btn small" type="submit">Make a Login</button></form>
+  {% if private_feed %}<p style="margin-bottom:0"><a class="btn small neutral" href="/mesh/c/{{ c.slug }}/private-map">Private Map</a> <span class="dim">every node this community's private gateways hear; opening it is logged</span></p>
+  <h4 style="margin:16px 0 6px">Tunnel for Private Gateways</h4>
+  <p class="dim" style="margin-top:0">A gateway on the private feed reaches the broker through a WireGuard tunnel, and uses the tunnel's address as its MQTT address. Make one peer for each gateway or phone; open a peer any time to see its configuration again (with a QR code for the WireGuard app). Only the private broker is reachable through it, and a phone's other traffic does not go through it.</p>
+  {% if not wg_endpoint %}<p class="dim">The site has not set the tunnel address yet (Settings, Mesh Nodes, Private Feed: Tunnel Address), so no peer can be made.</p>
+  {% elif not wg_ready %}<p class="dim">The tunnel container has not reported lately. Peers can still be made; it picks them up when it runs.</p>{% endif %}
+  {% if peers %}<table><thead><tr><th>Peer</th><th>Address</th><th>Its login</th><th>State</th><th></th></tr></thead><tbody>
+  {% for p in peers %}<tr><td><a href="/mesh/c/{{ c.slug }}/tunnel/{{ p.id }}">{{ p.label }}</a></td><td class="mono">{{ p.ip }}</td><td class="mono">{{ p.login or 'none (it can use no login)' }}</td><td>{{ 'off' if p.disabled else p.state }}</td><td>
+    <a class="btn small neutral" href="/mesh/c/{{ c.slug }}/tunnel/{{ p.id }}">Show</a>
+    <form class="inline" method="post" action="/mesh/c/{{ c.slug }}/tunnel/{{ p.id }}/rekey" data-confirm="Make a new key for this peer? The device stops connecting until it has the new configuration.">{{ csrf() }}<button class="btn small neutral" type="submit">New Key</button></form>
+    <form class="inline" method="post" action="/mesh/c/{{ c.slug }}/tunnel/{{ p.id }}/{{ 'enable' if p.disabled else 'disable' }}">{{ csrf() }}<button class="btn small neutral" type="submit">{{ 'Switch On' if p.disabled else 'Switch Off' }}</button></form>
+    <form class="inline" method="post" action="/mesh/c/{{ c.slug }}/tunnel/{{ p.id }}/delete" data-confirm="Delete this peer? Its device loses the tunnel at once.">{{ csrf() }}<button class="btn small warn" type="submit">Delete</button></form></td></tr>{% endfor %}</tbody></table>{% endif %}
+  {% if wg_endpoint %}{% if free_logins %}<form method="post" action="/mesh/c/{{ c.slug }}/tunnel/add" class="cm-row">{{ csrf() }}<div><label for="tl">Label (for example the gateway's name or a phone)</label><input type="text" id="tl" name="label" maxlength="60"></div>
+    <div><label for="tg">Its login (it can use this one and no other)</label><select id="tg" name="login">{% for l in free_logins %}<option value="{{ l.id }}">{{ l.username }}{{ ' (' ~ l.label ~ ')' if l.label }}</option>{% endfor %}</select></div><button class="btn small" type="submit">Make a Tunnel Peer</button></form>
+  {% else %}<p class="dim">Make a Private feed login first (above); each tunnel peer is bound to one login that no other peer has, and can use that one only.</p>{% endif %}{% endif %}
+  {% endif %}
 {% endcall %}
 {% call sec('connect', 'How to Connect a Gateway', True) %}
   <p style="margin-top:0">This community has <b>its own topic on the broker</b>: <span class="mono">{{ connect.root }}</span>. Its logins can write there and nowhere else, so what your gateways send is kept apart from everyone else's, and a node heard there counts as this community's. In the Meshtastic app open <b>Settings, Radio Configuration, Module Configuration, MQTT</b> on the gateway node and set:</p>
   <table><tbody>
     <tr><th>MQTT enabled</th><td>On</td></tr>
     <tr><th>Address</th><td class="mono">{{ connect.host }}{% if connect.port %}:{{ connect.port }}{% endif %}</td></tr>
-    <tr><th>Username and password</th><td>One of the logins above (the password is shown once when it is made)</td></tr>
+    <tr><th>Username and password</th><td>One of the logins above (open it to see the password)</td></tr>
     <tr><th>TLS enabled</th><td>{{ 'On (this port uses TLS)' if connect.tls else 'Off for a plain port; On when the port is 8883' }}</td></tr>
     <tr><th>Root topic</th><td class="mono">{{ connect.root }}</td></tr>
     <tr><th>Map reporting</th><td>On if the node should appear on the maps (it sends its name, role and a position at the precision its owner chooses)</td></tr>

@@ -62,8 +62,72 @@ def metrics():
     today = rangestats.today_by_station()
     for r in rows:
         lines.append(f'adsb_portal_station_max_range_nm_today{{station="{_label(r["station_id"])}"}} {today.get(r["uuid"], 0):.0f}')
+    if cfg("uat_enabled") == "1":
+        from . import uatfeed
+        uat = uatfeed.aircraft_by_uuid()
+        metric("adsb_portal_stations_sending_uat", "Stations that delivered UAT (978 MHz) lately")
+        lines.append(f"adsb_portal_stations_sending_uat {uatfeed.network_count()}")
+        metric("adsb_portal_station_uat_aircraft_hour", "UAT aircraft a named station delivered in the last hour (0 when none came through lately)")
+        for r in rows:
+            lines.append(f'adsb_portal_station_uat_aircraft_hour{{station="{_label(r["station_id"])}"}} {uat.get(r["uuid"], 0)}')
+    if cfg("uat_enabled") == "1":
+        metric("adsb_portal_station_uat_max_range_nm", "Farthest UAT aircraft a named station delivered in the last hour, nautical miles (0 when none)")
+        far = _uat_far(hub)
+        for r in rows:
+            lines.append(f'adsb_portal_station_uat_max_range_nm{{station="{_label(r["station_id"])}"}} {far.get(r["uuid"], 0):.0f}')
     _weather_metrics(lines, metric)
     _sonde_metrics(lines, metric)
+    return Response("\n".join(lines) + "\n", mimetype="text/plain; version=0.0.4")
+
+
+def _uat_far(hub):
+    """{station uuid: distance in nautical miles to the farthest UAT aircraft it delivered lately}. Needs the station's position, which is used here and never shown."""
+    from math import asin, cos, radians, sin, sqrt
+    from . import uatfeed
+    from .db import get_db
+    db = get_db()
+    pos = {r["uuid"]: (r["lat"], r["lon"]) for r in db.execute("SELECT uuid, lat, lon FROM feeders WHERE lat IS NOT NULL AND lon IS NOT NULL").fetchall()}
+    far = {}
+    # the last position seen for each UAT aircraft of the last hour (kept by /metrics/dump978 while the hub tracks it: UAT aircraft are rare and soon gone)
+    for r in db.execute("SELECT feeder_uuid, lat, lon FROM feeder_uat_aircraft WHERE lat IS NOT NULL AND lon IS NOT NULL AND last_seen > now() - interval '1 hour'").fetchall():
+        uuid, p = r["feeder_uuid"], pos.get(r["feeder_uuid"])
+        if not p:
+            continue
+        a = {"lat": r["lat"], "lon": r["lon"]}
+        la1, lo1, la2, lo2 = map(radians, (p[0], p[1], a["lat"], a["lon"]))
+        h = sin((la2 - la1) / 2) ** 2 + cos(la1) * cos(la2) * sin((lo2 - lo1) / 2) ** 2
+        far[uuid] = max(far.get(uuid, 0), 2 * 3440.065 * asin(sqrt(h)))
+    return far
+
+
+@bp.route("/metrics/dump978")
+def metrics_dump978():
+    """The hub's UAT aircraft in the series names the Ultrafeeder dashboard's UAT panels read from a local dump978 (job "dump978"): the hub has no 978 MHz radio, so these come from what the stations
+    delivered (feeder_uat_aircraft) joined with the hub's own aircraft list. Addresses, call signs, positions and signal levels of aircraft only (as the public map shows); nothing about stations."""
+    from . import uatfeed
+    hub, _err = hub_aircraft()
+    lines = []
+    if hub and cfg("uat_enabled") == "1":
+        got = {icao.lower() for _u, icao, _t in uatfeed.aircraft_now()}
+        planes = [a for a in hub.get("aircraft", []) if a.get("hex", "").lower() in got]
+        from .db import get_db
+        db = get_db()
+        for a in planes:   # remember where it was, for the farthest-aircraft figure after the hub has dropped it
+            if a.get("lat") is not None and a.get("lon") is not None:
+                db.execute("UPDATE feeder_uat_aircraft SET lat=%s, lon=%s WHERE lower(icao)=%s", (a["lat"], a["lon"], a["hex"].lower()))
+        db.commit()
+        lines += ["# HELP aircraft_position_lat Latitude of a UAT aircraft the stations delivered lately", "# TYPE aircraft_position_lat gauge"]
+        for a in planes:
+            if a.get("lat") is not None and a.get("lon") is not None:
+                lines.append(f'aircraft_position_lat{{address="{_label(a["hex"])}",callsign="{_label((a.get("flight") or "").strip())}",airground_state="{"ground" if a.get("gnd") else "airborne"}"}} {a["lat"]}')
+        lines += ["# HELP aircraft_position_lon Longitude of a UAT aircraft the stations delivered lately", "# TYPE aircraft_position_lon gauge"]
+        for a in planes:
+            if a.get("lat") is not None and a.get("lon") is not None:
+                lines.append(f'aircraft_position_lon{{address="{_label(a["hex"])}",callsign="{_label((a.get("flight") or "").strip())}",airground_state="{"ground" if a.get("gnd") else "airborne"}"}} {a["lon"]}')
+        lines += ["# HELP aircraft_metadata_rssi Signal level the hub measured for a UAT aircraft (dBFS)", "# TYPE aircraft_metadata_rssi gauge"]
+        for a in planes:
+            if a.get("rssi") is not None:
+                lines.append(f'aircraft_metadata_rssi{{address="{_label(a["hex"])}"}} {a["rssi"]}')
     return Response("\n".join(lines) + "\n", mimetype="text/plain; version=0.0.4")
 
 

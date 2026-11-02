@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Mesh MQTT Export{% endblock %}
+{% macro csrf() %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endmacro %}
+{% block content %}
+<h1><span>Admin</span> Mesh MQTT Export</h1>
+<div class="sub">Send mesh traffic from this site to other MQTT brokers (another portal, the test site, any broker). Each connector chooses its own feed, communities, channels, port numbers and how exact a position may be. The packets go out as they came in, under the topic prefix you set.</div>
+{% include "partials/_admin_subnav.html" %}
+{% if not switch %}<div class="panel" style="border-color:var(--acc2);margin-bottom:14px"><b>Export is switched off for the site.</b> Nothing is sent whatever the connectors say. Turn it on in <a href="/admin/settings/radio#sec-mesh-nodes">Settings, Mesh Nodes, MQTT Export to Outside Brokers</a>.</div>{% endif %}
+<div class="panel" style="margin-bottom:14px">
+  {% if rows %}<table><thead><tr><th>Connector</th><th>Broker</th><th>Carries</th><th>State</th><th>Sent</th><th></th></tr></thead><tbody>
+  {% for r in rows %}{% set s = st.connectors.get(r.id | string, {}) %}<tr>
+    <td><b>{{ r.name }}</b><div class="dim" style="font-size:.8rem">prefix {{ r.prefix }}</div></td>
+    <td class="mono">{{ r.host }}:{{ r.port }}{{ ' (TLS)' if r.tls }}</td>
+    <td>{{ {'public': 'public feed', 'private': 'private feed', 'both': 'public and private feed'}[r.source] }}{% if r.mimic_public %}, public rules{% endif %}{% if r.position == 'bits' %}, positions cut to {{ r.max_bits }} bits{% elif r.position == 'none' %}, no positions{% endif %}{% if r.communities %}, communities: {{ r.communities.replace('-', 'no community') if r.communities == '-' else r.communities }}{% endif %}</td>
+    <td>{% if not r.enabled %}<span class="dim">off</span>{% elif not switch %}<span class="dim">site switch off</span>{% elif s.connected %}<span style="color:var(--ok,#3ee6a8)">connected</span>{% else %}<span style="color:var(--acc2)">not connected</span>{% endif %}{% if s.last_error %}<div class="dim" style="font-size:.78rem">{{ s.last_error }}</div>{% endif %}</td>
+    <td>{{ s.sent or 0 }}<div class="dim" style="font-size:.78rem">{{ s.filtered or 0 }} held back{% if s.rate_dropped %}, {{ s.rate_dropped }} over the rate{% endif %}{% if s.errors %}, {{ s.errors }} failed{% endif %}</div></td>
+    <td style="white-space:nowrap"><a class="btn small neutral" href="/admin/mesh/exports?edit={{ r.id }}">Edit</a>
+      <form class="inline" method="post" action="/admin/mesh/exports/{{ r.id }}/test">{{ csrf() }}<button class="btn small neutral" type="submit">Send Test</button></form>
+      <form class="inline" method="post" action="/admin/mesh/exports/{{ r.id }}/toggle">{{ csrf() }}<button class="btn small neutral" type="submit">{{ 'Switch Off' if r.enabled else 'Switch On' }}</button></form>
+      <form class="inline" method="post" action="/admin/mesh/exports/{{ r.id }}/delete" data-confirm="Delete this connector? Nothing more is sent to it.">{{ csrf() }}<button class="btn small warn" type="submit">Delete</button></form></td></tr>{% endfor %}</tbody></table>
+  {% else %}<p class="dim" style="margin:0">No connector yet.</p>{% endif %}
+  {% if not edit and not new %}<p style="margin:12px 0 0">{% if rows | length < limit %}<a class="btn small" href="/admin/mesh/exports?new=1">Add a Connector</a>{% else %}<span class="dim">The site allows {{ limit }} connectors.</span>{% endif %}</p>{% endif %}
+</div>
+{% if edit or new %}{% set v = edit %}
+<form method="post" action="/admin/mesh/exports/save" class="panel">{{ csrf() }}{% if v %}<input type="hidden" name="id" value="{{ v.id }}">{% endif %}
+  <h2 style="margin-top:0">{{ 'Edit ' ~ v.name if v else 'New Connector' }}</h2>
+  <div class="cm-row" style="flex-wrap:wrap;gap:12px">
+    <div><label for="x-name">Name</label><input type="text" id="x-name" name="name" maxlength="60" value="{{ v.name if v else '' }}" required></div>
+    <div><label for="x-host">Broker host name or address</label><input type="text" id="x-host" name="host" value="{{ v.host if v else '' }}" required></div>
+    <div><label for="x-port">Port</label><input type="number" id="x-port" name="port" min="1" max="65535" value="{{ v.port if v else 1883 }}" style="width:90px"></div>
+    <div><label for="x-user">Username</label><input type="text" id="x-user" name="username" value="{{ v.username if v else '' }}" autocomplete="off"></div>
+    <div><label for="x-pw">Password{% if v and v.password_sealed %} (blank keeps it){% endif %}</label><input type="password" id="x-pw" name="password" autocomplete="new-password"></div>
+    <div><label for="x-qos">Delivery</label><select id="x-qos" name="qos"><option value="0">At most once (QoS 0)</option><option value="1" {{ 'selected' if v and v.qos == 1 }}>At least once (QoS 1)</option></select></div>
+  </div>
+  <div class="lv-row"><label><input type="checkbox" name="tls" {{ 'checked' if v and v.tls }}> Use TLS (usually port 8883)</label></div>
+  <h3>What it carries</h3>
+  <div class="cm-row" style="flex-wrap:wrap;gap:12px">
+    <div><label for="x-prefix">Topic prefix</label><input type="text" id="x-prefix" name="prefix" value="{{ v.prefix if v else 'msh/US/AR' }}"><div class="dim" style="font-size:.78rem">Packets go to <span class="mono">prefix/&lt;community&gt;/2/e/&lt;channel&gt;/&lt;gateway&gt;</span></div></div>
+    <div><label for="x-src">Feed</label><select id="x-src" name="source">{% for k, l in sources %}{% if k != 'private' and k != 'both' or private_on %}<option value="{{ k }}" {{ 'selected' if v and v.source == k }}>{{ l }}</option>{% endif %}{% endfor %}</select></div>
+    <div><label for="x-rate">Most packets per minute</label><input type="number" id="x-rate" name="rate_per_min" min="1" max="100000" value="{{ v.rate_per_min if v else 600 }}" style="width:110px"></div>
+  </div>
+  {% if private_on %}<div class="lv-row"><label><input type="checkbox" name="confirm_private"> I know the private feed (exact positions, nodes that did not agree to MQTT) leaves this site through this connector. Needed when the feed is private or both.</label></div>{% endif %}
+  <div class="lv-row"><label><input type="checkbox" name="mimic_public" {{ 'checked' if v and v.mimic_public }}> Mimic public: only what the public Meshtastic server would carry (default-key channels it lists, its port numbers, positions no more exact than the site's public limit, OK to MQTT honored)</label></div>
+  <div class="lv-sub">Communities (none ticked: all of them)</div>
+  <div class="lv-row">{% set picked = (v.communities.split(',') if v and v.communities else []) %}<label><input type="checkbox" name="communities" value="-" {{ 'checked' if '-' in picked }}> Traffic that belongs to no community</label>
+    {% for c in communities %}<label style="margin-left:14px"><input type="checkbox" name="communities" value="{{ c.slug }}" {{ 'checked' if c.slug in picked }}> {{ c.name }}</label>{% endfor %}</div>
+  <div class="lv-sub">Port numbers (none ticked: all)</div>
+  <div class="lv-row">{% set pp = (v.portnums.split(',') if v and v.portnums else []) %}{% for n, l in ports %}<label style="margin-right:14px"><input type="checkbox" name="portnums" value="{{ n }}" {{ 'checked' if n | string in pp }}> {{ l }}</label>{% endfor %}</div>
+  <div class="cm-row" style="flex-wrap:wrap;gap:12px"><div><label for="x-chan">Channels (names, comma separated; empty: all)</label><input type="text" id="x-chan" name="channels" value="{{ v.channels if v else '' }}" placeholder="LongFast, MediumFast"></div>
+    <div><label for="x-pe">Other port numbers</label><input type="text" id="x-pe" name="portnums_extra" placeholder="for example 10, 257" style="width:160px"></div></div>
+  <h3>How exact a position may be</h3>
+  <div class="cm-row" style="flex-wrap:wrap;gap:12px">
+    <div><label for="x-pos">Positions</label><select id="x-pos" name="position">{% for k, l in positions %}<option value="{{ k }}" {{ 'selected' if v and v.position == k }}>{{ l }}</option>{% endfor %}</select></div>
+    <div><label for="x-bits">Bits</label><input type="number" id="x-bits" name="max_bits" min="1" max="32" value="{{ v.max_bits if v else 16 }}" style="width:90px"><div class="dim" style="font-size:.78rem">16 bits is about 700 meters; 32 is exact</div></div>
+  </div>
+  <div class="lv-row"><label><input type="checkbox" name="encrypted" {{ 'checked' if (not v) or v.encrypted }}> Also send packets that are encrypted (they cannot be read here, so a position cut cannot reach inside them; with a port number filter they are never sent)</label></div>
+  <div class="lv-row"><label><input type="checkbox" name="enabled" {{ 'checked' if v and v.enabled }}> Switched on</label></div>
+  <p style="margin-bottom:0"><button class="btn" type="submit">Save the Connector</button> <a class="btn neutral" href="/admin/mesh/exports">Cancel</a></p>
+  <p class="dim" style="font-size:.8rem;margin-bottom:0">Hidden nodes are never sent. The password is kept sealed. Every change is in the audit log.</p>
+</form>
+{% endif %}
+{% endblock %}

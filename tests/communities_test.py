@@ -250,7 +250,7 @@ if mesh_up:
 
     # ---- broker logins
     Op = S["cmoperator"]
-    check("a Node Operator makes a broker login for a gateway and sees the password once", ok302(post(Op, f"/mesh/c/{SLUG}/logins/add", label="Hill gateway")) and "password shown once" in flashed(Op) and psql("SELECT COUNT(*) FROM mesh_accounts WHERE community_id=(SELECT id FROM communities WHERE slug='cmt-test-mesh')") == "1")
+    check("a Node Operator makes a broker login for a gateway and sees the password once", ok302(post(Op, f"/mesh/c/{SLUG}/logins/add", label="Hill gateway")) and "see the password again" in flashed(Op) and psql("SELECT COUNT(*) FROM mesh_accounts WHERE community_id=(SELECT id FROM communities WHERE slug='cmt-test-mesh')") == "1")
     aid = psql("SELECT id FROM mesh_accounts WHERE community_id=(SELECT id FROM communities WHERE slug='cmt-test-mesh') LIMIT 1")
     check("the community page lists it, never the password", "Hill gateway" in sec(Op, "logins").text and psql("SELECT password_sealed FROM mesh_accounts WHERE id=" + aid).startswith("enc1:"))
     check("a Viewer and an Editor cannot make logins", post(S["cmviewer"], f"/mesh/c/{SLUG}/logins/add", label="x").status_code == 403 and post(S["cmeditor"], f"/mesh/c/{SLUG}/logins/add", label="x").status_code == 403)

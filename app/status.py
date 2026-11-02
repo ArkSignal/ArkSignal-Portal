@@ -323,6 +323,39 @@ def _mesh_check():
     return _c("mesh", "Mesh Nodes", "ok", "Mesh nodes are working.", f"Answered in {ms:.0f} ms: {d['heard_hour']} nodes heard this hour, {d['nodes']} known, {feed.get('per_min')} packets a minute." + fwd)
 
 
+def _export_check():
+    """The MQTT export connectors (request 208): only shown when the site switch is on."""
+    if cfg("mesh_export_enabled") != "1" or cfg("mesh_enabled") != "1":
+        return _c("meshexport", "Mesh MQTT Export", "off", "MQTT export is switched off.")
+    from . import meshexport
+    rows = [r for r in meshexport.rows() if r["enabled"]]
+    if not rows:
+        return _c("meshexport", "Mesh MQTT Export", "off", "No connector is switched on.")
+    st = meshexport.status().get("connectors", {})
+    down = [r["name"] for r in rows if not (st.get(str(r["id"])) or {}).get("connected")]
+    sent = sum((st.get(str(r["id"])) or {}).get("sent", 0) for r in rows)
+    if down:
+        return _c("meshexport", "Mesh MQTT Export", "warn", f"{len(down)} of {len(rows)} connectors are not connected.", "Not connected: " + ", ".join(down) + ". The broker may be down, or its address, port, TLS or login may be wrong.")
+    return _c("meshexport", "Mesh MQTT Export", "ok", f"{len(rows)} connector{'' if len(rows) == 1 else 's'} connected, {sent} packets sent since the service started.")
+
+
+def _tunnel_check():
+    """The private mesh tunnel (request 205): only shown when the private feed is on."""
+    if cfg("mesh_private_enabled") != "1" or cfg("mesh_enabled") != "1":
+        return _c("meshtunnel", "Private Mesh Tunnel", "off", "The private mesh feed is switched off.")
+    from . import meshwg
+    st = meshwg.status()
+    n = get_db().execute("SELECT COUNT(*) AS n, COUNT(*) FILTER (WHERE NOT disabled) AS on FROM mesh_wg_peers").fetchone()
+    if not meshwg.endpoint():
+        return _c("meshtunnel", "Private Mesh Tunnel", "warn", "The tunnel address is not set.", "Set Private Feed: Tunnel Address in Settings, Mesh Nodes, then make peers on a community's Broker Logins page.")
+    if not st.get("ready"):
+        return _c("meshtunnel", "Private Mesh Tunnel", "warn" if n["n"] else "off", "The tunnel container has not reported lately." if n["n"] else "The tunnel has no peers yet.",
+                  "The mesh-wg container may be stopped, still starting, or the host has no WireGuard kernel support." if n["n"] else "Make a peer on a community's Broker Logins page; the tunnel container starts working once the portal has sent its key.")
+    now = int(__import__("time").time())
+    live = sum(1 for p in st["peers"].values() if p["handshake"] and now - p["handshake"] < 600)
+    return _c("meshtunnel", "Private Mesh Tunnel", "ok", f"The tunnel is up with {n['on']} peer{'' if n['on'] == 1 else 's'}, {live} connected now.", "A peer counts as connected when it completed a handshake in the last ten minutes. A gateway that is idle may show as not connected.")
+
+
 def _acars_check():
     if cfg("acars_enabled") != "1":
         return _c("acars", "ACARS", "off", "ACARS is switched off.")
@@ -543,7 +576,7 @@ def _source_checks():
     return out
 
 
-PUBLIC = (_site_check, _hub_check, _feeders_check, _history_check, _mlat_check, _uat_check, _weather_check, _sondes_check, _predict_check, _aprs_check, _acars_check, _mesh_check, _matrix_check, _satellites_check, _bridge_check, _ais_check, _drones_check, _osrm_check, _photon_check, _planefence_check, _grafana_check, _source_checks)
+PUBLIC = (_site_check, _hub_check, _feeders_check, _history_check, _mlat_check, _uat_check, _weather_check, _sondes_check, _predict_check, _aprs_check, _acars_check, _mesh_check, _tunnel_check, _export_check, _matrix_check, _satellites_check, _bridge_check, _ais_check, _drones_check, _osrm_check, _photon_check, _planefence_check, _grafana_check, _source_checks)
 ADMIN = (_prometheus_check, _updates_check, _stack_check, _backup_check, _disk_check, _airports_check, _data_updates_check)
 
 

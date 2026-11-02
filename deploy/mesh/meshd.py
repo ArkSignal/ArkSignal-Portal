@@ -41,8 +41,8 @@ DEFAULTS = {"enabled": "1", "host": "mesh-mqtt", "port": "1883", "user": "", "pa
             "heard_keep_days": "14", "links_keep_days": "30", "up_enabled": "1", "up_host": "mqtt.meshtastic.org", "up_port": "1883", "up_user": "meshdev", "up_password": "large4cats", "up_topic": "msh/US/AR/#",
             "public_rules": "1", "public_channels": "LongFast,LongTurbo,LongSlow,LongModerate,MediumFast,MediumTurbo,MediumSlow,ShortFast,ShortSlow,ShortTurbo,VLongSlow", "public_portnums": "1,3,4,5,7,67,71,73",
             "public_max_bits": "16", "publish_root": "msh/US/AR", "fwd_enabled": "0", "fwd_root": "msh/US/AR", "fwd_communities": "", "links": "[]", "relay_gateway": "!a5c0ae11", "link_dedupe_seconds": "600",
-            "hw_source": "https://raw.githubusercontent.com/meshtastic/protobufs/master/meshtastic/mesh.proto", "hw_refresh_hours": "24"}
-STATE = {"connected": False, "packets": 0, "decoded": 0, "encrypted": 0, "stored": 0, "outside": 0, "mc_packets": 0, "mc_adverts": 0, "mc_dropped": 0, "mc_badsig": 0, "links": 0, "public_dropped": 0, "public_coarsened": 0, "since": time.time(), "last": None, "error": "", "reconnects": 0, "up_connected": False, "up_error": "", "up_reconnects": 0, "fwd_sent": 0, "fwd_dropped": 0, "fwd_error": ""}
+            "hw_source": "https://raw.githubusercontent.com/meshtastic/protobufs/master/meshtastic/mesh.proto", "hw_refresh_hours": "24", "private_root": "mshp", "private_enabled": "0", "exports": "[]", "export_enabled": "0"}
+STATE = {"connected": False, "packets": 0, "decoded": 0, "encrypted": 0, "stored": 0, "outside": 0, "mc_packets": 0, "mc_adverts": 0, "mc_dropped": 0, "mc_badsig": 0, "links": 0, "public_dropped": 0, "public_coarsened": 0, "since": time.time(), "last": None, "error": "", "reconnects": 0, "up_connected": False, "up_error": "", "up_reconnects": 0, "fwd_sent": 0, "fwd_dropped": 0, "fwd_error": "", "p_packets": 0, "p_stored": 0, "p_public": 0, "p_withheld": 0, "p_encrypted": 0}
 _cfg = {}
 _lock = threading.Lock()
 
@@ -134,6 +134,9 @@ def init_db():
                 c.execute("""CREATE TABLE IF NOT EXISTS node_history (node_id BIGINT NOT NULL, ts TIMESTAMPTZ NOT NULL DEFAULT now(), battery REAL, voltage REAL, channel_util REAL, air_util REAL, temp_c REAL, humidity REAL,
                     pressure_hpa REAL, gas_ohm REAL, iaq REAL, lux REAL, wind_dir REAL, wind_ms REAL, gust_ms REAL, rain_1h_mm REAL)""")
                 c.execute("CREATE INDEX IF NOT EXISTS node_history_node_ts ON node_history (node_id, ts DESC)")
+                # the private feed (request 205): the same shape as the public tables, kept apart so no public page can read them
+                c.execute("CREATE TABLE IF NOT EXISTS pnodes (LIKE nodes INCLUDING ALL)")
+                c.execute("CREATE TABLE IF NOT EXISTS pheard (LIKE heard INCLUDING ALL)")
             return
         except Exception as e:
             print("waiting for the database:", str(e)[:100], flush=True)
@@ -141,7 +144,7 @@ def init_db():
     raise SystemExit("the database never answered")
 
 
-SECRET_KEYS = ("password", "up_password")   # settings that are secrets: kept sealed in this service's own database when the stack has a SERVICE_TOKEN to seal them with
+SECRET_KEYS = ("password", "up_password", "exports")   # settings that are secrets: kept sealed in this service's own database when the stack has a SERVICE_TOKEN to seal them with
 
 
 def _sealer():
@@ -271,11 +274,13 @@ def decode_envelope(raw):
         return None
     gw = first(env, 3, b"")
     out = {"node": sender, "gateway": gw.decode("utf-8", "ignore") if isinstance(gw, bytes) else "", "channel": (first(env, 2, b"") or b"").decode("utf-8", "ignore"),
-           "snr": f32(first(mp, 8)) if first(mp, 8) is not None else None, "rssi": s32(first(mp, 12)) if first(mp, 12) is not None else None, "encrypted": first(mp, 5) is not None, "portnum": None, "payload": b""}
+           "snr": f32(first(mp, 8)) if first(mp, 8) is not None else None, "rssi": s32(first(mp, 12)) if first(mp, 12) is not None else None, "encrypted": first(mp, 5) is not None, "portnum": None, "payload": b"", "bitfield": None}
     data = first(mp, 4)
     if isinstance(data, bytes):
         d = fields(data)
         out["portnum"], out["payload"] = first(d, 1, 0), first(d, 2, b"") or b""
+        bf = first(d, 9)
+        out["bitfield"] = bf if isinstance(bf, int) else None
     return out
 
 
@@ -443,14 +448,16 @@ def community_of(topic):
     return parts[0] if len(parts) >= 3 and parts[1] == "2" and SLUG_RE.match(parts[0]) else ""
 
 
-def _store(c, node, upd, gw, snr, rssi, telemetry, hist=None, topic=""):
+def _store(c, node, upd, gw, snr, rssi, telemetry, hist=None, topic="", private=False, com=None):
     """Write what one packet said about a node and which gateway heard it. Returns "ignored" when it adds or places nothing, else None."""
-    known = c.execute("SELECT 1 FROM nodes WHERE node_id=%s", (node,)).fetchone()
+    tn, th = ("pnodes", "pheard") if private else ("nodes", "heard")   # the private feed is kept in tables of its own
+    known = c.execute(f"SELECT 1 FROM {tn} WHERE node_id=%s", (node,)).fetchone()
     if not known and (not upd or telemetry):
         return "ignored"   # a node is only added by something that says who or where it is
     sets = []
     vals = {"n": node}
-    com = community_of(topic) if topic else ""
+    if com is None:
+        com = community_of(topic) if topic else ""
     if com:
         upd = dict(upd, community=com)
     for k, v in upd.items():
@@ -460,15 +467,15 @@ def _store(c, node, upd, gw, snr, rssi, telemetry, hist=None, topic=""):
             sets.append(f"{k}=%({k})s")
             vals[k] = v
     if known:
-        c.execute("UPDATE nodes SET " + ", ".join(sets + ["last_seen=now()", "packets=packets+1"]) + " WHERE node_id=%(n)s", vals)
+        c.execute(f"UPDATE {tn} SET " + ", ".join(sets + ["last_seen=now()", "packets=packets+1"]) + " WHERE node_id=%(n)s", vals)
     else:
         cols = ["node_id"] + [k for k in upd if k != "last_report"]
-        c.execute("INSERT INTO nodes (" + ", ".join(cols + (["last_report"] if "last_report" in upd else [])) + ") VALUES (" + ", ".join([f"%(n)s"] + [f"%({k})s" for k in cols[1:]] + (["now()"] if "last_report" in upd else [])) + ")", vals)
-    if hist:
+        c.execute(f"INSERT INTO {tn} (" + ", ".join(cols + (["last_report"] if "last_report" in upd else [])) + ") VALUES (" + ", ".join([f"%(n)s"] + [f"%({k})s" for k in cols[1:]] + (["now()"] if "last_report" in upd else [])) + ")", vals)
+    if hist and not private:
         record_history(c, node, hist)
     if gw and gw.lstrip("!").lower() != ("%08x" % node):
-        c.execute("INSERT INTO heard (node_id, gateway, snr, rssi, best_snr, ts) VALUES (%s,%s,%s,%s,%s,now()) ON CONFLICT (node_id, gateway) DO UPDATE SET snr=EXCLUDED.snr, rssi=EXCLUDED.rssi, "
-                  "best_snr=GREATEST(COALESCE(heard.best_snr, -99), COALESCE(EXCLUDED.snr, -99)), ts=now(), count=heard.count+1", (node, gw, snr, rssi, snr))
+        c.execute(f"INSERT INTO {th} (node_id, gateway, snr, rssi, best_snr, ts) VALUES (%s,%s,%s,%s,%s,now()) ON CONFLICT (node_id, gateway) DO UPDATE SET snr=EXCLUDED.snr, rssi=EXCLUDED.rssi, "
+                  f"best_snr=GREATEST(COALESCE({th}.best_snr, -99), COALESCE(EXCLUDED.snr, -99)), ts=now(), count={th}.count+1", (node, gw, snr, rssi, snr))
     return None
 
 
@@ -551,17 +558,18 @@ def handle_json(topic, payload):
     return "stored"
 
 
-def handle(raw, topic=""):
-    """One envelope from the broker (or the test door): what is kept is only what was sent decoded; returns what was done."""
-    STATE["packets"] += 1
+def handle(raw, topic="", private=False, com=None):
+    """One envelope from the broker (or the test door): what is kept is only what was sent decoded; returns what was done. private=True is the private feed (request 205): kept in the private tables for
+    the community `com`, with none of the public rules (every port, the exact position, no area limit)."""
+    STATE["p_packets" if private else "packets"] += 1
     STATE["last"] = time.time()
     e = decode_envelope(raw)
     if e is None:
         return "ignored"
     if e["encrypted"] or e["portnum"] is None:
-        STATE["encrypted"] += 1
+        STATE["p_encrypted" if private else "encrypted"] += 1
         return "encrypted"
-    if not port_allowed(e["channel"], e["portnum"]):
+    if not private and not port_allowed(e["channel"], e["portnum"]):
         STATE["public_dropped"] += 1
         return "ignored"
     STATE["decoded"] += 1
@@ -575,7 +583,7 @@ def handle(raw, topic=""):
             r = decode_map_report(e["payload"])
             if r["lat"] is not None and (abs(r["lat"]) > 90 or abs(r["lon"]) > 180):
                 r["lat"] = r["lon"] = None
-            if r["lat"] is not None and not inside(r["lat"], r["lon"]):
+            if r["lat"] is not None and not private and not inside(r["lat"], r["lon"]):
                 STATE["outside"] += 1
                 return "outside"
             upd = {k: v for k, v in r.items() if v is not None}
@@ -584,8 +592,9 @@ def handle(raw, topic=""):
             p = decode_position(e["payload"])
             if p["lat"] is None or p["lon"] is None or (p["lat"] == 0 and p["lon"] == 0):
                 return "ignored"
-            p["lat"], p["lon"] = public_position(e["channel"], p["lat"], p["lon"], p.get("precision_bits"))
-            if not inside(p["lat"], p["lon"]):
+            if not private:
+                p["lat"], p["lon"] = public_position(e["channel"], p["lat"], p["lon"], p.get("precision_bits"))
+            if not private and not inside(p["lat"], p["lon"]):
                 STATE["outside"] += 1
                 return "outside"
             upd = {k: v for k, v in p.items() if v is not None and k != "precision_bits"}
@@ -595,6 +604,8 @@ def handle(raw, topic=""):
             upd = {k: v for k, v in decode_telemetry(e["payload"]).items() if v is not None}
             hist = dict({k: upd[k] for k in HIST_DEVICE if k in upd}, **decode_env(e["payload"]))
         elif e["portnum"] == PORT_NEIGHBORINFO:
+            if private:
+                return "ignored"   # the links table is public; the private feed keeps no links yet
             ni = decode_neighborinfo(e["payload"])
             reporter = ni["node"] or node
             if reporter != node:   # a report is only believed from the node itself
@@ -606,11 +617,384 @@ def handle(raw, topic=""):
             return "stored" if n else "ignored"
         else:
             upd = {}
-        r = _store(c, node, upd, e["gateway"], e["snr"], e["rssi"], e["portnum"] == PORT_TELEMETRY, hist, topic)
+        r = _store(c, node, upd, e["gateway"], e["snr"], e["rssi"], e["portnum"] == PORT_TELEMETRY, hist, topic, private, com)
         if r:
             return r
-    STATE["stored"] += 1
+    STATE["p_stored" if private else "stored"] += 1
     return "stored"
+
+
+# ------------------------------------------------------------------ the private tunnel (request 205, stage 4)
+# The portal owns the tunnel's keys and peers (and backs them up); this service only writes them where the tunnel container (wg-start.sh) reads them, and reads back its status.
+WG_DIR = os.environ.get("WG_DIR", "/wg")
+WG_KEY_RE = re.compile(r"^[A-Za-z0-9+/]{43}=$")
+WG_IP_RE = re.compile(r"^(?:\d{1,3}\.){3}\d{1,3}$")
+
+
+WG_LOGIN_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{2,40}$")
+WG_RELAY_RE = re.compile(r"^[A-Za-z0-9_-]{20,100}$")
+
+
+def wg_write(server_key, peers, relay_key=""):
+    """Write the server key and the peer list for the tunnel container. Every value is checked here and again there."""
+    if not WG_KEY_RE.match(server_key or ""):
+        raise ValueError("the tunnel key is not a WireGuard key")
+    good = []
+    for p in peers:
+        if not WG_KEY_RE.match(str(p.get("key") or "")) or not WG_IP_RE.match(str(p.get("ip") or "")):
+            raise ValueError("a peer needs a WireGuard public key and an address")
+        good.append({"key": p["key"], "ip": p["ip"], "logins": [x for x in (p.get("logins") or []) if isinstance(x, str) and WG_LOGIN_RE.match(x)]})
+    os.makedirs(WG_DIR, exist_ok=True)
+    kp = os.path.join(WG_DIR, "server.key")
+    if not os.path.exists(kp) or open(kp).read().strip() != server_key:
+        fd = os.open(kp + ".new", os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as f:
+            f.write(server_key + "\n")
+        os.replace(kp + ".new", kp)
+    if relay_key:
+        if not WG_RELAY_RE.match(relay_key):
+            raise ValueError("the relay key is not valid")
+        rp = os.path.join(WG_DIR, "relay.key")
+        if not os.path.exists(rp) or open(rp).read().strip() != relay_key:
+            fd = os.open(rp + ".new", os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w") as f:
+                f.write(relay_key + "\n")
+            os.replace(rp + ".new", rp)
+    pp = os.path.join(WG_DIR, "peers.json")
+    with open(pp + ".new", "w") as f:
+        json.dump({"peers": good}, f)
+    os.replace(pp + ".new", pp)
+    return len(good)
+
+
+def wg_status():
+    """{ready, peers: {public key: {handshake (epoch seconds, 0 never), rx, tx}}} as the tunnel container last wrote it."""
+    out = {}
+    try:
+        for line in open(os.path.join(WG_DIR, "status.txt")).read().splitlines():
+            k = line.split()
+            if len(k) == 4 and WG_KEY_RE.match(k[0]):
+                out[k[0]] = {"handshake": int(k[1]), "rx": int(k[2]), "tx": int(k[3])}
+        age = time.time() - os.path.getmtime(os.path.join(WG_DIR, "status.txt"))
+        return {"ready": age < 90, "peers": out}
+    except (OSError, ValueError):
+        return {"ready": False, "peers": {}}
+
+
+# ------------------------------------------------------------------ outbound export (request 208)
+# Connectors the administrators define (kept by the portal, sent here): each is one outside MQTT broker with its own filters. A Meshtastic packet heard on our broker, public or private, is published to every
+# connector whose filters let it through: the packet bytes unchanged (a position may be cut first, by the connector's choice) under <prefix>/<community>/2/e/<channel>/<gateway>.
+EXPORT_DEFAULT = {"id": 0, "name": "", "enabled": False, "host": "", "port": 1883, "tls": False, "username": "", "password": "", "qos": 0, "prefix": "msh/US/AR", "source": "public", "communities": [], "channels": [],
+                  "portnums": [], "position": "asis", "max_bits": 16, "mimic_public": False, "encrypted": True, "rate_per_min": 600}
+_EXP = {"clients": {}, "stats": {}, "lock": threading.Lock(), "hidden": (0.0, set())}
+
+
+def export_conns():
+    try:
+        rows = json.loads(cfg("exports") or "[]")
+    except ValueError:
+        rows = []
+    return [dict(EXPORT_DEFAULT, **r) for r in rows if isinstance(r, dict) and r.get("id")]
+
+
+def _estat(cid):
+    return _EXP["stats"].setdefault(cid, {"sent": 0, "filtered": 0, "rate_dropped": 0, "errors": 0, "connected": False, "last_error": "", "last_sent": None, "window": [0.0, 0]})
+
+
+def _hidden_nodes():
+    at, s = _EXP["hidden"]
+    if time.time() - at > 30:
+        try:
+            with db() as c:
+                s = {r["node_key"] for r in c.execute("SELECT node_key FROM hidden WHERE node_key LIKE '!%%'").fetchall()}
+        except Exception:
+            pass
+        _EXP["hidden"] = (time.time(), s)
+    return s
+
+
+def export_split(topic, src):
+    """(community, rest of the topic) for a Meshtastic packet topic of ours, or (None, None): rest is 2/e/<channel>/<gateway> or 2/map/..."""
+    if src == "private":
+        com, kind = private_parts(topic)
+        if com is None:
+            return None, None
+        root = (cfg("private_root").strip("/") or "mshp") + "/" + com + "/"
+        return com, topic[len(root):]
+    root = (cfg("publish_root").strip("/") or "msh") + "/"
+    if not topic.startswith(root):
+        return None, None
+    parts = topic[len(root):].split("/")
+    if len(parts) >= 3 and parts[1] == "2" and SLUG_RE.match(parts[0]):
+        return parts[0], "/".join(parts[1:])
+    if parts[0] == "2":
+        return "", "/".join(parts)
+    return None, None
+
+
+def _cut_fields(fl, lat_no, lon_no, bits_no, bits):
+    """The Position or map report fields with latitude and longitude cut to `bits` bits (the same cut the firmware makes), unless already no more exact."""
+    lat = next((v for n, w, v in fl if n == lat_no and w == 5), None)
+    lon = next((v for n, w, v in fl if n == lon_no and w == 5), None)
+    have = next((v for n, w, v in fl if n == bits_no and w == 0), None)
+    if lat is None or lon is None or (have is not None and have <= bits):
+        return fl
+    la, lo = coarsen(s32(lat) / 1e7, s32(lon) / 1e7, bits)
+    out = [(n, w, (int(round(la * 1e7)) if n == lat_no and w == 5 else int(round(lo * 1e7)) if n == lon_no and w == 5 else v)) for n, w, v in fl if not (n == bits_no and w == 0)]
+    out.append((bits_no, 0, bits))
+    return out
+
+
+def export_position(raw, mode, bits):
+    """(packet bytes, drop): a decoded position (port 3) or map report (port 73) is cut to `bits` bits (mode bits) or dropped (mode none); everything else goes unchanged."""
+    if mode == "asis":
+        return raw, False
+    env = fields(raw)
+    out = []
+    for num, wt, v in env:
+        if num == 1 and wt == 2:
+            mp = fields(v)
+            nm = []
+            for n2, w2, v2 in mp:
+                if n2 == 4 and w2 == 2:
+                    data = fields(v2)
+                    port = next((x for n, w, x in data if n == 1 and w == 0), None)
+                    if port in (PORT_POSITION, PORT_MAP_REPORT):
+                        if mode == "none":
+                            return raw, True
+                        nd = []
+                        for n3, w3, v3 in data:
+                            if n3 == 2 and w3 == 2:
+                                inner = _cut_fields(fields(v3), 1, 2, 23, bits) if port == PORT_POSITION else _cut_fields(fields(v3), 9, 10, 12, bits)
+                                v3 = encode_fields(inner)
+                            nd.append((n3, w3, v3))
+                        v2 = encode_fields(nd)
+                nm.append((n2, w2, v2))
+            v = encode_fields(nm)
+        out.append((num, wt, v))
+    return encode_fields(out), False
+
+
+def export_passes(c, e, com, rest, src, topic, raw):
+    """Whether this connector carries the packet (before any position cut and the rate cap)."""
+    if c["source"] not in ("both", src):
+        return False
+    if c["communities"] and (com or "-") not in c["communities"]:
+        return False
+    if "!%08x" % e["node"] in _hidden_nodes():
+        return False
+    if c["channels"] and (e["channel"] or "").lower() not in {x.lower() for x in c["channels"]}:
+        return False
+    if e["encrypted"] or e["portnum"] is None:
+        if not c["encrypted"]:
+            return False
+        if c["portnums"]:
+            return False   # the port number is inside it: with a port filter an encrypted packet cannot be judged
+    elif c["portnums"] and e["portnum"] not in c["portnums"]:
+        return False
+    if c["mimic_public"]:
+        if not forward_allowed(topic, raw):
+            return False
+        if src == "private" and not public_ok(e, "map" if "/2/map/" in topic else "e"):
+            return False
+    return True
+
+
+def export_packet(topic, raw, src, skip_both=False):
+    """Offer one packet heard on our broker to every connector. src is "public" (a topic under the public root, or a private packet the public rules would have carried) or "private"."""
+    if cfg("export_enabled") != "1":
+        return
+    conns = [c for c in export_conns() if c["enabled"] and c["host"]]
+    if not conns:
+        return
+    com, rest = export_split(topic, src)
+    if rest is None:
+        return
+    e = decode_envelope(raw)
+    if e is None:
+        return
+    for c in conns:
+        if skip_both and c["source"] == "both":
+            continue   # it already had this packet as a private one
+        st = _estat(c["id"])
+        try:
+            if not export_passes(c, e, com, rest, src, topic, raw):
+                st["filtered"] += 1
+                continue
+            body, drop = export_position(raw, c["position"], int(c["max_bits"]))
+            if drop:
+                st["filtered"] += 1
+                continue
+            now = time.time()
+            w = st["window"]
+            if now - w[0] >= 60:
+                w[0], w[1] = now, 0
+            if w[1] >= int(c["rate_per_min"]):
+                st["rate_dropped"] += 1
+                continue
+            cl = _export_client(c)
+            if cl is None or not st["connected"]:
+                st["errors"] += 1
+                continue
+            out_topic = (c["prefix"].strip("/") or "msh") + "/" + ((com + "/") if com else "") + rest
+            cl.publish(out_topic, body, qos=int(c["qos"]), retain=False)
+            w[1] += 1
+            st["sent"] += 1
+            st["last_sent"] = now
+        except Exception as ex:
+            st["errors"] += 1
+            st["last_error"] = str(ex)[:100]
+
+
+def _export_client(c):
+    """The paho client of one connector, made when first needed and again when its connection settings change."""
+    sig = (c["host"], int(c["port"]), bool(c["tls"]), c["username"], c["password"], c["id"])
+    with _EXP["lock"]:
+        hit = _EXP["clients"].get(c["id"])
+        if hit and hit[1] == sig:
+            return hit[0]
+        if hit:
+            try:
+                hit[0].loop_stop(); hit[0].disconnect()
+            except Exception:
+                pass
+        try:
+            import paho.mqtt.client as mqtt
+            cl = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="arksignal-export-%s" % c["id"]) if hasattr(mqtt, "CallbackAPIVersion") else mqtt.Client(client_id="arksignal-export-%s" % c["id"])
+            st = _estat(c["id"])
+            st["connected"] = False
+
+            def on_connect(client, userdata, flags, rc, *a):
+                ok = (getattr(rc, "value", rc) == 0)
+                st["connected"] = ok
+                st["last_error"] = "" if ok else "the broker refused the connection (%s)" % rc
+
+            def on_disconnect(client, userdata, *a):
+                st["connected"] = False
+
+            cl.on_connect, cl.on_disconnect = on_connect, on_disconnect
+            if c["username"]:
+                cl.username_pw_set(c["username"], c["password"])
+            if c["tls"]:
+                cl.tls_set()
+            cl.reconnect_delay_set(2, 60)
+            cl.connect_async(c["host"], int(c["port"]), 60)
+            cl.loop_start()
+            _EXP["clients"][c["id"]] = (cl, sig)
+            return cl
+        except Exception as ex:
+            _estat(c["id"])["last_error"] = str(ex)[:100]
+            return None
+
+
+def export_loop():
+    """Keeps the connectors' connections in step with the settings: starts them while the site switch and the connector are on, drops them when either goes off or the connector is gone."""
+    while True:
+        try:
+            on = cfg("export_enabled") == "1"
+            want = {c["id"]: c for c in export_conns() if on and c["enabled"] and c["host"]}
+            for cid in list(_EXP["clients"]):
+                if cid not in want:
+                    with _EXP["lock"]:
+                        hit = _EXP["clients"].pop(cid, None)
+                    if hit:
+                        try:
+                            hit[0].loop_stop(); hit[0].disconnect()
+                        except Exception:
+                            pass
+                    _estat(cid)["connected"] = False
+            for c in want.values():
+                _export_client(c)
+        except Exception as ex:
+            print("export loop:", str(ex)[:100], flush=True)
+        time.sleep(10)
+
+
+def export_status():
+    return {str(c["id"]): {k: v for k, v in _estat(c["id"]).items() if k != "window"} for c in export_conns()}
+
+
+def export_test(cid):
+    """Publish one small message to a connector (whatever its filters say) and say what happened."""
+    c = next((x for x in export_conns() if x["id"] == cid), None)
+    if c is None or not c["host"]:
+        return {"ok": False, "error": "no such connector"}
+    cl = _export_client(c)
+    for _ in range(40):
+        if _estat(cid)["connected"]:
+            break
+        time.sleep(0.25)
+    if cl is None or not _estat(cid)["connected"]:
+        return {"ok": False, "error": _estat(cid)["last_error"] or "could not connect to the broker"}
+    t = (c["prefix"].strip("/") or "msh") + "/test"
+    info = cl.publish(t, json.dumps({"from": "arksignal", "test": True, "at": int(time.time())}), qos=1, retain=False)
+    try:
+        info.wait_for_publish(timeout=5)
+    except Exception:
+        pass
+    return {"ok": bool(info.is_published()), "topic": t}
+
+
+# ------------------------------------------------------------------ the private feed (request 205)
+# A gateway on the private broker (reached only through the tunnel, so the firmware sees a private address) publishes <private root>/<community>/2/e/<channel>/<gateway id>. Everything decoded is kept in the
+# private tables for that community. What the firmware would have uplinked to a public server goes on to the public path unchanged, under the community's public root.
+OK_TO_MQTT = 1   # Data.bitfield bit 0 (BITFIELD_OK_TO_MQTT_MASK in the firmware)
+
+
+def private_parts(topic):
+    """(community, kind) of <private root>/<community>/2/e|map/..., else (None, None); kind is "e" or "map"."""
+    root = (cfg("private_root").strip("/") or "mshp") + "/"
+    if not topic.startswith(root):
+        return None, None
+    parts = topic[len(root):].split("/")
+    if len(parts) >= 3 and parts[1] == "2" and parts[2] in ("e", "map") and SLUG_RE.match(parts[0]):
+        return parts[0], parts[2]
+    return None, None
+
+
+def public_topic(com, topic):
+    """The same packet's topic under the community's public root."""
+    root = (cfg("private_root").strip("/") or "mshp") + "/" + com + "/"
+    return (cfg("publish_root").strip("/") or "msh") + "/" + com + "/" + topic[len(root):]
+
+
+def public_ok(e, kind):
+    """Would the firmware have uplinked this packet to a public server: a map report (the node chose to report), a packet from the gateway itself, or a decoded packet with the OK to MQTT bit set, on a channel the
+    public server lists. An encrypted packet is never judged (the bit is inside it) and never goes on."""
+    if e["encrypted"] or e["portnum"] is None:
+        return False
+    if kind == "map":
+        return e["portnum"] == PORT_MAP_REPORT
+    if not is_public(e["channel"]):
+        return False
+    from_gateway = e["gateway"].lstrip("!").lower() == ("%08x" % e["node"])
+    return from_gateway or bool(e["bitfield"] is not None and e["bitfield"] & OK_TO_MQTT)
+
+
+def handle_private(topic, raw):
+    """One packet from the private broker. Returns "ignored", "encrypted", "hidden", "private" (kept privately only) or "public" (kept privately and passed on to the public path)."""
+    com, kind = private_parts(topic)
+    if com is None or cfg("private_enabled") != "1":
+        return "ignored"
+    export_packet(topic, raw, "private")
+    r = handle(raw, topic, True, com)
+    if r != "stored":
+        return r
+    e = decode_envelope(raw)
+    if e is None or not public_ok(e, kind):
+        STATE["p_withheld"] += 1
+        return "private"
+    pt = public_topic(com, topic)
+    export_packet(pt, raw, "public", True)   # what the public rules would have carried also goes to the connectors that ask for the public feed
+    if handle(raw, pt) != "stored":
+        STATE["p_withheld"] += 1
+        return "private"   # the public rules turned it down (outside the area, a port the public server does not carry)
+    try:
+        forward(pt, raw)
+    except Exception as ex:
+        STATE["fwd_error"] = str(ex)[:80]
+    STATE["p_public"] += 1
+    return "public"
 
 
 
@@ -817,6 +1201,9 @@ def ensure_base():
         {"command": "addRoleACL", "rolename": "reader", "acltype": "subscribePattern", "topic": "meshcore/#", "allow": True},
         {"command": "addRoleACL", "rolename": "reader", "acltype": "publishClientReceive", "topic": "msh/#", "allow": True},
         {"command": "addRoleACL", "rolename": "reader", "acltype": "publishClientReceive", "topic": "meshcore/#", "allow": True},
+        # the private feed (request 205): the service reads it to keep it apart from the public one
+        {"command": "addRoleACL", "rolename": "reader", "acltype": "subscribePattern", "topic": (cfg("private_root").strip("/") or "mshp") + "/#", "allow": True},
+        {"command": "addRoleACL", "rolename": "reader", "acltype": "publishClientReceive", "topic": (cfg("private_root").strip("/") or "mshp") + "/#", "allow": True},
         # the service's own sender (alert and weather messages, relayed packets): may write a community's packets (<root>/<community>/2/e/#) and nothing else, and is never sent anything
         {"command": "createRole", "rolename": "bot"},
         {"command": "addRoleACL", "rolename": "bot", "acltype": "publishClientSend", "topic": (cfg("publish_root").strip("/") or "msh") + "/+/2/e/#", "allow": True},
@@ -857,16 +1244,37 @@ def ensure_community(slug, down=False):
     return role
 
 
-def set_user(username, password, community="", down=False):
+def ensure_private(slug):
+    """The broker role of one community's private gateways: may publish (and subscribe, so a node's subscribe does not fail) under the community's private root and nowhere else, and is sent nothing."""
+    if not SLUG_RE.match(slug):
+        raise ValueError("a community address is 3 to 40 lowercase letters, digits and dashes")
+    root = (cfg("private_root").strip("/") or "mshp") + "/" + slug
+    role = "private-" + slug
+    cmds = [{"command": "createRole", "rolename": role},
+            {"command": "addRoleACL", "rolename": role, "acltype": "publishClientSend", "topic": root + "/#", "allow": True},
+            {"command": "addRoleACL", "rolename": role, "acltype": "subscribePattern", "topic": root + "/#", "allow": True},
+            {"command": "addRoleACL", "rolename": role, "acltype": "publishClientReceive", "topic": "#", "allow": False, "priority": 10}]
+    bad = [x for x in control(cmds) if not _ok(x)]
+    if bad:
+        raise RuntimeError("the broker refused: " + str(bad[0].get("error")))
+    return role
+
+
+def set_user(username, password, community="", down=False, private=False):
     """A member's login: may publish to the mesh topics, may not read anything. A community's login publishes only under its community's root (and, for a downlink login, is sent what is published there).
     Safe to repeat (it also changes the password and moves a login between kinds)."""
     if not re.fullmatch(r"[a-z0-9][a-z0-9._-]{2,40}", username) or username in SYSTEM_USERS or not (8 <= len(password) <= 63):
         raise ValueError("a login name is 3 to 41 lowercase letters, digits, dots, dashes; a password 8 to 63 characters")
     cmds = [{"command": "createClient", "username": username, "password": password}, {"command": "setClientPassword", "username": username, "password": password}]
-    if community:
+    if community and private:
+        want = ensure_private(community)
+        up, dn = community_roles(community)
+        cmds += [{"command": "removeClientRole", "username": username, "rolename": r} for r in ("publisher", up, dn)] + [{"command": "addClientRole", "username": username, "rolename": want}]
+    elif community:
         want = ensure_community(community, bool(down))
         up, dn = community_roles(community)
         cmds += [{"command": "removeClientRole", "username": username, "rolename": "publisher"}, {"command": "removeClientRole", "username": username, "rolename": dn if want == up else up},
+                 {"command": "removeClientRole", "username": username, "rolename": "private-" + community},
                  {"command": "addClientRole", "username": username, "rolename": want}]
     else:
         cmds.append({"command": "addClientRole", "username": username, "rolename": "publisher"})
@@ -893,7 +1301,7 @@ def sync_users(users, prune=True):
     if prune:
         ensure_base()   # the broker's own roles and the service's login are re-asserted (the broker disconnects clients whose rules are touched): the automatic sync skips this unless it is needed
     want = {u["username"]: u["password"] for u in users}
-    kind = {u["username"]: (u.get("community") or "", bool(u.get("down"))) for u in users}
+    kind = {u["username"]: (u.get("community") or "", bool(u.get("down")), bool(u.get("private"))) for u in users}
     have = set(list_users())
     try:
         for name, pw in want.items():
@@ -944,6 +1352,8 @@ def reader(pfx=""):
         if ok:
             for t in [x.strip() for x in cfg(pfx + "topic").split(",") if x.strip()]:
                 client.subscribe(t)
+            if not pfx:
+                client.subscribe((cfg("private_root").strip("/") or "mshp") + "/#")
 
     def on_disconnect(client, userdata, *a):
         STATE[pfx + "connected"] = False
@@ -951,7 +1361,14 @@ def reader(pfx=""):
 
     def on_message(client, userdata, msg):
         try:
+            if not pfx and private_parts(msg.topic)[0] is not None:
+                handle_private(msg.topic, msg.payload)
+                return
             if not pfx:
+                try:
+                    export_packet(msg.topic, msg.payload, "public")
+                except Exception as ex:
+                    STATE["fwd_error"] = str(ex)[:80]
                 try:
                     forward(msg.topic, msg.payload)
                 except Exception as ex:
@@ -1288,6 +1705,8 @@ def pruner():
                 c.execute("DELETE FROM mc_heard WHERE ts < now() - make_interval(days => %s) OR pubkey NOT IN (SELECT pubkey FROM mc_nodes)", (int(cfg("heard_keep_days")),))
                 c.execute("DELETE FROM nodes WHERE last_seen < now() - make_interval(days => %s)", (int(cfg("keep_days")),))
                 c.execute("DELETE FROM heard WHERE ts < now() - make_interval(days => %s) OR node_id NOT IN (SELECT node_id FROM nodes)", (int(cfg("heard_keep_days")),))
+                c.execute("DELETE FROM pnodes WHERE last_seen < now() - make_interval(days => %s)", (int(cfg("keep_days")),))
+                c.execute("DELETE FROM pheard WHERE ts < now() - make_interval(days => %s) OR node_id NOT IN (SELECT node_id FROM pnodes)", (int(cfg("heard_keep_days")),))
                 c.execute("DELETE FROM node_history WHERE ts < now() - make_interval(days => %s) OR node_id NOT IN (SELECT node_id FROM nodes)", (int(cfg("history_keep_days")),))
         except Exception as e:
             print("prune failed:", str(e)[:100], flush=True)
@@ -1482,6 +1901,29 @@ class H(BaseHTTPRequestHandler):
                                   "hardware": [{"hardware": hw_name(r["hw_model"]) or ("Unlisted hardware (#%s)" % r["hw_model"] if r["hw_model"] else "unknown"), "n": r["n"]} for r in hw],
                                   "feed": dict(STATE, per_min=round(STATE["packets"] / (up / 60), 1), last=STATE["last"] and time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(STATE["last"])), signatures_checked=Ed25519PublicKey is not None, tls=os.path.exists("/broker/certs/fullchain.pem") and os.path.exists("/broker/certs/privkey.pem"), broker_ready=bool(STATE.get("broker_ready")), broker_error=STATE.get("broker_error", "")),
                                   "config": {k: (cfg(k) if k != "password" else ("set" if cfg(k) else "")) for k in DEFAULTS}})
+            if p == "/exports/status":
+                return self.send({"enabled": cfg("export_enabled") == "1", "connectors": export_status()})
+            if p == "/wg/status":
+                return self.send(wg_status())
+            if p == "/private/nodes":   # the private feed's nodes (admin pages only): ?community=<address> for one community, else all
+                com = q.get("community", "")
+                with db() as c:
+                    rows = c.execute("SELECT * FROM pnodes WHERE last_seen > now() - make_interval(hours => %(h)s)" + (" AND community = %(c)s" if com else "") + " ORDER BY last_seen DESC LIMIT %(l)s",
+                                     {"h": min(int(q.get("hours") or 168), 24 * 90), "c": com, "l": min(int(q.get("limit") or 3000), 10000)}).fetchall()
+                return self.send({"nodes": [node_row(r) for r in rows]})
+            m = re.match(r"^/private/nodes/([^/]+)$", p)
+            if m:   # one node of the private feed with the gateways that heard it (admin pages only)
+                nid = parse_id(urllib.parse.unquote(m.group(1)).strip())
+                if nid is None:
+                    return self.send({"error": "not a node"}, 400)
+                with db() as c:
+                    r = c.execute("SELECT * FROM pnodes WHERE node_id=%s", (nid,)).fetchone()
+                    if not r:
+                        return self.send({"error": "not found"}, 404)
+                    hb = c.execute("SELECT gateway, snr, rssi, best_snr, ts, count FROM pheard WHERE node_id=%s ORDER BY ts DESC LIMIT 30", (nid,)).fetchall()
+                    ids = {g: parse_id(g) for g in {h["gateway"] for h in hb}}
+                    names = {x["node_id"]: x["long_name"] or x["short_name"] or "" for x in c.execute("SELECT node_id, long_name, short_name FROM pnodes WHERE node_id = ANY(%s)", ([i for i in ids.values() if i is not None],)).fetchall()}
+                return self.send({"node": node_row(r), "heard_by": [dict({k: iso(v) for k, v in h.items()}, slug=h["gateway"].lstrip("!"), name=names.get(ids.get(h["gateway"]), "")) for h in hb]})
             if p == "/nodes":
                 where, args = ["true"], {"l": min(int(q.get("limit") or 3000), 10000), "h": min(int(q.get("hours") or 168), 24 * 90)}
                 where.append("last_seen > now() - make_interval(hours => %(h)s)")
@@ -1618,10 +2060,27 @@ class H(BaseHTTPRequestHandler):
             if p == "/prune":
                 prune_links()
                 return self.send({"ok": True})
+            if p == "/exports/set":   # the connectors and the site switch from the portal: {enabled, exports: [...]}
+                if "exports" in b:
+                    set_cfg("exports", json.dumps([x for x in b["exports"] if isinstance(x, dict)]))
+                if "enabled" in b:
+                    set_cfg("export_enabled", "1" if str(b["enabled"]) in ("1", "True", "true") else "0")
+                return self.send({"ok": True, "connectors": len(export_conns())})
+            if p == "/exports/test":
+                return self.send(export_test(int(b.get("id") or 0)))
+            if p == "/wg/set":   # the tunnel's key and peers from the portal: {server_key, peers: [{key, ip}]}
+                try:
+                    return self.send({"ok": True, "peers": wg_write(str(b.get("server_key") or ""), [x for x in (b.get("peers") or []) if isinstance(x, dict)], str(b.get("relay_key") or ""))})
+                except ValueError as e:
+                    return self.send({"ok": False, "error": str(e)}, 400)
+                except OSError as e:
+                    return self.send({"ok": False, "error": "cannot write the tunnel files (" + type(e).__name__ + ")"}, 502)
+            if p == "/ingest_private":   # the private door, for tests: {topic, envelope_b64}; the result says whether the packet stayed private or went on to the public path
+                return self.send({"ok": True, "result": handle_private(str(b.get("topic") or ""), base64.b64decode(b.get("envelope_b64") or ""))})
             if p == "/ingest":   # the same door the broker uses, for tests and for a one-off import: a base64 ServiceEnvelope
                 return self.send({"ok": True, "result": handle(base64.b64decode(b.get("envelope_b64") or ""), str(b.get("topic") or ""))})
             if p == "/credentials/sync":
-                users = [{"username": str(u.get("username") or ""), "password": str(u.get("password") or ""), "community": str(u.get("community") or ""), "down": bool(u.get("down"))} for u in (b.get("users") or []) if isinstance(u, dict)]
+                users = [{"username": str(u.get("username") or ""), "password": str(u.get("password") or ""), "community": str(u.get("community") or ""), "down": bool(u.get("down")), "private": bool(u.get("private"))} for u in (b.get("users") or []) if isinstance(u, dict)]
                 try:
                     return self.send(dict(ok=True, **sync_users(users, prune=b.get("prune", True) is not False)))
                 except (RuntimeError, ValueError) as e:
@@ -1629,7 +2088,7 @@ class H(BaseHTTPRequestHandler):
             if p == "/credentials/set":
                 try:
                     ensure_base()
-                    set_user(str(b.get("username") or ""), str(b.get("password") or ""), str(b.get("community") or ""), bool(b.get("down")))
+                    set_user(str(b.get("username") or ""), str(b.get("password") or ""), str(b.get("community") or ""), bool(b.get("down")), bool(b.get("private")))
                     return self.send({"ok": True})
                 except ValueError as e:
                     return self.send({"ok": False, "error": str(e)}, 400)
@@ -1644,6 +2103,7 @@ class H(BaseHTTPRequestHandler):
                 except RuntimeError as e:
                     return self.send({"ok": False, "error": str(e)}, 502)
             if p == "/hide":
+                _EXP["hidden"] = (0.0, set())
                 key = node_key(str(b.get("id") or ""))
                 if key is None:
                     return self.send({"error": "a node ID looks like !a1b2c3d4, or mc: and the 64 character public key"}, 400)
@@ -1656,6 +2116,7 @@ class H(BaseHTTPRequestHandler):
                         c.execute("DELETE FROM nodes WHERE node_id=%s", (nid,)); c.execute("DELETE FROM heard WHERE node_id=%s", (nid,)); c.execute("DELETE FROM links WHERE a=%s OR b=%s", (nid, nid))
                 return self.send({"ok": True})
             if p == "/unhide":
+                _EXP["hidden"] = (0.0, set())
                 key = node_key(str(b.get("id") or ""))
                 with db() as c:
                     c.execute("DELETE FROM hidden WHERE node_key=%s", (key,))
@@ -1667,7 +2128,7 @@ class H(BaseHTTPRequestHandler):
 
 def main():
     init_db()
-    for fn in (reader, lambda: reader("up_"), pruner, base_loop, hw_loop):
+    for fn in (reader, lambda: reader("up_"), pruner, base_loop, hw_loop, export_loop):
         threading.Thread(target=fn, daemon=True).start()
     print(f"arksignal-mesh {VERSION} listening on {PORT}", flush=True)
     ThreadingHTTPServer(("0.0.0.0", PORT), H).serve_forever()

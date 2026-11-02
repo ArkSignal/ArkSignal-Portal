@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Tunnel Peer{% endblock %}
+{% block content %}
+<h1>Tunnel Peer for {{ c.name }}</h1>
+<p class="dim">This configuration holds the device's private key, so keep it to yourself. It is kept sealed, and you can open this peer again from Broker Logins whenever you need it; each opening is logged.</p>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px;align-items:start;margin-bottom:8px">
+  <div style="max-width:300px;width:100%"><div style="background:#fff;padding:8px;border-radius:8px;line-height:0">{{ qr | safe }}</div><div class="dim" style="font-size:.82rem;margin-top:6px">Scan this with the WireGuard app on a phone.</div></div>
+  <div style="min-width:0">
+    <pre class="code" id="wgconf" style="margin:0 0 8px">{{ conf }}</pre>
+    <a class="btn small" download="arksignal-{{ c.slug }}-{{ peer_id }}.conf" href="data:text/plain;base64,{{ conf_b64 }}">Download the .conf File</a>
+  </div>
+</div>
+
+<h2 style="margin-top:24px">Set It Up on the Device</h2>
+<p class="dim" style="margin-top:0">The device that runs the tunnel must be able to reach the gateway node: either the gateway itself (a computer or small box with WiFi or ethernet and the MQTT settings below) or a router or small box on the gateway's network.</p>
+<details open><summary><b>Phone or tablet (Android, iPhone)</b></summary>
+  <ol><li>Install the WireGuard app from the Play Store or the App Store.</li><li>Tap the plus, then <b>Scan from QR code</b>, and scan the code above. Name it and allow the VPN request.</li><li>Switch it on. Only the tunnel address goes through it; the rest of the phone's traffic does not.</li></ol>
+  <p class="dim">A phone is useful for checking the tunnel or for a node that connects through the phone's network. A node sends MQTT itself over WiFi or ethernet; the Meshtastic app does not carry the private feed.</p></details>
+<details><summary><b>Linux (Debian, Ubuntu, Raspberry Pi OS, and similar)</b></summary>
+<pre class="code">sudo apt install wireguard
+sudo nano /etc/wireguard/arksignal.conf      # paste the text above, save
+sudo chmod 600 /etc/wireguard/arksignal.conf
+sudo wg-quick up arksignal                   # start it now
+sudo systemctl enable wg-quick@arksignal     # start it at every boot
+sudo wg show                                 # "latest handshake" appears within seconds
+nc -vz {{ address }} 1884                    # should say open (the tunnel does not answer ping)</pre>
+  <p class="dim">On Fedora and Red Hat use <span class="mono">dnf install wireguard-tools</span>; on Alpine <span class="mono">apk add wireguard-tools</span>. To use a different name than <span class="mono">arksignal</span>, change the file name and the two commands to match.</p></details>
+<details><summary><b>Windows and Mac</b></summary>
+  <ol><li>Install WireGuard from <span class="mono">wireguard.com/install</span> (or the Mac App Store).</li><li>Download the .conf file above, then in WireGuard choose <b>Import tunnel(s) from file</b> (Windows) or <b>Import Tunnel(s) from File</b> (Mac), and activate it.</li></ol></details>
+<details><summary><b>A router or firewall (OpenWrt, pfSense, OPNsense, MikroTik, and similar) in front of the gateway node</b></summary>
+  <p style="margin-top:0">Make a WireGuard client interface with the values from the configuration: the <b>Interface</b> private key and address, and one <b>Peer</b> with the server's public key, the endpoint, allowed IPs <span class="mono">{{ address }}/32</span> and a keepalive of 25 seconds. Then:</p>
+  <ul><li>Add a route for <span class="mono">{{ address }}/32</span> through that interface (do not route anything else; allowed IPs must stay that single address).</li><li>Translate (masquerade) the gateway node's traffic going into the tunnel, because the server knows only this one tunnel address, not your LAN.</li><li>The gateway node keeps its normal network. Its MQTT address is <span class="mono">{{ address }}</span>, port 1884.</li></ul></details>
+<details><summary><b>Check that it works, and if it does not</b></summary>
+  <ul><li>Broker Logins shows the peer as <b>connected just now</b> within a minute or so of switching the tunnel on. <b>Never connected</b> means no handshake reached the server.</li><li>No handshake: the endpoint (<span class="mono">{{ endpoint }}</span>) must be reachable from where the device is, and UDP 51820 must be forwarded to the server. A device behind a strict firewall may need the keepalive kept at 25.</li><li>Handshake but no data: allowed IPs must include <span class="mono">{{ address }}/32</span>, and a router in front needs the translation above.</li><li>The server's clock and the device's clock should be within a few minutes of each other.</li></ul></details>
+
+<h2 style="margin-top:24px">Gateway MQTT Settings</h2>
+<p>On the gateway node, in the Meshtastic app under Module Configuration, MQTT (the node reaches this address only while the tunnel is up):</p>
+<table><tbody>
+  <tr><th>MQTT enabled</th><td>On</td></tr>
+  <tr><th>Address</th><td class="mono">{{ address }}:1884</td></tr>
+  <tr><th>Username and password</th><td>{% if login %}The login <b class="mono">{{ login }}</b> and its password (open the login in Broker Logins to see it). This peer can use that login and no other, and that login works only through this peer's tunnel.{% else %}The <b>Private feed</b> login this peer is bound to (Broker Logins).{% endif %}</td></tr>
+  <tr><th>Root topic</th><td class="mono">{{ root }}</td></tr>
+  <tr><th>Encryption enabled</th><td>Off, so the gateway sends decoded packets (the private map cannot read what stays encrypted)</td></tr>
+  <tr><th>TLS enabled</th><td>Off (the tunnel is already encrypted)</td></tr>
+  <tr><th>Uplink enabled</th><td>On, for each channel the gateway should send</td></tr>
+</tbody></table>
+<p class="dim">Use the address as the numbers {{ address }}, not a name: the firmware decides that a broker is private from its address. A node's own gateway is always uplinked. Packets of other nodes are sent whatever their OK to MQTT setting says, because the address is private; only what the public server would have accepted goes on to the public maps.</p>
+<p><a class="btn" href="/mesh/c/{{ c.slug }}/logins">Back to Broker Logins</a></p>
+{% endblock %}

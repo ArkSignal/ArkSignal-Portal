@@ -146,7 +146,14 @@ def _metars(bbox=None, info=None):
     for t in tiles:
         got = peek(("metars", t[0], t[1], t[0] + TILE, t[1] + TILE))
         if got is not None:
+            _STALE[t] = got
             out.update(got); continue
+        if t in _STALE:
+            out.update(_STALE[t])   # the last answer stands in while a fresh one is fetched: nothing blinks out
+            _load_tile_in_background(app, t)
+            continue
+        if time.time() - _FAILED.get(t, 0) < 300:
+            continue   # the service did not answer for this tile lately: the map is not held waiting for it
         pending += 1
         _load_tile_in_background(app, t)   # a tile nobody has asked for yet is fetched in the background: the map gets what is kept now and asks again
     if info is not None:
@@ -155,6 +162,8 @@ def _metars(bbox=None, info=None):
 
 
 _inflight_tiles = set()
+_STALE = {}    # (south, west) of a tile -> the last airport weather it had: shown while a fresh answer is fetched, so airports do not drop off the map every time the kept copy expires
+_FAILED = {}   # (south, west) -> when the service last failed to answer for the tile: it is not waited for again for a few minutes
 
 
 def _load_tile_in_background(app, t):
@@ -169,9 +178,10 @@ def _load_tile_in_background(app, t):
         try:
             from .live import metars_for
             with app.app_context():
-                metars_for(t[0], t[1], t[0] + TILE, t[1] + TILE)
+                if metars_for(t[0], t[1], t[0] + TILE, t[1] + TILE) is None:
+                    _FAILED[t] = time.time()
         except Exception:
-            pass
+            _FAILED[t] = time.time()
         finally:
             with _lock_tiles:
                 _inflight_tiles.discard(key)

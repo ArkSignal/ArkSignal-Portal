@@ -57,6 +57,7 @@ jobs:
           - {image: adsb-acars, dockerfile: Dockerfile.acars, context: ., file: deploy/acars/Dockerfile.acars}
           - {image: adsb-mesh, dockerfile: Dockerfile.mesh, context: ., file: deploy/mesh/Dockerfile.mesh}
           - {image: adsb-mesh-mqtt, dockerfile: Dockerfile.mesh-mqtt, context: ., file: deploy/mesh/Dockerfile.mesh-mqtt}
+          - {image: adsb-mesh-wg, dockerfile: Dockerfile.mesh-wg, context: ., file: deploy/mesh/Dockerfile.mesh-wg}
           - {image: adsb-element, dockerfile: Dockerfile.element, context: ., file: deploy/element/Dockerfile.element}
           - {image: adsb-matrix, dockerfile: Dockerfile.matrix, context: ., file: deploy/matrix/Dockerfile.matrix}
           - {image: adsb-mlat, dockerfile: Dockerfile.mlat, context: deploy/mlat, file: deploy/mlat/Dockerfile.mlat}

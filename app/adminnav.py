@@ -37,6 +37,7 @@ GROUPS = [
         ("ais", "River Traffic", "/admin/ais", "manage_feeders"),
         ("mesh", "Mesh Nodes", "/admin/mesh", "manage_map_data"),
         ("communities", "Mesh Communities", "/admin/communities", "manage_map_data"),
+        ("meshexports", "Mesh MQTT Export", "/admin/mesh/exports", "manage_map_data"),
         ("nets", "Nets", "/admin/nets", "moderate_repeaters"),
         ("winlink", "Winlink Gateways", "/admin/winlink", "moderate_repeaters"),
         ("satimages", "Satellite Images", "/admin/sat-images", "manage_satimages"),

@@ -23,6 +23,7 @@ services:
       DATABASE_URL: "postgresql://mesh:${MESH_DB_PASSWORD:-mesh}@mesh-db:5432/mesh"
     volumes:
       - /opt/adsb/mesh/mqtt:/broker:ro      # the broker's control password (admin.pass): how the service makes and removes members' logins
+      - /opt/adsb/mesh/wg:/wg               # the private tunnel's key and peer list, written for the tunnel container (request 205)
     networks:
       - proxy
       - mesh_internal
@@ -40,6 +41,28 @@ services:
     volumes:
       - /opt/adsb/mesh/mqtt:/mosquitto/config
       - /opt/adsb/npm/letsencrypt:/letsencrypt:ro      # Nginx Proxy Manager's certificates: the broker finds the one for MESH_CERT_HOST and follows its renewals
+    networks:
+      - mesh_internal
+
+  # The private tunnel (request 205): a WireGuard server for gateways that send the private feed. It is the only way to the broker's private listener (1884, never published), and gateways use its address
+  # (10.77.0.1) as the MQTT address, which the Meshtastic firmware sees as private. Needs the host's WireGuard kernel support. The portal sends the key and the peers (Community > Manage > Broker Logins);
+  # nothing is typed here. Forward UDP 51820 on the router to this VM once the portal has a Tunnel Address (Settings > Mesh Nodes) and a peer; the broker's other ports are not touched.
+  mesh-wg:
+    image: ghcr.io/arksignal/arksignal-mesh-wg:stable
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
+    container_name: mesh-wg
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - "51820:51820/udp"
+    environment:
+      WG_ADDRESS: "${MESH_WG_ADDRESS:-10.77.0.1}"
+    volumes:
+      - /opt/adsb/mesh/wg:/wg
+    depends_on:
+      - mesh-mqtt
     networks:
       - mesh_internal
 

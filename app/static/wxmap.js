@@ -224,7 +224,13 @@
       var q = [];
       if (opts.sources) q.push("sources=" + encodeURIComponent(opts.sources()));
       if (opts.viewport) { loadedBox = map.getBounds().pad(0.5); q.push("bbox=" + [loadedBox.getSouth(), loadedBox.getWest(), loadedBox.getNorth(), loadedBox.getEast()].map(function (x) { return x.toFixed(2); }).join(",")); }   // only what is in view, and a margin
-      return fetch("/api/weather.json" + (q.length ? "?" + q.join("&") : "")).then(function (r) { return r.json(); }).then(function (d) { points = d.stations || []; if (d.cluster) cl = d.cluster; if (!api._drawn || !(d.pending > 0) || retries >= 11) { render(); api._drawn = true; }   /* while airport weather is still arriving the first answer is drawn and the rest wait for the complete one: the labels do not merge and re-merge with every tile */ if (d.pending > 0 && ++retries < 12) { clearTimeout(retryTimer); retryTimer = setTimeout(function () { api.load(); }, 3000); } else if (!d.pending) retries = 0; return points; }).catch(function () {});
+      return fetch("/api/weather.json" + (q.length ? "?" + q.join("&") : "")).then(function (r) { return r.json(); }).then(function (d) {
+        var next = d.stations || []; if (d.cluster) cl = d.cluster;
+        // while airport weather is still arriving, the airports already shown stay: an answer that lacks them is only an incomplete one (they would blink out and back, and the labels merge and split again)
+        if (d.pending > 0 && api._drawn && (!opts.sources || ("," + opts.sources() + ",").indexOf(",airport,") >= 0)) { var have = {}; next.forEach(function (x) { have[x.id] = 1; }); next = next.concat(points.filter(function (x) { return x.src === "airport" && !have[x.id]; })); }
+        var sig = JSON.stringify(next.map(function (x) { return [x.id, x.r, x.online, x.cond, x.lat, x.lon]; }));
+        points = next;
+        if (!api._drawn || ((!(d.pending > 0) || retries >= 11) && sig !== api._sig)) { render(); api._drawn = true; api._sig = sig; }   /* drawn once the answer is complete, and only if something changed since the last drawing */   /* while airport weather is still arriving the first answer is drawn and the rest wait for the complete one: the labels do not merge and re-merge with every tile */ if (d.pending > 0 && ++retries < 12) { clearTimeout(retryTimer); retryTimer = setTimeout(function () { api.load(); }, 3000); } else if (!d.pending) retries = 0; return points; }).catch(function () {});
     };
     api.legend = function (key) {
       var m = METRICS[key || st.metric], rows = [], prev = null;

@@ -1,0 +1,9 @@
+# The private tunnel for the mesh private feed: WireGuard (kernel module of the host), a relay to the broker's private listener and nothing else. Started by wg-start.sh.
+# Built by build.yml as mallison01/adsb-mesh-wg and released with everything else (same latest/stable tags).
+FROM alpine:3.20
+RUN apk add --no-cache wireguard-tools iptables jq iproute2 python3
+COPY deploy/mesh/wg-start.sh /wg-start.sh
+COPY deploy/mesh/wg-relay.py /wg-relay.py
+COPY BUILD_INFO /BUILD_INFO
+EXPOSE 51820/udp
+ENTRYPOINT ["sh", "/wg-start.sh"]

@@ -156,7 +156,11 @@ try:
     has = d.execute_script("return {logo: document.querySelectorAll('.lv-label img.lv-logo, .lv-label .lv-badge').length, text: (document.querySelector('#lvmap .lv-label')||{}).innerText||''}")
     check("custom labels show the chosen fields (logo or badge, callsign, type, altitude)", has["logo"] > 0 and " ft" in has["text"], str(has))
     d.execute_script("var c=document.querySelector('#l-fields input[data-f=route]');c.checked=true;c.dispatchEvent(new Event('change',{bubbles:true}))"); time.sleep(6)
-    txt = d.execute_script("return Array.from(document.querySelectorAll('#lvmap .lv-label')).map(function(e){return e.innerText}).join('|')")
+    for _ in range(14):   # routes come from an outside service, a few seconds after the labels
+        txt = d.execute_script("return Array.from(document.querySelectorAll('#lvmap .lv-label')).map(function(e){return e.innerText}).join('|')")
+        if " › " in txt:
+            break
+        time.sleep(1)
     check("a Route label field shows origin and destination (when the route service knows the flights)", " › " in txt or "note" == "skip", txt[:200])
     d.execute_script("var s=document.getElementById('l-lscale');s.value='200';s.dispatchEvent(new Event('change'))")
     check("label size scales the labels", d.execute_script("return getComputedStyle(document.getElementById('lv')).getPropertyValue('--ls').trim()") == "2")
@@ -196,8 +200,13 @@ try:
     check("Winds Aloft draws arrows from the aircraft's own wind readings (when any report wind)", w["windOn"] and (w["windArrows"] > 0 or True), str(w))
     d.execute_script("document.getElementById('lv-wxbtn').click()")
     # airport weather and station coverage
+    d.execute_script("var c=document.getElementById('l-wxair');if(!c.checked){c.checked=true;c.dispatchEvent(new Event('change',{bubbles:true}))}")   # airport weather is a choice on the page, on or off by the site's default
     time.sleep(3)
-    dbg = d.execute_script("return window.lvDebug()")
+    for _ in range(17):   # the first answer for a new area waits on the outside weather service, which can take several seconds
+        dbg = d.execute_script("return window.lvDebug()")
+        if dbg["metars"] > 0:
+            break
+        time.sleep(1)
     check("airport markers are coloured from live METARs", dbg["airports"] > 0 and dbg["metars"] > 0, str(dbg))
     d.execute_script("var c=document.getElementById('l-coverage');c.checked=true;c.dispatchEvent(new Event('change'))"); time.sleep(2)
     check("the Station coverage layer switches on without errors", d.execute_script("return window.lvDebug().coverage") >= 0)

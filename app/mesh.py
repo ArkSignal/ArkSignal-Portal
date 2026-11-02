@@ -51,7 +51,7 @@ def service_config():
             "north": cfg("mesh_north"), "east": cfg("mesh_east"), "keep_days": cfg("mesh_keep_days"), "links_keep_days": cfg("mesh_links_keep_days"), "history_keep_days": cfg("mesh_history_keep_days"), "history_min_seconds": cfg("mesh_history_min_seconds"), "enabled": "1",
             "up_enabled": cfg("mesh_up_enabled"), "up_host": cfg("mesh_up_host"), "up_port": cfg("mesh_up_port"), "up_user": cfg("mesh_up_user"), "up_password": cfg("mesh_up_password"), "up_topic": cfg("mesh_up_topic"),
             "public_rules": cfg("mesh_public_rules"), "public_channels": cfg("mesh_public_channels"), "public_portnums": cfg("mesh_public_portnums"), "public_max_bits": cfg("mesh_public_max_bits"),
-            "publish_root": cfg("mesh_join_topic"), "fwd_enabled": cfg("mesh_forward_enabled"), "fwd_root": cfg("mesh_forward_root"), "fwd_communities": forward_slugs()}
+            "publish_root": cfg("mesh_join_topic"), "fwd_enabled": cfg("mesh_forward_enabled"), "fwd_root": cfg("mesh_forward_root"), "fwd_communities": forward_slugs(), "private_root": cfg("mesh_private_root"), "private_enabled": cfg("mesh_private_enabled")}
 
 
 def forward_slugs():
@@ -78,6 +78,12 @@ def push_config():
     for r in get_db().execute("SELECT node_key, reason FROM mesh_hidden").fetchall():
         call("/hide", "POST", {"id": r["node_key"], "reason": r["reason"]})
     ok, d = sync_accounts()
+    if ok and cfg("mesh_private_enabled") == "1":
+        from . import meshwg
+        meshwg.sync()   # the private tunnel's key and peers (after a restore, a rebuilt hub or a new service)
+    if ok:
+        from . import meshexport
+        meshexport.push()   # the MQTT export connectors and the site switch
     return (True, "Settings, takedown list and logins sent.") if ok else (True, "Settings and takedown list sent; the logins could not be sent: " + d)
 
 
@@ -106,22 +112,30 @@ def _slug(name):
     return (re.sub(r"[^a-z0-9]", "", (name or "").lower())[:12] or "member")
 
 
+def _broker_pw(link, username, pw):
+    """The password the broker holds: a private feed login's is made from the member's password with a key only the portal and the tunnel's relay have (so the member's password opens nothing but the relay)."""
+    if link == "private":
+        from . import meshwg
+        return meshwg.broker_password(username, pw)
+    return pw
+
+
 def _cred(row, pw=None):
     """What the mesh service needs to make one login: a community's login also says which community and whether it is a downlink login."""
-    return {"username": row["username"], "password": pw if pw is not None else password_of(row), "community": row["community_slug"] or "", "down": row["link"] == "down" if row["community_slug"] else False}
+    return {"username": row["username"], "password": _broker_pw(row["link"], row["username"], pw if pw is not None else password_of(row)), "community": row["community_slug"] or "", "down": row["link"] == "down" if row["community_slug"] else False, "private": row["link"] == "private" and bool(row["community_slug"])}
 
 
-def create_account(owner_id, owner_name, label, nodes="", public=False, by_admin=False, community_id=None, down=False):
+def create_account(owner_id, owner_name, label, nodes="", public=False, by_admin=False, community_id=None, down=False, private=False):
     """A new login for a member. Returns (id, error). The row is only kept when the broker has the login."""
     d = get_db()
     if not by_admin and d.execute("SELECT COUNT(*) AS n FROM mesh_accounts WHERE owner_id=%s", (owner_id,)).fetchone()["n"] >= cfg_int("mesh_max_per_user"):
         return None, f"You can have {cfg_int('mesh_max_per_user')} mesh logins."
     pw = secrets.token_urlsafe(18)
     aid = d.execute("INSERT INTO mesh_accounts (owner_id, label, nodes, public, password_sealed, community_id, link) VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id",
-                    (owner_id, (label or "").strip()[:60], (nodes or "").strip()[:300], bool(public), vault.seal(pw), community_id, "down" if (community_id and down) else "up")).fetchone()["id"]
+                    (owner_id, (label or "").strip()[:60], (nodes or "").strip()[:300], bool(public), vault.seal(pw), community_id, "private" if (community_id and private) else "down" if (community_id and down) else "up")).fetchone()["id"]
     name = f"{_slug(owner_name)}-{aid}"
     com = d.execute("SELECT slug FROM communities WHERE id=%s", (community_id,)).fetchone() if community_id else None
-    ok, r = call("/credentials/set", "POST", {"username": name, "password": pw, "community": com["slug"] if com else "", "down": bool(community_id and down)})
+    ok, r = call("/credentials/set", "POST", {"username": name, "password": _broker_pw("private" if (community_id and private) else "up", name, pw), "community": com["slug"] if com else "", "down": bool(community_id and down and not private), "private": bool(community_id and private)})
     if not ok or not r.get("ok"):
         d.rollback()
         return None, "The login could not be made on the broker right now: " + (r if isinstance(r, str) else str(r.get("error", "")))
@@ -169,7 +183,7 @@ def delete_account(aid):
 def sync_accounts(prune=True):
     """Make the broker's member logins exactly the enabled ones here (prune false: only add and repair, never delete one). (ok, note)."""
     rows = get_db().execute("SELECT a.username, a.password_sealed, a.link, cm.slug AS community_slug FROM mesh_accounts a LEFT JOIN communities cm ON cm.id = a.community_id WHERE NOT a.disabled AND a.username <> ''").fetchall()
-    ok, r = call("/credentials/sync", "POST", {"users": [{"username": x["username"], "password": vault.unseal(x["password_sealed"]), "community": x["community_slug"] or "", "down": bool(x["community_slug"]) and x["link"] == "down"} for x in rows], "prune": bool(prune)}, timeout=30)
+    ok, r = call("/credentials/sync", "POST", {"users": [{"username": x["username"], "password": _broker_pw(x["link"], x["username"], vault.unseal(x["password_sealed"])), "community": x["community_slug"] or "", "down": bool(x["community_slug"]) and x["link"] == "down", "private": bool(x["community_slug"]) and x["link"] == "private"} for x in rows], "prune": bool(prune)}, timeout=30)
     if not ok:
         return False, r
     return bool(r.get("ok")), ("" if r.get("ok") else str(r.get("error", "")))
@@ -351,6 +365,17 @@ def node(node_id):
     return d if ok else None
 
 
+def private_nodes(community="", hours=168):
+    """The private feed's nodes (request 205), one community's or all: only the private map pages call this."""
+    ok, d = call("/private/nodes?" + urllib.parse.urlencode({"community": community, "hours": hours, "limit": 5000}))
+    return d.get("nodes", []) if ok else []
+
+
+def private_node(node_id):
+    ok, d = call("/private/nodes/" + urllib.parse.quote(node_id, safe=""))
+    return d if ok else None
+
+
 def plan():
     """Where the next router would help most (the service's guess from what was heard): {suggestions, poor, active, serving, radius_km, ...} or None."""
     ok, d = call("/plan?radius=" + str(cfg_int("mesh_plan_radius_km")) + "&snr=" + str(cfg_int("mesh_plan_poor_snr")) + "&results=" + str(cfg_int("mesh_plan_results")) + "&sep=" + str(cfg_int("mesh_plan_separation_km")), timeout=60)
@@ -479,6 +504,12 @@ def keep_logins_in_step():
         for r in get_db().execute("SELECT node_key, reason FROM mesh_hidden").fetchall():
             call("/hide", "POST", {"id": r["node_key"], "reason": r["reason"]})
     ok, why = sync_accounts(prune=False)
+    if ok and restarted and cfg("mesh_private_enabled") == "1":
+        from . import meshwg
+        meshwg.sync()   # a rebuilt service gets the tunnel's key and peers again
+    if ok and restarted:
+        from . import meshexport
+        meshexport.push()   # and its MQTT export connectors
     if ok:
         _seen.update(since=h.get("since"), ready=h.get("broker_ready"))
         return "synced"

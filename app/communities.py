@@ -12,7 +12,7 @@ import re
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from flask import Blueprint, Response, abort, flash, redirect, render_template, request, url_for
+from flask import Blueprint, Response, abort, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
 from . import mesh as ms
@@ -32,10 +32,10 @@ RANK = {k: r for k, _l, r in ROLES}
 LABEL = {k: l for k, l, _r in ROLES}
 SITE_ADMIN = 9
 # what each role can do inside one community (the roles are not a ladder: an Editor runs the page, a Node Operator runs the nodes; the ranks only decide who may give which role)
-_ALL = {"view_stats", "choose_nodes", "manage_logins", "post", "edit_page", "manage_members", "queue_commands", "approve_commands", "manage_bridges", "manage_channels"}
-ROLE_PERMS = {"viewer": {"view_stats"}, "operator": {"view_stats", "choose_nodes", "manage_logins", "queue_commands", "manage_channels"}, "editor": {"view_stats", "post", "edit_page"}, "manager": set(_ALL), "owner": set(_ALL)}
+_ALL = {"view_stats", "view_private", "choose_nodes", "manage_logins", "post", "edit_page", "manage_members", "queue_commands", "approve_commands", "manage_bridges", "manage_channels"}
+ROLE_PERMS = {"viewer": {"view_stats"}, "operator": {"view_stats", "view_private", "choose_nodes", "manage_logins", "queue_commands", "manage_channels"}, "editor": {"view_stats", "post", "edit_page"}, "manager": set(_ALL), "owner": set(_ALL)}
 BY_RANK = {r: k for k, _l, r in ROLES}
-PERM_TEXT = {"view_stats": "See the community's health and statistics", "choose_nodes": "Choose which nodes count as the community's", "manage_logins": "Make and remove broker logins for its gateways",
+PERM_TEXT = {"view_stats": "See the community's health and statistics", "view_private": "See the community's private map (every node its private gateways hear)", "choose_nodes": "Choose which nodes count as the community's", "manage_logins": "Make and remove broker logins for its gateways",
              "post": "Post notices and events", "edit_page": "Edit the page, its links and its area", "manage_members": "Add, promote and remove members, and send invitations",
              "queue_commands": "Queue remote administration commands for the community's nodes", "approve_commands": "Approve the commands that change a node", "manage_bridges": "Make and remove Admin Bridges", "manage_channels": "List, change and remove the community's channels (with their QR codes)"}
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$")
@@ -86,7 +86,7 @@ def _ctx(slug, perm=None):
 SECTIONS = [("overview", "Overview", None, "Community"), ("join", "How to Join", None, "Community"), ("map", "Map", None, "Community"), ("nodes", "Nodes", None, "Community"),
             ("news", "News and Events", None, "Community"), ("channels", "Channels", None, "Community"), ("health", "Health and Statistics", "view_stats", "Community"),
             ("edit", "Edit Page", "edit_page", "Manage"), ("area", "Area", "edit_page", "Manage"), ("pick", "Choose the Nodes", "choose_nodes", "Manage"), ("team", "Team", "team", "Manage"),
-            ("logins", "Broker Logins", "manage_logins", "Manage"), ("share", "Sharing", "manage_members", "Manage"), ("alerts", "Alert Channel", "manage_members", "Manage"), ("links", "Linked Areas", "manage_members", "Manage"), ("remote", "Remote Administration", "queue_commands", "Manage")]
+            ("logins", "Broker Logins", "manage_logins", "Manage"), ("privmap", "Private Map", "view_private", "Manage"), ("share", "Sharing", "manage_members", "Manage"), ("alerts", "Alert Channel", "manage_members", "Manage"), ("links", "Linked Areas", "manage_members", "Manage"), ("remote", "Remote Administration", "queue_commands", "Manage")]
 SECTION_KEYS = {k for k, _l, _p, _g in SECTIONS}
 
 
@@ -96,6 +96,8 @@ def menu_for(rank):
     for key, label, perm, group in SECTIONS:
         if perm is None or (perm == "team" and rank >= 1) or (perm not in (None, "team") and (can(rank, perm) or (key == "remote" and can(rank, "manage_bridges")))):
             if key == "remote" and cfg("mesh_bridge_enabled") != "1":
+                continue
+            if key == "privmap" and cfg("mesh_private_enabled") != "1":
                 continue
             groups.setdefault(group, []).append((key, label))
     return list(groups.items())
@@ -294,6 +296,9 @@ def page(slug):
 def section(slug, sec):
     if sec not in SECTION_KEYS:
         abort(404)
+    if sec == "privmap":   # not a page of its own: the menu item opens the private map
+        _private_ctx(slug)
+        return redirect(url_for("communities.private_map", slug=slug))
     return _render(slug, sec)
 
 
@@ -327,6 +332,12 @@ def _render(slug, sec):
     if can(rank, "manage_logins"):
         ctx["logins"] = d.execute("SELECT a.*, u.username AS owner_name FROM mesh_accounts a JOIN users u ON u.id = a.owner_id WHERE a.community_id=%s ORDER BY a.created", (c["id"],)).fetchall()
         ctx["login_limit"] = cfg_int("mesh_community_max_logins")
+        ctx["private_feed"] = cfg("mesh_private_enabled") == "1"
+        if ctx["private_feed"]:
+            from . import meshwg
+            ctx["peers"], ctx["wg_ready"] = meshwg.peers_of(c["id"])
+            ctx["free_logins"] = meshwg.free_logins(c["id"])
+            ctx["wg_endpoint"] = meshwg.endpoint()
         ctx["connect"] = connect_info(c)
     if (can(rank, "queue_commands") or can(rank, "manage_bridges")) and cfg("mesh_bridge_enabled") == "1":
         from . import meshbridge
@@ -934,14 +945,160 @@ def login_add(slug):
     if d.execute("SELECT COUNT(*) AS n FROM mesh_accounts WHERE community_id=%s", (c["id"],)).fetchone()["n"] >= cfg_int("mesh_community_max_logins"):
         return _back(slug, False, f"A community can have {cfg_int('mesh_community_max_logins')} broker logins. Remove one first.")
     label = _clean(request.form.get("label"), 60) or "Gateway"
+    private = request.form.get("link") == "private"
+    if private and cfg("mesh_private_enabled") != "1":
+        return _back(slug, False, "The private feed is switched off for this site.")
     down = request.form.get("link") == "down"
-    aid, err = ms.create_account(current_user.id, slug, label, "", public=False, by_admin=True, community_id=c["id"], down=down)
+    aid, err = ms.create_account(current_user.id, slug, label, "", public=False, by_admin=True, community_id=c["id"], down=down, private=private)
     if err:
         return _back(slug, False, err)
     row = ms.get_account(aid)
-    audit("community.login", target=slug, detail=f"made {row['username']} ({'uplink and downlink' if down else 'uplink'})")
-    flash(f"Broker login {row['username']} (password shown once, copy it now): {ms.password_of(row)}", "success")
+    audit("community.login", target=slug, detail=f"made {row['username']} ({'private feed' if private else 'uplink and downlink' if down else 'uplink'})")
+    flash(f"Broker login {row['username']} (open it from the list to see the password again): {ms.password_of(row)}", "success")
     return _back(slug, True, f"The login {row['username']} is made. Put it in the gateway node's MQTT settings; the Join the Mesh page shows where.")
+
+
+@bp.route("/mesh/c/<slug>/tunnel/add", methods=["POST"])
+@login_required
+def tunnel_add(slug):
+    """Make a tunnel peer for one of the community's gateways (or a phone). Its configuration, with the private key, is shown once on the page this answers with."""
+    from . import meshwg
+    c, _r = _ctx(slug, "manage_logins")
+    if cfg("mesh_private_enabled") != "1":
+        abort(404)
+    login_id = int(request.form["login"]) if request.form.get("login", "").isdigit() else None
+    pid, conf, err = meshwg.create_peer(c["id"], _clean(request.form.get("label"), 60), current_user.id, login_id)
+    if err:
+        return _back(slug, False, err)
+    audit("community.tunnel", target=slug, detail=f"made tunnel peer {pid}")
+    return _tunnel_page(c, pid, conf)
+
+
+def _tunnel_page(c, pid, conf, login=None):
+    """The tunnel peer's page: its configuration with the private key, so never cached."""
+    from . import meshwg
+    if login is None:
+        login = next((x["login"] for x in meshwg.peers_of(c["id"])[0] if x["id"] == pid), "")
+    r = Response(render_template("community_tunnel.html", c=c, login=login, conf=conf, conf_b64=base64.b64encode(conf.encode()).decode(), peer_id=pid, qr=meshwg.qr_svg(conf), address=meshwg.address(), endpoint=meshwg.endpoint(),
+                                  root=(cfg("mesh_private_root").strip("/") or "mshp") + "/" + c["slug"]))
+    r.headers["Cache-Control"] = "no-store"
+    return r
+
+
+@bp.route("/mesh/c/<slug>/tunnel/<int:pid>")
+@login_required
+def tunnel_show(slug, pid):
+    """Open a tunnel peer again: its configuration (kept sealed), QR code and the gateway's settings. Every opening is logged."""
+    from . import meshwg
+    c, _r = _ctx(slug, "manage_logins")
+    if cfg("mesh_private_enabled") != "1":
+        abort(404)
+    row, conf = meshwg.peer_config(c["id"], pid)
+    if row is None:
+        abort(404)
+    if not conf:
+        return _back(slug, False, "This peer was made before its key was kept, so its configuration cannot be shown. Use New Key to make a new configuration for it.", "logins")
+    audit("community.tunnel", target=slug, detail=f"opened tunnel peer {pid}")
+    return _tunnel_page(c, pid, conf, row["login"] or "")
+
+
+@bp.route("/mesh/c/<slug>/tunnel/<int:pid>/<action>", methods=["POST"])
+@login_required
+def tunnel_action(slug, pid, action):
+    from . import meshwg
+    c, _r = _ctx(slug, "manage_logins")
+    if cfg("mesh_private_enabled") != "1" or action not in ("disable", "enable", "delete", "rekey"):
+        abort(404)
+    if action == "rekey":
+        ok, why = meshwg.rekey_peer(c["id"], pid)
+        if not ok:
+            return _back(slug, False, str(why) or "The tunnel could not be updated right now.", "logins")
+        audit("community.tunnel", target=slug, detail=f"new key for tunnel peer {pid}")
+        row, conf = meshwg.peer_config(c["id"], pid)
+        return _tunnel_page(c, pid, conf, row["login"] or "")
+    ok, why = meshwg.delete_peer(c["id"], pid) if action == "delete" else meshwg.set_disabled(c["id"], pid, action == "disable")
+    if not ok:
+        return _back(slug, False, str(why) or "The tunnel could not be updated right now.")
+    audit("community.tunnel", target=slug, detail=f"{action} tunnel peer {pid}")
+    return _back(slug, True, {"disable": "The peer is switched off.", "enable": "The peer is switched on.", "delete": "The peer is deleted."}[action])
+
+
+def _private_ctx(slug):
+    """The community of a private map request, for someone who may see it (404 when the private feed is off, 403 without the permission)."""
+    if cfg("mesh_private_enabled") != "1":
+        abort(404)
+    c, _r = _ctx(slug, "view_private")
+    return c
+
+
+@bp.route("/mesh/c/<slug>/private-map")
+@login_required
+def private_map(slug):
+    """The community's private map: every node its private gateways hear, whatever the nodes' OK to MQTT setting says. Never public; every opening is logged."""
+    from . import maplayers
+    c = _private_ctx(slug)
+    audit("community.privatemap", target=slug, detail="opened the private map")
+    return render_template("mesh_map.html", private={"slug": slug, "name": c["name"], "path": f"/mesh/c/{slug}/private-map", "api": "/api/mesh/private/", "query": "?community=" + slug}, **_map_ctx(maplayers))
+
+
+@bp.route("/admin/mesh/private-map")
+@login_required
+def private_map_all():
+    """The private map of every community, for the site's administrators."""
+    from . import maplayers
+    if cfg("mesh_private_enabled") != "1":
+        abort(404)
+    if not is_site_admin():
+        abort(403)
+    audit("community.privatemap", target="all", detail="opened the private map of every community")
+    return render_template("mesh_map.html", private={"slug": "", "name": "All communities", "path": "/admin/mesh/private-map", "api": "/api/mesh/private/", "query": ""}, **_map_ctx(maplayers))
+
+
+def _map_ctx(maplayers):
+    return dict(layers=maplayers.for_map(), label_scale=cfg("live_label_scale"), label_bg=cfg("live_label_bg"), map_lat=cfg("map_lat"), map_lon=cfg("map_lon"), map_zoom=cfg("map_zoom"),
+                wx_refresh=cfg_int("weather_refresh_minutes"), credit=ms.CREDIT, roles=_map_roles(), colors=ms.ROLE_COLORS, links_on=False)
+
+
+def _map_roles():
+    from .mesh_views import _roles
+    return _roles()
+
+
+def _private_scope():
+    """The community an API call is for (empty: every community, site administrators only). Aborts without the right."""
+    if cfg("mesh_private_enabled") != "1" or not current_user.is_authenticated:
+        abort(404)
+    slug = request.args.get("community", "")
+    if slug:
+        _private_ctx(slug)
+    elif not is_site_admin():
+        abort(403)
+    return slug
+
+
+@bp.route("/api/mesh/private/nodes.json")
+@login_required
+def api_private_nodes():
+    slug = _private_scope()
+    keep = ("id", "slug", "network", "long_name", "short_name", "lat", "lon", "role", "role_name", "hardware", "firmware", "last_seen", "battery", "precision_bits", "community")
+    rows = [n for n in ms.private_nodes(slug) if n.get("lat") is not None]
+    r = jsonify({"nodes": [{k: n.get(k) for k in keep} for n in rows], "area": None, "credit": ms.CREDIT, "private": True})
+    r.headers["Cache-Control"] = "no-store"
+    return r
+
+
+@bp.route("/api/mesh/private/<nid>.json")
+@login_required
+def api_private_node(nid):
+    slug = _private_scope()
+    if not re.fullmatch(r"!?[0-9a-fA-F]{8}", nid):
+        abort(404)
+    d = ms.private_node("!" + nid.lstrip("!"))
+    if d is None or (slug and d["node"].get("community") != slug):
+        abort(404)
+    r = jsonify(d)
+    r.headers["Cache-Control"] = "no-store"
+    return r
 
 
 def _login(slug, aid, perm="manage_logins"):
@@ -950,6 +1107,26 @@ def _login(slug, aid, perm="manage_logins"):
     if row is None or row["community_id"] != c["id"]:
         abort(404)
     return c, row
+
+
+@bp.route("/mesh/c/<slug>/logins/<int:aid>")
+@login_required
+def login_show(slug, aid):
+    """Open a community login again: its address, username and password, like a member's own login page. Every opening is logged."""
+    c, row = _login(slug, aid)
+    private = row["link"] == "private"
+    if private and cfg("mesh_private_enabled") != "1":
+        abort(404)
+    audit("community.login", target=slug, detail=f"opened {row['username']}")
+    info = connect_info(c)
+    peer = None
+    if private:
+        from . import meshwg
+        peer = next((p for p in meshwg.peers_of(c["id"])[0] if p["login"] == row["username"]), None)
+        info = {"host": meshwg.address(), "port": "1884", "root": (cfg("mesh_private_root").strip("/") or "mshp") + "/" + slug, "tls": False}
+    r = Response(render_template("community_login.html", c=c, a=row, password=ms.password_of(row), info=info, private=private, peer=peer))
+    r.headers["Cache-Control"] = "no-store"
+    return r
 
 
 @bp.route("/mesh/c/<slug>/logins/<int:aid>/<action>", methods=["POST"])
@@ -961,7 +1138,7 @@ def login_action(slug, aid, action):
         ok, why = ms.new_password(aid)
         if not ok:
             return _back(slug, False, why)
-        flash(f"New password for {row['username']} (shown once, copy it now): {ms.password_of(ms.get_account(aid))}", "success")
+        flash(f"New password for {row['username']} (open the login from the list to see it again): {ms.password_of(ms.get_account(aid))}", "success")
         msg = "A new password is set."
     elif action in ("disable", "enable"):
         ok, why = ms.set_disabled(aid, action == "disable")
@@ -972,6 +1149,9 @@ def login_action(slug, aid, action):
         ms.call("/credentials/delete", "POST", {"username": row["username"]})
         d.execute("DELETE FROM mesh_accounts WHERE id=%s", (aid,))
         d.commit()
+        if row["link"] == "private" and cfg("mesh_private_enabled") == "1":
+            from . import meshwg
+            meshwg.sync()   # a peer bound to the login may use none now
         msg = "The login is deleted."
     else:
         abort(404)

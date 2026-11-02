@@ -216,7 +216,7 @@ def admin():
                           "COUNT(*) FILTER (WHERE email_state='failed' OR webhook_state='failed' OR push_state='failed') AS failed, COUNT(DISTINCT user_id) AS people FROM mesh_alert_events").fetchone()
     from .mesh_channels import admin_rows as channel_rows
     from .meshrelease import status as _rel
-    return render_template("admin_mesh.html", rel=_rel(), channels=channel_rows(), oa=oa, oa_on=ma.on(), oa_open=get_db().execute("SELECT COUNT(*) AS n FROM mesh_alert_state").fetchone()["n"], claims=ms.all_claims(), slug=ms.claim_slug, active="mesh", st=ms.stats(), hidden=ms.hidden(), url=cfg("mesh_url"), enabled=ms.enabled(), accounts=ms.all_accounts(), conn=_connect())
+    return render_template("admin_mesh.html", rel=_rel(), channels=channel_rows(), oa=oa, oa_on=ma.on(), oa_open=get_db().execute("SELECT COUNT(*) AS n FROM mesh_alert_state").fetchone()["n"], claims=ms.all_claims(), slug=ms.claim_slug, private_feed=cfg("mesh_private_enabled") == "1", active="mesh", st=ms.stats(), hidden=ms.hidden(), url=cfg("mesh_url"), enabled=ms.enabled(), accounts=ms.all_accounts(), conn=_connect())
 
 
 @bp.route("/admin/mesh/apply", methods=["POST"])
@@ -488,3 +488,70 @@ def admin_claim_approve(cid):
     get_db().commit()
     audit("mesh.claim_approve", target=str(cid))
     return action_response(True, "Claim approved.", redirect_endpoint="mesh.admin")
+
+
+# ------------------------------------------------------------------ outbound MQTT export (request 208)
+
+def _export_form_ctx(edit_id=None, new=False):
+    from . import meshexport as mx
+    coms = get_db().execute("SELECT slug, name FROM communities ORDER BY lower(name)").fetchall()
+    row = mx.get(edit_id) if edit_id else None
+    return dict(rows=mx.rows(), st=mx.status(), edit=row, new=new, communities=coms, ports=mx.PORTS, sources=mx.SOURCES, positions=mx.POSITIONS, switch=cfg("mesh_export_enabled") == "1", limit=mx.limit(),
+                private_on=cfg("mesh_private_enabled") == "1")
+
+
+@bp.route("/admin/mesh/exports")
+@permission_required("manage_map_data")
+def admin_exports():
+    """Admin > Mesh Nodes > MQTT Export: the outside brokers mesh traffic is sent to, and what each one gets."""
+    a = request.args
+    return render_template("admin_mesh_exports.html", active="meshexports", **_export_form_ctx(int(a["edit"]) if a.get("edit", "").isdigit() else None, a.get("new") == "1"))
+
+
+@bp.route("/admin/mesh/exports/save", methods=["POST"])
+@permission_required("manage_map_data")
+def admin_export_save():
+    from . import meshexport as mx
+    _on()
+    cid = int(request.form["id"]) if request.form.get("id", "").isdigit() else None
+    old = mx.get(cid) if cid else None
+    if cid and old is None:
+        abort(404)
+    if not cid and mx.count() >= mx.limit():
+        return action_response(False, f"The site allows {mx.limit()} connectors (Settings, Mesh Nodes).", redirect_endpoint="mesh.admin_exports")
+    vals, err = mx.parse(request.form, old)
+    if err:
+        return action_response(False, err, redirect_endpoint="mesh.admin_exports", redirect_kwargs={"edit": cid} if cid else {"new": 1})
+    carries_private = vals["source"] in ("private", "both")
+    was_private = bool(old) and old["source"] in ("private", "both")
+    if carries_private and not was_private and not request.form.get("confirm_private"):
+        return action_response(False, "To send the private feed to an outside broker, tick the box that says you know it leaves this site.", redirect_endpoint="mesh.admin_exports", redirect_kwargs={"edit": cid} if cid else {"new": 1})
+    cid = mx.save(vals, cid)
+    ok, note = mx.push()
+    audit("mesh.export", target=vals["name"][:40], detail=f"{'changed' if old else 'made'} connector {cid}: {vals['host']}:{vals['port']}, source {vals['source']}, position {vals['position']}, {'on' if vals['enabled'] else 'off'}")
+    return action_response(True, "The connector is saved." + ("" if ok else " The mesh service did not answer; press Apply on Admin, Mesh Nodes to send it."), redirect_endpoint="mesh.admin_exports")
+
+
+@bp.route("/admin/mesh/exports/<int:cid>/<action>", methods=["POST"])
+@permission_required("manage_map_data")
+def admin_export_action(cid, action):
+    from . import meshexport as mx
+    _on()
+    row = mx.get(cid)
+    if row is None or action not in ("delete", "test", "toggle"):
+        abort(404)
+    if action == "test":
+        ok, d = ms.call("/exports/test", "POST", {"id": cid}, timeout=20)
+        good = bool(ok and isinstance(d, dict) and d.get("ok"))
+        audit("mesh.export", target=row["name"][:40], detail=f"test message to connector {cid}: {'sent' if good else 'failed'}")
+        return action_response(good, (f"A test message was published to {d.get('topic')}." if good else "The test message could not be sent: " + (str(d.get("error")) if isinstance(d, dict) else str(d))), redirect_endpoint="mesh.admin_exports")
+    if action == "toggle":
+        get_db().execute("UPDATE mesh_exports SET enabled = NOT enabled, updated = now() WHERE id=%s", (cid,))
+        get_db().commit()
+        mx.push()
+        audit("mesh.export", target=row["name"][:40], detail=f"connector {cid} switched {'off' if row['enabled'] else 'on'}")
+        return action_response(True, "The connector is switched " + ("off." if row["enabled"] else "on."), redirect_endpoint="mesh.admin_exports")
+    mx.delete(cid)
+    mx.push()
+    audit("mesh.export", target=row["name"][:40], detail=f"connector {cid} deleted")
+    return action_response(True, "The connector is deleted.", redirect_endpoint="mesh.admin_exports")

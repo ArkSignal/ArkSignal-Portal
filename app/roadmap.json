@@ -1339,6 +1339,18 @@
       "summary": "Stations that send UAT through their normal feed are shown with a UAT tag on the station lists and pages, in My Station, Am I Feeding, the admin list, the public data and Service Status.",
       "status": "done",
       "area": "Feeders"
+    },
+    {
+      "title": "Private mesh feed and maps",
+      "summary": "Gateways reach a private broker through a WireGuard tunnel. Each community has a private map of every node its private gateways hear, for its team; the site's administrators have one of all communities. Only what the public Meshtastic server would have accepted goes on to the public maps. A team can open a login or tunnel peer again later to see its password or configuration.",
+      "status": "done",
+      "area": "Mesh"
+    },
+    {
+      "title": "Send mesh traffic to other MQTT brokers",
+      "summary": "Administrators can define connectors to outside MQTT brokers (another site, a test site, anything) and choose what each one gets: the public or private feed, communities, channels, message types, how exact positions may be, or just what the public Meshtastic server would carry.",
+      "status": "done",
+      "area": "Mesh"
     }
   ]
 }

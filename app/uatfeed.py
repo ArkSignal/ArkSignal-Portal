@@ -40,6 +40,7 @@ def flush(now):
             if not d:
                 del _seen[rid]
         snap = {rid: (max(d.values()), len(d)) for rid, d in _seen.items()}
+        planes = {rid: dict(d) for rid, d in _seen.items()}
     if not snap:
         return 0
     db = get_db()
@@ -53,6 +54,10 @@ def flush(now):
         db.execute("INSERT INTO feeder_uat (feeder_uuid, first_seen, last_seen, aircraft_hour) VALUES (%s,%s,%s,%s) ON CONFLICT (feeder_uuid) DO UPDATE SET "
                    "last_seen = GREATEST(feeder_uat.last_seen, EXCLUDED.last_seen), aircraft_hour = EXCLUDED.aircraft_hour", (uuid, ts, ts, count))
         n += 1
+        for icao, t in planes[rid].items():   # which aircraft, for the Aircraft Statistics UAT panels (other workers cannot see this process's memory)
+            db.execute("INSERT INTO feeder_uat_aircraft (feeder_uuid, icao, last_seen) VALUES (%s,%s,%s) ON CONFLICT (feeder_uuid, icao) DO UPDATE SET last_seen = GREATEST(feeder_uat_aircraft.last_seen, EXCLUDED.last_seen)",
+                       (uuid, icao, datetime.fromtimestamp(t, timezone.utc)))
+    db.execute("DELETE FROM feeder_uat_aircraft WHERE last_seen < now() - interval '1 hour'")
     db.commit()
     return n
 
@@ -97,6 +102,20 @@ def station_state(uuid):
                 "text": f"UAT came through this station {_ago(r['last_seen'])}: {r['aircraft_hour']} aircraft in the last hour."}
     return {"state": "earlier", "last_seen": r["last_seen"], "aircraft": 0,
             "text": f"UAT last came through this station {_ago(r['last_seen'])}. If the 978 MHz radio is running, it may simply have no UAT aircraft in range right now."}
+
+
+def aircraft_now():
+    """[(station uuid, aircraft address, last time)] of the UAT aircraft stations delivered within the window set in Settings > Feeders (addresses only)."""
+    if cfg("uat_enabled") != "1":
+        return []
+    cut = datetime.now(timezone.utc) - _window()
+    return [(r["feeder_uuid"], r["icao"], r["last_seen"]) for r in get_db().execute("SELECT feeder_uuid, icao, last_seen FROM feeder_uat_aircraft WHERE last_seen >= %s", (cut,)).fetchall()]
+
+
+def aircraft_by_uuid():
+    """{station uuid: aircraft it delivered in the last hour} for the stations receiving UAT now (the Network Feeders dashboard)."""
+    ok = receiving_uuids()
+    return {u: r["aircraft_hour"] for u, r in _rows().items() if u in ok}
 
 
 def network_count():

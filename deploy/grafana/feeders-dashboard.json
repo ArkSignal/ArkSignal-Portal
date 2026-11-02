@@ -544,6 +544,94 @@
           ]
         }
       }
+    },
+    {
+      "id": 23,
+      "type": "stat",
+      "title": "Stations Sending UAT (978 MHz)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ultrafeeder-prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 43,
+        "w": 6,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "adsb_portal_stations_sending_uat",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ultrafeeder-prom"
+          },
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      }
+    },
+    {
+      "id": 24,
+      "type": "timeseries",
+      "title": "UAT Aircraft in the Last Hour, by Station",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ultrafeeder-prom"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 43,
+        "w": 18,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "adsb_portal_station_uat_aircraft_hour{station=~\"$station\"}",
+          "legendFormat": "{{station}}",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ultrafeeder-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ]
+        }
+      }
     }
   ],
   "templating": {

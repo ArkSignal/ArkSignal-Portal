@@ -26,4 +26,8 @@ finally:
     d.quit()
     try: pass
     except Exception: pass
+# the tiles' expiry no longer takes airports off the map (the in-container check)
+import subprocess
+out = subprocess.run(["ssh", "-q", "nastemp", "echo $TEST_SUDO_PASSWORD | sudo -S -p '' /usr/local/bin/docker cp ~/adsb-portal/tests/wxstale_unit.py adsb-portal:/tmp/wxstale_unit.py; echo $TEST_SUDO_PASSWORD | sudo -S -p '' /usr/local/bin/docker exec -w /app -e PYTHONPATH=/app adsb-portal python /tmp/wxstale_unit.py"], capture_output=True, text=True, timeout=180).stdout
+check("airport weather tiles keep their last answer while a fresh one is fetched (wxstale_unit.py inside the portal container)", "ALL PASS" in out and "FAIL" not in out, out[-500:])
 print("ALL PASS" if ok_all else "SOME FAILED")
