@@ -9,6 +9,17 @@
     "security": []
   },
   {
+    "version": "1.9.2",
+    "released": "2026-11-03",
+    "title": "Forwarded private feed nodes show on the public list",
+    "added": [],
+    "improved": [],
+    "fixed": [
+      "Nodes on the Site Private Feed that are passed on to the public map now also show on the public Mesh Nodes list and map (they were hidden because the feed was never shared with the site's pages)."
+    ],
+    "security": []
+  },
+  {
     "version": "1.9.1",
     "released": "2026-11-02",
     "title": "Site private feed, public map forwarding and mirroring a site",

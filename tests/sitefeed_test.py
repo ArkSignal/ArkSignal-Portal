@@ -117,6 +117,12 @@ check("a node that did not agree to MQTT never goes, whatever is chosen (the pub
 fwd(mode="auto")
 check("back to the default it goes again, and the changes are in the audit log", packet(4, "ZZ Fwd Twelve", n1 + 11) == "public" and int(psql("SELECT count(*) FROM audit_log WHERE action='community.forwarding'") or 0) >= 6)
 
+# what the Site Private Feed passes on must also show on the public node list and map, so its sharing follows the forwarding choice
+act(adm, "/mesh/c/site-private/forwarding", "/mesh/c/site-private/forwarding", mode="none")
+off = psql("SELECT feed_site_map FROM communities WHERE slug='site-private'")
+act(adm, "/mesh/c/site-private/forwarding", "/mesh/c/site-private/forwarding", mode="auto")
+on = psql("SELECT feed_site_map FROM communities WHERE slug='site-private'")
+check("the Site Private Feed shows on the public lists unless forwarding is Nothing", (off, on) == ("f", "t"), (off, on))
 psql("DELETE FROM communities WHERE slug IN ('sfv-open', 'site-private')")
 psql("DELETE FROM roles WHERE name IN ('SF Watchers', 'SF Others')")
 psql("DELETE FROM users WHERE username IN ('sfwatch', 'sfplain')")

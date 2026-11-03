@@ -1213,7 +1213,7 @@ def admin_site_feed():
     if get(SITE_SLUG):
         return action_response(True, "The Site Private Feed exists already.", redirect_endpoint="communities.admin")
     d = get_db()
-    d.execute("INSERT INTO communities (slug, name, about, published, system, created_by) VALUES (%s,%s,%s,FALSE,TRUE,%s)",
+    d.execute("INSERT INTO communities (slug, name, about, published, system, feed_site_map, created_by) VALUES (%s,%s,%s,FALSE,TRUE,TRUE,%s)",
               (SITE_SLUG, "Site Private Feed", "A private feed that belongs to the site, not to a community. Only administrators, and the site roles given access under Site Role Access, can open it.", current_user.id))
     d.commit()
     audit("community.create", target=SITE_SLUG, detail="made the Site Private Feed")
@@ -1237,6 +1237,8 @@ def save_forwarding(slug):
         return _back(slug, False, "At most 500 node ids in all.", "forwarding")
     d = get_db()
     d.execute("UPDATE communities SET fwd_mode=%s, fwd_channels=%s, fwd_portnums=%s, fwd_nodes_allow=%s, fwd_nodes_deny=%s WHERE id=%s", (mode, chans, ports, ",".join(allow), ",".join(deny), c["id"]))
+    if c["system"]:   # the Site Private Feed has no Sharing section: what it passes on to the public map must also show on the public node list and map
+        d.execute("UPDATE communities SET feed_site_map=%s WHERE id=%s", (mode != "none", c["id"]))
     d.commit()
     audit("community.forwarding", target=slug, detail=f"mode {mode}; channels {chans or 'any'}; types {ports or 'any'}; {len(allow)} allowed nodes, {len(deny)} refused")
     ok, _note = ms.call("/config", "POST", ms.service_config())

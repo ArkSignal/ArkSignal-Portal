@@ -503,6 +503,7 @@ MIGRATIONS = [
     "ALTER TABLE communities ADD COLUMN IF NOT EXISTS system BOOLEAN NOT NULL DEFAULT FALSE",
     "CREATE TABLE IF NOT EXISTS mesh_mirror_logins (id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, label TEXT NOT NULL, username TEXT NOT NULL DEFAULT '', password_sealed TEXT NOT NULL, disabled BOOLEAN NOT NULL DEFAULT FALSE, created_by BIGINT REFERENCES users(id) ON DELETE SET NULL, created TIMESTAMPTZ NOT NULL DEFAULT now())",
     "ALTER TABLE communities ADD COLUMN IF NOT EXISTS fwd_mode TEXT NOT NULL DEFAULT 'auto'",
+    "UPDATE communities SET feed_site_map = TRUE WHERE system AND fwd_mode <> 'none' AND NOT feed_site_map",
     "ALTER TABLE communities ADD COLUMN IF NOT EXISTS fwd_channels TEXT NOT NULL DEFAULT ''",
     "ALTER TABLE communities ADD COLUMN IF NOT EXISTS fwd_portnums TEXT NOT NULL DEFAULT ''",
     "ALTER TABLE communities ADD COLUMN IF NOT EXISTS fwd_nodes_allow TEXT NOT NULL DEFAULT ''",
