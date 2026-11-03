@@ -5,11 +5,17 @@
 <h1><span>Admin</span> Mesh Communities</h1>
 <div class="sub">A community is a named mesh with its own page and a team. You make one and name its Owner; the Owner (and the Managers they choose) run the page, the nodes and the team from the community page. You can always step in from there. <a href="/mesh/communities">Public list</a></div>
 {% include "partials/_admin_subnav.html" %}
+{% call sec('sitefeed', 'Site Private Feed', True, True) %}
+  <p style="margin-top:0">A private feed that belongs to the site itself, not to a community: for gateways you run yourself. It stays hidden. Administrators open it, and so can any site role you give access to under its Site Role Access page. Its nodes appear on the all-communities Private Map.</p>
+  {% if site_feed %}<p style="margin-bottom:0"><a class="btn small" href="/mesh/c/{{ site_feed.slug }}/logins">Broker Logins and Tunnel</a> <a class="btn small neutral" href="/mesh/c/{{ site_feed.slug }}/private-map">Private Map</a> <a class="btn small neutral" href="/mesh/c/{{ site_feed.slug }}/forwarding">Public Map Forwarding</a> <a class="btn small neutral" href="/mesh/c/{{ site_feed.slug }}/access">Site Role Access</a></p>
+  {% elif private_on %}<form method="post" action="/admin/communities/site-feed"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small" type="submit">Set Up the Site Private Feed</button></form>
+  {% else %}<p class="dim" style="margin-bottom:0">Switch the private feed on first (Settings, Mesh Nodes).</p>{% endif %}
+{% endcall %}
 {% call sec('list', 'Communities (' ~ rows | length ~ ')', True, True) %}
   {% if rows %}<table><thead><tr><th>Community</th><th>Owner</th><th>Team</th><th>Shown</th><th></th></tr></thead><tbody>
   {% for c in rows %}<tr><td><a href="/mesh/c/{{ c.slug }}">{{ c.name }}</a> <span class="dim">/mesh/c/{{ c.slug }}</span></td><td>{{ c.owner or '-' }}</td><td>{{ c.team }}</td><td>{{ 'public' if c.published else 'hidden' }}</td><td>
-    <form class="inline" method="post" action="/admin/communities/{{ c.slug }}/publish"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small neutral" type="submit">{{ 'Hide' if c.published else 'Show' }}</button></form>
-    <form class="inline" method="post" action="/admin/communities/{{ c.slug }}/delete" data-confirm="Delete {{ c.name }} with its page, team, notices and node choices? Its broker logins stay with the members who made them."><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small warn" type="submit">Delete</button></form></td></tr>{% endfor %}</tbody></table>
+    {% if c.system %}<span class="dim">Site feed</span>{% else %}<form class="inline" method="post" action="/admin/communities/{{ c.slug }}/publish"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small neutral" type="submit">{{ 'Hide' if c.published else 'Show' }}</button></form>
+    <form class="inline" method="post" action="/admin/communities/{{ c.slug }}/delete" data-confirm="Delete {{ c.name }} with its page, team, notices and node choices? Its broker logins stay with the members who made them."><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small warn" type="submit">Delete</button></form>{% endif %}</td></tr>{% endfor %}</tbody></table>
   {% else %}<p class="dim" style="margin:0">No community yet.</p>{% endif %}
 {% endcall %}
 {% if pending %}{% call sec('links', 'Links Waiting for Approval (' ~ pending | length ~ ')', True, True) %}

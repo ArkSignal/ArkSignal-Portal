@@ -13,5 +13,22 @@ check("setup.sh imports them at every start", "weather:Weather_Dashboard" in ope
 for f, uid, names in (("weather-dashboard.json", "weather", {"sources", "reading", "period", "counties", "cities", "zips", "stations", "near"}), ("sondes-dashboard.json", "sondes", {"kinds", "status", "sites", "stations", "flights"})):
     d = json.load(open(os.path.join(g, f), encoding="utf-8"))
     check(f"{f}: uid, the filter variables and panels that read the portal's file", d["uid"] == uid and {v["name"] for v in d["templating"]["list"]} == names and len(d["panels"]) > 10 and any(p["targets"][0].get("url", "").startswith("http://adsb-portal:8430/api/") for p in d["panels"]) and d["title"] in ("Weather Dashboard", "Radiosonde Dashboard"), d["uid"])
+import re
+pinned = []
+for f in ("feeders-dashboard.json", "ultrafeeder-dashboard.json"):   # every chart follows the dashboard's time range, except the ones whose title names their own period
+    dd = json.load(open(os.path.join(g, f), encoding="utf-8"))
+    def walk(ps):
+        for x in ps:
+            yield x
+            yield from walk(x.get("panels") or [])
+    for x in walk(dd["panels"]):
+        if re.search(r"30 Days|Last 24 Hours|Today", x.get("title", "")):
+            continue
+        if x.get("timeFrom") or x.get("timeShift"):
+            pinned.append((f, x.get("title"), "timeFrom"))
+        for q in x.get("targets", []):
+            if re.search(r"\[\d+[hdw]\]", q.get("expr") or ""):
+                pinned.append((f, x.get("title"), q["expr"][:60]))
+check("no panel pins its own period unless its title names it (everything else follows the dashboard's time range)", not pinned, pinned)
 check("the shell scripts have unix line endings", all(b"\r" not in open(os.path.join(g, f), "rb").read() for f in ("setup.sh", "entrypoint.sh")))
 print("ALL PASS" if ok_all else "SOME FAILED")

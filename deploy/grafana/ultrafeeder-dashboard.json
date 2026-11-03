@@ -318,7 +318,6 @@
         "x": 12,
         "y": 1
       },
-      "hideTimeOverride": true,
       "id": 7,
       "options": {
         "colorMode": "value",
@@ -360,7 +359,6 @@
           "refId": "B"
         }
       ],
-      "timeFrom": "24h",
       "title": "Avg. SNR",
       "transformations": [],
       "type": "stat"
@@ -1534,14 +1532,14 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
+        "w": 8,
         "x": 0,
         "y": 78
       },
-      "description": "How far each station's farthest UAT aircraft was in the last hour (only distances are shown, never where a station is).",
+      "description": "How far each station's farthest UAT aircraft was in the selected time range (only distances are shown, never where a station is).",
       "targets": [
         {
-          "expr": "adsb_portal_station_uat_max_range_nm > 0",
+          "expr": "max_over_time(adsb_portal_station_uat_max_range_nm[$__range]) > 0",
           "legendFormat": "{{station}}",
           "refId": "A",
           "datasource": {
@@ -1572,15 +1570,15 @@
     {
       "id": 54,
       "type": "timeseries",
-      "title": "UAT Aircraft by Station, Last Hour",
+      "title": "UAT Aircraft by Station, per Hour",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
-        "x": 12,
+        "w": 8,
+        "x": 16,
         "y": 78
       },
       "targets": [
@@ -1613,12 +1611,58 @@
             "lastNotNull"
           ]
         }
+      },
+      "description": "Each point is the number of UAT aircraft that station delivered in the hour before it."
+    },
+    {
+      "id": 58,
+      "type": "bargauge",
+      "title": "UAT Aircraft by Station, Selected Range",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 78
+      },
+      "description": "How many different UAT aircraft each station delivered in the selected time range.",
+      "targets": [
+        {
+          "expr": "increase(adsb_portal_station_uat_aircraft_total[$__range]) > 0",
+          "legendFormat": "{{station}}",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
       }
     },
     {
       "id": 57,
       "type": "table",
-      "title": "UAT Aircraft Seen in the Last Hour",
+      "title": "UAT Aircraft Seen",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
@@ -1629,10 +1673,10 @@
         "x": 0,
         "y": 86
       },
-      "description": "UAT aircraft the stations delivered with a position in the last hour (UAT traffic is rare, so a list of what is in the air this second would mostly be empty).",
+      "description": "UAT aircraft the stations delivered with a position in the selected time range.",
       "targets": [
         {
-          "expr": "count by(address, callsign, airground_state) (last_over_time(aircraft_position_lon{job=\"dump978\"}[1h]))",
+          "expr": "count by(address, callsign, airground_state) (last_over_time(aircraft_position_lon{job=\"dump978\"}[$__range]))",
           "format": "table",
           "instant": true,
           "refId": "A",

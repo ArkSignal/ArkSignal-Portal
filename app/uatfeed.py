@@ -54,9 +54,13 @@ def flush(now):
         db.execute("INSERT INTO feeder_uat (feeder_uuid, first_seen, last_seen, aircraft_hour) VALUES (%s,%s,%s,%s) ON CONFLICT (feeder_uuid) DO UPDATE SET "
                    "last_seen = GREATEST(feeder_uat.last_seen, EXCLUDED.last_seen), aircraft_hour = EXCLUDED.aircraft_hour", (uuid, ts, ts, count))
         n += 1
+        fresh = 0
         for icao, t in planes[rid].items():   # which aircraft, for the Aircraft Statistics UAT panels (other workers cannot see this process's memory)
-            db.execute("INSERT INTO feeder_uat_aircraft (feeder_uuid, icao, last_seen) VALUES (%s,%s,%s) ON CONFLICT (feeder_uuid, icao) DO UPDATE SET last_seen = GREATEST(feeder_uat_aircraft.last_seen, EXCLUDED.last_seen)",
-                       (uuid, icao, datetime.fromtimestamp(t, timezone.utc)))
+            row = db.execute("INSERT INTO feeder_uat_aircraft (feeder_uuid, icao, last_seen) VALUES (%s,%s,%s) ON CONFLICT (feeder_uuid, icao) DO UPDATE SET last_seen = GREATEST(feeder_uat_aircraft.last_seen, EXCLUDED.last_seen) RETURNING (xmax = 0) AS fresh",
+                             (uuid, icao, datetime.fromtimestamp(t, timezone.utc))).fetchone()
+            fresh += 1 if row and row["fresh"] else 0
+        if fresh:   # a running total, so the dashboards can say how many different aircraft a station delivered in any time range
+            db.execute("UPDATE feeder_uat SET aircraft_total = aircraft_total + %s WHERE feeder_uuid = %s", (fresh, uuid))
     db.execute("DELETE FROM feeder_uat_aircraft WHERE last_seen < now() - interval '1 hour'")
     db.commit()
     return n
@@ -116,6 +120,11 @@ def aircraft_by_uuid():
     """{station uuid: aircraft it delivered in the last hour} for the stations receiving UAT now (the Network Feeders dashboard)."""
     ok = receiving_uuids()
     return {u: r["aircraft_hour"] for u, r in _rows().items() if u in ok}
+
+
+def totals_by_uuid():
+    """{station uuid: running total of the different UAT aircraft it has delivered (an aircraft that comes back after an hour counts again)} (the dashboards take differences over their time range)."""
+    return {r["feeder_uuid"]: r["aircraft_total"] for r in get_db().execute("SELECT feeder_uuid, aircraft_total FROM feeder_uat").fetchall()}
 
 
 def network_count():

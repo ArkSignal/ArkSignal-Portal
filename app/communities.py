@@ -31,6 +31,8 @@ ROLES = [("viewer", "Viewer", 1), ("operator", "Node Operator", 2), ("editor", "
 RANK = {k: r for k, _l, r in ROLES}
 LABEL = {k: l for k, l, _r in ROLES}
 SITE_ADMIN = 9
+SITE_SLUG = "site-private"   # the private feed that belongs to the site itself, not to a community (a reserved hidden community)
+GRANT_LEVELS = [("viewer", "Viewer"), ("operator", "Node Operator"), ("editor", "Editor"), ("manager", "Manager")]   # what a site role can be given in a community (never Owner)
 # what each role can do inside one community (the roles are not a ladder: an Editor runs the page, a Node Operator runs the nodes; the ranks only decide who may give which role)
 _ALL = {"view_stats", "view_private", "choose_nodes", "manage_logins", "post", "edit_page", "manage_members", "queue_commands", "approve_commands", "manage_bridges", "manage_channels"}
 ROLE_PERMS = {"viewer": {"view_stats"}, "operator": {"view_stats", "view_private", "choose_nodes", "manage_logins", "queue_commands", "manage_channels"}, "editor": {"view_stats", "post", "edit_page"}, "manager": set(_ALL), "owner": set(_ALL)}
@@ -61,8 +63,12 @@ def rank_of(c):
         return 0
     if is_site_admin():
         return SITE_ADMIN
-    r = get_db().execute("SELECT role FROM community_members WHERE community_id=%s AND user_id=%s", (c["id"], current_user.id)).fetchone()
-    return RANK.get(r["role"], 0) if r else 0
+    d = get_db()
+    r = d.execute("SELECT role FROM community_members WHERE community_id=%s AND user_id=%s", (c["id"], current_user.id)).fetchone()
+    rank = RANK.get(r["role"], 0) if r else 0
+    for g in d.execute("SELECT a.level FROM community_role_access a JOIN user_roles ur ON ur.role_id = a.role_id WHERE a.community_id=%s AND ur.user_id=%s", (c["id"], current_user.id)).fetchall():
+        rank = max(rank, RANK.get(g["level"], 0))   # a site role the administrators gave access to this community
+    return rank
 
 
 def can(rank, perm):
@@ -86,18 +92,23 @@ def _ctx(slug, perm=None):
 SECTIONS = [("overview", "Overview", None, "Community"), ("join", "How to Join", None, "Community"), ("map", "Map", None, "Community"), ("nodes", "Nodes", None, "Community"),
             ("news", "News and Events", None, "Community"), ("channels", "Channels", None, "Community"), ("health", "Health and Statistics", "view_stats", "Community"),
             ("edit", "Edit Page", "edit_page", "Manage"), ("area", "Area", "edit_page", "Manage"), ("pick", "Choose the Nodes", "choose_nodes", "Manage"), ("team", "Team", "team", "Manage"),
-            ("logins", "Broker Logins", "manage_logins", "Manage"), ("privmap", "Private Map", "view_private", "Manage"), ("share", "Sharing", "manage_members", "Manage"), ("alerts", "Alert Channel", "manage_members", "Manage"), ("links", "Linked Areas", "manage_members", "Manage"), ("remote", "Remote Administration", "queue_commands", "Manage")]
+            ("logins", "Broker Logins", "manage_logins", "Manage"), ("privmap", "Private Map", "view_private", "Manage"), ("share", "Sharing", "manage_members", "Manage"), ("forwarding", "Public Map Forwarding", "site_admin", "Manage"), ("access", "Site Role Access", "site_admin", "Manage"), ("alerts", "Alert Channel", "manage_members", "Manage"), ("links", "Linked Areas", "manage_members", "Manage"), ("remote", "Remote Administration", "queue_commands", "Manage")]
 SECTION_KEYS = {k for k, _l, _p, _g in SECTIONS}
 
 
-def menu_for(rank):
-    """[(group, [(key, label)])] of the pages this person may open."""
+SYSTEM_KEYS = {"overview", "logins", "privmap", "forwarding", "access"}   # the pages of the Site Private Feed (the rest belong to a community of people)
+
+
+def menu_for(rank, c=None):
+    """[(group, [(key, label)])] of the pages this person may open (for the Site Private Feed only the pages that make sense there)."""
     groups = {}
     for key, label, perm, group in SECTIONS:
+        if c is not None and c["system"] and key not in SYSTEM_KEYS:
+            continue
         if perm is None or (perm == "team" and rank >= 1) or (perm not in (None, "team") and (can(rank, perm) or (key == "remote" and can(rank, "manage_bridges")))):
             if key == "remote" and cfg("mesh_bridge_enabled") != "1":
                 continue
-            if key == "privmap" and cfg("mesh_private_enabled") != "1":
+            if key in ("privmap", "forwarding") and cfg("mesh_private_enabled") != "1":
                 continue
             groups.setdefault(group, []).append((key, label))
     return list(groups.items())
@@ -271,8 +282,11 @@ def stats_of(nodes):
 def listing():
     _on()
     d = get_db()
+    uid = current_user.id if current_user.is_authenticated else 0
     rows = d.execute("SELECT c.*, (SELECT COUNT(*) FROM community_follows f WHERE f.community_id = c.id) AS followers, (SELECT COUNT(*) FROM community_members m WHERE m.community_id = c.id) AS team "
-                     "FROM communities c WHERE c.published OR %s ORDER BY lower(c.name)", (is_site_admin(),)).fetchall()
+                     "FROM communities c WHERE c.published OR %s OR c.id IN (SELECT community_id FROM community_members WHERE user_id=%s) "
+                     "OR c.id IN (SELECT a.community_id FROM community_role_access a JOIN user_roles ur ON ur.role_id = a.role_id WHERE ur.user_id=%s) ORDER BY lower(c.name)",
+                     (is_site_admin(), uid, uid)).fetchall()
     out = []
     allnodes = ms.nodes_cached("", "", None, False, everything=True)
     for c in rows:
@@ -304,7 +318,7 @@ def section(slug, sec):
 
 def _render(slug, sec):
     c, rank = _ctx(slug)
-    if sec not in {k for g, items in menu_for(rank) for k, _l in items}:
+    if sec not in {k for g, items in menu_for(rank, c) for k, _l in items}:
         abort(403 if rank else 404)
     d = get_db()
     nodes = community_nodes(c)
@@ -314,11 +328,17 @@ def _render(slug, sec):
     following = bool(current_user.is_authenticated and d.execute("SELECT 1 FROM community_follows WHERE community_id=%s AND user_id=%s", (c["id"], current_user.id)).fetchone())
     poly = polygon_of(c)
     pins = d.execute("SELECT * FROM community_pins WHERE community_id=%s ORDER BY lower(name)", (c["id"],)).fetchall()
-    ctx = dict(root=community_root(c), map_lat=cfg("map_lat"), map_lon=cfg("map_lon"), cur=sec, menu=menu_for(rank), poly=poly, pins=pins, max_points=cfg_int("mesh_community_max_points"), c=c, rank=rank, nodes=nodes, st=st, posts=posts, links=links, following=following, followers=d.execute("SELECT COUNT(*) AS n FROM community_follows WHERE community_id=%s", (c["id"],)).fetchone()["n"],
+    ctx = dict(root=community_root(c), map_lat=cfg("map_lat"), map_lon=cfg("map_lon"), cur=sec, menu=menu_for(rank, c), poly=poly, pins=pins, max_points=cfg_int("mesh_community_max_points"), c=c, rank=rank, nodes=nodes, st=st, posts=posts, links=links, following=following, followers=d.execute("SELECT COUNT(*) AS n FROM community_follows WHERE community_id=%s", (c["id"],)).fetchone()["n"],
                can=lambda p: can(rank, p), credit=ms.CREDIT, roles=ROLES, rank_map=RANK, perm_text=PERM_TEXT, role_perms=ROLE_PERMS, role_label=LABEL, now=datetime.now(timezone.utc))
     if rank >= 1:
         ctx["team"] = d.execute("SELECT m.*, u.username, u.display_name, u.callsign FROM community_members m JOIN users u ON u.id = m.user_id WHERE m.community_id=%s ORDER BY m.role = 'owner' DESC, lower(u.username)", (c["id"],)).fetchall()
         ctx["mine"] = next((m for m in ctx["team"] if current_user.is_authenticated and m["user_id"] == current_user.id), None)
+    if sec == "forwarding":
+        ctx["fw"] = dict(mode=c["fwd_mode"], ports={x for x in c["fwd_portnums"].split(",") if x}, channels=c["fwd_channels"], allow=c["fwd_nodes_allow"].replace(",", chr(10)), deny=c["fwd_nodes_deny"].replace(",", chr(10)), port_list=FWD_PORTS)
+    if sec == "access":
+        ctx["site_roles"] = d.execute("SELECT id, name FROM roles WHERE NOT is_super_admin ORDER BY lower(name)").fetchall()
+        ctx["grants"] = d.execute("SELECT a.role_id, a.level, r.name FROM community_role_access a JOIN roles r ON r.id = a.role_id WHERE a.community_id=%s ORDER BY lower(r.name)", (c["id"],)).fetchall()
+        ctx["grant_levels"] = GRANT_LEVELS
     ctx["asking"] = cfg("mesh_community_join_requests") == "1" and current_user.is_authenticated and rank < 1
     ctx["my_request"] = d.execute("SELECT * FROM community_join_requests WHERE community_id=%s AND user_id=%s AND state='pending'", (c["id"], current_user.id)).fetchone() if current_user.is_authenticated and rank < 1 else None
     if can(rank, "manage_members"):
@@ -1082,7 +1102,12 @@ def api_private_nodes():
     slug = _private_scope()
     keep = ("id", "slug", "network", "long_name", "short_name", "lat", "lon", "role", "role_name", "hardware", "firmware", "last_seen", "battery", "precision_bits", "community")
     rows = [n for n in ms.private_nodes(slug) if n.get("lat") is not None]
-    r = jsonify({"nodes": [{k: n.get(k) for k in keep} for n in rows], "area": None, "credit": ms.CREDIT, "private": True})
+    out = [{k: n.get(k) for k in keep} for n in rows]
+    if request.args.get("public") == "1" and cfg("mesh_enabled") == "1":   # the public map's nodes as well, for a fuller picture; a node both feeds know stays the private one
+        have = {n["id"] for n in out}
+        keep_pub = [k for k in keep if k != "community"]
+        out += [dict({k: n.get(k) for k in keep_pub}, public_only=True) for n in ms.nodes_cached("", "", 168, True) if n.get("lat") is not None and n["id"] not in have]
+    r = jsonify({"nodes": out, "area": None, "credit": ms.CREDIT, "private": True})
     r.headers["Cache-Control"] = "no-store"
     return r
 
@@ -1159,6 +1184,93 @@ def login_action(slug, aid, action):
     return _back(slug, True, msg)
 
 
+# ------------------------------------------------------------------ the site's own private feed, forwarding choices and site-role access (request 216)
+
+FWD_PORTS = [(1, "Text messages"), (3, "Positions"), (4, "Node information"), (67, "Telemetry"), (71, "Neighbor information"), (73, "Map reports")]
+
+
+def _node_ids(text):
+    """([normalized node ids '!xxxxxxxx'], [entries that are not node ids]) from a list separated by commas, spaces or lines."""
+    ok, bad = [], []
+    for t in re.split(r"[,\s]+", text or ""):
+        if not t:
+            continue
+        if re.fullmatch(r"!?[0-9a-fA-F]{8}", t):
+            n = "!" + t.lstrip("!").lower()
+            if n not in ok:
+                ok.append(n)
+        else:
+            bad.append(t[:20])
+    return ok, bad
+
+
+@bp.route("/admin/communities/site-feed", methods=["POST"])
+@permission_required("manage_map_data")
+def admin_site_feed():
+    """Make the Site Private Feed: a hidden community the site itself owns, for private gateways that belong to no community (administrators, and the site roles given access, can open it)."""
+    if cfg("mesh_private_enabled") != "1":
+        return action_response(False, "Switch the private feed on first (Settings, Mesh Nodes).", redirect_endpoint="communities.admin")
+    if get(SITE_SLUG):
+        return action_response(True, "The Site Private Feed exists already.", redirect_endpoint="communities.admin")
+    d = get_db()
+    d.execute("INSERT INTO communities (slug, name, about, published, system, created_by) VALUES (%s,%s,%s,FALSE,TRUE,%s)",
+              (SITE_SLUG, "Site Private Feed", "A private feed that belongs to the site, not to a community. Only administrators, and the site roles given access under Site Role Access, can open it.", current_user.id))
+    d.commit()
+    audit("community.create", target=SITE_SLUG, detail="made the Site Private Feed")
+    return action_response(True, "The Site Private Feed is made. Open it to add private logins and tunnel peers.", redirect_endpoint="communities.admin")
+
+
+@bp.route("/mesh/c/<slug>/forwarding", methods=["POST"])
+@login_required
+def save_forwarding(slug):
+    """What this community's private feed may pass on to the public map, chosen by the site's administrators (the public rules still apply on top: a node that did not agree to MQTT never goes)."""
+    c, _r = _ctx(slug, "site_admin")
+    f = request.form
+    mode = f.get("mode") if f.get("mode") in ("auto", "none", "filter") else "auto"
+    ports = ",".join(str(p) for p, _l in FWD_PORTS if f.get("port_" + str(p)) == "1")
+    chans = ",".join(x.strip()[:30] for x in re.split(r"[,\n]", f.get("channels", "")) if x.strip())[:300]
+    allow, bad1 = _node_ids(f.get("allow", ""))
+    deny, bad2 = _node_ids(f.get("deny", ""))
+    if bad1 or bad2:
+        return _back(slug, False, "These are not node ids (eight letters or digits, like !a1b2c3d4): " + ", ".join((bad1 + bad2)[:5]), "forwarding")
+    if mode == "filter" and len(allow) + len(deny) > 500:
+        return _back(slug, False, "At most 500 node ids in all.", "forwarding")
+    d = get_db()
+    d.execute("UPDATE communities SET fwd_mode=%s, fwd_channels=%s, fwd_portnums=%s, fwd_nodes_allow=%s, fwd_nodes_deny=%s WHERE id=%s", (mode, chans, ports, ",".join(allow), ",".join(deny), c["id"]))
+    d.commit()
+    audit("community.forwarding", target=slug, detail=f"mode {mode}; channels {chans or 'any'}; types {ports or 'any'}; {len(allow)} allowed nodes, {len(deny)} refused")
+    ok, _note = ms.call("/config", "POST", ms.service_config())
+    return _back(slug, True, "Forwarding is saved." + ("" if ok else " The mesh service did not answer; press Apply on Admin, Mesh Nodes to send it."), "forwarding")
+
+
+@bp.route("/mesh/c/<slug>/access", methods=["POST"])
+@login_required
+def save_access(slug):
+    """Give a site role access to this community (also when it is hidden), at one of the community roles."""
+    c, _r = _ctx(slug, "site_admin")
+    rid, level = request.form.get("role_id", ""), request.form.get("level", "")
+    d = get_db()
+    role = d.execute("SELECT id, name FROM roles WHERE id=%s AND NOT is_super_admin", (int(rid),)).fetchone() if rid.isdigit() else None
+    if role is None or level not in {k for k, _l in GRANT_LEVELS}:
+        return _back(slug, False, "Choose a role and what it may do here.", "access")
+    d.execute("INSERT INTO community_role_access (community_id, role_id, level) VALUES (%s,%s,%s) ON CONFLICT (community_id, role_id) DO UPDATE SET level = EXCLUDED.level", (c["id"], role["id"], level))
+    d.commit()
+    audit("community.access", target=slug, detail=f"gave the site role {role['name']} access as {LABEL[level]}")
+    return _back(slug, True, f"People with the role {role['name']} now have access as {LABEL[level]}.", "access")
+
+
+@bp.route("/mesh/c/<slug>/access/<int:rid>/remove", methods=["POST"])
+@login_required
+def remove_access(slug, rid):
+    c, _r = _ctx(slug, "site_admin")
+    d = get_db()
+    role = d.execute("SELECT name FROM roles WHERE id=%s", (rid,)).fetchone()
+    d.execute("DELETE FROM community_role_access WHERE community_id=%s AND role_id=%s", (c["id"], rid))
+    d.commit()
+    audit("community.access", target=slug, detail=f"took access away from the site role {role['name'] if role else rid}")
+    return _back(slug, True, "That role no longer has access.", "access")
+
+
 # ------------------------------------------------------------------ administrators
 
 @bp.route("/admin/communities")
@@ -1168,7 +1280,7 @@ def admin():
     rows = d.execute("SELECT c.*, (SELECT COUNT(*) FROM community_members m WHERE m.community_id = c.id) AS team, (SELECT u.username FROM community_members m JOIN users u ON u.id = m.user_id WHERE m.community_id = c.id AND m.role = 'owner' LIMIT 1) AS owner "
                      "FROM communities c ORDER BY lower(c.name)").fetchall()
     from . import meshlinks
-    return render_template("admin_communities.html", active="communities", rows=rows, seeds=SEEDS, pending=meshlinks.pending_for_admin(), presets=presets.PRESETS, status_names=presets.STATUS, radio=presets.radio, current_preset=presets.current(cfg("mesh_public_current")))
+    return render_template("admin_communities.html", active="communities", site_feed=get(SITE_SLUG), private_on=cfg("mesh_private_enabled") == "1", rows=rows, seeds=SEEDS, pending=meshlinks.pending_for_admin(), presets=presets.PRESETS, status_names=presets.STATUS, radio=presets.radio, current_preset=presets.current(cfg("mesh_public_current")))
 
 
 SEEDS = [("LR Mesh", "lr-mesh", "https://lrme.sh/", "Central Arkansas Meshtastic."), ("NWA Mesh", "nwa-mesh", "https://nwame.sh/", "Northwest Arkansas Meshtastic."),
@@ -1262,6 +1374,8 @@ def admin_action(slug, action):
     if c is None:
         abort(404)
     d = get_db()
+    if c["system"] and action in ("publish", "delete"):
+        return action_response(False, "The Site Private Feed stays hidden and cannot be deleted here.", redirect_endpoint="communities.admin")
     if action == "publish":
         d.execute("UPDATE communities SET published = NOT published WHERE id=%s", (c["id"],))
         msg = f"{c['name']} is now {'hidden' if c['published'] else 'public'}."

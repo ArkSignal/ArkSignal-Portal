@@ -480,6 +480,7 @@ SPECS = [
     ("Mesh Nodes", "mesh_forward_root", "Forward: Public Topic Root", "text", "The public server's topic a forwarded packet goes under (msh/US/AR for Arkansas).", {"max": 100}),
     ("Mesh Nodes", "mesh_up_enabled", "Also Read the Public Meshtastic Server", "select",
      "Reads the Arkansas topic of Meshtastic's public MQTT server (mqtt.meshtastic.org), the same feed the community maps such as meshmap.net are made from, so nodes whose owners already uplink to it appear here without doing anything. Read only: nothing is sent. The server is a shared service with a zero-hop policy and a fair-use expectation, so keep the topic narrow. Press Apply on Admin > Mesh Nodes after a change. (MeshCore's public feeds need a device's own key to read, so MeshCore nodes come through our own broker.)", {"choices": [("1", "On"), ("0", "Off")]}),
+    ("Mesh Nodes", "mesh_up_tls", "Public Server: Use TLS", "select", "On when the broker is another ArkSignal site's (its nodes' port, 8883, is encrypted); off for mqtt.meshtastic.org on 1883. Easiest to fill in from Admin > Mesh Nodes > Mirror Logins, Read Another Site.", {"choices": [("0", "Off"), ("1", "On")]}),
     ("Mesh Nodes", "mesh_up_host", "Public Server: Host", "text", "mqtt.meshtastic.org unless the project moves it.", {}),
     ("Mesh Nodes", "mesh_up_port", "Public Server: Port", "int", "1883.", {"lo": 1, "hi": 65535}),
     ("Mesh Nodes", "mesh_up_user", "Public Server: Login Name", "text", "The read login Meshtastic publishes in its documentation.", {"max": 200, "optional": True}),

@@ -38,10 +38,10 @@ except OSError:
     pass
 
 DEFAULTS = {"enabled": "1", "host": "mesh-mqtt", "port": "1883", "user": "", "password": "", "topic": "msh/#,meshcore/#", "south": "32.0", "west": "-95.5", "north": "37.2", "east": "-88.8", "keep_days": "60", "history_keep_days": "30", "history_min_seconds": "300",
-            "heard_keep_days": "14", "links_keep_days": "30", "up_enabled": "1", "up_host": "mqtt.meshtastic.org", "up_port": "1883", "up_user": "meshdev", "up_password": "large4cats", "up_topic": "msh/US/AR/#",
+            "heard_keep_days": "14", "links_keep_days": "30", "up_enabled": "1", "up_tls": "0", "up_host": "mqtt.meshtastic.org", "up_port": "1883", "up_user": "meshdev", "up_password": "large4cats", "up_topic": "msh/US/AR/#",
             "public_rules": "1", "public_channels": "LongFast,LongTurbo,LongSlow,LongModerate,MediumFast,MediumTurbo,MediumSlow,ShortFast,ShortSlow,ShortTurbo,VLongSlow", "public_portnums": "1,3,4,5,7,67,71,73",
             "public_max_bits": "16", "publish_root": "msh/US/AR", "fwd_enabled": "0", "fwd_root": "msh/US/AR", "fwd_communities": "", "links": "[]", "relay_gateway": "!a5c0ae11", "link_dedupe_seconds": "600",
-            "hw_source": "https://raw.githubusercontent.com/meshtastic/protobufs/master/meshtastic/mesh.proto", "hw_refresh_hours": "24", "private_root": "mshp", "private_enabled": "0", "exports": "[]", "export_enabled": "0"}
+            "hw_source": "https://raw.githubusercontent.com/meshtastic/protobufs/master/meshtastic/mesh.proto", "hw_refresh_hours": "24", "private_fwd": "{}", "private_root": "mshp", "private_enabled": "0", "exports": "[]", "export_enabled": "0"}
 STATE = {"connected": False, "packets": 0, "decoded": 0, "encrypted": 0, "stored": 0, "outside": 0, "mc_packets": 0, "mc_adverts": 0, "mc_dropped": 0, "mc_badsig": 0, "links": 0, "public_dropped": 0, "public_coarsened": 0, "since": time.time(), "last": None, "error": "", "reconnects": 0, "up_connected": False, "up_error": "", "up_reconnects": 0, "fwd_sent": 0, "fwd_dropped": 0, "fwd_error": "", "p_packets": 0, "p_stored": 0, "p_public": 0, "p_withheld": 0, "p_encrypted": 0}
 _cfg = {}
 _lock = threading.Lock()
@@ -971,6 +971,30 @@ def public_ok(e, kind):
     return from_gateway or bool(e["bitfield"] is not None and e["bitfield"] & OK_TO_MQTT)
 
 
+def private_fwd_ok(com, e):
+    """The administrators' choice of what a community's private feed may pass on to the public map (on top of the public rules, which still apply): mode "auto" (the default: whatever the public rules carry),
+    "none" (nothing), or "filter" (only the listed channels, message types and nodes; an empty list means any, and a node on the deny list never goes)."""
+    try:
+        rule = json.loads(cfg("private_fwd") or "{}").get(com)
+    except Exception:
+        rule = None
+    if not rule or rule.get("mode", "auto") == "auto":
+        return True
+    if rule["mode"] == "none":
+        return False
+    chans = {x.strip().lower() for x in rule.get("channels", []) if x.strip()}
+    if chans and (e["channel"] or "").strip().lower() not in chans:
+        return False
+    ports = {int(x) for x in rule.get("portnums", [])}
+    if ports and e["portnum"] not in ports:
+        return False
+    nid = "!%08x" % e["node"]
+    if nid in {x.lower() for x in rule.get("deny", [])}:
+        return False
+    allow = {x.lower() for x in rule.get("allow", [])}
+    return not allow or nid in allow
+
+
 def handle_private(topic, raw):
     """One packet from the private broker. Returns "ignored", "encrypted", "hidden", "private" (kept privately only) or "public" (kept privately and passed on to the public path)."""
     com, kind = private_parts(topic)
@@ -981,7 +1005,7 @@ def handle_private(topic, raw):
     if r != "stored":
         return r
     e = decode_envelope(raw)
-    if e is None or not public_ok(e, kind):
+    if e is None or not public_ok(e, kind) or not private_fwd_ok(com, e):
         STATE["p_withheld"] += 1
         return "private"
     pt = public_topic(com, topic)
@@ -1214,6 +1238,9 @@ def ensure_base():
         {"command": "createClient", "username": "mesh-reader", "password": rp},
         {"command": "setClientPassword", "username": "mesh-reader", "password": rp},
         {"command": "addClientRole", "username": "mesh-reader", "rolename": "reader"},
+        # a mirror login (another ArkSignal site reading this one): may read the public topics and nothing else, may publish nothing, never reads the private feed
+        {"command": "createRole", "rolename": "mirror"},
+        *[{"command": "addRoleACL", "rolename": "mirror", "acltype": t, "topic": tp, "allow": True} for tp in sorted({"msh/#", "meshcore/#", (cfg("publish_root").strip("/") or "msh") + "/#"}) for t in ("subscribePattern", "publishClientReceive")],
     ])
     bad = [x for x in r if not _ok(x)]
     if bad:
@@ -1260,13 +1287,15 @@ def ensure_private(slug):
     return role
 
 
-def set_user(username, password, community="", down=False, private=False):
+def set_user(username, password, community="", down=False, private=False, mirror=False):
     """A member's login: may publish to the mesh topics, may not read anything. A community's login publishes only under its community's root (and, for a downlink login, is sent what is published there).
     Safe to repeat (it also changes the password and moves a login between kinds)."""
     if not re.fullmatch(r"[a-z0-9][a-z0-9._-]{2,40}", username) or username in SYSTEM_USERS or not (8 <= len(password) <= 63):
         raise ValueError("a login name is 3 to 41 lowercase letters, digits, dots, dashes; a password 8 to 63 characters")
     cmds = [{"command": "createClient", "username": username, "password": password}, {"command": "setClientPassword", "username": username, "password": password}]
-    if community and private:
+    if mirror:
+        cmds += [{"command": "removeClientRole", "username": username, "rolename": "publisher"}, {"command": "addClientRole", "username": username, "rolename": "mirror"}]
+    elif community and private:
         want = ensure_private(community)
         up, dn = community_roles(community)
         cmds += [{"command": "removeClientRole", "username": username, "rolename": r} for r in ("publisher", up, dn)] + [{"command": "addClientRole", "username": username, "rolename": want}]
@@ -1301,7 +1330,7 @@ def sync_users(users, prune=True):
     if prune:
         ensure_base()   # the broker's own roles and the service's login are re-asserted (the broker disconnects clients whose rules are touched): the automatic sync skips this unless it is needed
     want = {u["username"]: u["password"] for u in users}
-    kind = {u["username"]: (u.get("community") or "", bool(u.get("down")), bool(u.get("private"))) for u in users}
+    kind = {u["username"]: (u.get("community") or "", bool(u.get("down")), bool(u.get("private")), bool(u.get("mirror"))) for u in users}
     have = set(list_users())
     try:
         for name, pw in want.items():
@@ -1387,7 +1416,7 @@ def reader(pfx=""):
             STATE[pfx + "error"] = "handling a packet failed: " + str(ex)[:80]
 
     while True:
-        sig = (cfg(pfx + "host"), cfg(pfx + "port"), cfg(pfx + "user"), cfg(pfx + "password"), cfg(pfx + "topic"), cfg("enabled"), cfg(pfx + "enabled") if pfx else "1")
+        sig = (cfg(pfx + "host"), cfg(pfx + "port"), cfg(pfx + "user"), cfg(pfx + "password"), cfg(pfx + "topic"), cfg("enabled"), cfg(pfx + "enabled") if pfx else "1", cfg(pfx + "tls") if pfx else "0")
         if cfg("enabled") != "1" or (pfx and cfg("up_enabled") != "1"):
             if cur[0]:
                 try:
@@ -1411,6 +1440,8 @@ def reader(pfx=""):
                     client.username_pw_set(cfg(pfx + "user"), cfg(pfx + "password"))
                 elif not pfx and admin_password():   # our own broker: the service reads with its own read-only login
                     client.username_pw_set("mesh-reader", reader_password())
+                if pfx and cfg(pfx + "tls") == "1":   # another ArkSignal site's broker (its nodes' port) is TLS: the certificate is checked against the usual authorities
+                    client.tls_set()
                 client.reconnect_delay_set(2, 30)
                 client.connect_async(cfg(pfx + "host"), int(cfg(pfx + "port")), 60)
                 client.loop_start()
@@ -1428,7 +1459,7 @@ _fwd_lock = threading.Lock()
 
 
 def _fwd_client():
-    sig = (cfg("up_host"), cfg("up_port"), cfg("up_user"), cfg("up_password"))
+    sig = (cfg("up_host"), cfg("up_port"), cfg("up_user"), cfg("up_password"), cfg("up_tls"))
     with _fwd_lock:
         if _FWD["client"] is not None and _FWD["sig"] == sig:
             return _FWD["client"]
@@ -1441,6 +1472,8 @@ def _fwd_client():
         cl = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2) if hasattr(mqtt, "CallbackAPIVersion") else mqtt.Client()
         if sig[2]:
             cl.username_pw_set(sig[2], sig[3])
+        if sig[4] == "1":
+            cl.tls_set()
         cl.reconnect_delay_set(2, 60)
         cl.connect_async(sig[0], int(sig[1]), 60)
         cl.loop_start()
@@ -2080,7 +2113,7 @@ class H(BaseHTTPRequestHandler):
             if p == "/ingest":   # the same door the broker uses, for tests and for a one-off import: a base64 ServiceEnvelope
                 return self.send({"ok": True, "result": handle(base64.b64decode(b.get("envelope_b64") or ""), str(b.get("topic") or ""))})
             if p == "/credentials/sync":
-                users = [{"username": str(u.get("username") or ""), "password": str(u.get("password") or ""), "community": str(u.get("community") or ""), "down": bool(u.get("down")), "private": bool(u.get("private"))} for u in (b.get("users") or []) if isinstance(u, dict)]
+                users = [{"username": str(u.get("username") or ""), "password": str(u.get("password") or ""), "community": str(u.get("community") or ""), "down": bool(u.get("down")), "private": bool(u.get("private")), "mirror": bool(u.get("mirror"))} for u in (b.get("users") or []) if isinstance(u, dict)]
                 try:
                     return self.send(dict(ok=True, **sync_users(users, prune=b.get("prune", True) is not False)))
                 except (RuntimeError, ValueError) as e:
@@ -2088,7 +2121,7 @@ class H(BaseHTTPRequestHandler):
             if p == "/credentials/set":
                 try:
                     ensure_base()
-                    set_user(str(b.get("username") or ""), str(b.get("password") or ""), str(b.get("community") or ""), bool(b.get("down")), bool(b.get("private")))
+                    set_user(str(b.get("username") or ""), str(b.get("password") or ""), str(b.get("community") or ""), bool(b.get("down")), bool(b.get("private")), bool(b.get("mirror")))
                     return self.send({"ok": True})
                 except ValueError as e:
                     return self.send({"ok": False, "error": str(e)}, 400)

@@ -71,6 +71,10 @@ def metrics():
         for r in rows:
             lines.append(f'adsb_portal_station_uat_aircraft_hour{{station="{_label(r["station_id"])}"}} {uat.get(r["uuid"], 0)}')
     if cfg("uat_enabled") == "1":
+        metric("adsb_portal_station_uat_aircraft_total", "Running total of the different UAT aircraft a named station has delivered (take the increase over a time range)", "counter")
+        tot = uatfeed.totals_by_uuid()
+        for r in rows:
+            lines.append(f'adsb_portal_station_uat_aircraft_total{{station="{_label(r["station_id"])}"}} {tot.get(r["uuid"], 0)}')
         metric("adsb_portal_station_uat_max_range_nm", "Farthest UAT aircraft a named station delivered in the last hour, nautical miles (0 when none)")
         far = _uat_far(hub)
         for r in rows:

@@ -1,11 +1,30 @@
 [
   {
     "version": "next",
-    "released": null,
+    "released": "",
     "title": "Coming in the next release",
     "added": [],
     "improved": [],
     "fixed": [],
+    "security": []
+  },
+  {
+    "version": "1.9.1",
+    "released": "2026-11-02",
+    "title": "Site private feed, public map forwarding and mirroring a site",
+    "added": [
+      "The private maps (a community's and the administrators' all-communities map) have an Include public nodes choice that adds the public map's nodes, drawn with a dashed outline, for a more complete picture.",
+      "A private feed that belongs to the site itself, not to a community: the Site Private Feed, set up by an administrator, has its own logins, tunnel and private map.",
+      "Administrators choose what a community's private feed may pass on to the public map: whatever the public rules allow (as before), nothing, or only chosen message types, channels and nodes.",
+      "Administrators can give a site role access to a community, hidden or not, as Viewer, Node Operator, Editor or Manager.",
+      "Mirror logins: a read-only login on this site's broker lets another ArkSignal site, a test site for example, read this site's public mesh feed live. The other site pastes the login into Read Another Site; the second subscription now has a TLS option."
+    ],
+    "improved": [
+      "Every Grafana panel now follows the dashboard's time range (the UAT farthest, list and by-station panels used a fixed hour), except panels whose title names their own period. New UAT Aircraft by Station, Selected Range panel counts the different UAT aircraft each station delivered; the count starts with this release."
+    ],
+    "fixed": [
+      "The Backups restore areas now include the Site Private Feed role access and the mirror logins."
+    ],
     "security": []
   },
   {

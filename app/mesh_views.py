@@ -555,3 +555,76 @@ def admin_export_action(cid, action):
     mx.push()
     audit("mesh.export", target=row["name"][:40], detail=f"connector {cid} deleted")
     return action_response(True, "The connector is deleted.", redirect_endpoint="mesh.admin_exports")
+
+
+# ------------------------------------------------------------------ mirror logins: another ArkSignal site reads this one's public feed (request 217)
+
+def _mirror_page(one=None, password=""):
+    from flask import current_app
+    from . import meshmirror as mm
+    r = render_template("admin_mesh_mirror.html", active="meshmirror", rows=mm.rows(), info=mm.connect_info(), limit=mm.limit(), one=one, password=password,
+                        up=dict(host=cfg("mesh_up_host"), port=cfg("mesh_up_port"), tls=cfg("mesh_up_tls") == "1", user=cfg("mesh_up_user"), topics=cfg("mesh_up_topic"), enabled=cfg("mesh_up_enabled") == "1"))
+    resp = current_app.response_class(r)
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@bp.route("/admin/mesh/mirror")
+@permission_required("manage_map_data")
+def admin_mirror():
+    return _mirror_page()
+
+
+@bp.route("/admin/mesh/mirror/<int:mid>")
+@permission_required("manage_map_data")
+def admin_mirror_show(mid):
+    from . import meshmirror as mm
+    row = mm.get(mid)
+    if row is None:
+        abort(404)
+    audit("mesh.mirror", target=row["username"], detail="opened " + row["label"])
+    return _mirror_page(row, mm.password_of(row))
+
+
+@bp.route("/admin/mesh/mirror/make", methods=["POST"])
+@permission_required("manage_map_data")
+def admin_mirror_make():
+    from . import meshmirror as mm
+    mid, err = mm.create(request.form.get("label", ""), current_user.id)
+    if err:
+        return action_response(False, err, redirect_endpoint="mesh.admin_mirror")
+    row = mm.get(mid)
+    audit("mesh.mirror", target=row["username"], detail="made " + row["label"])
+    return action_response(True, f"The login {row['username']} is made. Open it to see the password.", redirect_endpoint="mesh.admin_mirror_show", redirect_kwargs={"mid": mid})
+
+
+@bp.route("/admin/mesh/mirror/<int:mid>/<action>", methods=["POST"])
+@permission_required("manage_map_data")
+def admin_mirror_action(mid, action):
+    from . import meshmirror as mm
+    row = mm.get(mid)
+    if row is None or action not in ("password", "on", "off", "delete"):
+        abort(404)
+    if action == "delete":
+        mm.delete(mid)
+        msg, ok = "The login is deleted.", True
+    elif action == "password":
+        ok, err = mm.new_password(mid)
+        msg = "The password is changed. Open the login to see it." if ok else err
+    else:
+        ok, err = mm.set_disabled(mid, action == "off")
+        msg = ("The login is switched off: the other site stops reading." if action == "off" else "The login is switched on.") if ok else err
+    if ok:
+        audit("mesh.mirror", target=row["username"], detail=f"{action} {row['label']}")
+    return action_response(ok, msg, redirect_endpoint="mesh.admin_mirror")
+
+
+@bp.route("/admin/mesh/mirror/read", methods=["POST"])
+@permission_required("manage_map_data")
+def admin_mirror_read():
+    from . import meshmirror as mm
+    f = request.form
+    ok, msg = mm.read_other(f.get("host", ""), f.get("port", ""), f.get("tls") == "1", f.get("user", ""), f.get("password", "") or cfg("mesh_up_password"), f.get("topics", ""))
+    if ok:
+        audit("mesh.mirror", target=f.get("host", "")[:80], detail="this site now reads another site's feed")
+    return action_response(ok, msg, redirect_endpoint="mesh.admin_mirror")

@@ -75,6 +75,21 @@ check("a site administrator sees every community's private nodes", "ZZ Map One" 
 check("and has the map of all communities, and may open any one community's", adm.get(B + "/admin/mesh/private-map").status_code == 200 and adm.get(B + "/mesh/c/pvm-two/private-map").status_code == 200)
 check("the team is not given the all-communities map", O1.get(B + "/admin/mesh/private-map").status_code == 403)
 check("a public page does not carry the private nodes", "ZZ Map One" not in requests.get(B + "/api/mesh/nodes.json").text)
+n3 = 0xD1000000 + t * 4 + 2
+for port, pl in ((4, ni("!%08x" % n3, "ZZ Public Hill")), (3, pos(35.6, -92.1))):
+    requests.post(P + "/ingest", json={"envelope_b64": base64.b64encode(envelope(n3, port, pl, gw)).decode()}, timeout=20)
+time.sleep(2)
+pubset = lambda: {x["long_name"] for x in requests.get(B + "/api/mesh/nodes.json").json()["nodes"]}
+if "ZZ Public Hill" in pubset():
+    ra = O1.get(B + "/api/mesh/private/nodes.json?community=pvm-one&public=1"); jn = {x["long_name"]: x for x in ra.json()["nodes"]}
+    check("with Include public nodes the private map also has the public map's nodes, marked public, and keeps its own private ones", "ZZ Public Hill" in jn and jn["ZZ Public Hill"].get("public_only") is True and "ZZ Map One" in jn and not jn["ZZ Map One"].get("public_only") and "ZZ Map Two" not in jn, list(jn))
+    check("without it, only the private nodes", "ZZ Public Hill" not in O1.get(B + "/api/mesh/private/nodes.json?community=pvm-one").text)
+    check("the administrators' all-communities map can include them too", "ZZ Public Hill" in adm.get(B + "/api/mesh/private/nodes.json?public=1").text)
+    check("a public page still does not carry the private nodes", "ZZ Map One" not in requests.get(B + "/api/mesh/nodes.json").text)
+else:
+    check("the public test node reached the public map (the setup for the Include public nodes checks)", False, "ZZ Public Hill not on /api/mesh/nodes.json")
+mapp = O1.get(B + "/mesh/c/pvm-one/private-map").text
+check("both private maps carry the Include public nodes choice", 'id="mm-pub"' in mapp and 'id="mm-pub"' in adm.get(B + "/admin/mesh/private-map").text and 'id="mm-pub"' not in requests.get(B + "/mesh/map").text)
 check("each opening is logged", int(psql("SELECT count(*) FROM audit_log WHERE action='community.privatemap' AND target IN ('pvm-one','pvm-two','all')") or 0) >= 3)
 lg = O1.get(B + "/mesh/c/pvm-one/logins").text
 check("the Broker Logins page offers the Private feed kind and a link to the map", 'value="private"' in lg and "/mesh/c/pvm-one/private-map" in lg)

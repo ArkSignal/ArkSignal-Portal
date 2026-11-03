@@ -1342,7 +1342,7 @@
     },
     {
       "title": "Private mesh feed and maps",
-      "summary": "Gateways reach a private broker through a WireGuard tunnel. Each community has a private map of every node its private gateways hear, for its team; the site's administrators have one of all communities. Only what the public Meshtastic server would have accepted goes on to the public maps. A team can open a login or tunnel peer again later to see its password or configuration.",
+      "summary": "Gateways reach a private broker through a WireGuard tunnel. Each community has a private map of every node its private gateways hear, for its team; the site's administrators have one of all communities. Only what the public Meshtastic server would have accepted goes on to the public maps. A team can open a login or tunnel peer again later to see its password or configuration. A site-owned private feed, admin forwarding filters to the public map, site-role access to hidden communities, and read-only mirror logins so a test site can read the production feed.",
       "status": "done",
       "area": "Mesh"
     },

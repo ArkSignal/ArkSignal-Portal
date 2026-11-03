@@ -590,7 +590,7 @@
     {
       "id": 24,
       "type": "timeseries",
-      "title": "UAT Aircraft in the Last Hour, by Station",
+      "title": "UAT Aircraft per Hour, by Station",
       "datasource": {
         "type": "prometheus",
         "uid": "ultrafeeder-prom"
@@ -628,6 +628,48 @@
           "placement": "bottom",
           "calcs": [
             "mean",
+            "lastNotNull"
+          ]
+        }
+      }
+    },
+    {
+      "id": 25,
+      "type": "bargauge",
+      "title": "UAT Aircraft by Station, Selected Range",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ultrafeeder-prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 51,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "increase(adsb_portal_station_uat_aircraft_total{station=~\"$station\"}[$__range]) > 0",
+          "legendFormat": "{{station}}",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ultrafeeder-prom"
+          },
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "reduceOptions": {
+          "calcs": [
             "lastNotNull"
           ]
         }

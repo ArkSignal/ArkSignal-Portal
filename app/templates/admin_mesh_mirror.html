@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Mesh Mirror Logins{% endblock %}
+{% macro csrf() %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endmacro %}
+{% block content %}
+<h1><span>Admin</span> Mesh Mirror Logins</h1>
+<div class="sub">Let another ArkSignal site, a test site for example, read this site's public mesh feed live. A mirror login can read the public mesh topics and nothing else: it cannot publish, and it never reads the private feed.</div>
+{% include "partials/_admin_subnav.html" %}
+{% if one %}<div class="panel" style="margin-bottom:14px;border-color:#ff8c42">
+  <h2 style="margin-top:0">{{ one.label }}</h2>
+  <p class="dim" style="margin-top:0">Type these into the other site's Admin, Mesh Mirror Logins, Read Another Site. Anyone who has them can read this site's public mesh feed, so keep them to the people who run that site. Every opening of this page is logged.</p>
+  <table style="max-width:640px">
+    <tr><th style="width:200px">MQTT server</th><td class="mono copyable">{{ info.host or '(not set: Settings, Mesh Nodes, Join Page: Server Address)' }}</td></tr>
+    <tr><th>Port{{ ' (TLS)' if info.tls }}</th><td class="mono copyable">{{ info.port }}</td></tr>
+    <tr><th>Username</th><td class="mono copyable">{{ one.username }}</td></tr>
+    <tr><th>Password</th><td class="mono copyable">{{ password }}</td></tr>
+    <tr><th>Topics to read</th><td class="mono copyable">{{ info.topics }}</td></tr>
+  </table>
+  <p style="margin-bottom:0"><a href="/admin/mesh/mirror">&larr; All mirror logins</a></p>
+</div>{% endif %}
+<div class="panel" style="margin-bottom:14px">
+  <h2 style="margin-top:0">Logins for Other Sites ({{ rows | length }} of {{ limit }})</h2>
+  {% if rows %}<table><thead><tr><th>Name</th><th>Login</th><th>Made</th><th>State</th><th></th></tr></thead><tbody>
+  {% for r in rows %}<tr><td><a href="/admin/mesh/mirror/{{ r.id }}"><b>{{ r.label }}</b></a></td><td class="mono">{{ r.username }}</td>
+    <td><time class="ts" datetime="{{ r.created.isoformat() }}" data-fmt="dt">{{ r.created.strftime('%Y-%m-%d %H:%M') }}</time>{% if r.maker %}<div class="dim" style="font-size:.78rem">by {{ r.maker }}</div>{% endif %}</td>
+    <td>{{ 'switched off' if r.disabled else 'active' }}</td><td style="white-space:nowrap">
+      <a class="btn small neutral" href="/admin/mesh/mirror/{{ r.id }}">Show</a>
+      <form class="inline" method="post" action="/admin/mesh/mirror/{{ r.id }}/password" data-confirm="Make a new password? The other site stops reading until it has the new one.">{{ csrf() }}<button class="btn small neutral" type="submit">New Password</button></form>
+      <form class="inline" method="post" action="/admin/mesh/mirror/{{ r.id }}/{{ 'on' if r.disabled else 'off' }}">{{ csrf() }}<button class="btn small neutral" type="submit">{{ 'Switch On' if r.disabled else 'Switch Off' }}</button></form>
+      <form class="inline" method="post" action="/admin/mesh/mirror/{{ r.id }}/delete" data-confirm="Delete this login? The other site stops reading at once.">{{ csrf() }}<button class="btn small warn" type="submit">Delete</button></form></td></tr>{% endfor %}</tbody></table>
+  {% else %}<p class="dim" style="margin-top:0">No mirror login yet.</p>{% endif %}
+  {% if rows | length < limit %}<form method="post" action="/admin/mesh/mirror/make" style="margin-top:10px">{{ csrf() }}
+    <div class="cm-row"><div><label for="mlabel">Name (the site that will use it)</label><input id="mlabel" name="label" maxlength="60" placeholder="Test site"></div></div>
+    <button class="btn small" type="submit">Make a Mirror Login</button></form>{% endif %}
+</div>
+<div class="panel">
+  <h2 style="margin-top:0">Read Another Site</h2>
+  <p class="dim" style="margin-top:0">On the site that should mirror (the test site, say): paste a mirror login made on the other site. This site then also reads that site's public mesh feed, live, as if the nodes had been heard here. It is the same as filling in Settings, Mesh Nodes, Public Server, and replaces what is there (by default mqtt.meshtastic.org). Keep the communities' forwarding off on a mirror site, so nothing is sent back (a mirror login cannot publish, so it would only fail).</p>
+  <form method="post" action="/admin/mesh/mirror/read">{{ csrf() }}
+    <div class="cm-row"><div><label for="uph">MQTT server</label><input id="uph" name="host" value="{{ up.host }}" maxlength="200"></div>
+      <div><label for="upp">Port</label><input id="upp" name="port" value="{{ up.port }}" maxlength="5" size="6"></div></div>
+    <p><label style="display:flex;gap:8px"><input type="checkbox" name="tls" value="1" {{ 'checked' if up.tls }}> Encrypted (TLS), the usual port is 8883</label></p>
+    <div class="cm-row"><div><label for="upu">Username</label><input id="upu" name="user" value="{{ up.user }}" maxlength="200" autocomplete="off"></div>
+      <div><label for="upw">Password</label><input id="upw" name="password" type="password" maxlength="200" autocomplete="new-password" placeholder="Paste the password"></div></div>
+    <div class="cm-row"><div><label for="upt">Topics to read</label><input id="upt" name="topics" value="{{ up.topics }}" maxlength="300"></div></div>
+    <button class="btn small" type="submit">Read This Site</button>
+    <span class="dim" style="font-size:.85rem">Now reading: {{ up.host }}:{{ up.port }}{{ ' (TLS)' if up.tls }}, {{ 'on' if up.enabled else 'off' }}.</span>
+  </form>
+</div>
+{% endblock %}

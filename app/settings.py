@@ -530,6 +530,7 @@ DEFAULTS = {
     "mesh_online_minutes": "30",
     "mesh_map_area": "33.0,-94.62,36.5,-89.64",
     "mesh_up_enabled": "1",
+    "mesh_up_tls": "0",
     "mesh_forward_enabled": "0",
     "mesh_forward_root": "msh/US/AR",
     "mesh_private_root": "mshp",

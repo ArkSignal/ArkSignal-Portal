@@ -51,7 +51,20 @@ def service_config():
             "north": cfg("mesh_north"), "east": cfg("mesh_east"), "keep_days": cfg("mesh_keep_days"), "links_keep_days": cfg("mesh_links_keep_days"), "history_keep_days": cfg("mesh_history_keep_days"), "history_min_seconds": cfg("mesh_history_min_seconds"), "enabled": "1",
             "up_enabled": cfg("mesh_up_enabled"), "up_host": cfg("mesh_up_host"), "up_port": cfg("mesh_up_port"), "up_user": cfg("mesh_up_user"), "up_password": cfg("mesh_up_password"), "up_topic": cfg("mesh_up_topic"),
             "public_rules": cfg("mesh_public_rules"), "public_channels": cfg("mesh_public_channels"), "public_portnums": cfg("mesh_public_portnums"), "public_max_bits": cfg("mesh_public_max_bits"),
-            "publish_root": cfg("mesh_join_topic"), "fwd_enabled": cfg("mesh_forward_enabled"), "fwd_root": cfg("mesh_forward_root"), "fwd_communities": forward_slugs(), "private_root": cfg("mesh_private_root"), "private_enabled": cfg("mesh_private_enabled")}
+            "publish_root": cfg("mesh_join_topic"), "fwd_enabled": cfg("mesh_forward_enabled"), "fwd_root": cfg("mesh_forward_root"), "fwd_communities": forward_slugs(), "private_root": cfg("mesh_private_root"), "private_enabled": cfg("mesh_private_enabled"), "private_fwd": private_forwarding_json(), "up_tls": cfg("mesh_up_tls")}
+
+
+def private_forwarding_json():
+    """What the administrators allow each community's private feed to pass on to the public map, as JSON for the mesh service: {slug: {mode, channels, portnums, allow, deny}} for the communities that are not on the default."""
+    import json
+    out = {}
+    try:
+        for r in get_db().execute("SELECT slug, fwd_mode, fwd_channels, fwd_portnums, fwd_nodes_allow, fwd_nodes_deny FROM communities WHERE fwd_mode <> 'auto'").fetchall():
+            split = lambda t: [x.strip() for x in (t or "").replace(chr(10), ",").split(",") if x.strip()]
+            out[r["slug"]] = {"mode": r["fwd_mode"], "channels": split(r["fwd_channels"]), "portnums": [int(x) for x in split(r["fwd_portnums"]) if x.isdigit()], "allow": split(r["fwd_nodes_allow"]), "deny": split(r["fwd_nodes_deny"])}
+    except Exception:
+        pass
+    return json.dumps(out)
 
 
 def forward_slugs():
@@ -183,7 +196,8 @@ def delete_account(aid):
 def sync_accounts(prune=True):
     """Make the broker's member logins exactly the enabled ones here (prune false: only add and repair, never delete one). (ok, note)."""
     rows = get_db().execute("SELECT a.username, a.password_sealed, a.link, cm.slug AS community_slug FROM mesh_accounts a LEFT JOIN communities cm ON cm.id = a.community_id WHERE NOT a.disabled AND a.username <> ''").fetchall()
-    ok, r = call("/credentials/sync", "POST", {"users": [{"username": x["username"], "password": _broker_pw(x["link"], x["username"], vault.unseal(x["password_sealed"])), "community": x["community_slug"] or "", "down": bool(x["community_slug"]) and x["link"] == "down", "private": bool(x["community_slug"]) and x["link"] == "private"} for x in rows], "prune": bool(prune)}, timeout=30)
+    from . import meshmirror
+    ok, r = call("/credentials/sync", "POST", {"users": meshmirror.creds() + [{"username": x["username"], "password": _broker_pw(x["link"], x["username"], vault.unseal(x["password_sealed"])), "community": x["community_slug"] or "", "down": bool(x["community_slug"]) and x["link"] == "down", "private": bool(x["community_slug"]) and x["link"] == "private"} for x in rows], "prune": bool(prune)}, timeout=30)
     if not ok:
         return False, r
     return bool(r.get("ok")), ("" if r.get("ok") else str(r.get("error", "")))
