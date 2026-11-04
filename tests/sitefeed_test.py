@@ -72,6 +72,11 @@ ingest("site-private", envelope(nsite, 3, pos(35.3, -92.4), gw, ok_mqtt=0), gw)
 allnames = [n["long_name"] for n in adm.get(B + "/api/mesh/private/nodes.json").json()["nodes"]]
 check("a node its gateways hear is on the administrators' all-communities private map", "ZZ Site Node" in allnames, allnames[:5])
 check("and not on any public page", "ZZ Site Node" not in requests.get(B + "/api/mesh/nodes.json").text)
+lst = adm.get(B + "/admin/mesh/private-nodes").text
+check("the administrators' Private Node List shows it, marked as not on the public list, never cached", "ZZ Site Node" in lst and "no-store" in adm.get(B + "/admin/mesh/private-nodes").headers.get("Cache-Control", "") and "Private Node List" in adm.get(B + "/mesh/c/site-private/private-map").text)
+check("the site feed's own list shows it and is closed to people without access", "ZZ Site Node" in adm.get(B + "/mesh/c/site-private/private-nodes?q=zz+site").text and requests.get(B + "/admin/mesh/private-nodes", allow_redirects=False).status_code in (302, 401, 403, 404))
+r1, r2 = adm.get(B + "/mesh/c/site-private/map", allow_redirects=False), adm.get(B + "/mesh/c/site-private/nodes", allow_redirects=False)
+check("the site feed's Map and Nodes addresses lead to its private map and list instead of a refusal", r1.status_code == 302 and r1.headers["Location"].endswith("/mesh/c/site-private/private-map") and r2.status_code == 302 and r2.headers["Location"].endswith("/mesh/c/site-private/private-nodes"), (r1.status_code, r2.status_code))
 
 # ---- 2. site-role access
 psql("INSERT INTO roles (name, description) VALUES ('SF Watchers', 'test'), ('SF Others', 'test')")

@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Private Nodes{% endblock %}
+{% block content %}
+<h1><span>Private</span> Nodes</h1>
+<div class="sub"><b>{{ name }}.</b> Every node the private gateways hear, with what the public pages never show: whether it is also on the public list, its exact position precision, power, channel use and how many packets were heard. This page and its data are not public; keep it that way. Opening it is logged. <a href="{{ map_path }}">Private Map</a></div>
+<form method="get" action="{{ path }}" class="panel" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px">
+  <div><label for="pq">Name or ID</label><input type="text" id="pq" name="q" value="{{ q }}" placeholder="AR or !a1b2" style="width:170px" maxlength="30"></div>
+  <div><label for="phours">Heard within</label><select id="phours" name="hours">{% for h, l in [(1, 'the last hour'), (24, '24 hours'), (72, '3 days'), (168, '7 days'), (720, '30 days'), (2160, '90 days')] %}<option value="{{ h }}" {{ 'selected' if hours == h }}>{{ l }}</option>{% endfor %}</select></div>
+  <div><label style="margin:0 0 2px"><input type="checkbox" name="hidden" value="1" {{ 'checked' if only_private }}> Only nodes not on the public list</label></div>
+  <button class="btn small" type="submit" style="margin:0 0 2px">Search</button>
+</form>
+<div class="panel" style="overflow-x:auto">
+  <div class="tfilterbar"><input type="search" class="tfilter" data-table="#pnodes-tbl" placeholder="Search the listed nodes" aria-label="Search nodes"><span class="dim tcount"></span></div>
+  <p style="margin-top:0" class="dim">{{ total }} node{{ '' if total == 1 else 's' }}, {{ on_public }} also on the public list{% if total > 400 %} (the first 400 are listed){% endif %}</p>
+  {% if rows %}<table class="sortable" id="pnodes-tbl"><thead><tr><th data-sort="text">Name</th><th data-sort="text">ID</th><th data-sort="text">Public List</th><th data-sort="text">Role</th><th data-sort="text">Hardware</th><th data-sort="text">Firmware</th><th data-sort="text">Position</th><th data-sort="num">Precision</th><th data-sort="num">Battery</th><th data-sort="num">Channel Use</th><th data-sort="num">Packets</th><th data-sort="text">Community</th><th data-sort="text">Last heard</th></tr></thead><tbody>
+  {% for r in rows %}<tr><td>{{ r.long_name or r.short_name or r.id }}{% if r.short_name %} <span class="dim mono">{{ r.short_name }}</span>{% endif %}</td><td class="mono">{{ r.id }}</td>
+    <td>{% if r.public %}<a href="/mesh/{{ r.slug }}">Yes</a>{% else %}No{% endif %}</td>
+    <td>{{ r.role_name or '-' }}</td><td>{{ r.hardware }}</td><td class="mono">{{ r.firmware }}</td>
+    <td class="mono">{% if r.lat is not none %}{{ '%.4f' % r.lat }}, {{ '%.4f' % r.lon }}{% else %}none{% endif %}</td>
+    <td data-v="{{ r.precision_bits if r.precision_bits is not none else -1 }}">{{ (r.precision_bits ~ ' bits') if r.precision_bits is not none else '' }}</td>
+    <td data-v="{{ r.battery if r.battery is not none else -1 }}">{% if r.battery is not none %}{{ ('powered' if r.battery > 100 else r.battery ~ '%') }}{% if r.voltage %} {{ '%.2f' % r.voltage }} V{% endif %}{% endif %}</td>
+    <td data-v="{{ r.channel_util if r.channel_util is not none else -1 }}">{{ ('%.1f%%' % r.channel_util) if r.channel_util is not none else '' }}</td>
+    <td data-v="{{ r.packets or 0 }}">{{ r.packets or 0 }}</td><td>{{ r.community }}</td>
+    <td data-v="{{ r.last_seen }}"><time class="ts" datetime="{{ r.last_seen }}" data-fmt="dt">{{ r.last_seen[:16].replace('T', ' ') }}</time></td></tr>{% endfor %}
+  </tbody></table>{% else %}<p class="dim" style="margin:0">No node matches.</p>{% endif %}
+</div>
+{% endblock %}

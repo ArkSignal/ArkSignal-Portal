@@ -17,7 +17,7 @@
 </div>
 {% call sec('gateways', 'Gateways', True, True) %}
   <p style="margin-top:0"><a class="btn small neutral" href="/admin/mesh/exports">MQTT Export to Other Brokers</a> <span class="dim">send mesh traffic on to outside brokers, with filters</span></p>
-  {% if private_feed %}<p style="margin-top:0"><a class="btn small neutral" href="/admin/mesh/private-map">Private Map of All Communities</a> <span class="dim">every node the communities' private gateways hear; opening it is logged</span></p>{% endif %}
+  {% if private_feed %}<p style="margin-top:0"><a class="btn small neutral" href="/admin/mesh/private-map">Private Map of All Communities</a> <a class="btn small neutral" href="/admin/mesh/private-nodes">Private Node List</a> <span class="dim">every node the communities' private gateways hear; opening it is logged</span></p>{% endif %}
   {% if st.data.gateways %}<table><thead><tr><th>Gateway or observer</th><th>Network</th><th>Nodes it heard</th><th>Last</th></tr></thead><tbody>{% for g in st.data.gateways %}<tr><td class="mono">{{ g.name or g.gateway[:22] }}</td><td>{{ 'MeshCore' if g.network == 'meshcore' else 'Meshtastic' }}</td><td>{{ g.nodes }}</td><td>{{ g.last[:16].replace('T', ' ') }}</td></tr>{% endfor %}</tbody></table>
   {% else %}<p class="dim" style="margin:0">No gateway has uplinked yet.</p>{% endif %}
 {% endcall %}

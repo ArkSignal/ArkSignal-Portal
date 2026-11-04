@@ -7,7 +7,7 @@
 {% include "partials/_admin_subnav.html" %}
 {% call sec('sitefeed', 'Site Private Feed', True, True) %}
   <p style="margin-top:0">A private feed that belongs to the site itself, not to a community: for gateways you run yourself. It stays hidden. Administrators open it, and so can any site role you give access to under its Site Role Access page. Its nodes appear on the all-communities Private Map.</p>
-  {% if site_feed %}<p style="margin-bottom:0"><a class="btn small" href="/mesh/c/{{ site_feed.slug }}/logins">Broker Logins and Tunnel</a> <a class="btn small neutral" href="/mesh/c/{{ site_feed.slug }}/private-map">Private Map</a> <a class="btn small neutral" href="/mesh/c/{{ site_feed.slug }}/forwarding">Public Map Forwarding</a> <a class="btn small neutral" href="/mesh/c/{{ site_feed.slug }}/access">Site Role Access</a></p>
+  {% if site_feed %}<p style="margin-bottom:0"><a class="btn small" href="/mesh/c/{{ site_feed.slug }}/logins">Broker Logins and Tunnel</a> <a class="btn small neutral" href="/mesh/c/{{ site_feed.slug }}/private-map">Private Map</a> <a class="btn small neutral" href="/mesh/c/{{ site_feed.slug }}/private-nodes">Private Node List</a> <a class="btn small neutral" href="/mesh/c/{{ site_feed.slug }}/forwarding">Public Map Forwarding</a> <a class="btn small neutral" href="/mesh/c/{{ site_feed.slug }}/access">Site Role Access</a></p>
   {% elif private_on %}<form method="post" action="/admin/communities/site-feed"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small" type="submit">Set Up the Site Private Feed</button></form>
   {% else %}<p class="dim" style="margin-bottom:0">Switch the private feed on first (Settings, Mesh Nodes).</p>{% endif %}
 {% endcall %}

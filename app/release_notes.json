@@ -9,6 +9,19 @@
     "security": []
   },
   {
+    "version": "1.9.3",
+    "released": "2026-11-03",
+    "title": "Private Node List",
+    "added": [
+      "Private Node List: a table of every node the private gateways hear, with the details the public pages leave out (whether it is on the public list, position precision, power, channel use, packets), for each community, the Site Private Feed and all communities."
+    ],
+    "improved": [],
+    "fixed": [
+      "The Site Private Feed's Map and Nodes addresses now open its private map and list instead of a Forbidden page."
+    ],
+    "security": []
+  },
+  {
     "version": "1.9.2",
     "released": "2026-11-03",
     "title": "Forwarded private feed nodes show on the public list",

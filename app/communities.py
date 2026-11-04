@@ -12,7 +12,7 @@ import re
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from flask import Blueprint, Response, abort, flash, jsonify, redirect, render_template, request, url_for
+from flask import Blueprint, Response, abort, flash, jsonify, redirect, make_response, render_template, request, url_for
 from flask_login import current_user, login_required
 
 from . import mesh as ms
@@ -92,11 +92,11 @@ def _ctx(slug, perm=None):
 SECTIONS = [("overview", "Overview", None, "Community"), ("join", "How to Join", None, "Community"), ("map", "Map", None, "Community"), ("nodes", "Nodes", None, "Community"),
             ("news", "News and Events", None, "Community"), ("channels", "Channels", None, "Community"), ("health", "Health and Statistics", "view_stats", "Community"),
             ("edit", "Edit Page", "edit_page", "Manage"), ("area", "Area", "edit_page", "Manage"), ("pick", "Choose the Nodes", "choose_nodes", "Manage"), ("team", "Team", "team", "Manage"),
-            ("logins", "Broker Logins", "manage_logins", "Manage"), ("privmap", "Private Map", "view_private", "Manage"), ("share", "Sharing", "manage_members", "Manage"), ("forwarding", "Public Map Forwarding", "site_admin", "Manage"), ("access", "Site Role Access", "site_admin", "Manage"), ("alerts", "Alert Channel", "manage_members", "Manage"), ("links", "Linked Areas", "manage_members", "Manage"), ("remote", "Remote Administration", "queue_commands", "Manage")]
+            ("logins", "Broker Logins", "manage_logins", "Manage"), ("privmap", "Private Map", "view_private", "Manage"), ("privnodes", "Private Node List", "view_private", "Manage"), ("share", "Sharing", "manage_members", "Manage"), ("forwarding", "Public Map Forwarding", "site_admin", "Manage"), ("access", "Site Role Access", "site_admin", "Manage"), ("alerts", "Alert Channel", "manage_members", "Manage"), ("links", "Linked Areas", "manage_members", "Manage"), ("remote", "Remote Administration", "queue_commands", "Manage")]
 SECTION_KEYS = {k for k, _l, _p, _g in SECTIONS}
 
 
-SYSTEM_KEYS = {"overview", "logins", "privmap", "forwarding", "access"}   # the pages of the Site Private Feed (the rest belong to a community of people)
+SYSTEM_KEYS = {"overview", "logins", "privmap", "privnodes", "forwarding", "access"}   # the pages of the Site Private Feed (the rest belong to a community of people)
 
 
 def menu_for(rank, c=None):
@@ -108,7 +108,7 @@ def menu_for(rank, c=None):
         if perm is None or (perm == "team" and rank >= 1) or (perm not in (None, "team") and (can(rank, perm) or (key == "remote" and can(rank, "manage_bridges")))):
             if key == "remote" and cfg("mesh_bridge_enabled") != "1":
                 continue
-            if key in ("privmap", "forwarding") and cfg("mesh_private_enabled") != "1":
+            if key in ("privmap", "privnodes", "forwarding") and cfg("mesh_private_enabled") != "1":
                 continue
             groups.setdefault(group, []).append((key, label))
     return list(groups.items())
@@ -313,6 +313,13 @@ def section(slug, sec):
     if sec == "privmap":   # not a page of its own: the menu item opens the private map
         _private_ctx(slug)
         return redirect(url_for("communities.private_map", slug=slug))
+    if sec == "privnodes":
+        _private_ctx(slug)
+        return redirect(url_for("communities.private_nodes_page", slug=slug))
+    c0 = get(slug)
+    if c0 is not None and c0["system"] and sec in ("map", "nodes") and cfg("mesh_private_enabled") == "1":   # the Site Private Feed has no public-style map or list: its map and list are the private ones
+        _private_ctx(slug)
+        return redirect(url_for("communities.private_map" if sec == "map" else "communities.private_nodes_page", slug=slug))
     return _render(slug, sec)
 
 
@@ -1072,6 +1079,45 @@ def private_map_all():
         abort(403)
     audit("community.privatemap", target="all", detail="opened the private map of every community")
     return render_template("mesh_map.html", private={"slug": "", "name": "All communities", "path": "/admin/mesh/private-map", "api": "/api/mesh/private/", "query": ""}, **_map_ctx(maplayers))
+
+
+def _private_list(slug, name, path, map_path):
+    a = request.args
+    q = re.sub(r"[^A-Za-z0-9!_ .-]", "", a.get("q", ""))[:30].strip().lower()
+    hours = min(max(int(a["hours"]), 1), 2160) if a.get("hours", "").isdigit() else 168
+    only_private = a.get("hidden") == "1"
+    pub = {n["id"] for n in ms.nodes_cached("", "", 2160, False, "meshtastic")} if cfg("mesh_enabled") == "1" else set()
+    rows = []
+    for n in ms.private_nodes(slug, hours):
+        n["public"] = n["id"] in pub
+        if q and q not in (n.get("long_name") or "").lower() and q not in (n.get("short_name") or "").lower() and q.lstrip("!") not in n["id"].lstrip("!"):
+            continue
+        if only_private and n["public"]:
+            continue
+        rows.append(n)
+    audit("community.privatemap", target=slug or "all", detail="opened the private node list")
+    r = make_response(render_template("mesh_private_nodes.html", rows=rows[:400], total=len(rows), on_public=sum(1 for n in rows if n["public"]), name=name, path=path, map_path=map_path, q=q, hours=hours, only_private=only_private))
+    r.headers["Cache-Control"] = "no-store"
+    return r
+
+
+@bp.route("/mesh/c/<slug>/private-nodes")
+@login_required
+def private_nodes_page(slug):
+    """The community's private node list: every node its private gateways hear, with the details the public pages leave out. Never public; every opening is logged."""
+    c = _private_ctx(slug)
+    return _private_list(slug, c["name"], f"/mesh/c/{slug}/private-nodes", f"/mesh/c/{slug}/private-map")
+
+
+@bp.route("/admin/mesh/private-nodes")
+@login_required
+def private_nodes_all():
+    """The private node list of every community, for the site's administrators."""
+    if cfg("mesh_private_enabled") != "1":
+        abort(404)
+    if not is_site_admin():
+        abort(403)
+    return _private_list("", "All communities", "/admin/mesh/private-nodes", "/admin/mesh/private-map")
 
 
 def _map_ctx(maplayers):

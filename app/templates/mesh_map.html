@@ -4,7 +4,7 @@
 {% block main_class %}wide{% endblock %}
 {% block content %}
 {# The same map page as every other map: partials/_mapshell.html carries the layout; mesh nodes are drawn below. #}
-{% if private %}<div style="margin:0 0 8px;padding:8px 12px;border-radius:8px;border:1px solid #ff8c42;background:rgba(255,140,66,.1)"><b>Private map: {{ private.name }}.</b> Every node the private gateways hear is shown, whatever its OK to MQTT setting says. This page and its data are not public; keep it that way. Opening it is logged.</div>{% endif %}
+{% if private %}<div style="margin:0 0 8px;padding:8px 12px;border-radius:8px;border:1px solid #ff8c42;background:rgba(255,140,66,.1)"><b>Private map: {{ private.name }}.</b> Every node the private gateways hear is shown, whatever its OK to MQTT setting says. This page and its data are not public; keep it that way. Opening it is logged. <a href="{{ private.path.replace('private-map', 'private-nodes') }}">Private Node List</a></div>{% endif %}
 {% call shell("Search a node's name or ID", "Search mesh nodes", "Mesh Nodes", "Node Page", map_type="mesh") %}
     <details class="fsec" data-k="show" open><summary><span class="ic">&#9783;</span>Nodes<span class="fbadge" data-fb="show"></span></summary><div class="fbody">
       <div class="lv-sub">Network</div>
