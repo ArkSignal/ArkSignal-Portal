@@ -193,6 +193,9 @@ def node_page(nid):
         d = {"node": pv["node"], "heard_by": [], "gateway_for": [], "neighbors": []}
     hid = {h["node_key"] for h in ms.hidden()}
     nb = [x for x in d.get("neighbors", []) if x["id"] not in hid] if cfg("mesh_links_show") == "1" else []
+    if pv is not None and cfg("mesh_links_show") == "1":   # the people who may see the private data also see the links the private feed's nodes reported
+        have = {(x["id"], x["direction"]) for x in nb}
+        nb += [x for x in pv.get("neighbors", []) if x["id"] not in hid and (x["id"], x["direction"]) not in have]
     from . import weather as wx
     period = request.args.get("period", "24h")
     if period not in wx.PERIODS:

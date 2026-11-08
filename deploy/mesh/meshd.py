@@ -140,6 +140,9 @@ def init_db():
                 c.execute("CREATE INDEX IF NOT EXISTS node_history_node_ts ON node_history (node_id, ts DESC)")
                 # the private feed (request 205): the same shape as the public tables, kept apart so no public page can read them
                 c.execute("CREATE TABLE IF NOT EXISTS pnodes (LIKE nodes INCLUDING ALL)")
+                c.execute("CREATE TABLE IF NOT EXISTS plinks (LIKE links INCLUDING ALL)")   # the direct links the private feed's nodes reported (never public)
+                c.execute("""CREATE TABLE IF NOT EXISTS ppackets (node_id BIGINT NOT NULL, port INT NOT NULL, count INT NOT NULL DEFAULT 0, first_seen TIMESTAMPTZ NOT NULL DEFAULT now(), last_seen TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    last_gateway TEXT NOT NULL DEFAULT '', snr REAL, rssi INT, summary TEXT NOT NULL DEFAULT '', PRIMARY KEY (node_id, port))""")   # every kind of packet the private feed heard from a node, with the last one decoded
                 for t in ("nodes", "pnodes"):   # how the node was last heard: the gateway whose packet it was, and which broker it came through (own, up = the public Meshtastic server, private)
                     c.execute(f"ALTER TABLE {t} ADD COLUMN IF NOT EXISTS last_gateway TEXT NOT NULL DEFAULT ''")
                     c.execute(f"ALTER TABLE {t} ADD COLUMN IF NOT EXISTS last_source TEXT NOT NULL DEFAULT ''")
@@ -380,10 +383,91 @@ def decode_neighborinfo(payload):
     return {"node": first(n, 1), "neighbors": out}
 
 
-def store_links(c, reporter, neighbors, gw):
+PORT_LABELS = {1: "Text Message (words never kept)", 3: "Position", 4: "Node Info", 5: "Routing", 6: "Admin", 7: "Text Message, Compressed (words never kept)", 8: "Waypoint", 9: "Audio", 10: "Detection Sensor", 11: "Alert",
+               12: "Key Verification", 32: "Reply", 33: "IP Tunnel", 34: "Paxcounter", 64: "Serial", 65: "Store and Forward", 66: "Range Test", 67: "Telemetry", 68: "ZPS", 69: "Simulator", 70: "Traceroute",
+               71: "Neighbor Info", 72: "ATAK Plugin", 73: "Map Report", 74: "Power Stress", 76: "Reticulum Tunnel", 77: "Cayenne", -1: "Gateway Status", -2: "Encrypted (cannot be read)"}
+DEVICE_FIELDS = {1: "battery_level", 2: "voltage", 3: "channel_utilization", 4: "air_util_tx", 5: "uptime_seconds"}   # DeviceMetrics, the one telemetry group whose field names are certain here
+POSITION_FIELDS = {1: "latitude_i", 2: "longitude_i", 3: "altitude", 4: "time", 5: "location_source", 6: "altitude_source", 7: "timestamp", 8: "timestamp_millis_adjust", 9: "altitude_hae", 10: "altitude_geoidal_separation",
+                   11: "PDOP", 12: "HDOP", 13: "VDOP", 14: "gps_accuracy", 15: "ground_speed", 16: "ground_track", 17: "fix_quality", 18: "fix_type", 19: "sats_in_view", 20: "sensor_id", 21: "next_update",
+                   22: "seq_number", 23: "precision_bits"}   # Meshtastic's Position message
+TEL_GROUPS = {2: "device_metrics", 3: "environment_metrics", 4: "air_quality_metrics", 5: "power_metrics", 6: "local_stats", 7: "health_metrics", 8: "host_metrics"}
+
+
+def generic(buf, depth=0, names=None):
+    """A protobuf message as {field: value} with nothing assumed: field numbers as names (or the given names), numbers shown as the integer and, for a four byte value, also as a number with a fraction;
+    text where the bytes read as text; a nested message one level down."""
+    out = {}
+    for num, wt, v in fields(buf)[:60]:
+        key = (names or {}).get(num, "field %d" % num)
+        if isinstance(v, bytes):
+            try:
+                t = v.decode("utf-8")
+                if t and all(ch.isprintable() for ch in t):
+                    val = t[:80]
+                else:
+                    raise ValueError
+            except ValueError:
+                sub_ = generic(v, depth + 1) if depth < 2 and v else {}
+                val = sub_ if sub_ else "%d bytes" % len(v)
+        elif wt == 5:
+            f = f32(v)
+            val = {"as_integer": v, "as_number": round(f, 4)} if f == f and abs(f) < 1e9 and f != 0 else v
+        else:
+            val = v
+        if key in out:
+            out[key] = (out[key] if isinstance(out[key], list) else [out[key]]) + [val]
+        else:
+            out[key] = val
+    return out
+
+
+def summarize(port, payload):
+    """What one packet said, as far as it can be read: the decoded record for the kinds this service knows, every field for the rest. Text messages are the one thing never kept (only that one was heard)."""
+    if port in (1, 7):
+        return {"bytes": len(payload)}
+    if port == 67:
+        t = fields(payload)
+        out = {}
+        if isinstance(first(t, 1), int):
+            out["time"] = first(t, 1)
+        for num, nm in TEL_GROUPS.items():
+            g = first(t, num)
+            if isinstance(g, bytes):
+                out[nm] = generic(g, 0, DEVICE_FIELDS if num == 2 else None)
+        env = decode_env(payload)
+        if env:
+            out["environment_readings"] = env
+        return out
+    if port == 3:
+        d = decode_position(payload)
+        every = generic(payload, 0, POSITION_FIELDS)
+        for k in ("latitude_i", "longitude_i"):   # signed whole numbers in tenth-millionths of a degree, not fractions
+            if isinstance(every.get(k), dict):
+                every[k] = s32(every[k]["as_integer"])
+        return dict({k: v for k, v in d.items() if v is not None}, **{"every field": every})
+    if port == 4:
+        d = decode_nodeinfo(payload)
+        return dict({k: v for k, v in d.items() if v not in (None, "")}, **{"every field": generic(payload)})
+    if port == 71:
+        ni = decode_neighborinfo(payload)
+        return {"node": "!%08x" % ni["node"] if ni["node"] else None, "neighbors": [{"node": "!%08x" % n, "snr": s_} for n, s_ in ni["neighbors"]]}
+    if port == 73:
+        return generic(payload)
+    return generic(payload)
+
+
+def ledger(c, node, port, gw, snr, rssi, summary=None):
+    """Count one packet in the private feed's record of what a node sent, and keep the last one's detail."""
+    txt = json.dumps(summary, default=str, ensure_ascii=False)[:4000] if summary else ""
+    c.execute("INSERT INTO ppackets (node_id, port, count, last_gateway, snr, rssi, summary) VALUES (%s,%s,1,%s,%s,%s,%s) ON CONFLICT (node_id, port) DO UPDATE SET count=ppackets.count+1, last_seen=now(), "
+              "last_gateway=EXCLUDED.last_gateway, snr=EXCLUDED.snr, rssi=EXCLUDED.rssi, summary=CASE WHEN EXCLUDED.summary = '' THEN ppackets.summary ELSE EXCLUDED.summary END", (node, port, (gw or "")[:20], snr, rssi, txt))
+
+
+def store_links(c, reporter, neighbors, gw, private=False):
     """Keep the direct links a node reported, only when the reporter is a node we already have (so inside the area, not hidden) and the neighbor is not hidden, not itself and not the broadcast address; a
     signal outside what a LoRa radio can report is dropped. Returns how many links were stored."""
-    if not c.execute("SELECT 1 FROM nodes WHERE node_id=%s", (reporter,)).fetchone():
+    lt, nt = ("plinks", "pnodes") if private else ("links", "nodes")
+    if not c.execute(f"SELECT 1 FROM {nt} WHERE node_id=%s", (reporter,)).fetchone():
         return 0
     hid = {r["node_key"] for r in c.execute("SELECT node_key FROM hidden WHERE node_key LIKE '!%%'").fetchall()}
     n = 0
@@ -392,7 +476,7 @@ def store_links(c, reporter, neighbors, gw):
             continue
         if snr is not None and not (-40 <= snr <= 40):
             snr = None
-        c.execute("INSERT INTO links (a, b, snr, last_seen, reported_by) VALUES (%s,%s,%s,now(),%s) ON CONFLICT (a, b) DO UPDATE SET snr=EXCLUDED.snr, last_seen=now(), reported_by=EXCLUDED.reported_by, count=links.count+1",
+        c.execute(f"INSERT INTO {lt} (a, b, snr, last_seen, reported_by) VALUES (%s,%s,%s,now(),%s) ON CONFLICT (a, b) DO UPDATE SET snr=EXCLUDED.snr, last_seen=now(), reported_by=EXCLUDED.reported_by, count={lt}.count+1",
                   (reporter, nb, snr, gw or ""))
         n += 1
     return n
@@ -582,6 +666,12 @@ def handle(raw, topic="", private=False, com=None):
         return "ignored"
     if e["encrypted"] or e["portnum"] is None:
         STATE["p_encrypted" if private else "encrypted"] += 1
+        if private:
+            try:
+                with db() as c:
+                    ledger(c, e["node"], -2, e["gateway"], e["snr"], e["rssi"])   # heard, and that it could not be read
+            except Exception:
+                pass
         return "encrypted"
     if not private and not port_allowed(e["channel"], e["portnum"]):
         STATE["public_dropped"] += 1
@@ -591,6 +681,8 @@ def handle(raw, topic="", private=False, com=None):
     with db() as c:
         if c.execute("SELECT 1 FROM hidden WHERE node_key=%s", ("!%08x" % node,)).fetchone():
             return "hidden"
+        if private:   # every kind of packet the private feed hears is kept in a record of its own, whatever the public rules would carry
+            ledger(c, node, e["portnum"], e["gateway"], e["snr"], e["rssi"], summarize(e["portnum"], e["payload"]))
         upd = {}
         hist = None
         if e["portnum"] == PORT_MAP_REPORT:
@@ -618,16 +710,15 @@ def handle(raw, topic="", private=False, com=None):
             upd = {k: v for k, v in decode_telemetry(e["payload"]).items() if v is not None}
             hist = dict({k: upd[k] for k in HIST_DEVICE if k in upd}, **decode_env(e["payload"]))
         elif e["portnum"] == PORT_NEIGHBORINFO:
-            if private:
-                return "ignored"   # the links table is public; the private feed keeps no links yet
             ni = decode_neighborinfo(e["payload"])
             reporter = ni["node"] or node
             if reporter != node:   # a report is only believed from the node itself
                 return "ignored"
-            n = store_links(c, reporter, ni["neighbors"], e["gateway"])
+            n = store_links(c, reporter, ni["neighbors"], e["gateway"], private)   # the private feed's links go to a table of their own
             if n:
-                STATE["stored"] += 1
-                STATE["links"] += n
+                STATE["p_stored" if private else "stored"] += 1
+                if not private:
+                    STATE["links"] += n
             return "stored" if n else "ignored"
         else:
             upd = {}
@@ -961,7 +1052,7 @@ def private_parts(topic):
     if not topic.startswith(root):
         return None, None
     parts = topic[len(root):].split("/")
-    if len(parts) >= 3 and parts[1] == "2" and parts[2] in ("e", "map") and SLUG_RE.match(parts[0]):
+    if len(parts) >= 3 and parts[1] == "2" and parts[2] in ("e", "map", "json", "stat") and SLUG_RE.match(parts[0]):
         return parts[0], parts[2]
     return None, None
 
@@ -1009,11 +1100,43 @@ def private_fwd_ok(com, e):
     return not allow or nid in allow
 
 
+JSON_PORTS = {"text": 1, "position": 3, "nodeinfo": 4, "routing": 5, "waypoint": 8, "telemetry": 67, "traceroute": 70, "neighborinfo": 71, "mapreport": 73}
+
+
+def handle_private_extra(topic, raw, kind):
+    """A gateway's decoded JSON message or online/offline status on the private root: kept in the packet record (the node's and the gateway's), never passed on, and never the words of a text message."""
+    STATE["p_packets"] += 1
+    STATE["last"] = time.time()
+    last = topic.rsplit("/", 1)[-1]
+    try:
+        with db() as c:
+            if kind == "stat":
+                gid = parse_id(last)
+                if gid is None:
+                    return "ignored"
+                ledger(c, gid, -1, last, None, None, {"status": raw.decode("utf-8", "replace")[:80]})
+                return "private"
+            m = json.loads(raw)
+            node = int(m.get("from"))
+            typ = str(m.get("type") or "")
+            if not isinstance(m, dict) or not (0 < node < 2 ** 32):
+                return "ignored"
+            body = m.get("payload") if isinstance(m.get("payload"), dict) else ({"text_bytes": len(str(m.get("payload") or ""))} if typ == "text" else {})
+            if typ == "text":
+                body = {"bytes": len(str(m.get("payload") or ""))}
+            ledger(c, node, JSON_PORTS.get(typ, 256), last, m.get("snr") if isinstance(m.get("snr"), (int, float)) else None, m.get("rssi") if isinstance(m.get("rssi"), int) else None, dict(body, source="the gateway's JSON copy"))
+    except (ValueError, TypeError):
+        return "ignored"
+    return "private"
+
+
 def handle_private(topic, raw):
     """One packet from the private broker. Returns "ignored", "encrypted", "hidden", "private" (kept privately only) or "public" (kept privately and passed on to the public path)."""
     com, kind = private_parts(topic)
     if com is None or cfg("private_enabled") != "1":
         return "ignored"
+    if kind in ("json", "stat"):
+        return handle_private_extra(topic, raw, kind)
     export_packet(topic, raw, "private")
     _CTX.source = "private"
     r = handle(raw, topic, True, com)
@@ -1974,6 +2097,8 @@ def relay(topic, raw):
 def prune_links():
     with db() as c:
         c.execute("DELETE FROM links WHERE last_seen < now() - make_interval(days => %s) OR a NOT IN (SELECT node_id FROM nodes)", (int(cfg("links_keep_days")),))
+        c.execute("DELETE FROM plinks WHERE last_seen < now() - make_interval(days => %s) OR a NOT IN (SELECT node_id FROM pnodes)", (int(cfg("links_keep_days")),))
+        c.execute("DELETE FROM ppackets WHERE last_seen < now() - make_interval(days => %s) OR (node_id NOT IN (SELECT node_id FROM pnodes) AND last_seen < now() - interval '2 hours')", (int(cfg("heard_keep_days")),))
 
 
 def pruner():
@@ -2001,6 +2126,30 @@ def mc_row(r):
     out = {k: iso(v) for k, v in r.items()}
     out.update({"network": "meshcore", "id": "mc:" + r["pubkey"], "slug": "mc-" + r["pubkey"], "long_name": r["name"], "short_name": r["pubkey"][:8].upper(), "role": r["kind"], "role_name": MC_KINDS.get(r["kind"], ""),
                 "hardware": "", "firmware": "", "region_name": "", "preset_name": "", "battery": None, "precision_bits": None})
+    return out
+
+
+PRIVATE_OWN = ("node_id", "community", "last_gateway", "last_source", "packets", "first_seen", "public_direct", "last_seen", "last_report")
+
+
+def with_public(c, rows):
+    """The private feed's node rows filled in from the public record of the same node, so the private pages are never poorer than the public ones: a field the private gateways never heard (name, hardware,
+    firmware, role, region, battery and so on) comes from the public record, and when the public side heard the node more recently, that is its last heard (with the gateway and broker of that packet)."""
+    ids = [r["node_id"] for r in rows]
+    pub = {x["node_id"]: x for x in c.execute("SELECT * FROM nodes WHERE node_id = ANY(%s)", (ids,)).fetchall()} if ids else {}
+    out = []
+    for r in rows:
+        r = dict(r)
+        p = pub.get(r["node_id"])
+        if p:
+            for k, v in p.items():
+                if k not in PRIVATE_OWN and r.get(k) in (None, ""):
+                    r[k] = v
+            if p["last_seen"] > r["last_seen"]:
+                r["last_seen"], r["last_gateway"], r["last_source"] = p["last_seen"], p["last_gateway"], p["last_source"]
+            if p.get("last_report") and (not r.get("last_report") or p["last_report"] > r["last_report"]):
+                r["last_report"] = p["last_report"]
+        out.append(r)
     return out
 
 
@@ -2200,6 +2349,7 @@ class H(BaseHTTPRequestHandler):
                 with db() as c:
                     rows = c.execute("SELECT * FROM pnodes WHERE last_seen > now() - make_interval(hours => %(h)s)" + (" AND community = %(c)s" if com else "") + " ORDER BY last_seen DESC LIMIT %(l)s",
                                      {"h": min(int(q.get("hours") or 168), 24 * 90), "c": com, "l": min(int(q.get("limit") or 3000), 10000)}).fetchall()
+                    rows = with_public(c, rows)
                 return self.send({"nodes": [node_row(r) for r in rows]})
             m = re.match(r"^/private/nodes/([^/]+)$", p)
             if m:   # one node of the private feed with the gateways that heard it (admin pages only)
@@ -2213,7 +2363,19 @@ class H(BaseHTTPRequestHandler):
                     hb = c.execute("SELECT gateway, snr, rssi, best_snr, ts, count FROM pheard WHERE node_id=%s ORDER BY ts DESC LIMIT 30", (nid,)).fetchall()
                     ids = {g: parse_id(g) for g in {h["gateway"] for h in hb}}
                     names = {x["node_id"]: x["long_name"] or x["short_name"] or "" for x in c.execute("SELECT node_id, long_name, short_name FROM pnodes WHERE node_id = ANY(%s)", ([i for i in ids.values() if i is not None],)).fetchall()}
-                return self.send({"node": node_row(r), "heard_by": [dict({k: iso(v) for k, v in h.items()}, slug=h["gateway"].lstrip("!"), name=names.get(ids.get(h["gateway"]), "")) for h in hb]})
+                    r = with_public(c, [r])[0]
+                    pk = [dict({k: (iso(v) if k in ("first_seen", "last_seen") else v) for k, v in x.items() if k != "summary"}, label=PORT_LABELS.get(x["port"], "Port %d" % x["port"]), summary=x["summary"])
+                          for x in c.execute("SELECT * FROM ppackets WHERE node_id=%s ORDER BY last_seen DESC", (nid,)).fetchall()]
+                    lk = {}
+                    for t in ("links", "plinks"):   # what the node reported hearing (public reports and the private feed's), the newest report of each pair
+                        for x in c.execute(f"SELECT a, b, snr, last_seen FROM {t} WHERE a = %s OR b = %s ORDER BY last_seen DESC LIMIT 100", (nid, nid)).fetchall():
+                            if (x["a"], x["b"]) not in lk or x["last_seen"] > lk[(x["a"], x["b"])]["last_seen"]:
+                                lk[(x["a"], x["b"])] = x
+                    other = {(x["b"] if x["a"] == nid else x["a"]) for x in lk.values()}
+                    nn = {x["node_id"]: x["long_name"] or x["short_name"] or "" for t in ("nodes", "pnodes") for x in c.execute(f"SELECT node_id, long_name, short_name FROM {t} WHERE node_id = ANY(%s)", (list(other),)).fetchall()}
+                    nb = [{"id": "!%08x" % (x["b"] if x["a"] == nid else x["a"]), "slug": "%08x" % (x["b"] if x["a"] == nid else x["a"]), "name": nn.get(x["b"] if x["a"] == nid else x["a"], ""), "snr": x["snr"],
+                           "direction": "hears" if x["a"] == nid else "heard_by", "last_seen": iso(x["last_seen"])} for x in sorted(lk.values(), key=lambda y: y["last_seen"], reverse=True)]
+                return self.send({"node": node_row(r), "neighbors": nb, "packets": pk, "heard_by": [dict({k: iso(v) for k, v in h.items()}, slug=h["gateway"].lstrip("!"), name=names.get(ids.get(h["gateway"]), "")) for h in hb]})
             if p == "/nodes":
                 where, args = ["true"], {"l": min(int(q.get("limit") or 3000), 10000), "h": min(int(q.get("hours") or 168), 24 * 90)}
                 where.append("last_seen > now() - make_interval(hours => %(h)s)")
@@ -2405,6 +2567,7 @@ class H(BaseHTTPRequestHandler):
                     else:
                         nid = int(key[1:], 16)
                         c.execute("DELETE FROM nodes WHERE node_id=%s", (nid,)); c.execute("DELETE FROM heard WHERE node_id=%s", (nid,)); c.execute("DELETE FROM links WHERE a=%s OR b=%s", (nid, nid))
+                        c.execute("DELETE FROM pnodes WHERE node_id=%s", (nid,)); c.execute("DELETE FROM pheard WHERE node_id=%s", (nid,)); c.execute("DELETE FROM plinks WHERE a=%s OR b=%s", (nid, nid)); c.execute("DELETE FROM ppackets WHERE node_id=%s", (nid,))
                 return self.send({"ok": True})
             if p == "/unhide":
                 _EXP["hidden"] = (0.0, set())

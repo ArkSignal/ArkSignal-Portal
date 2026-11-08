@@ -1,5 +1,5 @@
 {
-  "updated": "2026-11-05",
+  "updated": "2026-11-08",
   "items": [
     {
       "title": "Off-site copy to a NAS over HTTPS",
@@ -1367,6 +1367,24 @@
     {
       "title": "Private data on node pages, and how a node was last heard",
       "summary": "People who may see a community's private data (administrators see all) get a Private Data section on a node's page; every node says whether it was last heard directly over MQTT or through a gateway, and through which broker.",
+      "status": "done",
+      "area": "Mesh"
+    },
+    {
+      "title": "A Mesh group in Admin, and APRS-IS and MeshCore as outside sources",
+      "summary": "Mesh nodes, communities, gateways, the public Meshtastic server, MeshCore, MQTT export, mirror logins and Mesh Settings are together in Admin; APRS-IS and MeshCore get status pages like the public Meshtastic server and show under Outside Data Sources on Service Status.",
+      "status": "done",
+      "area": "Mesh"
+    },
+    {
+      "title": "One Public Sharing page and a Public or Private choice for each community",
+      "summary": "A community's sharing and forwarding choices are one page, with the administrators' limits shown below; the community's own team makes it public or private; site role access is one table in Admin.",
+      "status": "done",
+      "area": "Mesh"
+    },
+    {
+      "title": "Private pages as complete as the public ones, with every packet heard",
+      "summary": "The private map and Private Nodes list fill in names, hardware and last-heard times from the public record; neighbor reports from private gateways are kept; each node's private page lists every kind of packet the private gateways heard, read as far as possible (never the words of a text message).",
       "status": "done",
       "area": "Mesh"
     }

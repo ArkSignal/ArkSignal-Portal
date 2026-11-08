@@ -9,6 +9,20 @@
     "security": []
   },
   {
+    "version": "1.9.5",
+    "released": "2026-11-08",
+    "title": "Private Pages as Complete as the Public Ones",
+    "added": [
+      "A node's private page has Everything Heard From This Node: every kind of packet the private gateways heard (counts, last heard, signal, gateway and the last one read as far as it can be, including telemetry groups, every position field and fields of kinds the site does not know), with the gateways' JSON copies and online or offline status. The words of text messages are never kept.",
+      "Neighbor reports from nodes on the private feed are kept (privately) and shown on the node's page, so a node that reports only to the private broker lists its neighbors."
+    ],
+    "improved": [
+      "The private map and Private Nodes list fill in a node's name, hardware, role and other details from the public record when the private gateways did not hear them, and show whichever last-heard time is later."
+    ],
+    "fixed": [],
+    "security": []
+  },
+  {
     "version": "1.9.4",
     "released": "2026-11-07",
     "title": "Gateway Status and the Public Meshtastic Server",
@@ -19,20 +33,25 @@
       "Every node says how it was last heard: directly from the node over MQTT, or relayed by a named gateway, and through which broker (a Heard Via column on Mesh Nodes and the Private Node List).",
       "Admin > APRS-IS Network and Admin > MeshCore: the same kind of status page as the Public Meshtastic Server. APRS-IS shows what is read from it, the chat bridge messages and the weather reports sent to it; MeshCore shows the observers that report, adverts kept, and what was thrown away.",
       "A Private Nodes item in the Mesh menu, next to Private Map, for administrators.",
-      "A community's Manager or Owner can now make the community public or private (Manage, Public or Private)."
+      "A community's Manager or Owner can now make the community public or private (Manage, Public or Private).",
+      "Admin has a Mesh group: Mesh Nodes, Communities, Gateways, Public Meshtastic Server, MeshCore, MQTT Export, Mirror Logins and Mesh Settings (the mesh settings moved out of Radio Settings).",
+      "Admin, APRS-IS Network and Admin, MeshCore: what is read from and sent to each, with a line each under Outside Data Sources We Use on Service Status.",
+      "Private Nodes in the Mesh menu, next to Private Map, for administrators."
     ],
     "improved": [
       "Anything a node sends to the public side of the broker is on the public list and map and, with Forward to the Public Meshtastic Server on, goes to the public server too, whatever community topic it used; a community's Sharing choices now cover only what its private gateways pass on.",
       "The public server is read for Arkansas and the six states around it by default, with a wider area kept.",
       "The broker now writes its connections to its log topic for the mesh service (needs the broker image update).",
       "Service Status lists the Public Meshtastic Server, APRS-IS and MeshCore Observers under the outside data sources, not under our own services.",
-      "Admin has a Mesh group: Mesh Nodes, Mesh Communities, Mesh Gateways, Public Meshtastic Server, MeshCore, Mesh MQTT Export, Mesh Mirror Logins and Mesh Settings (the Mesh Nodes settings moved out of Radio Settings).",
       "In a community, Sharing and Public Map Forwarding are one page, Public Sharing: the community's choices on top, the administrators' limits below.",
       "Site Role Access is now part of Public or Private and is shown to administrators only; community managers see the community's own public/private control instead.",
-      "Admin has a Mesh group (nodes, communities, gateways, the public Meshtastic server, MeshCore, MQTT export, mirror logins and Mesh Settings); APRS-IS and MeshCore have status pages and show under Outside Data Sources on Service Status; Private Nodes is in the Mesh menu; a community has one Public Sharing page and its own Public or Private control; site role access is set on Admin, Mesh Communities."
+      "A community has one Public Sharing page (its own choices, with the administrators' limits below) in place of Sharing and Public Map Forwarding, and a Public or Private page where its Manager or Owner makes it public or private.",
+      "Site role access is one table on Admin, Mesh Communities, no longer on each community."
     ],
     "fixed": [
-      "The sonde page's Download CSV and Download GeoJSON buttons no longer break out of the button row."
+      "The sonde page's Download CSV and Download GeoJSON buttons no longer break out of the button row.",
+      "Service Status no longer shows the Our Services and Outside Data Sources headings twice.",
+      "Two content-security-policy slips on the new community and gateway pages (an inline handler, a script without a nonce)."
     ],
     "security": []
   },

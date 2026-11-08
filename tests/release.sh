@@ -4,6 +4,15 @@
 v="$1"; [ -n "$v" ] || { echo "usage: release.sh <version>"; exit 1; }
 cd "$(dirname "$0")/.." || exit 1
 grep -q "\"version\": \"$v\"" app/release_notes.json || { echo "app/release_notes.json has no entry for $v: rename the \"next\" entry to $v (and set its date) before releasing"; exit 1; }
+grep -q "UNRELEASED" ROADMAP.md && { echo "ROADMAP.md still has UNRELEASED tags: bring the roadmap (ROADMAP.md and app/roadmap.json) up to date for $v before releasing"; exit 1; }
+python3 - "$v" <<'PY' || exit 1
+import json, sys
+v = sys.argv[1]
+rel = [x for x in json.load(open("app/release_notes.json", encoding="utf-8")) if x["version"] == v][0]["released"][:10]
+upd = json.load(open("app/roadmap.json", encoding="utf-8")).get("updated", "")[:10]
+if upd < rel:
+    print(f"app/roadmap.json was last updated {upd}, before the release date {rel}: bring the public roadmap up to date for {v} before releasing"); sys.exit(1)
+PY
 last() { gh run list --limit 1 --json databaseId -q '.[0].databaseId'; }
 finish() {   # finish <run id>: wait for it, retrying failed jobs twice; returns 0 on success
   id="$1"; tries=0

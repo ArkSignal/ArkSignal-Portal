@@ -80,6 +80,12 @@
   <table><thead><tr><th>Gateway</th><th>Signal</th><th>Best</th><th>Packets</th><th>Last heard</th></tr></thead><tbody>
   {% for h in pv.heard_by %}<tr><td class="mono">{% if h.name %}{{ h.name }} <span class="dim">{{ h.gateway }}</span>{% else %}{{ h.gateway }}{% endif %}</td><td>{{ ('%.1f dB' % h.snr) if h.snr is not none else '-' }}{% if h.rssi is not none %} &middot; {{ h.rssi }} dBm{% endif %}</td><td>{{ ('%.1f dB' % h.best_snr) if h.best_snr is not none else '-' }}</td><td>{{ h.count }}</td><td>{{ h.ts[:16].replace('T', ' ') }} UTC</td></tr>{% endfor %}
   </tbody></table>{% endif %}
+  {% if pv.packets %}<h3 style="margin:14px 0 4px">Everything Heard From This Node (private)</h3>
+  <p class="dim" style="margin-top:0">Every kind of packet the private gateways heard, with the last one of each kind read as far as it can be. The words of text messages are never kept, and a packet that is encrypted is counted but cannot be read.</p>
+  <table><thead><tr><th>Kind</th><th>Packets</th><th>Last heard</th><th>Signal</th><th>Gateway</th><th>Last one</th></tr></thead><tbody>
+  {% for k in pv.packets %}<tr><td>{{ k.label }}</td><td>{{ k.count }}</td><td><time class="ts" datetime="{{ k.last_seen }}" data-fmt="dt">{{ k.last_seen[:16].replace('T', ' ') }}</time></td><td>{{ ('%.1f dB' % k.snr) if k.snr is not none else '-' }}{% if k.rssi is not none %} &middot; {{ k.rssi }} dBm{% endif %}</td><td class="mono">{{ k.last_gateway or '-' }}</td>
+    <td>{% if k.summary %}<details><summary class="dim">Show</summary><pre class="mono" style="white-space:pre-wrap;margin:4px 0;max-width:640px;overflow-x:auto">{{ k.summary }}</pre></details>{% else %}-{% endif %}</td></tr>{% endfor %}
+  </tbody></table>{% endif %}
 </div></details>
 {% endif %}
 <h2>Heard By</h2>
