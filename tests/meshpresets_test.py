@@ -80,7 +80,7 @@ check("again it skips what is there", ok and "had it already" in m and chans("cm
 setting("mesh_public_current", "gone")
 check("a removed choice falls back to the first preset", "The current public channel is <b>LongFast</b>" in adm.get(B + "/admin/communities").text)
 psql("DELETE FROM settings WHERE key = 'mesh_join_host'")
-sp = adm.get(B + "/admin/settings/radio").text
+sp = adm.get(B + "/admin/settings/mesh").text
 check("Settings has the Current Public Channel choice", "Current Public Channel" in sp and 'value="mt-longturbo"' in sp)
 check("an empty join address shows the Feed host name as grey text and the help says so", 'id="mesh_join_host"' in sp and re.search(r'id="mesh_join_host"[^>]*placeholder="[a-z0-9.-]+.[a-z]+"', sp) is not None and "Leave it empty to use the Feed host name" in sp and "Empty shows that the broker is not open yet" not in sp)
 psql("DELETE FROM settings WHERE key = 'mesh_public_current'")

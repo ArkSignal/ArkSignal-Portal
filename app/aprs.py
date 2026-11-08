@@ -101,3 +101,22 @@ def weather():
 
 def hidden():
     return get_db().execute("SELECT h.call, h.reason, h.added, u.username FROM aprs_hidden h LEFT JOIN users u ON u.id = h.added_by ORDER BY h.call").fetchall()
+
+
+def network_status():
+    """APRS-IS as an outside service: what is read from it (the service's feed) and what this site sends to it (chat bridge messages and members' weather reports)."""
+    d = get_db()
+    st = stats()
+    data = st.get("data") or {}
+    out = {"service_ok": st["ok"], "note": st.get("note", ""), "read_on": cfg("aprs_enabled") == "1", "feed": data.get("feed") or {}, "stations": data.get("stations"), "heard_hour": data.get("heard_hour"),
+           "weather_now": data.get("weather_now"), "kinds": data.get("kinds") or {}, "host": cfg("aprs_host"), "filter": _filter(), "login": cfg("aprs_login")}
+    row = d.execute("SELECT COUNT(*) AS links, COUNT(*) FILTER (WHERE enabled) AS links_on FROM bridge_links WHERE kind = 'aprs'").fetchone()
+    log = d.execute("SELECT COUNT(*) FILTER (WHERE direction = 'out' AND ok) AS sent, COUNT(*) FILTER (WHERE direction = 'out' AND NOT ok) AS failed, COUNT(*) FILTER (WHERE direction = 'in') AS received, "
+                    "EXTRACT(EPOCH FROM now() - MAX(l.at) FILTER (WHERE direction = 'out' AND ok))::int AS last_sent FROM bridge_log l JOIN bridge_links k ON k.id = l.link_id WHERE k.kind = 'aprs' AND l.at > now() - interval '24 hours'").fetchone()
+    out["bridge"] = {"on": cfg("bridge_aprs_enabled") == "1", "server": cfg("bridge_aprs_server"), "links": row["links"], "links_on": row["links_on"], "sent": log["sent"], "failed": log["failed"], "received": log["received"],
+                     "last_sent": log["last_sent"]}
+    wp = d.execute("SELECT COUNT(*) AS stations, COUNT(*) FILTER (WHERE enabled) AS stations_on, COALESCE(SUM(sent), 0) AS sent, COUNT(*) FILTER (WHERE enabled AND fail_count > 0) AS failing, "
+                   "EXTRACT(EPOCH FROM now() - MAX(last_push) FILTER (WHERE last_ok))::int AS last_ok, EXTRACT(EPOCH FROM now() - MAX(last_push))::int AS last_try FROM wx_push").fetchone()
+    last_err = d.execute("SELECT last_result FROM wx_push WHERE enabled AND NOT last_ok AND last_result <> '' ORDER BY last_push DESC NULLS LAST LIMIT 1").fetchone()
+    out["push"] = {"on": cfg("aprspush_enabled") == "1", "cwop": cfg("aprspush_server_cwop"), "aprs": cfg("aprspush_server_aprs"), **dict(wp), "error": last_err["last_result"] if last_err else ""}
+    return out

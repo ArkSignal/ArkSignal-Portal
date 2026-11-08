@@ -19,6 +19,7 @@
 </div>
 <div class="panel" style="margin-bottom:14px">
   <table style="max-width:700px">
+    {% if n.via_long %}<tr><th style="width:190px">Last heard</th><td><time class="ts" datetime="{{ n.last_seen }}" data-fmt="dt">{{ n.last_seen[:16].replace('T', ' ') }}</time> <span class="dim">&middot; {{ n.via_long }}</span></td></tr>{% endif %}
     <tr><th style="width:190px">Position</th><td class="mono">{% if n.lat is not none %}{{ '%.4f' % n.lat }}, {{ '%.4f' % n.lon }}{% if not mc and n.precision_bits %} <span class="dim">(rounded by the owner's setting: {{ n.precision_bits }} bits)</span>{% endif %}{% if not mc and n.alt is not none %} &middot; {{ n.alt }} m{% endif %}{% else %}<span class="dim">not published</span>{% endif %}</td></tr>
     {% if mc %}
     <tr><th>Public key</th><td class="mono" style="word-break:break-all">{{ n.pubkey }}</td></tr>
@@ -59,6 +60,27 @@
   </div>
 </div></details>
 <script nonce="{{ csp_nonce() }}" src="/static/chartinspect.js"></script>
+{% endif %}
+{% if pv %}{% set p = pv.node %}
+<details class="panel setsec" id="sec-private-data" open style="margin:14px 0;border-color:#ff8c42"><summary><span class="role-name">Private Data</span></summary><div class="secbody">
+  <p class="dim" style="margin-top:0">What the private gateways heard of this node, with nothing left out: only people with access to {{ p.community or 'the private feed' }} see it, and opening it is logged.{% if private_only %} This node is <b>not on the public pages</b>: only the private feed has heard it.{% endif %} <a href="{{ '/mesh/c/' ~ p.community ~ '/private-map' if p.community else '/admin/mesh/private-map' }}">Private Map</a> &middot; <a href="{{ '/mesh/c/' ~ p.community ~ '/private-nodes' if p.community else '/admin/mesh/private-nodes' }}">Private Node List</a></p>
+  <table style="max-width:680px">
+    <tr><th style="width:240px">Community</th><td>{{ p.community or 'all' }}</td></tr>
+    <tr><th>Exact position</th><td class="mono">{% if p.lat is not none %}{{ '%.5f' % p.lat }}, {{ '%.5f' % p.lon }}{% if p.alt is not none %}, {{ p.alt }} m{% endif %}{% else %}none heard{% endif %}</td></tr>
+    <tr><th>Position precision</th><td>{{ (p.precision_bits ~ ' bits') if p.precision_bits is not none else 'not reported' }}</td></tr>
+    <tr><th>Role and hardware</th><td>{{ p.role_name or '-' }} &middot; {{ p.hardware or '-' }}{% if p.firmware %} &middot; {{ p.firmware }}{% endif %}</td></tr>
+    <tr><th>Region and preset</th><td>{{ p.region_name or '-' }}{% if p.preset_name %} &middot; {{ p.preset_name }}{% endif %}</td></tr>
+    <tr><th>Battery and voltage</th><td>{% if p.battery is not none %}{{ ('%d%%' % p.battery) if p.battery <= 100 else 'powered' }}{% else %}-{% endif %}{% if p.voltage %} &middot; {{ '%.2f' % p.voltage }} V{% endif %}</td></tr>
+    <tr><th>Channel use and air time</th><td>{{ ('%.1f%%' % p.channel_util) if p.channel_util is not none else '-' }} &middot; {{ ('%.1f%%' % p.air_util) if p.air_util is not none else '-' }}{% if p.uptime %} &middot; up {{ (p.uptime // 3600) }} h{% endif %}</td></tr>
+    <tr><th>First and last heard (private)</th><td>{{ p.first_seen[:16].replace('T', ' ') }} UTC &middot; {{ p.last_seen[:16].replace('T', ' ') }} UTC</td></tr>
+    {% if p.via_long %}<tr><th>Last heard how (private)</th><td>{{ p.via_long }}</td></tr>{% endif %}
+    <tr><th>Packets heard (private)</th><td>{{ p.packets }}</td></tr>
+  </table>
+  {% if pv.heard_by %}<h3 style="margin:14px 0 4px">Heard by (private gateways)</h3>
+  <table><thead><tr><th>Gateway</th><th>Signal</th><th>Best</th><th>Packets</th><th>Last heard</th></tr></thead><tbody>
+  {% for h in pv.heard_by %}<tr><td class="mono">{% if h.name %}{{ h.name }} <span class="dim">{{ h.gateway }}</span>{% else %}{{ h.gateway }}{% endif %}</td><td>{{ ('%.1f dB' % h.snr) if h.snr is not none else '-' }}{% if h.rssi is not none %} &middot; {{ h.rssi }} dBm{% endif %}</td><td>{{ ('%.1f dB' % h.best_snr) if h.best_snr is not none else '-' }}</td><td>{{ h.count }}</td><td>{{ h.ts[:16].replace('T', ' ') }} UTC</td></tr>{% endfor %}
+  </tbody></table>{% endif %}
+</div></details>
 {% endif %}
 <h2>Heard By</h2>
 <div class="panel" style="overflow-x:auto">

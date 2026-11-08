@@ -82,7 +82,7 @@ check("a stranger cannot put someone else's channel in a code", post(other, "/my
 check("nothing chosen, junk, or more than eight channels is refused", post(me, "/my/mesh/channels/combine", ids="").status_code == 400 and post(me, "/my/mesh/channels/combine", ids="x").status_code == 400 and post(me, "/my/mesh/channels/combine", ids=",".join(["default"] * 9)).status_code == 400)
 check("the page offers the one-code form with every channel to tick", 'id="oc-form"' in me.get(B + "/my/mesh/channels").text and "CodeOne" in me.get(B + "/my/mesh/channels").text.split('id="oc-form"')[1])
 psql("DELETE FROM mesh_channels WHERE name IN ('CodeOne', 'CodeTwo')")
-st = adm.get(B + "/admin/settings/radio").text
+st = adm.get(B + "/admin/settings/mesh").text
 check("every tunable is in Settings > Mesh Nodes", all(x in st for x in ("Mesh Channels", "Mesh Channels: Channels per Member", "Mesh Channels: People per Channel")))
 psql("INSERT INTO settings (key, value) VALUES ('mesh_channels_enabled','0') ON CONFLICT (key) DO UPDATE SET value='0'")
 check("switched off, the page is gone", me.get(B + "/my/mesh/channels").status_code == 404)

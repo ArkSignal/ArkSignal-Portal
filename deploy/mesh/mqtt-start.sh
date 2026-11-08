@@ -63,6 +63,9 @@ GEN="$C/mosquitto.generated.conf"
   echo "plugin_opt_config_file $C/dynsec.json"
   echo "message_size_limit 8192"   # a Meshtastic packet is a few hundred bytes: nothing larger is carried
   echo "max_keepalive 1800"
+  echo "log_dest stderr"
+  echo "log_dest topic"   # the log is also published to $SYS/broker/log/N: the mesh service reads connects, disconnects and refusals from it (the status of each login)
+  echo "log_type error"; echo "log_type warning"; echo "log_type notice"; echo "log_type information"
   echo "listener 1883"
   # the private feed (request 205): plain MQTT, never published on the host; only the tunnel container reaches it, and the tunnel is what makes the gateway's firmware see a private address
   echo "listener 1884"

@@ -31,7 +31,7 @@ page = me.get(B + "/my/mesh").text
 check("the saved choices come back", re.search(r'name="quiet"[^>]*checked', page) and not re.search(r'name="battery"[^>]*checked', page))
 psql("DELETE FROM mesh_alert_prefs")
 check("the administrators' mesh page shows the Owner Alerts summary", "Owner Alerts" in adm.get(B + "/admin/mesh").text)
-st = adm.get(B + "/admin/settings/radio").text
+st = adm.get(B + "/admin/settings/mesh").text
 check("every tunable is in Settings > Mesh Nodes", all(x in st for x in ("Owner Alerts for Mesh Nodes", "Owner Alerts: Check Every (Seconds)", "Owner Alerts: Repeat Every (Hours)", "Owner Alerts: Most Repeats", "Owner Alerts: Battery Recovery Margin", "Owner Alerts: Combine Messages", "Owner Alerts: Most Messages per Person per Day", "Owner Alerts: Keep the List for")))
 check("the new tables are in the mesh restore area", all(t in open("../app/restorepart.py", encoding="utf-8").read().split('("mesh",')[1].split("\n")[0] for t in ("mesh_alert_prefs", "mesh_alert_state", "mesh_alert_events", "mesh_alert_sends")))
 print("ALL PASS" if ok_all else "SOME FAILED")

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}MeshCore{% endblock %}
+{% macro dot(ok) %}<span class="tag {{ 'on' if ok else 'off' }}">{{ 'yes' if ok else 'no' }}</span>{% endmacro %}
+{% block content %}
+<h1><span>Admin</span> MeshCore</h1>
+<div class="sub">MeshCore is a separate mesh network with its own firmware; it does not use Meshtastic's public server. Its nodes reach this site through observers: programs (meshcoretomqtt) that people run on a repeater or companion and that publish what their radio hears to the broker under <span class="mono">meshcore/</span>. This site keeps only the self-announcements (adverts) with a good signature: names, kinds and positions. Chat is encrypted and never read. This page shows what is read from those observers. Reading is set by MQTT Topics to Read under <a href="/admin/settings/mesh#sec-mesh-nodes">Settings, Mesh Nodes</a>. The counts start again whenever the mesh service restarts.</div>
+{% include "partials/_admin_subnav.html" %}
+{% if not mesh_on %}<div class="panel" style="border-color:var(--acc2);margin-bottom:14px"><b>Mesh nodes are switched off.</b> Nothing below is current.</div>
+{% elif not ok %}<div class="panel" style="border-color:var(--acc2);margin-bottom:14px"><b>The mesh service did not answer.</b> {{ note }} Nothing below is current until it does.</div>{% endif %}
+{% if ok %}
+<details class="panel setsec" id="sec-reading" open><summary><span class="role-name">Reading MeshCore Observers</span></summary><div class="secbody">
+  <table style="max-width:720px">
+    <tr><th style="width:260px">Topics read include meshcore/</th><td>{{ dot('meshcore/' in topic) }} <span class="dim mono">{{ topic }}</span></td></tr>
+    <tr><th>Broker connected now</th><td>{{ dot(feed.connected) }}{% if feed.error %} <span class="dim">{{ feed.error }}</span>{% endif %}</td></tr>
+    <tr><th>Signatures checked</th><td>{{ dot(feed.signatures_checked) }} <span class="dim">an advert with a bad signature is thrown away</span></td></tr>
+    <tr><th>Observer messages read</th><td>{{ feed.mc_packets or 0 }}</td></tr>
+    <tr><th>Adverts kept</th><td>{{ feed.mc_adverts or 0 }}</td></tr>
+    <tr><th>Not an advert (encrypted chat, never read)</th><td>{{ feed.mc_dropped or 0 }}</td></tr>
+    <tr><th>Bad signature</th><td>{{ feed.mc_badsig or 0 }}</td></tr>
+    <tr><th>MeshCore nodes known</th><td>{{ d.meshcore }}</td></tr>
+  </table>
+  <div style="display:flex;gap:24px;flex-wrap:wrap">
+    <div><h3 style="margin:10px 0 4px">Observers that reported</h3>{% if obs %}<table><thead><tr><th>Observer</th><th>Nodes heard</th><th>Last</th></tr></thead><tbody>{% for g in obs %}<tr><td>{{ g.name or g.gateway }}</td><td>{{ g.nodes }}</td><td>{{ ago_iso(g.last) }}</td></tr>{% endfor %}</tbody></table>{% else %}<p class="dim" style="margin:0">No observer has reported yet. Observers are set up by their owners with a broker login from Admin, Mesh Nodes.</p>{% endif %}</div>
+    <div><h3 style="margin:10px 0 4px">Nodes by kind (last 7 days)</h3>{% if roles %}<table>{% for r in roles %}<tr><td>{{ r.role }}</td><td>{{ r.n }}</td></tr>{% endfor %}</table>{% else %}<p class="dim" style="margin:0">None yet.</p>{% endif %}</div>
+  </div>
+  <h3 style="margin:14px 0 4px">Outside links</h3>
+  <ul style="margin:0">{% for r in resources %}<li><a href="{{ r[1] }}" target="_blank" rel="noopener">{{ r[0] }}</a> <span class="dim">{{ r[2] }}</span></li>{% endfor %}</ul>
+</div></details>
+{% endif %}
+{% endblock %}

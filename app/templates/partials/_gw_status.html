@@ -1,0 +1,58 @@
+{# One broker login's connection state with a Test button. Needs gwsum (ms.gateway_summary) and gw_url (the status.json address). #}
+<div class="gwbox" data-url="{{ gw_url }}">
+  <p style="margin-top:0"><span class="tag {{ 'on' if gwsum.level == 'ok' else 'off' }} gwsum">{{ gwsum.text }}</span> <span class="dim gwdetail">{{ gwsum.detail }}</span></p>
+  <p style="margin-bottom:0"><button type="button" class="btn small gwtest">Test My Connection</button> <span class="gwout" role="status" aria-live="polite"></span></p>
+  <p class="dim" style="font-size:.85rem;margin-bottom:0">The test watches this login for one minute and says whether the gateway is connected, whether packets reach the broker and what became of them. A node only sends what it hears or announces, so a quiet node can need a minute or two.</p>
+</div>
+<script nonce="{{ csp_nonce() }}">
+(function () {
+  document.querySelectorAll('.gwbox').forEach(function (box) {
+    var btn = box.querySelector('.gwtest'), out = box.querySelector('.gwout'), url = box.getAttribute('data-url');
+    function get() { return fetch(url, {credentials: 'same-origin', cache: 'no-store'}).then(function (r) { return r.json(); }); }
+    function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+    function say(text) {
+      var s = box.querySelector('.gwsum'), d = box.querySelector('.gwdetail');
+      return function (j) { if (j && j.summary) { s.textContent = j.summary.text; d.textContent = j.summary.detail; s.className = 'tag ' + (j.summary.level === 'ok' ? 'on' : 'off') + ' gwsum'; } };
+    }
+    btn.addEventListener('click', async function () {
+      btn.disabled = true;
+      out.textContent = ' Watching for one minute...';
+      var first, last;
+      try { first = last = await get(); } catch (e) { out.textContent = ' The site did not answer.'; btn.disabled = false; return; }
+      var L0 = first.login || {}, base = L0.packets || 0, o0 = L0.outcomes || {}, t0 = Date.now(), n = 0;
+      while (Date.now() - t0 < 60000) {
+        await sleep(3000);
+        try { last = await get(); } catch (e) { continue; }
+        n = ((last.login || {}).packets || 0) - base;
+        out.textContent = ' Watching... ' + Math.round((Date.now() - t0) / 1000) + ' seconds, ' + n + ' packets heard';
+        if (n >= 5) break;
+      }
+      var L = last.login || {}, secs = Math.round((Date.now() - t0) / 1000), d = {}, k, msg = [];
+      for (k in (L.outcomes || {})) { d[k] = (L.outcomes[k] || 0) - (o0[k] || 0); }
+      if (n > 0) {
+        msg.push('Working: ' + n + ' packet' + (n === 1 ? '' : 's') + ' reached the broker in ' + secs + ' seconds.');
+        if (d.stored) msg.push(d.stored + ' read and kept.');
+        if (d.public) msg.push(d.public + ' kept on the private feed and also passed on to the public map.');
+        if (d.private) msg.push(d.private + ' kept on the private feed only (the public rules did not pass them on: the node did not agree to MQTT, the channel is not a public one, or there is no position yet).');
+        if (d.encrypted) msg.push(d.encrypted + ' encrypted: the node uses a private channel key, so it is heard but nothing about it can be shown. For a public map, uplink a default-key channel such as LongFast.');
+        if (d.ignored) msg.push(d.ignored + ' were not a name, a position or a report (nothing to show yet: a node announces itself every few hours).');
+        if (d.outside) msg.push(d.outside + ' had a position outside the area kept.');
+        if (d.hidden) msg.push(d.hidden + ' were from a node hidden on request.');
+      } else if (!last.log_feed) {
+        msg.push('No packets arrived in ' + secs + ' seconds, and the broker does not report connections yet, so the cause cannot be told. Check that MQTT is switched on in the node and that its address, port and password match this page.');
+      } else if (!L.connected) {
+        if (L.refused && L.refused_ago !== null && L.refused_ago < 3600) {
+          msg.push('The gateway is not connected: the broker refused it ' + L.refused + ' time' + (L.refused === 1 ? '' : 's') + '. Check the username and password on the node, and that this login is switched on.');
+        } else {
+          msg.push('The gateway is not connected. Check that MQTT is switched on in the node, the server address and port, that TLS matches the port, and that the node has network access.');
+        }
+      } else {
+        msg.push('Connected, but no packets in ' + secs + ' seconds. Check that Uplink is enabled on a channel, the root topic, and that the node has something to send: a node sends what it hears and its own name and position every few hours.');
+      }
+      out.textContent = ' ' + msg.join(' ');
+      say()(last);
+      btn.disabled = false;
+    });
+  });
+})();
+</script>

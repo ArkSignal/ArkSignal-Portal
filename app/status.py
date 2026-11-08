@@ -309,18 +309,7 @@ def _mesh_check():
         return _c("mesh", "Mesh Nodes", "warn", "The mesh service is not connected to the broker.", f"The service answers but cannot reach the MQTT broker ({feed.get('error') or 'reconnecting'}).")
     if not d.get("nodes"):
         return _c("mesh", "Mesh Nodes", "ok", "The mesh service is ready, with no node heard yet.", f"Answered in {ms:.0f} ms. Nodes appear when they publish to the broker.")
-    fwd = ""
-    if cfg("mesh_forward_enabled") == "1":   # communities that chose to forward to the public Meshtastic server: how many packets went and how many its rules stopped
-        try:
-            n = get_db().execute("SELECT COUNT(*) AS n FROM communities WHERE feed_public").fetchone()["n"]
-        except Exception:
-            get_db().rollback()
-            n = 0
-        if n and feed.get("fwd_error"):
-            return _c("mesh", "Mesh Nodes", "warn", "Forwarding to the public Meshtastic server is failing.", f"{n} communities forward there, and the last attempt failed ({feed.get('fwd_error')}). Mesh nodes themselves are working.")
-        if n:
-            fwd = f" Forwarding to the public Meshtastic server for {n} communit{'y' if n == 1 else 'ies'}: {feed.get('fwd_sent', 0)} packets sent, {feed.get('fwd_dropped', 0)} held back by its rules."
-    return _c("mesh", "Mesh Nodes", "ok", "Mesh nodes are working.", f"Answered in {ms:.0f} ms: {d['heard_hour']} nodes heard this hour, {d['nodes']} known, {feed.get('per_min')} packets a minute." + fwd)
+    return _c("mesh", "Mesh Nodes", "ok", "Mesh nodes are working.", f"Answered in {ms:.0f} ms: {d['heard_hour']} nodes heard this hour, {d['nodes']} known, {feed.get('per_min')} packets a minute.")
 
 
 def _export_check():
@@ -337,6 +326,87 @@ def _export_check():
     if down:
         return _c("meshexport", "Mesh MQTT Export", "warn", f"{len(down)} of {len(rows)} connectors are not connected.", "Not connected: " + ", ".join(down) + ". The broker may be down, or its address, port, TLS or login may be wrong.")
     return _c("meshexport", "Mesh MQTT Export", "ok", f"{len(rows)} connector{'' if len(rows) == 1 else 's'} connected, {sent} packets sent since the service started.")
+
+
+def _public_server_check():
+    """The public Meshtastic server (request 218): reading Arkansas and the states around it, and forwarding what nodes send to our broker's public side."""
+    if cfg("mesh_enabled") != "1":
+        return _c("src_meshpublic", "Public Meshtastic Server", "off", "Mesh nodes are switched off.", group="sources")
+    read_on, fwd_on = cfg("mesh_up_enabled") == "1", cfg("mesh_forward_enabled") == "1"
+    if not read_on and not fwd_on:
+        return _c("src_meshpublic", "Public Meshtastic Server", "off", "Neither reading nor forwarding is switched on.", group="sources")
+    from . import mesh
+    st = mesh.public_server_status()
+    f, u = st.get("forward"), st.get("upstream")
+    if not f and not u:
+        return _c("src_meshpublic", "Public Meshtastic Server", "warn", "The mesh service did not answer.", group="sources")
+    bits, bad = [], []
+    if read_on and u:
+        up = u.get("up_") or {}
+        if not up.get("connected"):
+            bad.append(f"not connected to {u.get('host')} ({up.get('error') or 'reconnecting'})")
+        else:
+            bits.append(f"reading {up.get('msgs', 0)} messages from {u.get('host')}")
+    if fwd_on and f:
+        if f.get("error"):
+            bad.append("forwarding is failing (" + f["error"] + ")")
+        elif f.get("client_started") and not f.get("connected"):
+            bad.append("the forwarding connection is down")
+        else:
+            bits.append(f"forwarded {f.get('sent', 0)} packets, {f.get('dropped', 0)} held back by its rules")
+    if bad:
+        return _c("src_meshpublic", "Public Meshtastic Server", "warn", "The public Meshtastic server has a problem.", "; ".join(bad + bits).capitalize() + ". Details are on Admin, Public Meshtastic Server.", group="sources")
+    return _c("src_meshpublic", "Public Meshtastic Server", "ok", "The public Meshtastic server is working.", "; ".join(bits).capitalize() + ".", group="sources")
+
+
+def _aprsis_check():
+    """APRS-IS as an outside service: what is read from it and what this site sends (request 226)."""
+    key, name = "src_aprsis", "APRS-IS Network"
+    read_on, bridge_on, push_on = cfg("aprs_enabled") == "1", cfg("bridge_aprs_enabled") == "1", cfg("aprspush_enabled") == "1"
+    if not read_on and not bridge_on and not push_on:
+        return _c(key, name, "off", "Neither reading nor sending is switched on.", group="sources")
+    from . import aprs
+    n = aprs.network_status()
+    f = n["feed"]
+    bits, bad = [], []
+    if read_on:
+        if not n["service_ok"]:
+            bad.append("the APRS service did not answer")
+        elif not f.get("connected"):
+            bad.append(f"not connected to APRS-IS ({f.get('error') or 'reconnecting'})")
+        else:
+            bits.append(f"reading {f.get('per_min', 0)} packets a minute from {f.get('server') or n['host']}")
+    if bridge_on:
+        bits.append(f"{n['bridge']['sent']} chat messages sent in 24 hours" + (f", {n['bridge']['failed']} failed" if n["bridge"]["failed"] else ""))
+        if n["bridge"]["failed"] and not n["bridge"]["sent"]:
+            bad.append("chat messages are failing to send")
+    if push_on:
+        bits.append(f"{n['push']['sent']} weather reports sent")
+        if n["push"]["failing"]:
+            bad.append(f"{n['push']['failing']} weather stations are failing to send")
+    if bad:
+        return _c(key, name, "warn", "APRS-IS has a problem.", "; ".join(bad + bits).capitalize() + ". Details are on Admin, APRS-IS Network.", "sources")
+    return _c(key, name, "ok", "APRS-IS is working.", "; ".join(bits).capitalize() + ".", "sources")
+
+
+def _meshcore_check():
+    """MeshCore observers: other people's programs that publish what their radios hear to our broker."""
+    key, name = "src_meshcore", "MeshCore Observers"
+    if cfg("mesh_enabled") != "1":
+        return _c(key, name, "off", "Mesh nodes are switched off.", group="sources")
+    if "meshcore/" not in cfg("mesh_topic"):
+        return _c(key, name, "off", "MeshCore is not among the topics read.", "Settings, Mesh Nodes, MQTT Topics to Read has no meshcore/ topic.", "sources")
+    from . import mesh
+    d = (mesh.stats().get("data") or {})
+    if not d:
+        return _c(key, name, "warn", "The mesh service did not answer.", group="sources")
+    feed = d.get("feed") or {}
+    obs = [g for g in d.get("gateways", []) if g.get("network") == "meshcore"]
+    if not feed.get("connected"):
+        return _c(key, name, "warn", "The mesh service is not connected to the broker.", "MeshCore observers publish to the broker, so nothing is read until it is.", "sources")
+    if not feed.get("mc_packets"):
+        return _c(key, name, "ok", "Waiting for a MeshCore observer to report.", f"{d.get('meshcore', 0)} MeshCore nodes known; none heard since the service started.", "sources")
+    return _c(key, name, "ok", "MeshCore observers are reporting.", f"{len(obs)} observers, {feed.get('mc_adverts', 0)} adverts kept of {feed.get('mc_packets', 0)} messages, {feed.get('mc_badsig', 0)} with a bad signature; {d.get('meshcore', 0)} nodes known.", "sources")
 
 
 def _tunnel_check():
@@ -576,7 +646,7 @@ def _source_checks():
     return out
 
 
-PUBLIC = (_site_check, _hub_check, _feeders_check, _history_check, _mlat_check, _uat_check, _weather_check, _sondes_check, _predict_check, _aprs_check, _acars_check, _mesh_check, _tunnel_check, _export_check, _matrix_check, _satellites_check, _bridge_check, _ais_check, _drones_check, _osrm_check, _photon_check, _planefence_check, _grafana_check, _source_checks)
+PUBLIC = (_site_check, _hub_check, _feeders_check, _history_check, _mlat_check, _uat_check, _weather_check, _sondes_check, _predict_check, _aprs_check, _acars_check, _mesh_check, _tunnel_check, _export_check, _public_server_check, _aprsis_check, _meshcore_check, _matrix_check, _satellites_check, _bridge_check, _ais_check, _drones_check, _osrm_check, _photon_check, _planefence_check, _grafana_check, _source_checks)
 ADMIN = (_prometheus_check, _updates_check, _stack_check, _backup_check, _disk_check, _airports_check, _data_updates_check)
 
 
@@ -606,6 +676,7 @@ def _execute():
             out.extend(r)
         elif r:
             out.append(r)
+    out.sort(key=lambda c: c.get("group") == "sources")   # stable: services first, then the outside data sources, one heading each
     return out
 
 

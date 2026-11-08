@@ -19,6 +19,9 @@
   {% with host = conn.host or 'MQTT_SERVER', port = conn.port, topic = conn.topic, user = r.username, pw = password %}{% include "partials/_mesh_cmds.html" %}{% endwith %}
   <form method="post" action="/my/mesh/{{ r.id }}/new-password" data-confirm="Make a new password? The old one stops working at once." style="margin-top:12px"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small neutral" type="submit">Make a New Password</button></form>
 </div></details>
+<details class="panel setsec" id="sec-connection" open style="margin-top:14px"><summary><span class="role-name">Connection Status</span></summary><div class="secbody">
+  {% include "partials/_gw_status.html" %}
+</div></details>
 <details class="panel setsec" id="sec-about-this-login" open style="margin-top:14px"><summary><span class="role-name">About This Login</span></summary>
 <form method="post" action="/my/mesh/{{ r.id }}/save">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

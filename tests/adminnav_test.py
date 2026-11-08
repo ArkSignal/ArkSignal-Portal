@@ -12,7 +12,7 @@ import importlib.util
 spec = importlib.util.spec_from_file_location("adminnav", os.path.join(here, "..", "app", "adminnav.py"))
 nav = importlib.util.module_from_spec(spec); spec.loader.exec_module(nav)
 
-ORDER = ["Start", "People", "Aircraft and Feeders", "Weather and Balloons", "Radio", "Map and Data", "Updates", "Site"]
+ORDER = ["Start", "People", "Aircraft and Feeders", "Weather and Balloons", "Radio", "Mesh", "Map and Data", "Updates", "Site"]
 check("the groups are the agreed ones, in the agreed order", [g for g, _ in nav.GROUPS] == ORDER, [g for g, _ in nav.GROUPS])
 keys = nav.keys()
 labels = [l for _g, items in nav.GROUPS for _k, l, _h, _p in items]
@@ -28,7 +28,7 @@ for f in glob.glob(os.path.join(here, "..", "app", "*.py")):
     for m in re.finditer(r'"active": "([a-z_]+)"', src):
         used.add(m.group(1))
 check("every admin page names itself in the menu definition (add new pages to app/adminnav.py)", used <= set(keys), sorted(used - set(keys)))
-check("no entry in the menu is without a page", set(keys) <= used | {"overview", "planefence", "dataupdates", "roadmap", "winlink", "allsettings", "set_aircraft", "set_weather", "set_radio", "set_mapdata", "set_updates"}, sorted(set(keys) - used))
+check("no entry in the menu is without a page", set(keys) <= used | {"overview", "planefence", "dataupdates", "roadmap", "winlink", "allsettings", "set_aircraft", "set_weather", "set_radio", "set_mesh", "set_mapdata", "set_updates"}, sorted(set(keys) - used))
 
 # what people see
 class Fake:

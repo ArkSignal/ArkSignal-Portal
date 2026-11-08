@@ -13,12 +13,12 @@
   {% if f.site_name %}&middot; launched from <a href="/sondes/sites/{{ f.site_id }}">{{ f.site_name }}</a>{% endif %}
   &middot; last heard <span id="lastheard">{{ f.last_seen | localtime("%b %-d %H:%M:%S") }}</span>
 </div>
-<p style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><a href="/sondes/flights">&larr; Flights</a>
+<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><a href="/sondes/flights">&larr; Flights</a>
   <a class="btn small show-on-map" href="/sondes/map?only={{ f.serial }}">Show on Radiosonde Map</a>
   <a class="btn small neutral" href="/sondes/map?replay={{ f.serial }}" rel="nofollow">Replay on the Big Map</a>
   {% if f.last_lat is not none %}<a class="btn small show-on-map" href="/live?lat={{ '%.4f' % f.last_lat }}&amp;lon={{ '%.4f' % f.last_lon }}&amp;zoom=9&amp;layers=sondes">Show on Aircraft Map</a>{% endif %}
   {% if current_user.is_authenticated and push_on_site %}<form class="inline" method="post" action="/my/notifications/balloons/{{ f.serial }}/{{ 'unfollow' if following else 'follow' }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small{{ ' neutral' if following }}" type="submit" title="Get a notification when this balloon lands">{{ 'Stop Following' if following else 'Follow This Balloon' }}</button></form>{% endif %}
-  {% if current_user.is_authenticated %}<a class="btn small" href="/sondes/{{ f.serial }}/track.csv">Download CSV</a> <a class="btn small" href="/sondes/{{ f.serial }}/track.geojson">Download GeoJSON</a>{% else %}<span class="dim" style="font-size:.85rem"><a href="/my/login?next=/sondes/{{ f.serial }}">Sign in</a> to download this track.</span>{% endif %}</p>
+  {% if current_user.is_authenticated %}<a class="btn small" href="/sondes/{{ f.serial }}/track.csv">Download CSV</a> <a class="btn small" href="/sondes/{{ f.serial }}/track.geojson">Download GeoJSON</a>{% else %}<span class="dim" style="font-size:.85rem"><a href="/my/login?next=/sondes/{{ f.serial }}">Sign in</a> to download this track.</span>{% endif %}</div>
 
 <div class="tiles" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr));margin-bottom:14px">
   <div class="panel tile"><div class="tv" style="font-size:1.4rem" id="t-alt">{{ (latest.alt | u_alt) if latest and latest.alt is not none else '-' }}</div><div class="tl">Altitude now</div></div>

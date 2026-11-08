@@ -332,7 +332,7 @@ setting("access_communities", "members")
 check("Feature Access can limit it to signed-in members", anon.get(B + "/mesh/communities", allow_redirects=False).status_code == 404 and S["cmstranger"].get(B + "/mesh/communities").status_code == 200)
 psql("DELETE FROM settings WHERE key = 'access_communities'")
 check("an administrator can step in on any community", "Edit Page" in adm.get(B + f"/mesh/c/{SLUG}").text and sec(adm, "edit").status_code == 200 and ok302(post(adm, f"/mesh/c/{SLUG}/posts/add", title="Admin notice", body="x", kind="notice")))
-st = adm.get(B + "/admin/settings/radio").text
+st = adm.get(B + "/admin/settings/mesh").text
 check("the choices are settings", all(x in st for x in ("Mesh Communities", "Communities: Invitation Lasts", "Communities: Links per Community", "Communities: Broker Logins per Community")))
 aud = psql("SELECT string_agg(DISTINCT action, ',') FROM audit_log WHERE action LIKE 'community.%'")
 check("everything is in the audit log", all(a in aud for a in ("community.create", "community.edit", "community.member", "community.invite", "community.post")), aud)

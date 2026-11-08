@@ -3,7 +3,7 @@
 {% block title %}Mesh Nodes{% endblock %}
 {% block content %}
 <h1><span>Admin</span> Mesh Nodes</h1>
-<div class="sub">The mesh service reads the community MQTT broker and keeps the nodes that publish themselves. Its address, the broker it reads, the area and how long nodes are kept are in <a href="/admin/settings/radio#sec-mesh-nodes">Settings &gt; Mesh Nodes</a>.{% if not enabled %} <b>Mesh nodes are switched off.</b>{% endif %}</div>
+<div class="sub">The mesh service reads the community MQTT broker and keeps the nodes that publish themselves. Its address, the broker it reads, the area and how long nodes are kept are in <a href="/admin/settings/mesh#sec-mesh-nodes">Settings &gt; Mesh Nodes</a>.{% if not enabled %} <b>Mesh nodes are switched off.</b>{% endif %}</div>
 {% include "partials/_admin_subnav.html" %}
 {% if not st.ok %}<div class="panel" style="border-color:var(--acc2);margin-bottom:14px"><b>{{ st.note }}</b> Check that the mesh container is running (its stack is applied by the stack updater).</div>{% endif %}
 {% if st.ok %}
@@ -23,7 +23,7 @@
 {% endcall %}
 {% endif %}
 {% call sec('owneralerts', 'Owner Alerts', True, True) %}
-  <p style="margin-top:0">{% if oa_on %}Owners are told when their router goes quiet or a battery is low (limits and timing are in <a href="/admin/settings/radio#sec-mesh-nodes">Settings &gt; Mesh Nodes</a>); each member chooses what they hear on My Mesh Nodes.{% else %}Owner alerts are switched off in <a href="/admin/settings/radio#sec-mesh-nodes">Settings &gt; Mesh Nodes</a>.{% endif %}</p>
+  <p style="margin-top:0">{% if oa_on %}Owners are told when their router goes quiet or a battery is low (limits and timing are in <a href="/admin/settings/mesh#sec-mesh-nodes">Settings &gt; Mesh Nodes</a>); each member chooses what they hear on My Mesh Nodes.{% else %}Owner alerts are switched off in <a href="/admin/settings/mesh#sec-mesh-nodes">Settings &gt; Mesh Nodes</a>.{% endif %}</p>
   <div class="tiles"><div class="panel tile"><div class="tv">{{ oa.day }}</div><div class="tl">Alerts in the last 24 hours</div></div><div class="panel tile"><div class="tv">{{ oa.week }}</div><div class="tl">In the last 7 days ({{ oa.people }} people)</div></div>
     <div class="panel tile"><div class="tv">{{ oa_open }}</div><div class="tl">Troubles open right now</div></div><div class="panel tile"><div class="tv">{{ oa.waiting }}</div><div class="tl">Messages waiting to go</div></div><div class="panel tile"><div class="tv">{{ oa.failed }}</div><div class="tl">Messages that failed</div></div></div>
 {% endcall %}

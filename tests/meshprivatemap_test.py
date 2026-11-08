@@ -95,7 +95,7 @@ lg = O1.get(B + "/mesh/c/pvm-one/logins").text
 check("the Broker Logins page offers the Private feed kind and a link to the map", 'value="private"' in lg and "/mesh/c/pvm-one/private-map" in lg)
 check("the community's Manage menu has a Private Map item for its team, and it opens the map", "/mesh/c/pvm-one/privmap" in O1.get(B + "/mesh/c/pvm-one").text and O1.get(B + "/mesh/c/pvm-one/privmap", allow_redirects=False).headers.get("Location", "").endswith("/mesh/c/pvm-one/private-map"))
 check("not for a member who is not on the team", "/mesh/c/pvm-one/privmap" not in PL.get(B + "/mesh/c/pvm-one").text and PL.get(B + "/mesh/c/pvm-one/privmap", allow_redirects=False).status_code in (403, 404))
-check("the Mesh menu gives the site's administrators a Private Map item, and nobody else", "/admin/mesh/private-map" in adm.get(B + "/mesh/").text and "/admin/mesh/private-map" not in O1.get(B + "/mesh/").text and "/admin/mesh/private-map" not in requests.get(B + "/mesh/").text)
+check("the Mesh menu gives the site's administrators a Private Map item, and nobody else", "/admin/mesh/private-map" in adm.get(B + "/mesh/").text and "/admin/mesh/private-nodes" in adm.get(B + "/mesh/").text and "/admin/mesh/private-map" not in O1.get(B + "/mesh/").text and "/admin/mesh/private-map" not in requests.get(B + "/mesh/").text)
 setting("mesh_private_enabled", "0")
 check("with the switch off the pages and data do not exist", O1.get(B + "/mesh/c/pvm-one/private-map").status_code == 404 and O1.get(B + "/api/mesh/private/nodes.json?community=pvm-one").status_code == 404 and adm.get(B + "/admin/mesh/private-map").status_code == 404)
 setting("mesh_private_enabled", "1")

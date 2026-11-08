@@ -179,7 +179,7 @@ check("and the new one work", len(NEW) > 30 and api("/api/mesh/bridge/poll", tok
 setting("mesh_bridge_enabled", "0")
 check("with bridges switched off the site refuses the bridge and hides the section", api("/api/mesh/bridge/poll", token=NEW).status_code == 401 and "Remote Administration" not in page(Mg))
 setting("mesh_bridge_enabled", "1")
-st = adm.get(B + "/admin/settings/radio").text
+st = adm.get(B + "/admin/settings/mesh").text
 check("the choices are settings", all(x in st for x in ("Admin Bridges for Remote Administration", "Admin Bridges per Community", "Admin Bridge: A Command Expires After", "Admin Bridge: Commands per Request", "Admin Bridge: Most Requests per Minute")))
 rp = open("../app/restorepart.py", encoding="utf-8").read().split('("mesh",')[1].split("\n")[0]
 check("the tables are in the mesh restore area", "mesh_bridges" in rp and "mesh_commands" in rp)

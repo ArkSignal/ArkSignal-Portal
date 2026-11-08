@@ -271,7 +271,7 @@
 {% call sec('logins', 'Broker Logins for the Gateways (' ~ logins | length ~ ' of ' ~ login_limit ~ ')', True, True) %}
   <p style="margin-top:0">A gateway node sends what it hears to this site's broker with its own login. These logins can publish to the mesh topics and read nothing. Open a login to see its address and password again. The site's administrators set the rate rules and loop guards.</p>
   {% if logins %}<table><thead><tr><th>Login</th><th>Label</th><th>Kind</th><th>State</th><th></th></tr></thead><tbody>
-  {% for a in logins %}<tr><td class="mono"><a href="/mesh/c/{{ c.slug }}/logins/{{ a.id }}">{{ a.username }}</a></td><td>{{ a.label }}</td><td>{{ 'private feed' if a.link == 'private' else 'uplink and downlink' if a.link == 'down' else 'uplink only' }}</td><td>{{ 'off' if a.disabled else 'on' }}</td><td>
+  {% for a in logins %}<tr><td class="mono"><a href="/mesh/c/{{ c.slug }}/logins/{{ a.id }}">{{ a.username }}</a></td><td>{{ a.label }}</td><td>{{ 'private feed' if a.link == 'private' else 'uplink and downlink' if a.link == 'down' else 'uplink only' }}</td><td>{{ 'off' if a.disabled else 'on' }}{% if not a.disabled %}{% set gs = gws(gwst, a.username) %} <span class="tag {{ 'on' if gs.level == 'ok' else 'off' }}">{{ gs.text }}</span>{% endif %}</td><td>
     <a class="btn small neutral" href="/mesh/c/{{ c.slug }}/logins/{{ a.id }}">Show</a>
     <form class="inline" method="post" action="/mesh/c/{{ c.slug }}/logins/{{ a.id }}/password" data-confirm="Make a new password? The gateway stops connecting until it is given the new one.">{{ csrf() }}<button class="btn small neutral" type="submit">New Password</button></form>
     <form class="inline" method="post" action="/mesh/c/{{ c.slug }}/logins/{{ a.id }}/{{ 'enable' if a.disabled else 'disable' }}">{{ csrf() }}<button class="btn small neutral" type="submit">{{ 'Switch On' if a.disabled else 'Switch Off' }}</button></form>
@@ -309,9 +309,31 @@
   <ul class="plain"><li><b>Uplink only</b> logins write to this community's topic and are sent nothing back.</li><li><b>Uplink and downlink</b> logins also read this community's topic, and only that one.</li><li>The firmware does not send a packet it got from the broker back to the broker, which is what keeps two gateways from looping; the site's own loop guards and rate rules are set by the administrators.</li><li>Encrypted packets are never read or kept by this site, whatever the node sends.</li></ul>
 {% endcall %}
 
-{% elif cur == 'forwarding' %}
-{% call sec('forwarding', 'Forwarding to the Public Map', True) %}
-  <p style="margin-top:0">Everything this private feed hears stays on the private map. Here the site's administrators choose what may also be passed on to the public map and the public Meshtastic server. The public rules still apply on top of whatever is chosen: a node that did not agree to MQTT, a channel the public server does not list, a place outside the public area and a message type the public server does not carry are never passed on.</p>
+{% elif cur == 'access' %}
+{% if not c.system %}
+{% call sec('access', 'Who Can Open This Community', True) %}
+  <p style="margin-top:0">This community is <b>{{ 'public' if c.published else 'private' }}</b> right now.</p>
+  <form method="post" action="/mesh/c/{{ c.slug }}/visibility">{{ csrf() }}
+    <p><label style="display:flex;gap:8px;align-items:flex-start"><input type="radio" name="mode" value="public" {{ 'checked' if c.published }}><span><b>Public</b><br><span class="dim">Listed with the other mesh communities, and anyone can open its page, map, nodes and news. Its team still runs it, and the private map and logins stay with the team.</span></span></label></p>
+    <p><label style="display:flex;gap:8px;align-items:flex-start"><input type="radio" name="mode" value="private" {{ 'checked' if not c.published }}><span><b>Private</b><br><span class="dim">Not listed. Only the people on its team (and the site's administrators) can open it. Add people on the Team page{% if cfg_join %}; anyone who finds the link can ask to join and a Manager decides{% endif %}.</span></span></label></p>
+    <button class="btn small" type="submit">Save</button>
+  </form>
+{% endcall %}
+{% endif %}
+{% elif cur == 'share' %}
+{% if not c.system %}
+{% call sec('share', 'Sharing with the Public Maps', True) %}
+  <p style="margin-top:0">These two choices are only for what your <b>private</b> gateways send (the private feed, which is never public by itself). Anything a node sends to the public side of the broker is already on the public map and goes to the public Meshtastic server when the site forwards, whatever community topic it uses. Both choices are off until a Manager or the Owner turns them on, and either can be turned off again at any time.</p>
+  <form method="post" action="/mesh/c/{{ c.slug }}/share">{{ csrf() }}
+    <p><label style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" name="feed_site_map" value="1" {{ 'checked' if c.feed_site_map }}><span><b>Show the nodes your private gateways hear on ArkSignal's public mesh map and lists</b><br><span class="dim">Without this, they appear on this community's pages only. The public rules still apply (a node that did not agree to MQTT is never passed on), and the administrators' forwarding choices apply too.</span></span></label></p>
+    <p><label style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" name="feed_public" value="1" {{ 'checked' if c.feed_public }} {{ 'disabled' if not fwd.on }}><span><b>Also forward what the private gateways send to the public Meshtastic server</b><br><span class="dim">{% if fwd.on %}The packets go to mqtt.meshtastic.org under {{ fwd.root }}, so the nodes show on the public Meshtastic maps too. The public server's own rules are applied first: only default-key channels it lists, only the port numbers it allows, and positions no more exact than {{ fwd.bits }} bits. Private channels are never forwarded.{% else %}The site's administrators have not switched forwarding on (Settings, Mesh Nodes).{% endif %}</span></span></label></p>
+    <button class="btn small" type="submit">Save</button>
+  </form>
+{% endcall %}
+{% endif %}
+{% call sec('forwarding', 'Limits Set by the Site Administrators', True) %}
+  <p style="margin-top:0">Everything this private feed hears stays on the private map. The site's administrators choose how much of it may be passed on to the public map and the public Meshtastic server{% if not c.system %}, on top of the two choices above{% endif %}. The public rules still apply on top of whatever is chosen: a node that did not agree to MQTT, a channel the public server does not list, a place outside the public area and a message type the public server does not carry are never passed on.</p>
+{% if rank >= 9 %}
   <form method="post" action="/mesh/c/{{ c.slug }}/forwarding">{{ csrf() }}
     <p><label style="display:flex;gap:8px"><input type="radio" name="mode" value="auto" {{ 'checked' if fw.mode == 'auto' }}><span><b>Whatever the public rules allow</b> <span class="dim">(the default)</span></span></label></p>
     <p><label style="display:flex;gap:8px"><input type="radio" name="mode" value="none" {{ 'checked' if fw.mode == 'none' }}><span><b>Nothing:</b> keep all of it private</span></label></p>
@@ -325,30 +347,9 @@
     </div>
     <button class="btn small" type="submit">Save</button>
   </form>
-{% endcall %}
-
-{% elif cur == 'access' %}
-{% call sec('access', 'Site Role Access', True) %}
-  <p style="margin-top:0">People who have one of the site roles below can open this community even when it is hidden, with the part chosen here. They do not have to be on the team. Roles that already have every permission (the site's administrators) can open every community and are not listed.</p>
-  {% if grants %}<table><thead><tr><th>Site role</th><th>Can do here</th><th></th></tr></thead><tbody>
-  {% for g in grants %}<tr><td>{{ g.name }}</td><td>{{ role_label[g.level] }}</td><td><form class="inline" method="post" action="/mesh/c/{{ c.slug }}/access/{{ g.role_id }}/remove" data-confirm="Take access away from {{ g.name }}?">{{ csrf() }}<button class="btn small warn" type="submit">Remove</button></form></td></tr>{% endfor %}</tbody></table>
-  {% else %}<p class="dim">No site role has access yet.</p>{% endif %}
-  <form method="post" action="/mesh/c/{{ c.slug }}/access" style="margin-top:10px">{{ csrf() }}
-    <div class="cm-row"><div><label for="acr">Site role</label><select id="acr" name="role_id"><option value="">Choose a role</option>{% for r in site_roles %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}</select></div>
-      <div><label for="acl">May do</label><select id="acl" name="level">{% for k, l in grant_levels %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></div></div>
-    <p class="dim" style="font-size:.85rem">Viewer sees health and statistics. Node Operator also sees the private map and runs the nodes, logins and channels. Editor runs the page. Manager does all of it except hand out Owner.</p>
-    <button class="btn small" type="submit">Give Access</button>
-  </form>
-{% endcall %}
-
-{% elif cur == 'share' %}
-{% call sec('share', 'Sharing with the Public Maps', True) %}
-  <p style="margin-top:0">A node can send to one MQTT server only, and your gateways send to this community's own topic. These two choices let what they send reach more places as well. Both are off until a Manager or the Owner turns them on, and either can be turned off again at any time.</p>
-  <form method="post" action="/mesh/c/{{ c.slug }}/share">{{ csrf() }}
-    <p><label style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" name="feed_site_map" value="1" {{ 'checked' if c.feed_site_map }}><span><b>Show this community's nodes on ArkSignal's public mesh map and lists</b><br><span class="dim">Without this, the nodes appear on this community's pages only.</span></span></label></p>
-    <p><label style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" name="feed_public" value="1" {{ 'checked' if c.feed_public }} {{ 'disabled' if not fwd.on }}><span><b>Also forward what the gateways send to the public Meshtastic server</b><br><span class="dim">{% if fwd.on %}The packets go to mqtt.meshtastic.org under {{ fwd.root }}, so the nodes show on the public Meshtastic maps too. The public server's own rules are applied first: only default-key channels it lists, only the port numbers it allows, and positions no more exact than {{ fwd.bits }} bits. Private channels are never forwarded.{% else %}The site's administrators have not switched forwarding on (Settings, Mesh Nodes).{% endif %}</span></span></label></p>
-    <button class="btn small" type="submit">Save</button>
-  </form>
+{% else %}
+  <p class="dim" style="margin-bottom:0">Right now: {{ {'auto': 'whatever the public rules allow', 'none': 'nothing is passed on', 'filter': 'only what the administrators selected'}.get(c.fwd_mode, c.fwd_mode) }}. Ask a site administrator to change this.</p>
+{% endif %}
 {% endcall %}
 
 {% elif cur == 'alerts' and ac is defined %}

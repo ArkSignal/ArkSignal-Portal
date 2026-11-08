@@ -55,7 +55,7 @@ check("with the switch off the form is gone and asking is refused", "Ask to Join
 setting("mesh_community_join_requests", "1")
 aud = psql("SELECT string_agg(detail, '|') FROM audit_log WHERE action='community.join_request'")
 check("asking and answering are in the audit log", "cjrasker" in aud and "approved" in aud and "declined" in aud, aud)
-check("the settings exist", all(x in adm.get(B + "/admin/settings/radio").text for x in ("Communities: Ask to Join", "Communities: Waiting Join Requests")))
+check("the settings exist", all(x in adm.get(B + "/admin/settings/mesh").text for x in ("Communities: Ask to Join", "Communities: Waiting Join Requests")))
 psql("DELETE FROM communities WHERE slug LIKE 'cjr-%'")
 psql("DELETE FROM users WHERE username LIKE 'cjr%'")
 print("ALL PASS" if ok_all else "SOME FAILED")

@@ -21,7 +21,7 @@ from .settings import cfg, cfg_int, get_setting
 bp = Blueprint("mesh_alerts", __name__)
 
 LOCK_ID = 727023
-KINDS = {"quiet": "Router gone quiet", "battery": "Low battery"}
+KINDS = {"quiet": "Router gone quiet", "battery": "Low battery", "silent": "Gateway gone silent"}
 KEY_RE = re.compile(r"(?:mc[:-]([0-9a-fA-F]{64}))|(?:!?([0-9a-fA-F]{8}))")
 PREFS = ("quiet", "battery", "recovered", "by_email", "by_webhook", "by_push")
 
@@ -84,10 +84,10 @@ def run_pass(now=None, rows=None):
     if rows is None:
         rows = ms.nodes("", "", None, False)
         if not rows:
-            return 0
+            return _gateways_only(now)
     own = owners()
     if not own:
-        return 0
+        return _gateways_only(now)
     d = get_db()
     repeat_h, max_rep, margin = cfg_int("mesh_owner_alert_repeat_hours"), cfg_int("mesh_owner_alert_max_repeats"), cfg_int("mesh_owner_alert_battery_margin")
     email_ok = _smtp()
@@ -101,7 +101,7 @@ def run_pass(now=None, rows=None):
         for uid in uids:
             p = prefs_of(uid)
             u = d.execute("SELECT webhook_url FROM users WHERE id=%s", (uid,)).fetchone()
-            for kind in KINDS:
+            for kind in ("quiet", "battery"):
                 st = d.execute("SELECT * FROM mesh_alert_state WHERE user_id=%s AND node_key=%s AND kind=%s", (uid, key, kind)).fetchone()
                 cond = kind in bad
                 if cond and p[kind]:
@@ -121,8 +121,61 @@ def run_pass(now=None, rows=None):
                         _event(d, uid, key, n, "back_" + kind, "heard again" if kind == "quiet" else f"battery back to {b}%", now, p, email_ok, u)
                         made += 1
                     d.execute("DELETE FROM mesh_alert_state WHERE user_id=%s AND node_key=%s AND kind=%s", (uid, key, kind))
+    made += gateway_pass(d, now, email_ok)
     d.execute("DELETE FROM mesh_alert_events WHERE ts < now() - make_interval(days => %s)", (cfg_int("mesh_owner_alert_keep_days"),))
     d.commit()
+    return made
+
+
+def _gateways_only(now):
+    d = get_db()
+    made = gateway_pass(d, now, _smtp())
+    d.commit()
+    return made
+
+
+def silent_logins(st, minutes):
+    """{login: seconds since its last packet} for the logins that have sent packets before and have now sent nothing for `minutes` (st is mesh.gateway_status())."""
+    out = {}
+    if not minutes or st.get("down") or not st.get("log_feed"):
+        return out
+    for u, L in (st.get("logins") or {}).items():
+        la = L.get("last_packet_ago")
+        if la is not None and L.get("packets", 0) > 0 and la > minutes * 60:
+            out[u] = la
+    return out
+
+
+def gateway_pass(d, now, email_ok, st=None):
+    """Tell a login's owner when its gateway has gone silent (it sent packets before and nothing for the Gateway Gone Silent time), and again when it is back. Uses the Router Gone Quiet choice. Returns alerts made."""
+    minutes = cfg_int("mesh_gateway_silent_minutes")
+    if not minutes:
+        return 0
+    st = st if st is not None else ms.gateway_status()
+    bad = silent_logins(st, minutes)
+    repeat_h, max_rep = cfg_int("mesh_owner_alert_repeat_hours"), cfg_int("mesh_owner_alert_max_repeats")
+    made = 0
+    for r in d.execute("SELECT a.username, a.label, a.owner_id FROM mesh_accounts a JOIN users u ON u.id = a.owner_id WHERE NOT a.disabled AND NOT u.disabled AND a.username <> ''").fetchall():
+        uid, key = r["owner_id"], "login:" + r["username"]
+        n = {"id": key, "long_name": (r["label"] or r["username"]) + " (broker login)"}
+        p = prefs_of(uid)
+        u = d.execute("SELECT webhook_url FROM users WHERE id=%s", (uid,)).fetchone()
+        s = d.execute("SELECT * FROM mesh_alert_state WHERE user_id=%s AND node_key=%s AND kind='silent'", (uid, key)).fetchone()
+        if r["username"] in bad and p["quiet"]:
+            detail = f"nothing received for {bad[r['username']] // 60} minutes"
+            if s is None:
+                _event(d, uid, key, n, "silent", detail, now, p, email_ok, u)
+                d.execute("INSERT INTO mesh_alert_state (user_id, node_key, kind, since, last_sent, repeats) VALUES (%s,%s,'silent',%s,%s,0)", (uid, key, now, now))
+                made += 1
+            elif s["repeats"] < max_rep and now - s["last_sent"] >= timedelta(hours=repeat_h):
+                _event(d, uid, key, n, "silent", detail + " (still)", now, p, email_ok, u)
+                d.execute("UPDATE mesh_alert_state SET last_sent=%s, repeats=repeats+1 WHERE user_id=%s AND node_key=%s AND kind='silent'", (now, uid, key))
+                made += 1
+        elif s is not None and r["username"] not in bad:
+            if p["recovered"] and p["quiet"]:
+                _event(d, uid, key, n, "back_silent", "sending again", now, p, email_ok, u)
+                made += 1
+            d.execute("DELETE FROM mesh_alert_state WHERE user_id=%s AND node_key=%s AND kind='silent'", (uid, key))
     return made
 
 

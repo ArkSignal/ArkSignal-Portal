@@ -20,4 +20,7 @@
   {% with host = info.host or 'MQTT_SERVER', port = info.port, topic = info.root, user = a.username, pw = password %}{% include "partials/_mesh_cmds.html" %}{% endwith %}
   {% endif %}
 </div>
+<div class="panel" style="margin-top:14px"><h3 style="margin-top:0">Connection Status</h3>
+  {% include "partials/_gw_status.html" %}
+</div>
 {% endblock %}

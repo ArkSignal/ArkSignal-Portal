@@ -1,12 +1,13 @@
 {% extends "base.html" %}
 {% from "partials/_feedsec.html" import sec with context %}
-{% block title %}Mesh Communities{% endblock %}
+{% block title %}Mesh Communities<script nonce="{{ csp_nonce() }}">document.getElementById("roleaccess").addEventListener("submit", function () { this.action = "/mesh/c/" + this.community.value + "/access"; });</script>
+{% endblock %}
 {% block content %}
 <h1><span>Admin</span> Mesh Communities</h1>
 <div class="sub">A community is a named mesh with its own page and a team. You make one and name its Owner; the Owner (and the Managers they choose) run the page, the nodes and the team from the community page. You can always step in from there. <a href="/mesh/communities">Public list</a></div>
 {% include "partials/_admin_subnav.html" %}
 {% call sec('sitefeed', 'Site Private Feed', True, True) %}
-  <p style="margin-top:0">A private feed that belongs to the site itself, not to a community: for gateways you run yourself. It stays hidden. Administrators open it, and so can any site role you give access to under its Site Role Access page. Its nodes appear on the all-communities Private Map.</p>
+  <p style="margin-top:0">A private feed that belongs to the site itself, not to a community: for gateways you run yourself. It stays hidden. Administrators open it, and so can any site role you give access to under its Public or Private page. Its nodes appear on the all-communities Private Map.</p>
   {% if site_feed %}<p style="margin-bottom:0"><a class="btn small" href="/mesh/c/{{ site_feed.slug }}/logins">Broker Logins and Tunnel</a> <a class="btn small neutral" href="/mesh/c/{{ site_feed.slug }}/private-map">Private Map</a> <a class="btn small neutral" href="/mesh/c/{{ site_feed.slug }}/private-nodes">Private Node List</a> <a class="btn small neutral" href="/mesh/c/{{ site_feed.slug }}/forwarding">Public Map Forwarding</a> <a class="btn small neutral" href="/mesh/c/{{ site_feed.slug }}/access">Site Role Access</a></p>
   {% elif private_on %}<form method="post" action="/admin/communities/site-feed"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small" type="submit">Set Up the Site Private Feed</button></form>
   {% else %}<p class="dim" style="margin-bottom:0">Switch the private feed on first (Settings, Mesh Nodes).</p>{% endif %}
@@ -47,4 +48,19 @@
   <p class="dim" style="margin-bottom:0">Start the existing Arkansas meshes as pages an organizer can take over:</p>
   <form method="post" action="/admin/communities/seed"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small neutral" type="submit">Add {{ seeds | map(attribute=0) | join(', ') }}</button></form>
 {% endcall %}
+<details class="panel setsec" id="sec-siteroles" style="margin-top:14px"><summary><span class="role-name">Site Role Access</span></summary><div class="secbody">
+  <p style="margin-top:0">Give a site role (the roles on Admin, Roles) a part in a community, so people who have the role can open it, even a private one, without being on its team. Roles that already have every permission can open every community and are not listed. Communities manage their own people and their own public or private choice on their own pages.</p>
+  {% if grants %}<table><thead><tr><th>Community</th><th>Site role</th><th>Can do there</th><th></th></tr></thead><tbody>
+  {% for g in grants %}<tr><td><a href="/mesh/c/{{ g.slug }}">{{ g.community_name }}</a></td><td>{{ g.role_name }}</td><td>{{ role_label[g.level] }}</td><td><form class="inline" method="post" action="/mesh/c/{{ g.slug }}/access/{{ g.role_id }}/remove" data-confirm="Take access away from {{ g.role_name }}?"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small warn" type="submit">Remove</button></form></td></tr>{% endfor %}</tbody></table>
+  {% else %}<p class="dim">No site role has access to a community yet.</p>{% endif %}
+  <form method="post" id="roleaccess" style="margin-top:10px"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+      <div><label for="ra-c">Community</label><select id="ra-c" name="community" required>{% for r in rows %}<option value="{{ r.slug }}">{{ r.name }}</option>{% endfor %}{% if site_feed %}<option value="{{ site_feed.slug }}">{{ site_feed.name }}</option>{% endif %}</select></div>
+      <div><label for="ra-r">Site role</label><select id="ra-r" name="role_id" required><option value="">Choose a role</option>{% for r in site_roles %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}</select></div>
+      <div><label for="ra-l">May do</label><select id="ra-l" name="level">{% for k, l in grant_levels %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></div>
+      <button class="btn small" type="submit" style="margin:0 0 2px">Give Access</button></div>
+    <p class="dim" style="font-size:.85rem;margin-bottom:0">Viewer sees health and statistics. Node Operator also sees the private map and runs the nodes, logins and channels. Editor runs the page. Manager does all of it except hand out Owner.</p>
+  </form>
+</div></details>
+<script nonce="{{ csp_nonce() }}">document.getElementById("roleaccess").addEventListener("submit", function () { this.action = "/mesh/c/" + this.community.value + "/access"; });</script>
 {% endblock %}

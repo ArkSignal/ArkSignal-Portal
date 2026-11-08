@@ -8,6 +8,7 @@ position on purpose, signed with its own key, which is checked) are used; every 
 The broker is our own (the mosquitto container in the same stack) unless the portal's settings point the service at another one the site is allowed to read.
 """
 import base64
+import datetime
 import hashlib
 import json
 import math
@@ -44,6 +45,7 @@ DEFAULTS = {"enabled": "1", "host": "mesh-mqtt", "port": "1883", "user": "", "pa
             "hw_source": "https://raw.githubusercontent.com/meshtastic/protobufs/master/meshtastic/mesh.proto", "hw_refresh_hours": "24", "private_fwd": "{}", "private_root": "mshp", "private_enabled": "0", "exports": "[]", "export_enabled": "0"}
 STATE = {"connected": False, "packets": 0, "decoded": 0, "encrypted": 0, "stored": 0, "outside": 0, "mc_packets": 0, "mc_adverts": 0, "mc_dropped": 0, "mc_badsig": 0, "links": 0, "public_dropped": 0, "public_coarsened": 0, "since": time.time(), "last": None, "error": "", "reconnects": 0, "up_connected": False, "up_error": "", "up_reconnects": 0, "fwd_sent": 0, "fwd_dropped": 0, "fwd_error": "", "p_packets": 0, "p_stored": 0, "p_public": 0, "p_withheld": 0, "p_encrypted": 0}
 _cfg = {}
+UP_STAT = {}   # what each broker the service reads has sent: own, up_ (the public Meshtastic server)
 _lock = threading.Lock()
 
 PORT_MAP_REPORT, PORT_POSITION, PORT_NODEINFO, PORT_TELEMETRY, PORT_NEIGHBORINFO = 73, 3, 4, 67, 71
@@ -119,6 +121,7 @@ def init_db():
                     region INT, modem_preset INT, lat DOUBLE PRECISION, lon DOUBLE PRECISION, alt INT, precision_bits INT, online_local INT, battery INT, voltage REAL, channel_util REAL, air_util REAL, uptime INT,
                     first_seen TIMESTAMPTZ NOT NULL DEFAULT now(), last_seen TIMESTAMPTZ NOT NULL DEFAULT now(), last_report TIMESTAMPTZ, packets INT NOT NULL DEFAULT 0)""")
                 c.execute("ALTER TABLE nodes ADD COLUMN IF NOT EXISTS community TEXT NOT NULL DEFAULT ''")
+                c.execute("ALTER TABLE nodes ADD COLUMN IF NOT EXISTS public_direct BOOLEAN NOT NULL DEFAULT FALSE")   # heard on the public side of a broker itself (not only passed on from a private feed)
                 c.execute("CREATE INDEX IF NOT EXISTS nodes_seen ON nodes (last_seen DESC)")
                 c.execute("""CREATE TABLE IF NOT EXISTS heard (node_id BIGINT NOT NULL, gateway TEXT NOT NULL, snr REAL, rssi INT, best_snr REAL, ts TIMESTAMPTZ NOT NULL DEFAULT now(), count INT NOT NULL DEFAULT 1,
                     PRIMARY KEY (node_id, gateway))""")
@@ -130,12 +133,16 @@ def init_db():
                 c.execute("""CREATE TABLE IF NOT EXISTS links (a BIGINT NOT NULL, b BIGINT NOT NULL, snr REAL, last_seen TIMESTAMPTZ NOT NULL DEFAULT now(), reported_by TEXT NOT NULL DEFAULT '', count INT NOT NULL DEFAULT 1,
                     PRIMARY KEY (a, b))""")
                 c.execute("CREATE INDEX IF NOT EXISTS links_seen ON links (last_seen DESC)")
+                c.execute("CREATE TABLE IF NOT EXISTS gw_status (username TEXT PRIMARY KEY, clientid TEXT NOT NULL DEFAULT '', connected BOOLEAN NOT NULL DEFAULT FALSE, since TIMESTAMPTZ, last_disconnect TIMESTAMPTZ, last_packet TIMESTAMPTZ, packets BIGINT NOT NULL DEFAULT 0, refused_at TIMESTAMPTZ, refused_n INT NOT NULL DEFAULT 0)")
                 c.execute("CREATE TABLE IF NOT EXISTS hidden (node_key TEXT PRIMARY KEY, reason TEXT NOT NULL DEFAULT '', added TIMESTAMPTZ NOT NULL DEFAULT now())")
                 c.execute("""CREATE TABLE IF NOT EXISTS node_history (node_id BIGINT NOT NULL, ts TIMESTAMPTZ NOT NULL DEFAULT now(), battery REAL, voltage REAL, channel_util REAL, air_util REAL, temp_c REAL, humidity REAL,
                     pressure_hpa REAL, gas_ohm REAL, iaq REAL, lux REAL, wind_dir REAL, wind_ms REAL, gust_ms REAL, rain_1h_mm REAL)""")
                 c.execute("CREATE INDEX IF NOT EXISTS node_history_node_ts ON node_history (node_id, ts DESC)")
                 # the private feed (request 205): the same shape as the public tables, kept apart so no public page can read them
                 c.execute("CREATE TABLE IF NOT EXISTS pnodes (LIKE nodes INCLUDING ALL)")
+                for t in ("nodes", "pnodes"):   # how the node was last heard: the gateway whose packet it was, and which broker it came through (own, up = the public Meshtastic server, private)
+                    c.execute(f"ALTER TABLE {t} ADD COLUMN IF NOT EXISTS last_gateway TEXT NOT NULL DEFAULT ''")
+                    c.execute(f"ALTER TABLE {t} ADD COLUMN IF NOT EXISTS last_source TEXT NOT NULL DEFAULT ''")
                 c.execute("CREATE TABLE IF NOT EXISTS pheard (LIKE heard INCLUDING ALL)")
             return
         except Exception as e:
@@ -448,6 +455,9 @@ def community_of(topic):
     return parts[0] if len(parts) >= 3 and parts[1] == "2" and SLUG_RE.match(parts[0]) else ""
 
 
+_CTX = threading.local()   # via_private: this packet is the private feed's packet being passed on to the public path, not one heard on the public side
+
+
 def _store(c, node, upd, gw, snr, rssi, telemetry, hist=None, topic="", private=False, com=None):
     """Write what one packet said about a node and which gateway heard it. Returns "ignored" when it adds or places nothing, else None."""
     tn, th = ("pnodes", "pheard") if private else ("nodes", "heard")   # the private feed is kept in tables of its own
@@ -460,6 +470,10 @@ def _store(c, node, upd, gw, snr, rssi, telemetry, hist=None, topic="", private=
         com = community_of(topic) if topic else ""
     if com:
         upd = dict(upd, community=com)
+    if gw:
+        upd = dict(upd, last_gateway=gw[:20], last_source=getattr(_CTX, "source", "") or ("private" if private else "own"))
+    if not private and not getattr(_CTX, "via_private", False):
+        upd = dict(upd, public_direct=True)   # anything heard on the public side of a broker is public, whatever community topic it came in on
     for k, v in upd.items():
         if k == "last_report":
             sets.append("last_report=now()")
@@ -1001,6 +1015,7 @@ def handle_private(topic, raw):
     if com is None or cfg("private_enabled") != "1":
         return "ignored"
     export_packet(topic, raw, "private")
+    _CTX.source = "private"
     r = handle(raw, topic, True, com)
     if r != "stored":
         return r
@@ -1010,11 +1025,18 @@ def handle_private(topic, raw):
         return "private"
     pt = public_topic(com, topic)
     export_packet(pt, raw, "public", True)   # what the public rules would have carried also goes to the connectors that ask for the public feed
-    if handle(raw, pt) != "stored":
+    _CTX.via_private = True
+    _CTX.source = "private"
+    try:
+        res = handle(raw, pt)
+    finally:
+        _CTX.via_private = False
+        _CTX.source = "own"
+    if res != "stored":
         STATE["p_withheld"] += 1
         return "private"   # the public rules turned it down (outside the area, a port the public server does not carry)
     try:
-        forward(pt, raw)
+        forward(pt, raw, com)
     except Exception as ex:
         STATE["fwd_error"] = str(ex)[:80]
     STATE["p_public"] += 1
@@ -1225,6 +1247,11 @@ def ensure_base():
         {"command": "addRoleACL", "rolename": "reader", "acltype": "subscribePattern", "topic": "meshcore/#", "allow": True},
         {"command": "addRoleACL", "rolename": "reader", "acltype": "publishClientReceive", "topic": "msh/#", "allow": True},
         {"command": "addRoleACL", "rolename": "reader", "acltype": "publishClientReceive", "topic": "meshcore/#", "allow": True},
+        # the broker's own log of connections (which gateway logged in, left or was refused): the status of each login
+        {"command": "addRoleACL", "rolename": "reader", "acltype": "subscribeLiteral", "topic": "$SYS/broker/log/N", "allow": True},
+        {"command": "addRoleACL", "rolename": "reader", "acltype": "publishClientReceive", "topic": "$SYS/broker/log/N", "allow": True},
+        {"command": "addRoleACL", "rolename": "reader", "acltype": "subscribeLiteral", "topic": "$SYS/broker/log/I", "allow": True},
+        {"command": "addRoleACL", "rolename": "reader", "acltype": "publishClientReceive", "topic": "$SYS/broker/log/I", "allow": True},
         # the private feed (request 205): the service reads it to keep it apart from the public one
         {"command": "addRoleACL", "rolename": "reader", "acltype": "subscribePattern", "topic": (cfg("private_root").strip("/") or "mshp") + "/#", "allow": True},
         {"command": "addRoleACL", "rolename": "reader", "acltype": "publishClientReceive", "topic": (cfg("private_root").strip("/") or "mshp") + "/#", "allow": True},
@@ -1363,6 +1390,141 @@ def base_loop():
         time.sleep(15 if not STATE.get("broker_ready") else 60)
 
 
+# ------------------------------------------------------------------ which gateways are working (request 218)
+# The broker writes its own log to $SYS/broker/log/N (log_dest topic): a login connecting (with its client id, which a Meshtastic node sets to its own node id), disconnecting, being refused. The service
+# keeps one row for each login in gw_status, ties each packet's gateway id to the login that used that client id, and counts what became of the packets (kept, encrypted, held back...).
+GW = {}   # gateway id (lower case, no !) -> {last, n, hour: [timestamps], out: {outcome: count}}
+GW_OUT_KEEP = 5000
+_GWLOCK = threading.Lock()
+LOGIN = {}   # login name -> {clientid, connected, since, last_disconnect, refused_at, refused_n, packets, last_packet}
+CLIENT_USER = {}   # client id (lower case, no !) -> login name
+GW_FEED = {"at": 0.0}   # when the last broker log line arrived (0: the broker does not send its log: an older broker image)
+GW_DIRTY = set()
+CONNECT_RE = re.compile(r"New client connected from (\S+) as (.+?) \(p\d+, c\d+, k\d+(?:, u'(.*)')?\)")
+CLOSE_RE = re.compile(r"^Client (\S+)(?: \[\S+\])? (?:closed its connection|disconnected|has exceeded timeout|has been disconnected|already connected)")
+REFUSE_RE = re.compile(r"(?:^Client (\S+)(?: \[\S+\])? disconnected[,:] not authori[sz]ed)|(?:not authori[sz]ed.*?\bas (\S+))|(?:Connection refused.*?\bas (\S+))")
+
+
+def gw_key(x):
+    return (x or "").strip().lstrip("!").lower()
+
+
+def gw_note(gwid, outcome):
+    """One packet from a gateway (the id the topic names) and what became of it."""
+    k = gw_key(gwid)
+    if not k or len(k) > 40:
+        return
+    now = time.time()
+    with _GWLOCK:
+        g = GW.get(k)
+        if g is None:
+            if len(GW) > 2000:
+                return
+            g = GW[k] = {"last": 0.0, "n": 0, "hour": [], "out": {}}
+        g["last"] = now
+        g["n"] += 1
+        g["hour"].append(now)
+        if len(g["hour"]) > GW_OUT_KEEP:
+            del g["hour"][:len(g["hour"]) - GW_OUT_KEEP]
+        g["out"][outcome] = g["out"].get(outcome, 0) + 1
+        u = CLIENT_USER.get(k)
+        if u:
+            L = LOGIN.setdefault(u, {"clientid": k})
+            L["last_packet"] = now
+            L["packets"] = L.get("packets", 0) + 1
+            GW_DIRTY.add(u)
+
+
+def gw_log_line(text):
+    """One line of the broker's log: update the login's connection state."""
+    GW_FEED["at"] = time.time()
+    now = time.time()
+    text = re.sub(r"^\d+:\s*", "", text)   # the broker puts its own time stamp first
+    m = CONNECT_RE.search(text)
+    if m:
+        cid, user = gw_key(m.group(2)), (m.group(3) or "")
+        if user and user not in SYSTEM_USERS:
+            with _GWLOCK:
+                CLIENT_USER[cid] = user
+                L = LOGIN.setdefault(user, {})
+                L.update(clientid=cid, connected=True, since=now)
+                GW_DIRTY.add(user)
+        return
+    m = REFUSE_RE.search(text)
+    if m:
+        cid = gw_key(next(x for x in m.groups() if x))
+        with _GWLOCK:
+            user = CLIENT_USER.get(cid)
+            L = LOGIN.setdefault(user or "?" + cid, {"clientid": cid})
+            L["refused_at"] = now
+            L["refused_n"] = L.get("refused_n", 0) + 1
+            L["connected"] = False
+            GW_DIRTY.add(user or "?" + cid)
+        return
+    m = CLOSE_RE.search(text)
+    if m:
+        cid = gw_key(m.group(1))
+        with _GWLOCK:
+            user = CLIENT_USER.get(cid)
+            if user:
+                L = LOGIN.setdefault(user, {})
+                L.update(connected=False, last_disconnect=now)
+                GW_DIRTY.add(user)
+
+
+def gw_flush():
+    """Write the logins that changed to gw_status (every half minute)."""
+    with _GWLOCK:
+        todo = {u: dict(LOGIN.get(u, {})) for u in GW_DIRTY}
+        GW_DIRTY.clear()
+    if not todo:
+        return
+    ts = lambda v: datetime.datetime.fromtimestamp(v, datetime.timezone.utc) if v else None
+    with db() as c:
+        for u, L in todo.items():
+            c.execute("INSERT INTO gw_status (username, clientid, connected, since, last_disconnect, last_packet, packets, refused_at, refused_n) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) "
+                      "ON CONFLICT (username) DO UPDATE SET clientid=EXCLUDED.clientid, connected=EXCLUDED.connected, since=EXCLUDED.since, last_disconnect=EXCLUDED.last_disconnect, "
+                      "last_packet=EXCLUDED.last_packet, packets=EXCLUDED.packets, refused_at=EXCLUDED.refused_at, refused_n=EXCLUDED.refused_n",
+                      (u, L.get("clientid", ""), bool(L.get("connected")), ts(L.get("since")), ts(L.get("last_disconnect")), ts(L.get("last_packet")), int(L.get("packets", 0)), ts(L.get("refused_at")), int(L.get("refused_n", 0))))
+
+
+def gw_load():
+    """Read gw_status back at start (a restart of the service forgets nothing the logins did before it)."""
+    with db() as c:
+        for r in c.execute("SELECT * FROM gw_status").fetchall():
+            tt = lambda v: v.timestamp() if v else 0
+            with _GWLOCK:
+                LOGIN[r["username"]] = {"clientid": r["clientid"], "connected": False, "since": tt(r["since"]), "last_disconnect": tt(r["last_disconnect"]), "last_packet": tt(r["last_packet"]), "packets": r["packets"],
+                                        "refused_at": tt(r["refused_at"]), "refused_n": r["refused_n"]}
+                if r["clientid"] and not r["username"].startswith("?"):
+                    CLIENT_USER[r["clientid"]] = r["username"]
+
+
+def gw_status(user=None):
+    """{log_feed, logins: {login: {...}}}: connected now, since, last packet (seconds ago), packets in the last hour and in all, what became of them, refusals. user limits it to one login."""
+    now = time.time()
+    out = {}
+    with _GWLOCK:
+        for u, L in LOGIN.items():
+            if user and u != user:
+                continue
+            g = GW.get(L.get("clientid", "")) or {}
+            hour = [t for t in g.get("hour", []) if now - t < 3600]
+            ago = lambda v: int(now - v) if v else None
+            out[u] = {"connected": bool(L.get("connected")) and GW_FEED["at"] > 0, "since_ago": ago(L.get("since")), "last_disconnect_ago": ago(L.get("last_disconnect")), "last_packet_ago": ago(L.get("last_packet")),
+                      "packets_hour": len(hour), "packets": int(L.get("packets", 0)), "outcomes": dict(g.get("out", {})), "refused_ago": ago(L.get("refused_at")), "refused": int(L.get("refused_n", 0)), "clientid": L.get("clientid", "")}
+    return {"log_feed": GW_FEED["at"] > 0 and now - GW_FEED["at"] < 7 * 86400, "log_feed_ago": int(now - GW_FEED["at"]) if GW_FEED["at"] else None, "logins": out}
+
+
+def gw_flusher():
+    while True:
+        time.sleep(30)
+        try:
+            gw_flush()
+        except Exception as e:
+            print("gateway status flush failed:", str(e)[:100], flush=True)
+
+
 # ------------------------------------------------------------------ MQTT
 
 def reader(pfx=""):
@@ -1383,6 +1545,8 @@ def reader(pfx=""):
                 client.subscribe(t)
             if not pfx:
                 client.subscribe((cfg("private_root").strip("/") or "mshp") + "/#")
+                client.subscribe("$SYS/broker/log/I")
+                client.subscribe("$SYS/broker/log/N")   # the broker's own log: which logins connect, leave or are refused (a broker without the log topic just sends nothing)
 
     def on_disconnect(client, userdata, *a):
         STATE[pfx + "connected"] = False
@@ -1390,8 +1554,23 @@ def reader(pfx=""):
 
     def on_message(client, userdata, msg):
         try:
+            if msg.topic.startswith("$SYS/"):
+                if not pfx and msg.topic.startswith("$SYS/broker/log/"):
+                    gw_log_line(msg.payload.decode("utf-8", "replace")[:300])
+                return
+            _CTX.source = "up" if pfx else "own"
+            UP_STAT.setdefault(pfx or "own", {"msgs": 0, "last": None, "regions": {}, "results": {}})
+            us = UP_STAT[pfx or "own"]
+            us["msgs"] += 1
+            us["last"] = time.time()
+            reg = "/".join(msg.topic.split("/")[:3])
+            us["regions"][reg] = us["regions"].get(reg, 0) + 1
+            gwt = msg.topic.rsplit("/", 1)[-1] if ("/2/e/" in msg.topic or "/2/map/" in msg.topic or "/2/json/" in msg.topic) else ""
             if not pfx and private_parts(msg.topic)[0] is not None:
-                handle_private(msg.topic, msg.payload)
+                res = handle_private(msg.topic, msg.payload)
+                us["results"][res] = us["results"].get(res, 0) + 1
+                if gwt:
+                    gw_note(gwt, res)
                 return
             if not pfx:
                 try:
@@ -1407,11 +1586,15 @@ def reader(pfx=""):
                 except Exception as ex:
                     STATE["relay_error"] = str(ex)[:80]
             if msg.topic.startswith("meshcore/"):
-                handle_meshcore(msg.topic, msg.payload)
+                res = handle_meshcore(msg.topic, msg.payload)
             elif "/2/json/" in msg.topic:
-                handle_json(msg.topic, msg.payload)
+                res = handle_json(msg.topic, msg.payload)
             else:
-                handle(msg.payload, msg.topic)
+                res = handle(msg.payload, msg.topic)
+            res = res if isinstance(res, str) else "stored"
+            us["results"][res] = us["results"].get(res, 0) + 1
+            if gwt and not pfx:
+                gw_note(gwt, res)
         except Exception as ex:
             STATE[pfx + "error"] = "handling a packet failed: " + str(ex)[:80]
 
@@ -1448,6 +1631,12 @@ def reader(pfx=""):
                 cur[0] = (client, sig)
             except Exception as ex:
                 STATE[pfx + "error"] = "cannot start the MQTT client: " + str(ex)[:80]
+        if not pfx and cur[0] is not None and STATE.get("connected"):
+            try:   # the broker's log topics are allowed by a rule the service adds after it first connects: ask again until they are
+                for t in ("$SYS/broker/log/I", "$SYS/broker/log/N"):
+                    cur[0][0].subscribe(t)
+            except Exception:
+                pass
         time.sleep(10)
 
 
@@ -1477,60 +1666,119 @@ def _fwd_client():
         cl.reconnect_delay_set(2, 60)
         cl.connect_async(sig[0], int(sig[1]), 60)
         cl.loop_start()
+        for _ in range(40):   # a packet published before the connection is up is lost: wait for it (up to four seconds)
+            if cl.is_connected():
+                break
+            time.sleep(0.1)
         _FWD["client"], _FWD["sig"] = cl, sig
         return cl
 
 
-def forward_target(topic):
-    """The public topic a community packet is forwarded to, or None when its community is not forwarding (or the topic is not a node's uplink)."""
+FWD_LOG = {"since": time.time(), "last_sent": None, "last_error_at": None, "recent": [], "reasons": {}, "chan": {}, "port": {}, "src": {"public": 0, "private": 0}, "connected": None}
+_FLOG_LOCK = threading.Lock()
+
+
+def _fnote(result, e, topic, target="", reason="", src="public"):
+    """Remember what forwarding did with one packet (for the Public Server status page): counts by result, channel and message type, and the last few packets."""
+    with _FLOG_LOCK:
+        L = FWD_LOG
+        if result == "sent":
+            L["last_sent"] = time.time()
+            L["src"][src] = L["src"].get(src, 0) + 1
+            if e:
+                L["chan"][e["channel"]] = L["chan"].get(e["channel"], 0) + 1
+                pn = str(e["portnum"] if e["portnum"] is not None else "encrypted")
+                L["port"][pn] = L["port"].get(pn, 0) + 1
+        else:
+            L["reasons"][reason or result] = L["reasons"].get(reason or result, 0) + 1
+        if result == "error":
+            L["last_error_at"] = time.time()
+        L["recent"].append({"t": time.time(), "result": result, "reason": reason, "src": src, "node": ("!%08x" % e["node"]) if e else "", "channel": e["channel"] if e else "",
+                            "portnum": e["portnum"] if e else None, "target": target})
+        del L["recent"][:-30]
+
+
+def forward_target(topic, via=None):
+    """The public Meshtastic server's topic a packet is forwarded to, or None. With the site switch on, anything heard on the public side of our broker goes (whatever community topic it came in on);
+    a packet from a community's private feed (via = the community) goes only when that community chose to pass its private data on."""
     if cfg("fwd_enabled") != "1":
         return None
-    com = community_of(topic)
-    if not com or com not in {x.strip() for x in cfg("fwd_communities").split(",") if x.strip()}:
+    root = (cfg("publish_root").strip("/") or "msh") + "/"
+    if not topic.startswith(root):
         return None
-    root = (cfg("publish_root").strip("/") or "msh") + "/" + com + "/"
-    rest = topic[len(root):]
+    if via is not None and via not in {x.strip() for x in cfg("fwd_communities").split(",") if x.strip()}:
+        return None
+    com = community_of(topic)
+    rest = topic[len(root) + (len(com) + 1 if com else 0):]
     return (cfg("fwd_root").strip("/") or "msh") + "/" + rest if rest.startswith(("2/e/", "2/map/")) else None
 
 
-def forward_allowed(topic, raw):
-    """The public server's rules for one packet: an encrypted packet only on a default-key channel it lists, a decoded one only with an allowed port number and a position no more exact than allowed."""
+def forward_decision(topic, raw):
+    """(allowed, reason) under the public server's rules for one packet: an encrypted packet only on a default-key channel it lists, a decoded one only with an allowed port number and a position no more
+    exact than allowed. The reason says why not."""
     if "/2/map/" in topic:
         e = decode_envelope(raw)
         if e is None or e["portnum"] != PORT_MAP_REPORT:
-            return False
+            return False, "not a map report"
         bits = decode_map_report(e["payload"]).get("precision_bits")
-        return bits is not None and bits <= int(cfg("public_max_bits"))
+        return (True, "") if bits is not None and bits <= int(cfg("public_max_bits")) else (False, "map report more exact than allowed")
     e = decode_envelope(raw)
     if e is None:
-        return False
+        return False, "not a packet"
     if cfg("public_rules") != "1" or not is_public(e["channel"]):
-        return False   # only the default-key channels the public server lists: a private channel is never forwarded
+        return False, "channel not a public one"   # only the default-key channels the public server lists: a private channel is never forwarded
     if e["encrypted"] or e["portnum"] is None:
-        return True
+        return True, ""
     if not port_allowed(e["channel"], e["portnum"]):
-        return False
+        return False, "message type not carried"
     if e["portnum"] == PORT_POSITION:
         bits = decode_position(e["payload"]).get("precision_bits")
-        return bits is not None and bits <= int(cfg("public_max_bits"))
-    return True
+        return (True, "") if bits is not None and bits <= int(cfg("public_max_bits")) else (False, "position more exact than allowed")
+    return True, ""
 
 
-def forward(topic, raw):
-    target = forward_target(topic)
+def forward_allowed(topic, raw):
+    return forward_decision(topic, raw)[0]
+
+
+def forward(topic, raw, via=None):
+    src = "private" if via is not None else "public"
+    target = forward_target(topic, via)
     if target is None:
         return None
-    if not forward_allowed(topic, raw):
+    e = decode_envelope(raw)
+    if e is not None and e["gateway"] == cfg("relay_gateway"):
+        return None   # what this service published itself is never sent on
+    ok, why = forward_decision(topic, raw)
+    if not ok:
         STATE["fwd_dropped"] += 1
+        _fnote("dropped", e, topic, target, why, src)
         return "dropped"
     try:
-        _fwd_client().publish(target, raw, qos=0, retain=False)
+        info = _fwd_client().publish(target, raw, qos=0, retain=False)
+        if info.rc != 0:
+            raise RuntimeError("not connected to the public server")
         STATE["fwd_sent"] += 1
         STATE["fwd_error"] = ""
+        _fnote("sent", e, topic, target, "", src)
         return "sent"
     except Exception as ex:
         STATE["fwd_error"] = str(ex)[:80]
+        _fnote("error", e, topic, target, str(ex)[:60], src)
         return "error"
+
+
+def forward_status():
+    """What forwarding to the public Meshtastic server is doing: the switch, whether the connection is up, what was sent and why packets were held back."""
+    cl = _FWD["client"]
+    with _FLOG_LOCK:
+        L = json.loads(json.dumps(FWD_LOG))
+    now = time.time()
+    L["last_sent_ago"] = int(now - L["last_sent"]) if L.get("last_sent") else None
+    for r in L["recent"]:
+        r["ago"] = int(now - r["t"])
+    return {"enabled": cfg("fwd_enabled") == "1", "host": cfg("up_host"), "port": cfg("up_port"), "root": cfg("fwd_root"), "connected": bool(cl is not None and cl.is_connected()), "client_started": cl is not None,
+            "sent": STATE["fwd_sent"], "dropped": STATE["fwd_dropped"], "error": STATE["fwd_error"], "log": L, "uptime": time.time() - L["since"]}
 
 
 # ------------------------------------------------------------------ sending packets ourselves: the alert and weather channel (and, later, relayed packets)
@@ -1913,6 +2161,15 @@ class H(BaseHTTPRequestHandler):
                 return self.send({"ok": True, "version": VERSION, "connected": STATE["connected"], "since": int(STATE["since"]), "broker_ready": bool(STATE.get("broker_ready"))})
             if p == "/links/stats":
                 return self.send({"ok": True, "links": dict(_RELAY["stats"]), "active": len([l for l in links() if not l.get("paused")]), "error": STATE.get("relay_error", "")})
+            if p == "/forward/status":   # forwarding to the public Meshtastic server: the switch, the connection, what was sent and why packets were held back
+                return self.send(forward_status())
+            if p == "/upstream/status":   # reading the public Meshtastic server (and our own broker): connection, messages, regions, what became of them
+                return self.send(upstream_status())
+            if p == "/gateways":   # every login's connection state and packet counts
+                return self.send(gw_status())
+            m = re.match(r"^/gateways/([^/]+)$", p)
+            if m:
+                return self.send(gw_status(urllib.parse.unquote(m.group(1))))
             if p == "/stats":
                 with db() as c:
                     n = c.execute("SELECT COUNT(*) AS n, COUNT(*) FILTER (WHERE last_seen > now() - interval '1 hour') AS hour, COUNT(*) FILTER (WHERE last_seen > now() - interval '24 hours') AS day, "
@@ -2076,7 +2333,8 @@ class H(BaseHTTPRequestHandler):
                 return self.send({"ok": True, "result": handle_json(str(b.get("topic") or ""), str(b.get("payload") or ""))})
             if p == "/forward_check":   # what forwarding would do with one packet, without sending it (for tests): {topic, envelope_b64}
                 raw = base64.b64decode(b.get("envelope_b64") or "")
-                t = forward_target(str(b.get("topic") or ""))
+                via = b.get("via") if b.get("via") else None   # a community's address: the packet came from its private feed
+                t = forward_target(str(b.get("topic") or ""), via)
                 return self.send({"ok": True, "target": t, "allowed": bool(t) and forward_allowed(str(b.get("topic") or ""), raw)})
             if p == "/publish":   # a finished, encrypted packet for a community's channel: {community, channel, envelope_b64}
                 try:
@@ -2159,9 +2417,28 @@ class H(BaseHTTPRequestHandler):
             return self.send({"error": str(e)[:200]}, 500)
 
 
+def upstream_status():
+    """What the service reads from the public Meshtastic server (up_) and from our own broker (own)."""
+    now = time.time()
+    out = {}
+    for k, label in (("up_", "up_"), ("", "own")):
+        us = UP_STAT.get(label, {})
+        regs = sorted(us.get("regions", {}).items(), key=lambda kv: -kv[1])[:40]
+        out[label] = {"connected": bool(STATE.get(k + "connected")), "error": STATE.get(k + "error", ""), "reconnects": STATE.get(k + "reconnects", 0), "msgs": us.get("msgs", 0),
+                      "last_ago": int(now - us["last"]) if us.get("last") else None, "regions": regs, "results": us.get("results", {})}
+    with db() as c:
+        n = c.execute("SELECT COUNT(*) AS n, COUNT(*) FILTER (WHERE last_seen > now() - interval '24 hours') AS day, COUNT(*) FILTER (WHERE public_direct) AS direct, COUNT(*) FILTER (WHERE public_direct AND last_seen > now() - interval '24 hours') AS direct_day FROM nodes").fetchone()
+    return {"enabled": cfg("up_enabled") == "1", "host": cfg("up_host"), "port": cfg("up_port"), "tls": cfg("up_tls") == "1", "topics": cfg("up_topic"), "area": {k: cfg(k) for k in ("south", "west", "north", "east")},
+            "nodes": dict(n), "since_ago": int(now - STATE["since"]), **out}
+
+
 def main():
     init_db()
-    for fn in (reader, lambda: reader("up_"), pruner, base_loop, hw_loop, export_loop):
+    try:
+        gw_load()
+    except Exception as e:
+        print("gateway status not loaded:", str(e)[:100], flush=True)
+    for fn in (reader, lambda: reader("up_"), pruner, base_loop, hw_loop, export_loop, gw_flusher):
         threading.Thread(target=fn, daemon=True).start()
     print(f"arksignal-mesh {VERSION} listening on {PORT}", flush=True)
     ThreadingHTTPServer(("0.0.0.0", PORT), H).serve_forever()

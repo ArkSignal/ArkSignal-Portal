@@ -4,7 +4,7 @@
 {% block title %}{{ 'Nets' if kind == 'net' else 'Winlink Gateways' }}{% endblock %}
 {% block content %}
 <h1><span>Admin</span> {{ 'Nets' if kind == 'net' else 'Winlink Gateways' }}</h1>
-<div class="sub">The {{ 'nets' if kind == 'net' else 'Winlink gateways' }} members have added to <a href="{{ '/radio/nets' if kind == 'net' else '/radio/winlink' }}">the public page</a>: check what is waiting, edit, hide or delete, and add one for a member. Editors (the Moderate Repeaters permission) and administrators can do all of this; every change is in the audit log. Whether new entries wait for an editor is in <a href="/admin/settings/radio#sec-nets-and-gateways">Settings &gt; Nets and Gateways</a>.</div>
+<div class="sub">The {{ 'nets' if kind == 'net' else 'Winlink gateways' }} members have added to <a href="{{ '/radio/nets' if kind == 'net' else '/radio/winlink' }}">the public page</a>: check what is waiting, edit, hide or delete, and add one for a member. Editors (the Moderate Repeaters permission) and administrators can do all of this; every change is in the audit log. Whether new entries wait for an editor is in <a href="/admin/settings/mesh#sec-nets-and-gateways">Settings &gt; Nets and Gateways</a>.</div>
 {% include "partials/_admin_subnav.html" %}
 
 {% call sec('add-for-member', 'Add One for a Member', False) %}

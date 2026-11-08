@@ -6,7 +6,8 @@ Add a new settings section to the service it belongs to here; one that is not li
 SERVICES = [
     ("aircraft", "Aircraft and Feeders", ["ACARS", "Feeders", "Feeders and Claiming", "Achievements", "Kiosk Display", "Feeder Filter", "Aircraft Lookups", "Flight History", "History", "Range Statistics", "Alerts", "Interesting Aircraft", "Air Ambulance", "Drones"]),
     ("weather", "Weather and Balloons", ["Weather Stations", "Radiosondes", "Prediction Service"]),
-    ("radio", "Radio", ["Repeaters", "APRS", "Mesh Nodes", "Space Weather", "Satellites", "Nets and Gateways", "River Traffic"]),
+    ("radio", "Radio", ["Repeaters", "APRS", "Space Weather", "Satellites", "Nets and Gateways", "River Traffic"]),
+    ("mesh", "Mesh", ["Mesh Nodes"]),
     ("mapdata", "Map and Data", ["Map Defaults", "Map Areas", "Home Page and Live Map", "Map Tiles and Weather", "Hospitals", "Places and Search", "Address Finders", "Counties", "Map Data", "Routing"]),
     ("updates", "Updates", ["Scheduled Updates", "Backups"]),
     ("site", "General", ["General", "Display", "Units", "Themes", "Public Pages", "Contacts", "Accounts", "Security", "Service Status", "Data Retention", "Shopping Links", "My Flights", "API"]),

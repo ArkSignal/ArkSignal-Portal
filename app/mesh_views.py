@@ -1,6 +1,7 @@
 """Mesh node pages: the overview list, the map, a node's page, the Join guide, and the administrators' page (service status, applying settings, the takedown list).
 The logic is in mesh.py; the data comes from the mesh service container."""
 import re
+import urllib.parse
 
 from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
@@ -177,8 +178,19 @@ def node_page(nid):
     if not ID_RE.match(nid):
         abort(404)
     d = ms.node(nid if nid.startswith("mc-") else "!" + nid.lstrip("!"))
-    if d is None:
+    if d is not None:
+        d["node"]["via"], d["node"]["via_long"] = ms.via_text(d["node"], {"!" + h["gateway"].lstrip("!"): h.get("name") or "" for h in d.get("heard_by", [])}, True)
+    pv = None
+    if not nid.startswith("mc-") and current_user.is_authenticated:
+        from .communities import private_node_for_me
+        pv = private_node_for_me(nid)   # what the private feed knows of it, for the people who may see that (administrators: every community)
+    if d is None and pv is None:
         abort(404)
+    if pv is not None:
+        audit("community.privatenode", target="!" + nid.lstrip("!").lower(), detail="opened a node's private data")
+    private_only = d is None
+    if private_only:
+        d = {"node": pv["node"], "heard_by": [], "gateway_for": [], "neighbors": []}
     hid = {h["node_key"] for h in ms.hidden()}
     nb = [x for x in d.get("neighbors", []) if x["id"] not in hid] if cfg("mesh_links_show") == "1" else []
     from . import weather as wx
@@ -186,7 +198,7 @@ def node_page(nid):
     if period not in wx.PERIODS:
         period = "24h"
     charts = [] if nid.startswith("mc-") else _node_charts("!" + nid.lstrip("!"), period)
-    return render_template("mesh_node.html", charts=charts, keep_days=cfg_int("mesh_history_keep_days"), period=period, periods=wx.PERIODS, n=d["node"], heard=d["heard_by"], gateway_for=d["gateway_for"], neighbors=nb, owners=ms.owners_of_node(nid), credit=ms.CREDIT, colors=ms.ROLE_COLORS, my_claim=_my_claim(nid))
+    return render_template("mesh_node.html", charts=charts, keep_days=cfg_int("mesh_history_keep_days"), period=period, periods=wx.PERIODS, n=d["node"], heard=d["heard_by"], gateway_for=d["gateway_for"], neighbors=nb, owners=ms.owners_of_node(nid), credit=ms.CREDIT, colors=ms.ROLE_COLORS, my_claim=_my_claim(nid), pv=pv, private_only=private_only)
 
 
 def _my_claim(nid):
@@ -296,7 +308,7 @@ def my_mesh():
     from .mailer import smtp_configured
     hook = d.execute("SELECT webhook_url FROM users WHERE id=%s", (current_user.id,)).fetchone()
     na = dict(on=ma.on(), prefs=ma.prefs_of(current_user.id), events=alerts, kinds=ma.KINDS, smtp=smtp_configured(), webhook=bool(hook and hook["webhook_url"]), off_h=cfg_int("mesh_offline_hours"), low=cfg_int("mesh_low_battery_pct"))
-    return render_template("my_mesh.html", na=na, claims=ms.claims_of(current_user.id), slug=ms.claim_slug, rows=rows, full=len(rows) >= lim, limit=lim, add_open=request.args.get("add") == "1" or not rows, conn=_connect())
+    return render_template("my_mesh.html", na=na, claims=ms.claims_of(current_user.id), slug=ms.claim_slug, rows=rows, full=len(rows) >= lim, limit=lim, add_open=request.args.get("add") == "1" or not rows, conn=_connect(), gwst=ms.gateway_status(), gws=ms.gateway_summary)
 
 
 @bp.route("/my/mesh/add", methods=["POST"])
@@ -318,7 +330,7 @@ def my_mesh_account(aid):
     _on()
     r = _owned(aid)
     managing = "" if r["owner_id"] == current_user.id else (r["owner_display"] or r["owner_name"])
-    return render_template("my_mesh_account.html", r=r, password=ms.password_of(r), managing=managing, conn=_connect())
+    return render_template("my_mesh_account.html", r=r, password=ms.password_of(r), managing=managing, conn=_connect(), gwsum=ms.gateway_summary(ms.gateway_status(), r["username"]), gw_url=f"/my/mesh/{r['id']}/status.json")
 
 
 @bp.route("/my/mesh/<int:aid>/save", methods=["POST"])
@@ -628,3 +640,56 @@ def admin_mirror_read():
     if ok:
         audit("mesh.mirror", target=f.get("host", "")[:80], detail="this site now reads another site's feed")
     return action_response(ok, msg, redirect_endpoint="mesh.admin_mirror")
+
+
+# ------------------------------------------------------------------ which servers and gateways are working (request 218)
+@bp.route("/admin/mesh/public-server")
+@permission_required("manage_map_data")
+def admin_public_server():
+    """Admin > Public Meshtastic Server: what is sent to the public server (and why packets were held back) and what is read from it for Arkansas and the states around it."""
+    return render_template("admin_mesh_public.html", active="meshpublic", st=ms.public_server_status(), fwd_on=cfg("mesh_forward_enabled") == "1", up_on=cfg("mesh_up_enabled") == "1", ago=ms.ago_text)
+
+
+@bp.route("/admin/mesh/meshcore")
+@permission_required("manage_map_data")
+def admin_meshcore():
+    st = ms.stats()
+    d = st.get("data") or {}
+    obs = [g for g in d.get("gateways", []) if g.get("network") == "meshcore"]
+    roles = [r for r in d.get("roles", []) if r["role"].endswith("(MeshCore)")]
+    return render_template("admin_mesh_meshcore.html", active="meshcore", ok=st["ok"], note=st["note"], d=d, feed=d.get("feed") or {}, obs=obs, roles=roles, topic=(d.get("config") or {}).get("topic", ""),
+                           mesh_on=cfg("mesh_enabled") == "1", ago_iso=ms.ago_iso, resources=[r for r in ms.RESOURCES if "MeshCore" in r[0]])
+
+
+@bp.route("/admin/mesh/gateways")
+@permission_required("manage_map_data")
+def admin_gateways():
+    """Admin > Mesh Gateways: every broker login with its connection state, last packet and what became of its packets."""
+    st = ms.gateway_status()
+    rows = get_db().execute("SELECT a.username, a.label, a.link, a.disabled, u.username AS owner, cm.slug AS community FROM mesh_accounts a JOIN users u ON u.id = a.owner_id LEFT JOIN communities cm ON cm.id = a.community_id "
+                            "WHERE a.username <> '' ORDER BY a.username").fetchall()
+    out = [dict(r, s=ms.gateway_summary(st, r["username"]), L=(st.get("logins") or {}).get(r["username"]) or {}) for r in rows]
+    silent_min = cfg_int("mesh_gateway_silent_minutes")
+    for o in out:
+        la = o["L"].get("last_packet_ago")
+        o["silent"] = bool(silent_min and la is not None and la > silent_min * 60 and not o["disabled"])
+    return render_template("admin_mesh_gateways.html", active="meshgateways", st=st, rows=out, silent_min=silent_min, ago=ms.ago_text)
+
+
+@bp.route("/my/mesh/<int:aid>/status.json")
+@login_required
+def my_login_status(aid):
+    """One login's live state, for its owner (or an administrator): polled by the Test My Connection button."""
+    r = get_db().execute("SELECT username, owner_id FROM mesh_accounts WHERE id=%s", (aid,)).fetchone()
+    if r is None or (r["owner_id"] != current_user.id and not current_user.has_permission("manage_map_data")):
+        abort(404)
+    return _login_status_json(r["username"])
+
+
+def _login_status_json(username):
+    ok, d = ms.call("/gateways/" + urllib.parse.quote(username, safe=""), timeout=4)
+    st = d if ok and isinstance(d, dict) else {"log_feed": False, "logins": {}, "down": True}
+    L = (st.get("logins") or {}).get(username) or {}
+    resp = jsonify({"login": L, "summary": ms.gateway_summary(st, username), "log_feed": bool(st.get("log_feed"))})
+    resp.headers["Cache-Control"] = "no-store"
+    return resp

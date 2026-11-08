@@ -54,7 +54,7 @@ CB = [node(10 + i, f"PlanTest B{i}", 36.90 + i * 0.002, -89.00) for i in range(3
 node(20, "PlanTest B Router", 36.905, -89.001, role=2)
 Cn = node(30, "PlanTest C Good", 35.00, -92.00, gateways=(("!feedbeef", 9.0), ("!feedbee0", 8.0)))   # two gateways, strong
 Dn = node(31, "PlanTest D Weak", 33.00, -94.50, gateways=(("!feedbeef", -12.0), ("!feedbee0", -14.0)))   # two gateways, weak
-r = requests.get(P + "/plan?radius=15&snr=-5&results=30&sep=3", timeout=60).json()
+r = requests.get(P + "/plan?radius=15&snr=-5&results=200&sep=3", timeout=60).json()
 sug = r["suggestions"]
 def near(s, lat, lon, km=10):
     return math.hypot((s["lat"] - lat) * 111.2, (s["lon"] - lon) * 111.2 * math.cos(math.radians(lat))) <= km
@@ -78,7 +78,7 @@ adm = sess("marty", PW)
 act(adm, "/admin/mesh/hide", "/admin/mesh", node="!" + CA[0], reason="plan test")
 check("a hidden node is left out of the names", "PlanTest A0" not in anon.get(B + "/mesh/planning").text)
 act(adm, "/admin/mesh/unhide", "/admin/mesh", node="!" + CA[0])
-st = adm.get(B + "/admin/settings/radio").text
+st = adm.get(B + "/admin/settings/mesh").text
 check("the numbers are settings", all(x in st for x in ("Router Planning: Reach of a New Router", "Router Planning: Weak Signal Below", "Router Planning: Places to Suggest", "Router Planning: Keep Away From Existing Routers")))
 psql("DELETE FROM settings WHERE key = 'mesh_plan_results'")
 mpsql("DELETE FROM nodes WHERE long_name LIKE 'PlanTest%'")

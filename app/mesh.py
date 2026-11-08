@@ -347,6 +347,32 @@ def stats():
     return cached("mesh_stats", load, 15)
 
 
+SOURCE_NAMES = {"own": "this site's broker", "up": "the public Meshtastic server", "private": "the private feed"}
+
+
+def via_text(n, names=None, public=False):
+    """(short, long) for how a node was last heard: by the node itself over MQTT, or over the air by a gateway, and through which broker. public=True leaves the private feed unnamed."""
+    gw = (n.get("last_gateway") or "").lstrip("!").lower()
+    if not gw or n.get("network") == "meshcore":
+        return "", ""
+    src = SOURCE_NAMES.get(n.get("last_source") or "", "")
+    if public and n.get("last_source") == "private":
+        src = ""
+    if gw == (n.get("id") or "").lstrip("!").lower():
+        short, long = "Itself", "Directly from the node: it sends to MQTT itself"
+    else:
+        label = ((names or {}).get("!" + gw) or "").strip() or "!" + gw
+        short, long = label, "Relayed: heard over the air by the gateway " + label
+    return short, long + (", through " + src if src else "")
+
+
+def annotate_via(rows, public=True):
+    names = {r.get("id"): (r.get("long_name") or r.get("short_name") or "") for r in rows}
+    for r in rows:
+        r["via"], r["via_long"] = via_text(r, names, public)
+    return rows
+
+
 def nodes(q="", role="", hours=None, placed=False, limit=3000, network=""):
     args = {"limit": limit}
     if network in ("meshtastic", "meshcore"):
@@ -360,17 +386,17 @@ def nodes(q="", role="", hours=None, placed=False, limit=3000, network=""):
     if placed:
         args["placed"] = "1"
     ok, d = call("/nodes?" + urllib.parse.urlencode(args))
-    return d.get("nodes", []) if ok else []
+    return annotate_via(d.get("nodes", [])) if ok else []
 
 
 def nodes_cached(q="", role="", hours=None, placed=False, network="", everything=False):
-    """The public list: a node heard on a community's own topic is left out unless that community chose to share with the site's map (everything=True is for the community's own pages)."""
+    """The public list: a node only passed on from a community's private feed is left out unless that community chose to share with the site's map; a node heard on the public side of a broker (whatever topic) is always listed (everything=True is for the community's own pages)."""
     def load():
         rows = nodes(q, role, hours, placed, network=network)
         if everything:
             return rows
         ok = site_map_slugs()
-        return [n for n in rows if not n.get("community") or n["community"] in ok]
+        return [n for n in rows if not n.get("community") or n.get("public_direct") or n["community"] in ok]   # heard on the public side of a broker: always public
     return cached(("mesh_nodes", q, role, hours, placed, network, everything), load, 20)
 
 
@@ -382,11 +408,14 @@ def node(node_id):
 def private_nodes(community="", hours=168):
     """The private feed's nodes (request 205), one community's or all: only the private map pages call this."""
     ok, d = call("/private/nodes?" + urllib.parse.urlencode({"community": community, "hours": hours, "limit": 5000}))
-    return d.get("nodes", []) if ok else []
+    return annotate_via(d.get("nodes", []), public=False) if ok else []
 
 
 def private_node(node_id):
     ok, d = call("/private/nodes/" + urllib.parse.quote(node_id, safe=""))
+    if ok and isinstance(d, dict) and d.get("node"):
+        names = {"!" + h["gateway"].lstrip("!"): h.get("name") or "" for h in d.get("heard_by", [])}
+        d["node"]["via"], d["node"]["via_long"] = via_text(d["node"], names, False)
     return d if ok else None
 
 
@@ -552,3 +581,70 @@ def start_login_sync(app):
                 print("mesh login sync:", type(e).__name__, str(e)[:160], flush=True)
             time.sleep(15)
     threading.Thread(target=loop, name="mesh-login-sync", daemon=True).start()
+
+
+# ------------------------------------------------------------------ which gateways and servers are working (request 218)
+def gateway_status():
+    """{log_feed, logins: {login: {connected, since_ago, last_packet_ago, packets_hour, packets, outcomes, refused, refused_ago, ...}}} from the mesh service (empty when it does not answer)."""
+    def load():
+        ok, d = call("/gateways", timeout=4)
+        return d if ok and isinstance(d, dict) else {"log_feed": False, "logins": {}, "down": True}
+    return cached("mesh_gateways", load, 8)
+
+
+def ago_iso(iso):
+    """'3 hours ago' for an ISO time from the mesh service, or 'never'."""
+    from datetime import datetime, timezone
+    try:
+        t = datetime.fromisoformat(str(iso).replace("Z", "+00:00"))
+        if t.tzinfo is None:
+            t = t.replace(tzinfo=timezone.utc)
+        return ago_text(max(0, int((datetime.now(timezone.utc) - t).total_seconds())))
+    except (TypeError, ValueError):
+        return "never"
+
+
+def ago_text(sec):
+    if sec is None:
+        return "never"
+    if sec < 90:
+        return "just now"
+    if sec < 5400:
+        return f"{sec // 60} minutes ago"
+    if sec < 172800:
+        return f"{sec // 3600} hours ago"
+    return f"{sec // 86400} days ago"
+
+
+def gateway_summary(st, username):
+    """One login's state in words: {level ok|warn|bad|dim, text, detail}. st is gateway_status()."""
+    L = (st.get("logins") or {}).get(username)
+    if st.get("down"):
+        return {"level": "dim", "text": "Not known: the mesh service did not answer", "detail": ""}
+    if not st.get("log_feed"):
+        if L and L.get("last_packet_ago") is not None:
+            return {"level": "ok" if L["last_packet_ago"] < 900 else "warn", "text": "Last packet " + ago_text(L["last_packet_ago"]), "detail": "The broker's connection log is not available yet, so only packets are counted."}
+        return {"level": "dim", "text": "No connection data yet", "detail": "The broker has not been updated to report connections (Update Now on the hub brings it)."}
+    if not L:
+        return {"level": "warn", "text": "Never connected", "detail": "No gateway has logged in with this login since the broker reports connections."}
+    lp = L.get("last_packet_ago")
+    if L.get("connected"):
+        if lp is None:
+            return {"level": "warn", "text": "Connected, no packets yet", "detail": "The gateway logged in " + ago_text(L.get("since_ago")) + " but has sent nothing."}
+        if lp < 900:
+            return {"level": "ok", "text": "Connected, last packet " + ago_text(lp), "detail": f"{L.get('packets_hour', 0)} packets in the last hour"}
+        return {"level": "warn", "text": "Connected but quiet, last packet " + ago_text(lp), "detail": "The gateway is logged in and sending nothing."}
+    if L.get("refused_ago") is not None and L["refused_ago"] < 3600:
+        return {"level": "bad", "text": f"Refused {L.get('refused', 0)} time{'' if L.get('refused') == 1 else 's'}, last " + ago_text(L["refused_ago"]), "detail": "Wrong password, a login that is switched off, or one that was deleted."}
+    if L.get("last_disconnect_ago") is not None:
+        return {"level": "warn", "text": "Not connected, left " + ago_text(L["last_disconnect_ago"]), "detail": ("Last packet " + ago_text(lp)) if lp is not None else ""}
+    return {"level": "dim", "text": "Not connected", "detail": ""}
+
+
+def public_server_status():
+    """{forward, upstream} from the mesh service, or None when it does not answer."""
+    def load():
+        ok1, f = call("/forward/status", timeout=4)
+        ok2, u = call("/upstream/status", timeout=4)
+        return {"forward": f if ok1 else None, "upstream": u if ok2 else None}
+    return cached("mesh_public_server", load, 8)

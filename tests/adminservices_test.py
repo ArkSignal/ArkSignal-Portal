@@ -9,15 +9,16 @@ def check(name, cond, extra=""):
 
 adm = sess("marty", PW)
 o = adm.get(B + "/admin/").text
-for g in ("Aircraft and Feeders", "Weather and Balloons", "Radio", "Map and Data", "Updates", "Site"):
+for g in ("Aircraft and Feeders", "Weather and Balloons", "Radio", "Mesh", "Map and Data", "Updates", "Site"):
     check(f"the admin menu has the group {g}", f'<span>{g}</span><span class="my-side-caret"' in o, g)
 check("Data Updates, Software Updates and Backups are together under Updates", all(x in o for x in ("Data Updates", "Software Updates", "Backups")) and o.index('<span>Updates</span><span class="my-side-caret"') < o.index("Software Updates") < o.index('<span>Site</span><span class="my-side-caret"'))
-for sv in ("aircraft", "weather", "radio", "mapdata", "updates", "site"):
+for sv in ("aircraft", "weather", "radio", "mesh", "mapdata", "updates", "site"):
     r = adm.get(B + "/admin/settings/" + sv)
     check(f"/admin/settings/{sv} opens", r.status_code == 200 and "Settings</h1>" in r.text, r.status_code)
 check("an unknown service is a 404", adm.get(B + "/admin/settings/nonsense").status_code == 404)
 radio = adm.get(B + "/admin/settings/radio").text
-check("the Radio settings hold the repeater and APRS sections and nothing from other services", 'id="sec-repeaters"' in radio and 'id="sec-aprs"' in radio and 'id="sec-radiosondes"' not in radio and 'id="sec-security"' not in radio)
+check("the Radio settings hold the repeater and APRS sections and nothing from other services", 'id="sec-repeaters"' in radio and 'id="sec-aprs"' in radio and 'id="sec-radiosondes"' not in radio and 'id="sec-mesh-nodes"' not in radio and 'id="sec-security"' not in radio)
+check("the Mesh settings hold the Mesh Nodes section", 'id="sec-mesh-nodes"' in adm.get(B + "/admin/settings/mesh").text)
 wx = adm.get(B + "/admin/settings/weather").text
 check("Weather and Balloons holds weather stations, radiosondes and the prediction service", all(f'id="sec-{x}"' in wx for x in ("weather-stations", "radiosondes", "prediction-service")))
 allp = adm.get(B + "/admin/settings").text

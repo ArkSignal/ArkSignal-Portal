@@ -5,7 +5,7 @@
 <h1><span>Admin</span> Mesh MQTT Export</h1>
 <div class="sub">Send mesh traffic from this site to other MQTT brokers (another portal, the test site, any broker). Each connector chooses its own feed, communities, channels, port numbers and how exact a position may be. The packets go out as they came in, under the topic prefix you set.</div>
 {% include "partials/_admin_subnav.html" %}
-{% if not switch %}<div class="panel" style="border-color:var(--acc2);margin-bottom:14px"><b>Export is switched off for the site.</b> Nothing is sent whatever the connectors say. Turn it on in <a href="/admin/settings/radio#sec-mesh-nodes">Settings, Mesh Nodes, MQTT Export to Outside Brokers</a>.</div>{% endif %}
+{% if not switch %}<div class="panel" style="border-color:var(--acc2);margin-bottom:14px"><b>Export is switched off for the site.</b> Nothing is sent whatever the connectors say. Turn it on in <a href="/admin/settings/mesh#sec-mesh-nodes">Settings, Mesh Nodes, MQTT Export to Outside Brokers</a>.</div>{% endif %}
 <div class="panel" style="margin-bottom:14px">
   {% if rows %}<table><thead><tr><th>Connector</th><th>Broker</th><th>Carries</th><th>State</th><th>Sent</th><th></th></tr></thead><tbody>
   {% for r in rows %}{% set s = st.connectors.get(r.id | string, {}) %}<tr>

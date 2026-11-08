@@ -86,7 +86,7 @@ check("the service reads the other broker with the mirror login (it connects)", 
 ok, msg, _h = act(adm, "/admin/mesh/mirror/read", "/admin/mesh/mirror", host="mesh-mqtt", port="8883", tls="1", user=user, password=pw, topics="msh/#")
 check("with TLS ticked the setting follows and is shown on the page", ok and psql("SELECT value FROM settings WHERE key='mesh_up_tls'") == "1" and "checked" in re.search(r'name="tls"[^>]*>', adm.get(B + "/admin/mesh/mirror").text).group(0), msg)
 check("the audit log has it", int(psql("SELECT count(*) FROM audit_log WHERE action='mesh.mirror' AND detail LIKE 'this site now reads%'") or 0) >= 2)
-check("the Settings page has the TLS choice", "mesh_up_tls" in adm.get(B + "/admin/settings/radio").text)
+check("the Settings page has the TLS choice", "mesh_up_tls" in adm.get(B + "/admin/settings/mesh").text)
 
 # put the second subscription back to the public Meshtastic server and tidy up
 psql("DELETE FROM settings WHERE key IN ('mesh_up_host', 'mesh_up_port', 'mesh_up_tls', 'mesh_up_user', 'mesh_up_password', 'mesh_up_topic')")

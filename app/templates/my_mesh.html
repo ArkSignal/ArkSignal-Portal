@@ -12,6 +12,7 @@
     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div class="tv" style="font-size:1.1rem">{{ r.label or 'Unnamed login' }}</div>{% if r.disabled %}<span class="tag off">switched off</span>{% endif %}</div>
     <div class="tl mono">{{ r.username }}</div>
     <div class="tl">{% if r.nodes %}Node(s): {{ r.nodes }}{% else %}No node listed{% endif %}</div>
+    {% set gs = gws(gwst, r.username) %}<div class="tl"><span class="tag {{ 'on' if gs.level == 'ok' else 'off' }}">{{ gs.text }}</span></div>
   </a>
   {% endfor %}
 </div>

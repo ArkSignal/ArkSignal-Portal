@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-27",
+  "updated": "2026-11-05",
   "items": [
     {
       "title": "Off-site copy to a NAS over HTTPS",
@@ -1349,6 +1349,24 @@
     {
       "title": "Send mesh traffic to other MQTT brokers",
       "summary": "Administrators can define connectors to outside MQTT brokers (another site, a test site, anything) and choose what each one gets: the public or private feed, communities, channels, message types, how exact positions may be, or just what the public Meshtastic server would carry.",
+      "status": "done",
+      "area": "Mesh"
+    },
+    {
+      "title": "Gateway status and Test My Connection",
+      "summary": "Every broker login shows whether its gateway is connected, when it last sent a packet, how many in the last hour and what became of them; a Test My Connection button watches it for a minute and says why nothing arrives; Admin has a Mesh Gateways list; owners are told when a gateway goes silent.",
+      "status": "done",
+      "area": "Mesh"
+    },
+    {
+      "title": "Public side always public, and a view of the public Meshtastic server",
+      "summary": "Anything heard on the public side of the broker is on the public map and forwarded to the public Meshtastic server when the site switch is on; communities only choose what their private feeds pass on. An admin page shows what is sent and why packets are held back, and what is read from the server for Arkansas and the states around it.",
+      "status": "done",
+      "area": "Mesh"
+    },
+    {
+      "title": "Private data on node pages, and how a node was last heard",
+      "summary": "People who may see a community's private data (administrators see all) get a Private Data section on a node's page; every node says whether it was last heard directly over MQTT or through a gateway, and through which broker.",
       "status": "done",
       "area": "Mesh"
     }

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Mesh Gateways{% endblock %}
+{% block content %}
+<h1><span>Admin</span> Mesh Gateways</h1>
+<div class="sub">Every broker login with whether its gateway is connected, when it last sent a packet and what became of its packets. A gateway that has sent packets before and then goes quiet for {{ silent_min }} minutes is flagged{% if not silent_min %} (flagging is off: Settings, Mesh Nodes){% endif %}, and its owner is told. The counts start again whenever the mesh service restarts.</div>
+{% include "partials/_admin_subnav.html" %}
+{% if st.down %}<div class="panel" style="border-color:var(--acc2);margin-bottom:14px"><b>The mesh service did not answer.</b> The states below are not current.</div>
+{% elif not st.log_feed %}<div class="panel" style="border-color:var(--acc2);margin-bottom:14px"><b>The broker is not reporting connections yet.</b> It needs the update that sends its log to the service (Update Now on the hub). Until then only the packets themselves are counted.</div>{% endif %}
+<div class="panel" style="overflow-x:auto">
+  <div class="tfilterbar"><input type="search" class="tfilter" data-table="#gw-tbl" placeholder="Search the logins" aria-label="Search logins"><span class="dim tcount"></span></div>
+  {% if rows %}<table class="sortable" id="gw-tbl"><thead><tr><th data-sort="text">Login</th><th data-sort="text">Label</th><th data-sort="text">Owner</th><th data-sort="text">Feed</th><th data-sort="text">State</th><th data-sort="num">Packets (hour)</th><th data-sort="num">Packets (all)</th><th data-sort="text">What became of them</th></tr></thead><tbody>
+  {% for r in rows %}<tr><td class="mono">{{ r.username }}</td><td>{{ r.label }}</td><td>{{ r.owner }}</td>
+    <td>{{ 'private' if r.link == 'private' else ('community ' ~ r.community if r.community else 'public') }}</td>
+    <td data-v="{{ r.s.level }}"><span class="tag {{ 'on' if r.s.level == 'ok' else 'off' }}">{{ r.s.text }}</span>{% if r.disabled %} <span class="tag off">switched off</span>{% endif %}{% if r.silent %} <b>silent</b>{% endif %}{% if r.s.detail %}<div class="dim" style="font-size:.8rem">{{ r.s.detail }}</div>{% endif %}</td>
+    <td data-v="{{ r.L.get('packets_hour', 0) }}">{{ r.L.get('packets_hour', 0) }}</td><td data-v="{{ r.L.get('packets', 0) }}">{{ r.L.get('packets', 0) }}</td>
+    <td class="dim">{% for k, v in (r.L.get('outcomes') or {}).items() %}{{ k }} {{ v }}{{ ', ' if not loop.last }}{% endfor %}</td></tr>{% endfor %}
+  </tbody></table>{% else %}<p class="dim" style="margin:0">No broker login has been made yet.</p>{% endif %}
+</div>
+<p class="dim" style="font-size:.85rem">What the words mean: <b>kept</b> the packet was read and stored; <b>encrypted</b> it was sent on a private channel (or with encryption the site cannot read), so it counts as heard but tells nothing about the node; <b>private</b> it stayed on the private feed; <b>public</b> it was also passed on to the public map; <b>outside</b> its position is outside the area kept; <b>ignored</b> it was not a name, a position or a report; <b>hidden</b> its node was hidden on request.</p>
+{% endblock %}

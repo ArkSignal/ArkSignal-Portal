@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}APRS-IS Network{% endblock %}
+{% macro dot(ok) %}<span class="tag {{ 'on' if ok else 'off' }}">{{ 'yes' if ok else 'no' }}</span>{% endmacro %}
+{% block content %}
+<h1><span>Admin</span> APRS-IS Network</h1>
+<div class="sub">APRS-IS is the amateur radio network of servers that carries APRS reports; it belongs to the amateur radio community, not to this site. This page shows what this site reads from it (stations and weather around Arkansas) and what it sends to it (chat bridge messages and weather reports members chose to send). The settings are under <a href="/admin/settings/radio#sec-aprs">Settings, APRS</a>, <a href="/admin/settings/site#sec-radio-bridges">Radio Bridges</a> and <a href="/admin/settings/weather#sec-weather-stations">Weather Stations</a>. The read counts start again whenever the APRS service restarts.</div>
+{% include "partials/_admin_subnav.html" %}
+{% set f = n.feed %}
+{% if not n.service_ok %}<div class="panel" style="border-color:var(--acc2);margin-bottom:14px"><b>The APRS service did not answer.</b> {{ n.note }} Nothing about reading is current until it does.</div>{% endif %}
+<details class="panel setsec" id="sec-reading" open><summary><span class="role-name">Reading APRS-IS</span></summary><div class="secbody">
+  <table style="max-width:720px">
+    <tr><th style="width:260px">Reading switched on</th><td>{{ dot(n.read_on) }}{% if not n.read_on %} <span class="dim">Settings, APRS</span>{% endif %}</td></tr>
+    <tr><th>Server asked for</th><td class="mono">{{ n.host }}</td></tr>
+    <tr><th>Server connected to</th><td class="mono">{{ f.server or 'not connected' }}</td></tr>
+    <tr><th>Login</th><td class="mono">{{ n.login }} <span class="dim">(read-only, nothing is sent with it)</span></td></tr>
+    <tr><th>Area filter</th><td class="mono">{{ n.filter }}</td></tr>
+    <tr><th>Connected now</th><td>{% if n.service_ok %}{{ dot(f.connected) }}{% if f.error %} <span class="dim">{{ f.error }}</span>{% endif %}{% else %}<span class="dim">unknown</span>{% endif %}</td></tr>
+    <tr><th>Packets read</th><td>{{ f.packets or 0 }} <span class="dim">({{ f.per_min or 0 }} a minute; {{ f.stored or 0 }} kept)</span></td></tr>
+    <tr><th>Reconnects</th><td>{{ f.reconnects or 0 }}</td></tr>
+    <tr><th>Stations kept, heard this hour</th><td>{{ n.stations if n.stations is not none else '-' }}, {{ n.heard_hour if n.heard_hour is not none else '-' }}</td></tr>
+    <tr><th>Weather stations reporting now</th><td>{{ n.weather_now if n.weather_now is not none else '-' }}</td></tr>
+  </table>
+  <h3 style="margin:10px 0 4px">Stations heard, by kind</h3>
+  {% if n.kinds %}<table>{% for k, v in n.kinds.items() | sort(attribute='1', reverse=True) %}<tr><td>{{ k }}</td><td>{{ v }}</td></tr>{% endfor %}</table>{% else %}<p class="dim" style="margin:0">Nothing heard yet.</p>{% endif %}
+  {% if n.read_on and n.service_ok and not f.connected %}<p style="margin-bottom:0"><b>Not connected.</b> The server may be down or the login or area may be wrong (Settings, APRS). The service keeps retrying by itself.</p>{% endif %}
+</div></details>
+{% set b = n.bridge %}
+<details class="panel setsec" id="sec-bridge" open style="margin-top:14px"><summary><span class="role-name">Chat Bridge Messages Sent to APRS-IS</span></summary><div class="secbody">
+  <table style="max-width:720px">
+    <tr><th style="width:260px">Bridge switched on</th><td>{{ dot(b.on) }}{% if not b.on %} <span class="dim">nothing is sent while it is off: Settings, Radio Bridges</span>{% endif %}</td></tr>
+    <tr><th>Server</th><td class="mono">{{ b.server }}</td></tr>
+    <tr><th>Links, switched on</th><td>{{ b.links }}, {{ b.links_on }}</td></tr>
+    <tr><th>Sent in the last 24 hours</th><td>{{ b.sent }}{% if b.last_sent is not none %} <span class="dim">(last {{ ago(b.last_sent) }})</span>{% endif %}</td></tr>
+    <tr><th>Failed in the last 24 hours</th><td>{{ b.failed }}</td></tr>
+    <tr><th>Received in the last 24 hours</th><td>{{ b.received }}</td></tr>
+  </table>
+  <p class="dim" style="margin-bottom:0">Messages go out under the member's own call sign, only for members with a verified amateur license and no faster than the hourly limit.</p>
+</div></details>
+{% set p = n.push %}
+<details class="panel setsec" id="sec-push" open style="margin-top:14px"><summary><span class="role-name">Weather Reports Sent to CWOP and APRS-IS</span></summary><div class="secbody">
+  <table style="max-width:720px">
+    <tr><th style="width:260px">Sending switched on</th><td>{{ dot(p.on) }}{% if not p.on %} <span class="dim">nothing is sent while it is off: Settings, Weather Stations</span>{% endif %}</td></tr>
+    <tr><th>Servers</th><td class="mono">CWOP {{ p.cwop }} &middot; APRS-IS {{ p.aprs }}</td></tr>
+    <tr><th>Stations set up, switched on</th><td>{{ p.stations }}, {{ p.stations_on }}</td></tr>
+    <tr><th>Reports sent</th><td>{{ p.sent }}{% if p.last_ok is not none %} <span class="dim">(last {{ ago(p.last_ok) }})</span>{% endif %}</td></tr>
+    <tr><th>Stations failing now</th><td>{{ p.failing }}{% if p.error %} <span class="dim">last error: {{ p.error }}</span>{% endif %}</td></tr>
+  </table>
+</div></details>
+{% endblock %}

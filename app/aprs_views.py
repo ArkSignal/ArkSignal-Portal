@@ -114,6 +114,13 @@ def admin():
     return render_template("admin_aprs.html", active="aprs", st=ap.stats(), hidden=ap.hidden(), url=cfg("aprs_url"), filter=ap._filter(), enabled=ap.enabled())
 
 
+@bp.route("/admin/aprs/network")
+@permission_required("manage_map_data")
+def admin_network():
+    from . import mesh as ms
+    return render_template("admin_aprs_network.html", active="aprsis", n=ap.network_status(), ago=ms.ago_text)
+
+
 @bp.route("/admin/aprs/status.json")
 @permission_required("manage_map_data")
 def admin_status():

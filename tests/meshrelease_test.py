@@ -46,7 +46,7 @@ ok, m, _ = act(adm, "/admin/mesh/releases/check", "/admin/mesh")
 check("when GitHub cannot be read the last answer is kept and it says so", not ok and "did not answer" in m and "v2.5.10.def" in adm.get(B + "/admin/mesh").text, m)
 health = requests.Session().get(B + "/mesh/health").text
 check("Mesh Health shows the project's newest firmware next to the one seen", "the project's newest: v2.5.10.def" in health or "project&#39;s newest: v2.5.10.def" in health, health[health.find("Newest Meshtastic"):health.find("Newest Meshtastic") + 200])
-st = adm.get(B + "/admin/settings/radio").text
+st = adm.get(B + "/admin/settings/mesh").text
 check("the choices are settings", all(x in st for x in ("Check for Meshtastic Releases", "Check for Meshtastic Releases Every", "Meshtastic Releases Address")))
 check("a member cannot check or review", requests.Session().post(B + "/admin/mesh/releases/check", allow_redirects=False).status_code in (302, 400, 401, 403))
 ssh(f"exec adsb-portal python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:{PORT}/quit',timeout=3)\"")

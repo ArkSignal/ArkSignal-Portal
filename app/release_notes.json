@@ -9,6 +9,34 @@
     "security": []
   },
   {
+    "version": "1.9.4",
+    "released": "2026-11-07",
+    "title": "Gateway Status and the Public Meshtastic Server",
+    "added": [
+      "Gateway status: every broker login shows Connected, last packet, packets in the last hour and what became of them (kept, encrypted, private, passed on); a Test My Connection button watches a login for a minute and says why nothing arrives; Admin > Mesh Gateways lists every login; an owner is told when a gateway that sent before has been silent for the Gateway Gone Silent time.",
+      "Admin > Public Meshtastic Server: what is sent to the public Meshtastic server (counts, why packets were held back, by channel and type, the last packets, the connection) and what is read from it (messages by region, what became of them), with a line on Service Status.",
+      "A node's page has a Private Data section (exact position, power, the private gateways that heard it) for administrators and for people who may view the community's private map; it also opens for a node only the private feed heard.",
+      "Every node says how it was last heard: directly from the node over MQTT, or relayed by a named gateway, and through which broker (a Heard Via column on Mesh Nodes and the Private Node List).",
+      "Admin > APRS-IS Network and Admin > MeshCore: the same kind of status page as the Public Meshtastic Server. APRS-IS shows what is read from it, the chat bridge messages and the weather reports sent to it; MeshCore shows the observers that report, adverts kept, and what was thrown away.",
+      "A Private Nodes item in the Mesh menu, next to Private Map, for administrators.",
+      "A community's Manager or Owner can now make the community public or private (Manage, Public or Private)."
+    ],
+    "improved": [
+      "Anything a node sends to the public side of the broker is on the public list and map and, with Forward to the Public Meshtastic Server on, goes to the public server too, whatever community topic it used; a community's Sharing choices now cover only what its private gateways pass on.",
+      "The public server is read for Arkansas and the six states around it by default, with a wider area kept.",
+      "The broker now writes its connections to its log topic for the mesh service (needs the broker image update).",
+      "Service Status lists the Public Meshtastic Server, APRS-IS and MeshCore Observers under the outside data sources, not under our own services.",
+      "Admin has a Mesh group: Mesh Nodes, Mesh Communities, Mesh Gateways, Public Meshtastic Server, MeshCore, Mesh MQTT Export, Mesh Mirror Logins and Mesh Settings (the Mesh Nodes settings moved out of Radio Settings).",
+      "In a community, Sharing and Public Map Forwarding are one page, Public Sharing: the community's choices on top, the administrators' limits below.",
+      "Site Role Access is now part of Public or Private and is shown to administrators only; community managers see the community's own public/private control instead.",
+      "Admin has a Mesh group (nodes, communities, gateways, the public Meshtastic server, MeshCore, MQTT export, mirror logins and Mesh Settings); APRS-IS and MeshCore have status pages and show under Outside Data Sources on Service Status; Private Nodes is in the Mesh menu; a community has one Public Sharing page and its own Public or Private control; site role access is set on Admin, Mesh Communities."
+    ],
+    "fixed": [
+      "The sonde page's Download CSV and Download GeoJSON buttons no longer break out of the button row."
+    ],
+    "security": []
+  },
+  {
     "version": "1.9.3",
     "released": "2026-11-03",
     "title": "Private Node List",

@@ -119,7 +119,7 @@ check("a node taken down is not named in Heard By", "Hist Test Node" not in anon
 check("a hidden node has no history and is not on Mesh Weather", requests.get(P + f"/nodes/!{slug}/history", timeout=10).status_code == 404 and "Hist Test Node" not in anon.get(B + "/mesh/weather").text and anon.get(B + f"/api/mesh/{slug}/history.json").status_code == 404)
 check("a hidden node is not on the Weather Map either", not any(x["id"] == "!" + slug for x in anon.get(B + "/api/weather.json?sources=mesh").json()["stations"]))
 act(adm, "/admin/mesh/unhide", "/admin/mesh", node="!" + slug)
-st = adm.get(B + "/admin/settings/radio").text
+st = adm.get(B + "/admin/settings/mesh").text
 check("the retention choices are settings", "Keep Node Readings For" in st and "Keep One Reading per Node Every" in st)
 mpsql(f"DELETE FROM node_history WHERE node_id IN ({N}, {M})")
 print("ALL PASS" if ok_all else "SOME FAILED")

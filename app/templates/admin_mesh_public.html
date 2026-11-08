@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Public Meshtastic Server{% endblock %}
+{% macro dot(ok) %}<span class="tag {{ 'on' if ok else 'off' }}">{{ 'yes' if ok else 'no' }}</span>{% endmacro %}
+{% block content %}
+<h1><span>Admin</span> Public Meshtastic Server</h1>
+<div class="sub">What this site sends to Meshtastic's public MQTT server (mqtt.meshtastic.org) and what it reads from it. Sending is the switch Forward to the Public Meshtastic Server; reading is Also Read the Public Meshtastic Server, which pulls in the nodes of Arkansas and the states around it. Both are under Settings, Mesh Nodes. The counts start again whenever the mesh service restarts.</div>
+{% include "partials/_admin_subnav.html" %}
+{% set f = st.forward %}{% set u = st.upstream %}
+{% if not f or not u %}<div class="panel" style="border-color:var(--acc2);margin-bottom:14px"><b>The mesh service did not answer.</b> Nothing below is current until it does.</div>{% endif %}
+<details class="panel setsec" id="sec-sending" open><summary><span class="role-name">Sending to the Public Server</span></summary><div class="secbody">
+{% if f %}
+  <table style="max-width:720px">
+    <tr><th style="width:260px">Forwarding switched on</th><td>{{ dot(f.enabled) }} {% if not f.enabled %}<span class="dim">nothing is sent while it is off: <a href="/admin/settings/mesh">Settings, Mesh Nodes</a></span>{% endif %}</td></tr>
+    <tr><th>Server and topic root</th><td class="mono">{{ f.host }}:{{ f.port }} &middot; {{ f.root }}</td></tr>
+    <tr><th>Connected now</th><td>{% if not f.enabled %}<span class="dim">not needed while forwarding is off</span>{% elif not f.client_started %}<span class="dim">no packet has needed it yet</span>{% else %}{{ dot(f.connected) }}{% endif %}</td></tr>
+    <tr><th>Packets sent</th><td>{{ f.sent }}{% if f.log.last_sent_ago is not none %} <span class="dim">(last {{ ago(f.log.last_sent_ago) }})</span>{% endif %}</td></tr>
+    <tr><th>Held back</th><td>{{ f.dropped }}</td></tr>
+    <tr><th>Where they came from</th><td>public side of the broker: {{ f.log.src.public }} &middot; community private feeds that chose to pass on: {{ f.log.src.private }}</td></tr>
+    <tr><th>Last error</th><td>{{ f.error or 'none' }}</td></tr>
+  </table>
+  <p class="dim" style="margin-bottom:6px">Rules: anything a node sends to the public side of this broker is forwarded, whatever community topic it came in on. A community's private feed is forwarded only when its managers chose Sharing, Public Meshtastic Server. The public server's own rules apply first: default-key channels it lists, allowed message types, positions no more exact than the limit. Packets this service sends itself are never forwarded.</p>
+  <div style="display:flex;gap:24px;flex-wrap:wrap">
+    <div><h3 style="margin:8px 0 4px">Why packets were held back</h3>{% if f.log.reasons %}<table>{% for k, v in f.log.reasons.items() | sort(attribute='1', reverse=True) %}<tr><td>{{ k }}</td><td>{{ v }}</td></tr>{% endfor %}</table>{% else %}<p class="dim" style="margin:0">Nothing held back yet.</p>{% endif %}</div>
+    <div><h3 style="margin:8px 0 4px">Sent, by channel</h3>{% if f.log.chan %}<table>{% for k, v in f.log.chan.items() | sort(attribute='1', reverse=True) %}<tr><td>{{ k }}</td><td>{{ v }}</td></tr>{% endfor %}</table>{% else %}<p class="dim" style="margin:0">Nothing sent yet.</p>{% endif %}</div>
+    <div><h3 style="margin:8px 0 4px">Sent, by message type</h3>{% if f.log.port %}<table>{% for k, v in f.log.port.items() | sort(attribute='1', reverse=True) %}<tr><td>{{ {'1': 'Text message', '3': 'Position', '4': 'Node information', '67': 'Telemetry', '71': 'Neighbor information', '73': 'Map report', 'encrypted': 'Encrypted (default-key channel)'}.get(k, 'Type ' ~ k) }}</td><td>{{ v }}</td></tr>{% endfor %}</table>{% else %}<p class="dim" style="margin:0">Nothing sent yet.</p>{% endif %}</div>
+  </div>
+  <h3 style="margin:14px 0 4px">The last packets handled</h3>
+  {% if f.log.recent %}<div style="overflow-x:auto"><table><thead><tr><th>When</th><th>Result</th><th>Node</th><th>Channel</th><th>Type</th><th>From</th><th>Sent to</th><th>Why not</th></tr></thead><tbody>
+  {% for r in f.log.recent | reverse %}<tr><td>{{ ago(r.ago) }}</td><td>{{ r.result }}</td><td class="mono">{{ r.node }}</td><td>{{ r.channel }}</td><td>{{ r.portnum if r.portnum is not none else 'encrypted' }}</td><td>{{ r.src }}</td><td class="mono">{{ r.target }}</td><td>{{ r.reason }}</td></tr>{% endfor %}
+  </tbody></table></div>{% else %}<p class="dim" style="margin:0">No packet has been looked at since the service started.</p>{% endif %}
+{% endif %}
+</div></details>
+<details class="panel setsec" id="sec-reading" open style="margin-top:14px"><summary><span class="role-name">Reading the Public Server</span></summary><div class="secbody">
+{% if u %}
+  {% set up = u.up_ %}
+  <table style="max-width:720px">
+    <tr><th style="width:260px">Reading switched on</th><td>{{ dot(u.enabled) }}</td></tr>
+    <tr><th>Server</th><td class="mono">{{ u.host }}:{{ u.port }}{{ ' (TLS)' if u.tls }}</td></tr>
+    <tr><th>Topics read</th><td class="mono">{{ u.topics }}</td></tr>
+    <tr><th>Area kept</th><td>south {{ u.area.south }}, west {{ u.area.west }}, north {{ u.area.north }}, east {{ u.area.east }} <span class="dim">(<a href="/admin/settings/mesh">Settings, Mesh Nodes</a>)</span></td></tr>
+    <tr><th>Connected now</th><td>{{ dot(up.connected) }}{% if up.error %} <span class="dim">{{ up.error }}</span>{% endif %}</td></tr>
+    <tr><th>Messages read</th><td>{{ up.msgs }}{% if up.last_ago is not none %} <span class="dim">(last {{ ago(up.last_ago) }})</span>{% endif %}</td></tr>
+    <tr><th>Reconnects</th><td>{{ up.reconnects }}</td></tr>
+    <tr><th>Nodes known, heard in 24 hours</th><td>{{ u.nodes.n }}, {{ u.nodes.day }}</td></tr>
+    <tr><th>Nodes heard on the public side of a broker</th><td>{{ u.nodes.direct }} <span class="dim">({{ u.nodes.direct_day }} in the last 24 hours; these are always on the public list and map)</span></td></tr>
+  </table>
+  <div style="display:flex;gap:24px;flex-wrap:wrap">
+    <div><h3 style="margin:8px 0 4px">Messages by region</h3>{% if up.regions %}<table>{% for k, v in up.regions %}<tr><td class="mono">{{ k }}</td><td>{{ v }}</td></tr>{% endfor %}</table>{% else %}<p class="dim" style="margin:0">Nothing read yet.</p>{% endif %}</div>
+    <div><h3 style="margin:8px 0 4px">What became of them</h3>{% if up.results %}<table>{% for k, v in up.results.items() | sort(attribute='1', reverse=True) %}<tr><td>{{ {'stored': 'Kept', 'encrypted': 'Encrypted (not readable)', 'ignored': 'Not a node, a position or a map report', 'outside': 'Outside the area', 'hidden': 'Hidden on request'}.get(k, k) }}</td><td>{{ v }}</td></tr>{% endfor %}</table>{% else %}<p class="dim" style="margin:0">Nothing read yet.</p>{% endif %}</div>
+  </div>
+  {% if u.enabled and not up.connected %}<p style="margin-bottom:0"><b>Not connected.</b> The server may be down, or the host, port, login or topics may be wrong (Settings, Mesh Nodes). The service keeps retrying by itself.</p>{% endif %}
+{% endif %}
+</div></details>
+{% endblock %}
