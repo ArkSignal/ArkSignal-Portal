@@ -100,6 +100,9 @@ try:
     check("the administrator's page for a private-only node lists its neighbors", "Neighbors (Direct)" in page and "ZZ Private Friend" in page, page[:200])
     lst = adm.get(B + "/admin/mesh/private-nodes?q=ZZ").text
     check("the Private Nodes list shows the public name for a node the private gateways heard without one", "ZZ Public Name" in lst)
+    lst = adm.get(B + "/admin/mesh/private-nodes?q=ZZ+Private+Only&hidden=1").text
+    check("a node only the private side heard has its name linked to its page", 'href="/mesh/' + sid(X).lstrip("!") + '"' in lst, lst[:200])
+    check("and that page opens", adm.get(B + "/mesh/" + sid(X).lstrip("!")).status_code == 200)
 except NameError:
     pass
 st = requests.get(P + "/stats", timeout=20).json()

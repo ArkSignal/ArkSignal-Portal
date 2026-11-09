@@ -9,6 +9,17 @@
     "security": []
   },
   {
+    "version": "1.9.6",
+    "released": "2026-11-09",
+    "title": "Open Any Private Node",
+    "added": [],
+    "improved": [],
+    "fixed": [
+      "A node only the private gateways heard can be opened: the Private Nodes list links each name to the node's page, and the Private Map's node card has its page button, so its private data (neighbors, everything heard) can be read."
+    ],
+    "security": []
+  },
+  {
     "version": "1.9.5",
     "released": "2026-11-08",
     "title": "Private Pages as Complete as the Public Ones",

@@ -13,7 +13,7 @@
   <div class="tfilterbar"><input type="search" class="tfilter" data-table="#pnodes-tbl" placeholder="Search the listed nodes" aria-label="Search nodes"><span class="dim tcount"></span></div>
   <p style="margin-top:0" class="dim">{{ total }} node{{ '' if total == 1 else 's' }}, {{ on_public }} also on the public list{% if total > 400 %} (the first 400 are listed){% endif %}</p>
   {% if rows %}<table class="sortable" id="pnodes-tbl"><thead><tr><th data-sort="text">Name</th><th data-sort="text">ID</th><th data-sort="text">Public List</th><th data-sort="text">Role</th><th data-sort="text">Hardware</th><th data-sort="text">Firmware</th><th data-sort="text">Position</th><th data-sort="num">Precision</th><th data-sort="num">Battery</th><th data-sort="num">Channel Use</th><th data-sort="num">Packets</th><th data-sort="text">Community</th><th data-sort="text">Last heard</th><th data-sort="text">Heard Via</th></tr></thead><tbody>
-  {% for r in rows %}<tr><td>{{ r.long_name or r.short_name or r.id }}{% if r.short_name %} <span class="dim mono">{{ r.short_name }}</span>{% endif %}</td><td class="mono">{{ r.id }}</td>
+  {% for r in rows %}<tr><td><a href="/mesh/{{ r.slug }}">{{ r.long_name or r.short_name or r.id }}</a>{% if r.short_name %} <span class="dim mono">{{ r.short_name }}</span>{% endif %}</td><td class="mono">{{ r.id }}</td>
     <td>{% if r.public %}<a href="/mesh/{{ r.slug }}">Yes</a>{% else %}No{% endif %}</td>
     <td>{{ r.role_name or '-' }}</td><td>{{ r.hardware }}</td><td class="mono">{{ r.firmware }}</td>
     <td class="mono">{% if r.lat is not none %}{{ '%.4f' % r.lat }}, {{ '%.4f' % r.lon }}{% else %}none{% endif %}</td>

@@ -147,7 +147,7 @@
     cardId = id; var n = nodes.filter(function (x) { return x.id === id; })[0], card = $("lv-card");
     if (!n) { card.style.display = "none"; $("lv").classList.remove("has-card"); linkG.clearLayers(); render(); return; }
     $("c-name").textContent = n.long_name || n.short_name || n.id; $("c-sub").textContent = (n.network === "meshcore" ? "MeshCore " : "Meshtastic ") + n.id.slice(0, 13) + (n.id.length > 13 ? "..." : "") + " · " + (n.role_name || "role not stated") + " · heard " + ago(n.last_seen);
-    {% if private %}$("c-page").style.display = "none";{% else %}$("c-page").href = "/mesh/" + n.slug;{% endif %}
+    $("c-page").href = "/mesh/" + n.slug;
     $("c-body").innerHTML = '<div class="k">' + (n.network === "meshcore" ? "" : "<div>Hardware</div><div>" + esc(n.hardware || "-") + "</div><div>Firmware</div><div>" + esc(n.firmware || "-") + "</div>") + (n.battery != null ? "<div>Battery</div><div>" + (n.battery <= 100 ? n.battery + "%" : "powered") + "</div>" : "") +
       "<div>Position</div><div>" + n.lat.toFixed(4) + ", " + n.lon.toFixed(4) + "</div></div>" + '<div id="mm-heard" class="dim" style="font-size:.8rem;margin-top:8px">Looking up who heard it...</div>';
     card.style.display = "block"; $("lv").classList.add("has-card");
