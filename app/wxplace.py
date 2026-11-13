@@ -132,6 +132,70 @@ def _get_json(url):
         return json.loads(r.read(2_000_000).decode("utf-8", "replace"))
 
 
+def _grid_series(series):
+    """{UTC hour 'YYYY-MM-DDTHH': millimeters in that hour} from an NWS gridpoint series: each block (validTime 'start/PT6H') is shared out evenly over its hours."""
+    import re
+    from datetime import datetime, timedelta
+    out = {}
+    for v in (series or {}).get("values", []):
+        try:
+            start, dur = v["validTime"].split("/")
+            m = re.fullmatch(r"P(?:(\d+)D)?(?:T(?:(\d+)H)?)?", dur)
+            n = int(m.group(1) or 0) * 24 + int(m.group(2) or 0)
+            if n <= 0 or v["value"] is None:
+                continue
+            t0 = datetime.fromisoformat(start)
+            for i in range(n):
+                out[(t0 + timedelta(hours=i)).strftime("%Y-%m-%dT%H")] = float(v["value"]) / n
+        except Exception:
+            continue
+    return out
+
+
+def sun_times(lat, lon, day, tz):
+    """(sunrise, sunset) of a date at a spot as aware datetimes in `tz` (the NOAA solar equations, good to about a minute); None for a side that does not happen (polar day or night)."""
+    import math
+    from datetime import datetime, timedelta, timezone
+    jd = day.toordinal() + 1721424.5 + 0.5   # noon of the date, as the NOAA equations count days
+    js = round(jd - 2451545.0) + 0.0008 - lon / 360.0
+    m = math.radians((357.5291 + 0.98560028 * js) % 360)
+    lam = math.radians((math.degrees(m) + 1.9148 * math.sin(m) + 0.02 * math.sin(2 * m) + 0.0003 * math.sin(3 * m) + 180 + 102.9372) % 360)
+    transit = 2451545.0 + js + 0.0053 * math.sin(m) - 0.0069 * math.sin(2 * lam)
+    sd = math.sin(lam) * math.sin(math.radians(23.4397))
+    cd = math.cos(math.asin(sd))
+    c = (math.sin(math.radians(-0.833)) - math.sin(math.radians(lat)) * sd) / (math.cos(math.radians(lat)) * cd)
+    if abs(c) > 1:
+        return None, None
+    w = math.degrees(math.acos(c)) / 360.0
+    def at(j):
+        return (datetime(2000, 1, 1, 12, tzinfo=timezone.utc) + timedelta(days=j - 2451545.0)).astimezone(tz)
+    return at(transit - w), at(transit + w)
+
+
+def _with_sun(hours, stamps, lat, lon):
+    """The hourly list with a sunrise or sunset marker where each falls between two hours (like Weather Underground's strip)."""
+    from datetime import timedelta
+    if not hours:
+        return hours
+    tz, first, last = stamps[0].tzinfo, stamps[0], stamps[-1] + timedelta(hours=1)
+    events = []
+    d = first.date() - timedelta(days=1)
+    while d <= last.date():
+        for kind, t in zip(("Sunrise", "Sunset"), sun_times(lat, lon, d, tz)):
+            if t is not None and first <= t < last:
+                events.append((t, kind))
+        d += timedelta(days=1)
+    out, ev = [], sorted(events)
+    for h, s in zip(hours, stamps):
+        while ev and ev[0][0] < s + timedelta(hours=0):
+            t, kind = ev.pop(0)
+            out.append({"sun": kind, "date": t.strftime("%Y-%m-%d"), "label": t.strftime("%I:%M %p").lstrip("0")})
+        out.append(h)
+    for t, kind in ev:
+        out.append({"sun": kind, "date": t.strftime("%Y-%m-%d"), "label": t.strftime("%I:%M %p").lstrip("0")})
+    return out
+
+
 def forecast(lat, lon):
     """The National Weather Service forecast for the spot: {office, periods: [{name, temp, unit, wind, short, detail, icon, daytime}]} or None (a place outside the NWS area, or the service did not answer)."""
     if cfg("place_forecast_enabled") != "1":
@@ -143,8 +207,35 @@ def forecast(lat, lon):
         try:
             pt = _get_json(f"{base}/points/{la},{lo}")["properties"]
             fc = _get_json(pt["forecast"])["properties"]
-            return {"office": pt.get("cwa", ""), "place": ((pt.get("relativeLocation") or {}).get("properties") or {}).get("city", ""),
-                    "updated": fc.get("updateTime", ""), "periods": [{"name": p["name"], "temp": p["temperature"], "unit": p["temperatureUnit"], "wind": f"{p.get('windSpeed', '')} {p.get('windDirection', '')}".strip(),
+            hours, totals = [], {}
+            try:   # the hour-by-hour forecast; the daily one is still shown if this does not answer
+                from datetime import datetime, timezone
+                stamps = []
+                try:   # how much is forecast to fall: the NWS gridpoint data (4 to 6 hour blocks, shared out over their hours)
+                    grid = _get_json(pt["forecastGridData"])["properties"]
+                    amounts = {k: _grid_series(grid.get(k)) for k in ("quantitativePrecipitation", "snowfallAmount", "iceAccumulation")}
+                except Exception:
+                    amounts = {}
+                for p in _get_json(pt["forecastHourly"])["properties"].get("periods", [])[:156]:
+                    t = datetime.fromisoformat(p["startTime"])   # the place's own clock, as the NWS writes it
+                    snow = any(w in p["shortForecast"].lower() for w in ("snow", "flurr", "sleet", "wintry", "ice"))
+                    stamps.append(t)
+                    hk = t.astimezone(timezone.utc).strftime("%Y-%m-%dT%H")
+                    amt = {a: round(amounts.get(k, {}).get(hk, 0.0), 3) for a, k in (("liq", "quantitativePrecipitation"), ("snowmm", "snowfallAmount"), ("icemm", "iceAccumulation"))} if amounts else {}
+                    hours.append(dict(amt, **{"date": t.strftime("%Y-%m-%d"), "label": t.strftime("%I %p").lstrip("0"), "temp": p["temperature"], "unit": p["temperatureUnit"],
+                                  "wind": f"{p.get('windSpeed', '')} {p.get('windDirection', '')}".strip(), "short": p["shortForecast"], "daytime": p["isDaytime"],
+                                  "icon": (icon_from_text(p["shortForecast"], p["isDaytime"]) or ("", ""))[0], "rain": ((p.get("probabilityOfPrecipitation") or {}).get("value")), "snow": snow}))
+                totals = {}
+                for h in hours:
+                    if "liq" in h:
+                        d = totals.setdefault(h["date"], {"liq": 0.0, "snowmm": 0.0, "icemm": 0.0})
+                        for k in d:
+                            d[k] += h[k]
+                hours = _with_sun(hours, stamps, la, lo)
+            except Exception:
+                hours, totals = [], {}
+            return {"office": pt.get("cwa", ""), "place": ((pt.get("relativeLocation") or {}).get("properties") or {}).get("city", ""), "hours": hours, "totals": totals,
+                    "updated": fc.get("updateTime", ""), "periods": [{"date": str(p.get("startTime", ""))[:10], "name": p["name"], "temp": p["temperature"], "unit": p["temperatureUnit"], "wind": f"{p.get('windSpeed', '')} {p.get('windDirection', '')}".strip(),
                                                                        "short": p["shortForecast"], "detail": p["detailedForecast"], "daytime": p["isDaytime"], "icon": (icon_from_text(p["shortForecast"], p["isDaytime"]) or ("", ""))[0], "rain": ((p.get("probabilityOfPrecipitation") or {}).get("value"))} for p in fc.get("periods", [])[:14]]}
         except Exception:
             return None

@@ -9,6 +9,17 @@
     "security": []
   },
   {
+    "version": "1.9.7",
+    "released": "2026-11-13",
+    "title": "Hourly Weather Forecast",
+    "added": [
+      "Weather for a Place has an Hourly Forecast with icons (temperature, sky, wind and the chance of rain or snow for every hour, with sunrise and sunset markers and the expected amount of rain, snow or ice for each hour and for the day, in the place's own time). It opens on today; click another day of the forecast above it to see that day's hours. It scrolls sideways on a computer and lists down the page on a phone."
+    ],
+    "improved": [],
+    "fixed": [],
+    "security": []
+  },
+  {
     "version": "1.9.6",
     "released": "2026-11-09",
     "title": "Open Any Private Node",

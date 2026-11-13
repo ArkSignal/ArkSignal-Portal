@@ -1,5 +1,5 @@
 {
-  "updated": "2026-11-09",
+  "updated": "2026-11-13",
   "items": [
     {
       "title": "Off-site copy to a NAS over HTTPS",
@@ -1387,6 +1387,12 @@
       "summary": "The private map and Private Nodes list fill in names, hardware and last-heard times from the public record; neighbor reports from private gateways are kept; each node's private page lists every kind of packet the private gateways heard, read as far as possible (never the words of a text message).",
       "status": "done",
       "area": "Mesh"
+    },
+    {
+      "title": "Hourly forecast with icons on Weather for a Place",
+      "summary": "A sideways-scrolling hour-by-hour strip with icons, temperature, sky, wind and rain chance, opening on today; click another day of the forecast to see its hours; a vertical list on phones. Each hour shows its chance of rain or snow, and sunrise and sunset markers sit where they happen. The expected amount of rain, snow or ice is shown for each hour and as a total for the day.",
+      "status": "done",
+      "area": "Weather"
     }
   ]
 }

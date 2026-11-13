@@ -4,6 +4,9 @@
 {% include "partials/_wxicons.html" %}
 <style>@media(max-width:760px){.wxcharts{grid-template-columns:minmax(0,1fr)!important}}.wxcharts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 24px}.wxchart h3{margin:8px 0 2px;font-size:.95rem;display:flex;gap:6px;align-items:center}.wxchart svg.pc{display:block;width:100%;height:150px}
 .fcs{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px}.fc{flex:0 0 170px;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--panel2,transparent)}.fc b{display:block}.fc .ft{font:700 1.6rem/1.1 'JetBrains Mono',monospace;margin:4px 0}.fc.night{opacity:.85}.fc .fd{font-size:.78rem;color:var(--dim)}
+.fc[data-date]{cursor:pointer}.fc.sel{border-color:var(--accent,#3ee6a8);box-shadow:0 0 0 1px var(--accent,#3ee6a8) inset}
+.hrs{display:flex;gap:4px;overflow-x:auto;padding:6px 0 8px}.hr{flex:0 0 74px;text-align:center;padding:6px 4px;border-radius:10px}.hr .ht{font-size:.8rem;color:var(--dim)}.hr .hv{font:700 1.05rem/1.3 'JetBrains Mono',monospace}.hr .hs{font-size:.7rem;color:var(--dim);min-height:2.2em}.hr .hd{display:none;font-size:.75rem;color:var(--dim)}.hr .hp{font-size:.8rem;color:#4aa3ff;min-height:1.2em}.hr .hq{font-size:.72rem;color:#4aa3ff;min-height:1.1em;line-height:1.1}.hr .hp span{font-size:.68rem}.hr.sun .hv{color:var(--dim);font-weight:600}
+@media(max-width:760px){.hrs{flex-direction:column;overflow-x:visible;gap:0}.hr{flex:none;display:grid;grid-template-columns:62px 38px 52px 1fr;align-items:center;gap:6px;text-align:left;border-bottom:1px solid var(--line);border-radius:0;padding:6px 2px}.hr .hp,.hr .hq{display:none}.hr.sun{grid-template-columns:62px 38px 1fr}.hr .hs{min-height:0;font-size:.82rem;color:inherit}.hr .hd{display:block;grid-column:4;font-size:.72rem}.hr .hs{grid-column:4}}
 .pq{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}.pq input[type=text]{width:min(100%,360px)}</style>
 <h1>{% if place %}{{ place.label }} <span>Weather</span>{% else %}Weather for <span>a Place</span>{% endif %}</h1>
 <div class="sub">{% if place %}Made from the readings of the weather stations near {{ place.label }}: members' stations, APRS stations and airports.{% else %}Type a ZIP code, a city, an airport code or an address to get its weather, made from the stations near it.{% endif %}</div>
@@ -39,8 +42,31 @@
 {% if forecast and forecast.periods %}
 <details class="panel setsec" id="sec-forecast" open style="margin-top:14px"><summary><span class="role-name">Forecast</span></summary><div class="secbody">
   <div class="fcs">
-    {% for p in forecast.periods %}<div class="fc {{ '' if p.daytime else 'night' }}" title="{{ p.detail }}"><b>{{ p.name }}</b>{% if p.icon %}<svg class="wxi big cond-{{ p.icon }}" style="width:44px;height:44px;margin:6px 0 0"><use href="#wxi-{{ p.icon }}"/></svg>{% endif %}<div class="ft">{{ p.temp }}&deg;{{ p.unit }}</div><div>{{ p.short }}</div><div class="fd">{{ p.wind }}{% if p.rain %} &middot; {{ p.rain }}% rain{% endif %}</div></div>{% endfor %}
+    {% for p in forecast.periods %}<div class="fc {{ '' if p.daytime else 'night' }}" title="{{ p.detail }}"{% if forecast.hours and p.date %} data-date="{{ p.date }}" tabindex="0" role="button"{% endif %}><b>{{ p.name }}</b>{% if p.icon %}<svg class="wxi big cond-{{ p.icon }}" style="width:44px;height:44px;margin:6px 0 0"><use href="#wxi-{{ p.icon }}"/></svg>{% endif %}<div class="ft">{{ p.temp }}&deg;{{ p.unit }}</div><div>{{ p.short }}</div><div class="fd">{{ p.wind }}{% if p.rain %} &middot; {{ p.rain }}% rain{% endif %}</div></div>{% endfor %}
   </div>
+  {% macro amt(h) %}{% set parts = [] %}{% for k, w in (('liq', 'rain'), ('snowmm', 'snow'), ('icemm', 'ice')) %}{% if h[k] is defined and h[k] >= 0.25 and not (k == 'liq' and h.snowmm is defined and h.snowmm > 0 and h.liq <= h.snowmm / 5) %}{% set c = conv('rain_day_in', h[k] / 25.4, units) %}{% if parts.append(c[0] ~ ' ' ~ c[1] ~ ' ' ~ w) %}{% endif %}{% endif %}{% endfor %}{{ parts | join(', ') }}{% endmacro %}
+  {% if forecast.hours %}<h3 id="hr-title" style="margin:14px 0 6px;font-size:.95rem">Hourly Forecast <span class="dim" id="hr-day"></span> <span class="dim" id="hr-tot" style="font-weight:400"></span></h3>
+  {% for d, t in (forecast.totals or {}).items() %}<span class="dtot" data-date="{{ d }}" hidden>{% set parts = [] %}{% for k, w in (('liq', 'rain'), ('snowmm', 'snow'), ('icemm', 'ice')) %}{% if t[k] >= 0.1 %}{% set c = conv('rain_day_in', t[k] / 25.4, units) %}{% if parts.append(c[0] ~ ' ' ~ c[1] ~ ' ' ~ w) %}{% endif %}{% endif %}{% endfor %}{{ ('Expected: ' ~ parts | join(', ')) if parts else 'No measurable precipitation expected' }}</span>{% endfor %}
+  <div class="hrs" id="hrs">{% for h in forecast.hours %}{% if h.sun %}<div class="hr sun" data-date="{{ h.date }}"><div class="ht">{{ h.label }}</div><svg viewBox="0 0 34 34" style="width:34px;height:34px"><path d="M5 23a12 12 0 0 1 24 0z" fill="{{ '#ffb347' if h.sun == 'Sunset' else '#ffd24f' }}"/><path d="M2 23h30" stroke="currentColor" stroke-width="1.5" opacity=".5"/><path d="{{ 'M17 5v-3m0 3l-2-2m2 2l2-2' if h.sun == 'Sunrise' else 'M17 2v3m0-3l-2 2m2-2l2 2' }}" stroke="currentColor" stroke-width="1.5" fill="none" opacity=".7"/></svg><div class="hv" style="font-size:.85rem">{{ h.sun }}</div></div>
+  {% else %}<div class="hr" data-date="{{ h.date }}" title="{{ h.short }}"><div class="ht">{{ h.label }}</div>{% if h.icon %}<svg class="wxi cond-{{ h.icon }}" style="width:34px;height:34px"><use href="#wxi-{{ h.icon }}"/></svg>{% else %}<span style="width:34px;height:34px;display:inline-block"></span>{% endif %}<div class="hv">{{ h.temp }}&deg;</div><div class="hp" title="Chance of {{ 'snow' if h.snow else 'rain' }}">{% if h.rain is not none %}{{ h.rain }}%<span> {{ 'snow' if h.snow else 'rain' }}</span>{% endif %}</div><div class="hq" title="Expected amount">{{ amt(h) }}</div><div class="hs">{{ h.short }}</div><div class="hd">{{ h.wind }}{% if h.rain %} &middot; {{ h.rain }}% {{ 'snow' if h.snow else 'rain' }}{% endif %}{% if amt(h) %} &middot; {{ amt(h) }}{% endif %}</div></div>{% endif %}{% endfor %}</div>
+  <div class="help">Click a day above to see its hours. Scroll sideways for more.</div>
+  <script nonce="{{ csp_nonce() }}">
+  (function () {
+    var cards = document.querySelectorAll(".fc[data-date]"), hrs = document.querySelectorAll("#hrs .hr"), day = document.getElementById("hr-day"), box = document.getElementById("hrs");
+    function show(date) {
+      var n = 0; hrs.forEach(function (h) { var on = h.getAttribute("data-date") === date; h.style.display = on ? "" : "none"; if (on) n++; });
+      cards.forEach(function (c) { c.classList.toggle("sel", c.getAttribute("data-date") === date); });
+      var d = new Date(date + "T12:00:00"); day.textContent = isNaN(d) ? "" : "for " + d.toLocaleDateString(undefined, {weekday: "long", month: "short", day: "numeric"});
+      var tot = document.querySelector('.dtot[data-date="' + date + '"]'); document.getElementById("hr-tot").textContent = tot ? "· " + tot.textContent : "";
+      box.scrollLeft = 0;
+    }
+    cards.forEach(function (c) {
+      c.addEventListener("click", function () { show(c.getAttribute("data-date")); });
+      c.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); show(c.getAttribute("data-date")); } });
+    });
+    show(hrs.length ? hrs[0].getAttribute("data-date") : "");
+  })();
+  </script>{% endif %}
   <div class="help">National Weather Service forecast for this spot{% if forecast.office %} (office {{ forecast.office }}){% endif %}. It is the NWS's own, not made from our stations.</div>
 </div></details>
 {% endif %}
