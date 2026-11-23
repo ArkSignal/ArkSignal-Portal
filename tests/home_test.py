@@ -109,7 +109,7 @@ manage(ALPHA, action="official", official_order="2")
 sql(f"update feeders set website = 'https://alpha.example.org/', website_public = false where uuid = '{ALPHA}'")
 check("a site link the owner has not shared is not shown", "alpha.example.org" not in anon.get(B + "/feeders/").text and "alpha.example.org" not in anon.get(B + "/feeders/PUB-ALPHA").text)
 check("the JSON feed hides an unshared link", [f for f in anon.get(B + "/api/feeders.json").json()["feeders"] if f["station_id"] == "PUB-ALPHA"][0]["website"] is None)
-sql(f"update feeders set website_public = true where uuid = '{ALPHA}'")
+sql(f"update feeders set website_public = true, website_approved = true where uuid = '{ALPHA}'")
 pl = anon.get(B + "/feeders/").text
 check("a shared link shows in the list and opens in a new tab safely", re.search(r'<a href="https://alpha.example.org/" target="_blank" rel="noopener nofollow">Visit</a>', pl) is not None)
 check("a shared link shows on the station page and in the JSON feed", "alpha.example.org" in anon.get(B + "/feeders/PUB-ALPHA").text and
@@ -125,7 +125,32 @@ check("saving without the checkbox makes the link private", r.json()["ok"] and "
 form["website_public"] = "1"
 form["csrf_token"] = tok(c1, f"/my/feeders/{ALPHA}")
 c1.post(B + f"/my/feeders/{ALPHA}/save", data=form, headers={"X-Requested-With": "XMLHttpRequest"})
-check("ticking it shares the link again", "alpha.example.org" in anon.get(B + "/feeders/").text)
+check("ticking it shares the link again (the address is the one an administrator already approved)", "alpha.example.org" in anon.get(B + "/feeders/").text)
+# a new address waits for an administrator
+form["website"] = "https://promo.example.net/"
+form["csrf_token"] = tok(c1, f"/my/feeders/{ALPHA}")
+c1.post(B + f"/my/feeders/{ALPHA}/save", data=form, headers={"X-Requested-With": "XMLHttpRequest"})
+check("a changed website is not shown until an administrator approves it", "promo.example.net" not in anon.get(B + "/feeders/").text and "promo.example.net" not in anon.get(B + "/feeders/PUB-ALPHA").text and "promo.example.net" not in anon.get(B + "/api/feeders.json").text)
+check("the admin page says it is waiting for approval", "waiting for approval" in adm.get(B + f"/admin/feeders/{ALPHA}").text)
+manage(ALPHA, action="website", website="https://promo.example.net/", website_public="1")
+check("an administrator saving it with Show publicly approves it", "promo.example.net" in anon.get(B + "/feeders/PUB-ALPHA").text)
+sql("update settings set value='0' where key='feeder_website_review'") if sql("select count(*) from settings where key='feeder_website_review'").strip() == "1" else sql("insert into settings (key, value) values ('feeder_website_review','0')")
+sql(f"update feeders set website_approved = false where uuid = '{ALPHA}'")
+check("with the approval switch off a ticked link shows at once", "promo.example.net" in anon.get(B + "/feeders/PUB-ALPHA").text)
+sql("delete from settings where key='feeder_website_review'")
+# the allowed area
+form["csrf_token"] = tok(c1, f"/my/feeders/{ALPHA}")
+form["lat"], form["lon"] = "39.92923", "32.81864"
+r = c1.post(B + f"/my/feeders/{ALPHA}/save", data=form, headers={"X-Requested-With": "XMLHttpRequest"})
+check("a feeder cannot be given a location outside North America", not r.json()["ok"] and "outside the area" in r.json().get("message", r.text), r.text[:200])
+sql(f"update feeders set lat = 39.92923, lon = 32.81864 where uuid = '{ALPHA}'")
+check("a feeder already placed outside the area is left off the public pages and the feed", "PUB-ALPHA" not in anon.get(B + "/feeders/").text and anon.get(B + "/feeders/PUB-ALPHA").status_code == 404 and "PUB-ALPHA" not in anon.get(B + "/api/feeders.json").text)
+check("the admin page flags it", "Outside the allowed area" in adm.get(B + f"/admin/feeders/{ALPHA}").text)
+sql(f"update feeders set lat = 34.315231, lon = -92.410357 where uuid = '{ALPHA}'")
+check("back inside the area it is listed again", "PUB-ALPHA" in anon.get(B + "/feeders/").text)
+form["lat"], form["lon"] = "34.315231", "-92.410357"
+form["website"] = "https://alpha.example.org/"
+sql(f"update feeders set website = 'https://alpha.example.org/', website_public = true, website_approved = true where uuid = '{ALPHA}'")
 form["website"] = ""
 form["csrf_token"] = tok(c1, f"/my/feeders/{ALPHA}")
 c1.post(B + f"/my/feeders/{ALPHA}/save", data=form, headers={"X-Requested-With": "XMLHttpRequest"})

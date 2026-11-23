@@ -3,6 +3,7 @@
 Orbits come from CelesTrak's public element sets (two-line elements, derived from US Space Force tracking; see DATA_SOURCES_TERMS.md), kept in the database and refreshed by Data Updates. A satellite's position is
 worked out with the `sgp4` library (the standard propagator those elements are made for) and turned into the direction and height above the horizon for the observer with plain WGS-84 geometry. Nothing is
 drawn from the network when a page opens: only the stored elements are read."""
+import json
 import math
 import re
 import urllib.request
@@ -24,10 +25,28 @@ STEP = 20                   # seconds between positions while looking for passes
 # (a guide, not a promise: satellites and their radios change, see amsat.org/status)
 FM_NEED = "A dual-band handheld or mobile radio (5 W is plenty) and, ideally, a handheld directional antenna (an Arrow or small Yagi). Retune the receiver during the pass for Doppler."
 LIN_NEED = "An all-mode radio for 2 m and 70 cm (SSB and CW), a beam antenna for each band, and a steady hand tuning for Doppler. You hear your own signal in the downlink."
+APRS_NEED = "A 2 m FM radio or handheld with a small directional antenna and an APRS-capable radio or TNC (1200 baud AX.25). Retune for Doppler during the pass."
+GOES_NEED = "Receive only, and more than the low-orbit weather satellites: a 1.7 GHz dish (about 1 m, or a smaller one with a good feed), a 1.7 GHz LNA and filter, an SDR (an RTL-SDR works) and a decoder such as goestools or SatDump. It points at one fixed spot and never moves. No license is needed."
 WX_NEED = "Receive only: an RTL-SDR dongle, a V-dipole or turnstile antenna pointed at the sky and decoding software. No license is needed."
+# The space station has several radios, each on its own frequency and each switched on or off on its own (a guide from ARISS, the Amateur Radio on the International Space Station program: ariss.org/current-status-of-iss-stations.html).
+# `amsat` is the name AMSAT's status page uses for it, so the operators' reports can be shown next to it.
+ISS_RADIOS = [
+    {"name": "Voice Repeater (Columbus, NA1SS)", "amsat": "ISS_[FM]", "up": 145.990, "down": 437.800, "mode": "FM crossband repeater", "tone": "67.0 Hz", "lic": True,
+     "note": "The Kenwood D710GA radio in the Columbus module hears you on 2 m and repeats you on 70 cm. Crew sometimes use it for casual contacts; it is switched off during spacewalks and other station work."},
+    {"name": "APRS Digipeater (VHF)", "amsat": "ISS_[VHF_Digi]", "up": 145.825, "down": 145.825, "mode": "FM, 1200 baud AX.25 packets", "tone": "", "lic": True,
+     "note": "Packet radio: position reports and short messages repeated by the station (call sign ARISS). The same frequency is used both ways."},
+    {"name": "APRS Digipeater (UHF, Zvezda, RS0ISS)", "amsat": "ISS_[UHF_Digi]", "up": 437.825, "down": 437.825, "mode": "FM, 1200 baud AX.25 packets", "tone": "", "lic": True,
+     "note": "The Kenwood D710GA radio in the Zvezda module. ARISS says this radio is still being tested, so its settings can change."},
+    {"name": "Crew Voice Contacts with Schools", "amsat": "ISS_[Crew]", "up": 144.490, "down": 145.800, "mode": "FM voice", "tone": "", "lic": True,
+     "note": "Scheduled ARISS school contacts: anyone can listen on 145.800 MHz. The uplink is 144.490 MHz in the Americas and Asia-Pacific and 145.200 MHz in Europe and Africa."},
+    {"name": "SSTV Picture Events (Zvezda)", "amsat": "ISS_[SSTV]", "up": None, "down": 145.800, "mode": "FM, slow-scan TV (usually PD120)", "tone": "", "lic": False,
+     "note": "Pictures are sent on announced event days (a few times a year). Receive only: a radio and an SSTV decoder program."},
+    {"name": "Ham TV (Columbus)", "amsat": "ISS_[DATV]", "up": None, "down": 2395.000, "mode": "Digital amateur TV, 2.4 GHz", "tone": "", "lic": False,
+     "note": "Transmits a test signal now and then. Needs a 2.4 GHz dish with a DVB-S receiver."},
+]
 RADIO = {
-    25544: {"kind": "Space station: APRS, voice, SSTV", "up": 145.825, "down": 145.825, "mode": "FM, 1200 baud APRS packets", "tone": "", "lic": True, "need": FM_NEED,
-            "note": "International Space Station: the APRS digipeater is on 145.825 MHz FM both ways, crew voice contacts and SSTV picture events (145.800 MHz) happen on announced days."},
+    25544: {"kind": "Space station: APRS, voice, SSTV, Ham TV", "up": 145.825, "down": 145.825, "mode": "FM, 1200 baud APRS packets", "tone": "", "lic": True, "need": FM_NEED, "radios": ISS_RADIOS,
+            "note": "International Space Station: it carries several amateur radios, each with its own frequency, and each is switched on or off on its own (ARISS turns them off for spacewalks and station work). The table lists them all; the reports of operators who tried them lately are from AMSAT."},
     25338: {"kind": "Weather pictures (APT)", "up": None, "down": 137.620, "mode": "APT, FM", "tone": "", "lic": False, "need": WX_NEED, "note": "NOAA 15: weather pictures near 137.620 MHz while it is still in service."},
     28654: {"kind": "Weather pictures (APT)", "up": None, "down": 137.9125, "mode": "APT, FM", "tone": "", "lic": False, "need": WX_NEED, "note": "NOAA 18: weather pictures near 137.9125 MHz while it is still in service."},
     33591: {"kind": "Weather pictures (APT)", "up": None, "down": 137.100, "mode": "APT, FM", "tone": "", "lic": False, "need": WX_NEED, "note": "NOAA 19: weather pictures near 137.100 MHz while it is still in service."},
@@ -39,8 +58,71 @@ RADIO = {
     44909: {"kind": "Linear transponder", "up": 435.640, "down": 145.935, "mode": "SSB and CW, inverting", "tone": "", "lic": True, "need": LIN_NEED, "note": "RS-44: linear transponder; the band is about 20 kHz wide around these frequencies, and tuning up on the downlink means tuning down on the uplink."},
     24278: {"kind": "Linear transponder", "up": 145.900, "down": 435.800, "mode": "SSB and CW, inverting", "tone": "", "lic": True, "need": LIN_NEED, "note": "FO-29: linear transponder, often switched to digital mode; check AMSAT's status page."},
     7530: {"kind": "Linear transponder", "up": 432.125, "down": 145.925, "mode": "SSB and CW (mode B), inverting", "tone": "", "lic": True, "need": LIN_NEED, "note": "AO-7: linear transponder; works only in sunlight, and mode B is on certain days."},
+    61781: {"kind": "FM voice repeater", "up": 145.850, "down": 435.400, "mode": "FM", "tone": "67.0 Hz", "lic": True, "need": FM_NEED, "note": "AO-123 (ASRTU-1): FM voice repeater; the uplink needs a 67 Hz tone. It also sends pictures (SSDV) on 436.210 MHz."},
+    40908: {"kind": "FM voice repeater", "up": 144.350, "down": 437.200, "mode": "FM", "tone": "", "lic": True, "need": FM_NEED, "note": "CAS-3H (LilacSat-2): FM voice repeater with no set schedule; when it is off, a telemetry beacon is on 437.200 MHz. The satellite also carries an APRS digipeater on 144.390 MHz."},
+    43803: {"kind": "Linear transponder", "up": 435.100, "down": 145.865, "mode": "SSB and CW, inverting", "tone": "", "lic": True, "need": LIN_NEED, "note": "JO-97 (JY1SAT): linear transponder; the downlink band runs 145.855 to 145.875 MHz. It also sends telemetry on 145.840 MHz."},
+    39444: {"kind": "Linear transponder", "up": 435.130, "down": 145.960, "mode": "SSB and CW, inverting", "tone": "", "lic": True, "need": LIN_NEED, "note": "AO-73 (FUNcube-1): linear transponder, usually on only while the satellite is in eclipse; the downlink band runs 145.950 to 145.970 MHz. The CW beacon is on 145.815 MHz."},
+    59112: {"kind": "APRS digipeater", "up": 145.825, "down": 145.825, "mode": "FM, 1200 baud APRS packets", "tone": "", "lic": True, "need": APRS_NEED, "note": "SONATE-2: APRS digipeater on 145.825 MHz both ways. It also sends slow-scan TV pictures on 145.880 MHz and telemetry on 437.025 MHz."},
+    26931: {"kind": "APRS digipeater", "up": 145.825, "down": 145.825, "mode": "FM, 1200 baud APRS packets", "tone": "", "lic": True, "need": APRS_NEED, "note": "NO-44 (PCSAT): APRS digipeater on 145.825 MHz both ways, with a backup downlink on 144.390 MHz."},
+    # the GOES weather satellites hang over one spot on the equator, so they never rise or set: they have a fixed place in the sky (`geo`) instead of passes
+    60133: {"kind": "Weather pictures (GOES-East, fixed in the sky)", "geo": True, "up": None, "down": 1694.100, "mode": "HRIT/EMWIN, BPSK", "tone": "", "lic": False, "need": GOES_NEED,
+            "note": "GOES-19, the eastern weather satellite (75.2° W): full-disk pictures and weather text from HRIT/EMWIN on 1694.1 MHz. GRB, the full-rate feed, is on 1686.6 MHz."},
+    51850: {"kind": "Weather pictures (GOES-West, fixed in the sky)", "geo": True, "up": None, "down": 1694.100, "mode": "HRIT/EMWIN, BPSK", "tone": "", "lic": False, "need": GOES_NEED,
+            "note": "GOES-18, the western weather satellite (137.2° W): full-disk pictures and weather text from HRIT/EMWIN on 1694.1 MHz. It sits low over the western sky from Arkansas, so a clear view that way matters."},
 }
+for _n, _a in ((27607, ["SO-50_[FM]"]), (43017, ["AO-91_[FM]"]), (44909, ["RS-44_[V/u]"]), (24278, ["FO-29_[V/u]"]), (7530, ["AO-7_[U/v]", "AO-7_[V/a]"]),
+               (61781, ["AO-123_[FM]"]), (40908, ["CAS-3H_[FM]"]), (43803, ["JO-97_[U/v]"]), (39444, ["AO-73_[U/v]"]), (59112, ["SONATE-2_[VHF_Digi]"]), (26931, ["NO-44_[VHF_Digi]"])):
+    RADIO[_n]["amsat"] = _a
 INFO = {k: v["note"] for k, v in RADIO.items()}
+STATUS_WORDS = {"Heard": ("Heard", "ok"), "Crew Active": ("Crew active", "ok"), "Telemetry Only": ("Telemetry only", "warn"), "Not Heard": ("Not heard", "bad")}
+
+
+def radio_status():
+    """{AMSAT name: {label, level, when, text}} from the reports operators send to AMSAT's status service (kept a few minutes; {} when switched off or the service does not answer).
+    The label is the newest report (Heard, Not heard, Telemetry only, Crew active); the text counts the reports of the last few days."""
+    if cfg("satstatus_enabled") != "1":
+        return {}
+    from .cache import cached
+    hours = max(6, cfg_int("satstatus_hours"))
+
+    def load():
+        try:
+            req = urllib.request.Request(cfg("satstatus_url").rstrip("/") + f"/summary.php?hours={hours}", headers={"User-Agent": cfg("lookup_user_agent"), "Accept": "application/json"})
+            with urllib.request.urlopen(req, timeout=cfg_int("lookup_timeout_seconds") + 4) as r:
+                rows = json.loads(r.read(2_000_000).decode("utf-8", "replace")).get("data", [])
+        except Exception:
+            return {}
+        out = {}
+        for x in rows:
+            d = out.setdefault(x["name"], {"counts": {}, "when": "", "report": ""})
+            d["counts"][x["report"]] = d["counts"].get(x["report"], 0) + int(x.get("report_count") or 0)
+            if (x.get("latest_observation_time") or "") > d["when"]:
+                d["when"], d["report"] = x["latest_observation_time"], x["report"]
+        for d in out.values():
+            d["label"], d["level"] = STATUS_WORDS.get(d["report"], (d["report"], "dim"))
+            span = f"{hours // 24} day{'s' if hours // 24 != 1 else ''}" if hours % 24 == 0 and hours >= 24 else f"{hours} hours"
+            d["text"] = f"{sum(d['counts'].values())} report{'s' if sum(d['counts'].values()) != 1 else ''} in {span}: " + ", ".join(f"{n} {STATUS_WORDS.get(k, (k.lower(), ''))[0].lower()}" for k, n in sorted(d["counts"].items(), key=lambda kv: -kv[1]) if n)
+        return out
+    return cached(("satstatus", hours), load, max(1, cfg_int("satstatus_cache_minutes")) * 60) or {}
+
+
+def status_line(r, st):
+    """One short text for a satellite's card on the map: the radios' newest reports ('Heard 12 minutes ago'), or ''."""
+    names = [x["amsat"] for x in r.get("radios", [])] if r.get("radios") else r.get("amsat", [])
+    now = datetime.now(timezone.utc)
+    bits = []
+    for n in names:
+        s = st.get(n)
+        if not s:
+            continue
+        try:
+            mins = max(0, int((now - datetime.fromisoformat(s["when"].replace("Z", "+00:00"))).total_seconds() // 60))
+        except ValueError:
+            continue
+        ago = f"{mins} min ago" if mins < 90 else f"{mins // 60} hours ago" if mins < 2880 else f"{mins // 1440} days ago"
+        label = next((x["name"] for x in r.get("radios", []) if x["amsat"] == n), n)
+        bits.append(f"{label}: {s['label'].lower()} {ago}")
+    return "; ".join(bits)
 COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
 
 
@@ -272,6 +354,7 @@ def _build_map():
     now = datetime.now(timezone.utc).replace(microsecond=0)
     obs = observer(float(cfg("map_lat")), float(cfg("map_lon")))
     minutes, foot = cfg_int("satmap_track_minutes"), cfg("satmap_footprints") == "1"
+    status = radio_status()
     for e in elements():
         try:
             sat = satrec(e["line1"], e["line2"])
@@ -286,15 +369,23 @@ def _build_map():
         speed = math.sqrt(398600.4418 / (WGS_A + h))
         rows = [["Height", f"{h:,.0f} km ({h * 0.621371:,.0f} miles) above the earth"], ["Speed", f"{speed:.1f} km/s ({speed * 2236.94:,.0f} mph)"], ["Over", f"{abs(la):.1f}\u00b0 {'N' if la >= 0 else 'S'}, {abs(lo):.1f}\u00b0 {'E' if lo >= 0 else 'W'}"],
                 ["From the map's center", f"{el:.0f}\u00b0 above the horizon, to the {compass(az)}" if el > 0 else "below the horizon"]]
-        np_ = _next_pass(e, obs, now)
+        np_ = None if r.get("geo") else _next_pass(e, obs, now)
         if np_:
             rows.append(["Next pass there", np_["aos"], "t"])
             rows.append(["It climbs to", f"{np_['max_el']:.0f}\u00b0, rising in the {np_['az']}"])
         if r:
             rows.append(["Type", r["kind"]])
-            if r.get("up"):
-                rows.append(["Uplink", f"{r['up']:.3f} MHz" + (f" with a {r['tone']} tone" if r.get("tone") else "")])
-            rows.append(["Downlink", f"{r['down']:.3f} MHz, {r['mode']}"])
+            if r.get("radios"):   # the station has several radios, each on its own frequency, with the newest report of operators who tried it
+                for x in r["radios"]:
+                    s = status.get(x["amsat"])
+                    rows.append([x["name"], (f"up {x['up']:.3f}" + (f" ({x['tone']} tone)" if x.get("tone") else "") + ", " if x.get("up") else "") + f"down {x['down']:.3f} MHz, {x['mode']}" + (f". {s['label']}, last report {s['when'][:16].replace('T', ' ')} UTC" if s else "")])
+            else:
+                if r.get("up"):
+                    rows.append(["Uplink", f"{r['up']:.3f} MHz" + (f" with a {r['tone']} tone" if r.get("tone") else "")])
+                rows.append(["Downlink", f"{r['down']:.3f} MHz, {r['mode']}"])
+                sl = status_line(r, status)
+                if sl:
+                    rows.append(["Operators report", sl])
             rows.append(["To transmit", "A license is needed" if r["lic"] else "Receive only: no license needed"])
             rows.append(["What you need", r["need"]])
         feats.append({"type": "Feature", "geometry": {"type": "Point", "coordinates": [round(lo, 3), round(la, 3)]}, "properties": {
@@ -428,7 +519,7 @@ def page():
     order = [g for g in ("Space Station", "Weather Satellites", "Amateur Radio Satellites", "Other Satellites") if g in groups]
     now = datetime.now(timezone.utc).replace(microsecond=0)
     obs = observer(lat, lon)
-    rows, up_now = [], []
+    rows, up_now, fixed = [], [], []
     for e in els:
         if str(e["norad"]) not in picked:
             continue
@@ -437,13 +528,18 @@ def page():
         except Exception:
             continue
         st = look(sat, obs, now)
+        if (RADIO.get(e["norad"]) or {}).get("geo"):   # a fixed satellite: one place in the sky, no passes
+            if st is not None:
+                fixed.append({"name": e["name"], "norad": e["norad"], "el": st[1], "az": st[0], "range": st[2], "lon": st[4], "down": RADIO[e["norad"]]["down"], "mode": RADIO[e["norad"]]["mode"]})
+            continue
         if st is not None and st[1] > 0:
             up_now.append({"name": e["name"], "norad": e["norad"], "el": st[1], "az": st[0], "range": st[2]})
         for p in passes(sat, obs, now, hours, min_el):
             r = RADIO.get(e["norad"]) or {}
             dn = r.get("down")
-            rows.append(dict(p, name=e["name"], norad=e["norad"], svg=polar_svg(p["track"]), age=(now - e["epoch"]).days, down=dn, mode=r.get("mode", ""),
+            more = sorted({x["down"] for x in r.get("radios", []) if x["down"] and x["down"] != dn})
+            rows.append(dict(p, name=e["name"], norad=e["norad"], svg=polar_svg(p["track"]), age=(now - e["epoch"]).days, down=dn, mode=r.get("mode", ""), more=more,
                              dop_aos=doppler(sat, obs, p["aos"], dn) if dn else None, dop_los=doppler(sat, obs, p["los"], dn) if dn else None))
     rows.sort(key=lambda r: r["aos"])
-    return render_template("satellites.html", rows=rows, up_now=up_now, els=els, picked=picked, lat=lat, lon=lon, label=label, others=others, hours=hours, min_el=min_el, now=now, info=INFO, radio=RADIO, compass=compass,
-                           max_hours=cfg_int("satpass_max_hours"), groups=[(g, groups[g]) for g in order], narrowed=narrowed)
+    return render_template("satellites.html", rows=rows, up_now=up_now, fixed=fixed, els=els, picked=picked, lat=lat, lon=lon, label=label, others=others, hours=hours, min_el=min_el, now=now, info=INFO, radio=RADIO, compass=compass,
+                           max_hours=cfg_int("satpass_max_hours"), groups=[(g, groups[g]) for g in order], narrowed=narrowed, status=radio_status(), status_on=cfg("satstatus_enabled") == "1", status_hours=max(6, cfg_int("satstatus_hours")))

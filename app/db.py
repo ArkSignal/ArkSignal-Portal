@@ -432,6 +432,11 @@ MIGRATIONS = [
     "ALTER TABLE communities ADD COLUMN IF NOT EXISTS area_poly TEXT NOT NULL DEFAULT ''",
     "UPDATE settings SET value='members' WHERE key IN ('access_myflights','access_chat','access_messages','access_friends','access_matrix','access_bridges') AND value='everyone' AND NOT EXISTS (SELECT 1 FROM settings WHERE key='access_member_defaults_applied')",   # features that need a sign-in were saved as 'everyone' while that was the default for all of them: once, they become members only
     "INSERT INTO settings (key, value) VALUES ('access_member_defaults_applied', '1') ON CONFLICT (key) DO NOTHING",
+    "ALTER TABLE feeders ADD COLUMN IF NOT EXISTS website_approved BOOLEAN NOT NULL DEFAULT FALSE",
+    "UPDATE feeders SET website_approved = TRUE WHERE website_public AND lat BETWEEN 5 AND 84 AND lon BETWEEN -170 AND -50 AND NOT EXISTS (SELECT 1 FROM settings WHERE key='feeder_website_approved_once')",   # once: websites already shown by feeders inside North America stay shown
+    "INSERT INTO settings (key, value) VALUES ('feeder_website_approved_once', '1') ON CONFLICT (key) DO NOTHING",
+    "UPDATE settings SET value = value || ',61781,40908,43803,39444,59112,26931,60133,51850' WHERE key='satpass_tracked' AND NOT EXISTS (SELECT 1 FROM settings WHERE key='satpass_more_sats_added')",   # the satellites added later (AO-123, CAS-3H, JO-97, AO-73, SONATE-2, NO-44, GOES-19 and GOES-18): once, appended to a saved list so they show up
+    "INSERT INTO settings (key, value) VALUES ('satpass_more_sats_added', '1') ON CONFLICT (key) DO NOTHING",
     "CREATE TABLE IF NOT EXISTS community_join_requests (id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, community_id BIGINT NOT NULL REFERENCES communities(id) ON DELETE CASCADE, user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE, message TEXT NOT NULL DEFAULT '', state TEXT NOT NULL DEFAULT 'pending', created_at TIMESTAMPTZ NOT NULL DEFAULT now(), decided_by BIGINT, decided_at TIMESTAMPTZ)",
     "CREATE UNIQUE INDEX IF NOT EXISTS community_join_requests_one ON community_join_requests (community_id, user_id) WHERE state = 'pending'",
     "ALTER TABLE communities ADD COLUMN IF NOT EXISTS feed_site_map BOOLEAN NOT NULL DEFAULT FALSE",

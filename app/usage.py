@@ -22,6 +22,7 @@ NAMES = {
     "sondehub-history.s3.amazonaws.com": "SondeHub archive (AWS Open Data)",
     "sondehub-history.s3.us-east-1.amazonaws.com": "SondeHub archive (AWS Open Data)",
     "api.weather.gov": "National Weather Service",
+    "status.amsat.org": "AMSAT satellite status",
     "earthquake.usgs.gov": "USGS Earthquake Catalog",
     "api.water.noaa.gov": "NOAA National Water Prediction Service",
     "aviationweather.gov": "Aviation Weather Center",

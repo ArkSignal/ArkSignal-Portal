@@ -8,6 +8,21 @@ from .db import get_db
 from .settings import cfg, cfg_int
 
 
+def area():
+    """(south, west, north, east) of the allowed feeder area from Settings, or None when anywhere is allowed (or the setting is not four numbers)."""
+    try:
+        s, w, n, e = [float(x) for x in cfg("feeder_area").replace(";", ",").split(",")]
+    except ValueError:
+        return None
+    return (s, w, n, e) if s < n and w < e else None
+
+
+def in_area(lat, lon):
+    """True when the place is inside the allowed area (or there is no place, or no limit)."""
+    a = area()
+    return a is None or lat is None or lon is None or (a[0] <= lat <= a[2] and a[1] <= lon <= a[3])
+
+
 def _same_ip_window():
     return timedelta(minutes=cfg_int("claim_same_ip_minutes"))
 
@@ -129,6 +144,8 @@ def parse_details(form):
         lon = _num(form.get("lon"), -180, 180, "Longitude")
         if (lat is None) != (lon is None):
             raise ValueError("Enter both latitude and longitude, or leave both blank.")
+        if not in_area(lat, lon):
+            raise ValueError("That location is outside the area this site covers (North America). Feeders elsewhere cannot be listed here.")
         v["lat"], v["lon"] = lat, lon
         height = _num(form.get("antenna_height_ft"), 0, 3000, "Antenna height")
         ref = form.get("height_ref", "")

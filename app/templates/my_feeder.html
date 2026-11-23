@@ -110,10 +110,10 @@
   <label for="website">Website</label>
   <input type="text" id="website" name="website" value="{{ f.website or '' }}" placeholder="https://" maxlength="200">
   <label class="check"><input type="checkbox" name="website_public" value="1" {{ 'checked' if f.website_public }}>
-    <span><b>Show this link publicly</b><br><span class="dim">Adds a Visit link for your station site to the public feeders list and your station page. It opens in a new tab. Leave this off to keep the link private.</span></span></label>
+    <span><b>Show this link publicly</b><br><span class="dim">Adds a Visit link for your station site to the public feeders list and your station page. It opens in a new tab. An administrator looks at a new address before it is shown. Leave this off to keep the link private.</span></span></label>
 
   <div class="grp">Location</div>
-  <div class="help" style="margin-top:0">Click the map to place the station, or type the coordinates. Your exact location is stored privately; the privacy option below controls what the public sees.</div>
+  <div class="help" style="margin-top:0">Click the map to place the station, or type the coordinates. This site covers North America: a location elsewhere cannot be saved. Your exact location is stored privately; the privacy option below controls what the public sees.</div>
   <div id="pickmap" style="height:320px;border-radius:12px;border:1px solid var(--line);margin:10px 0"></div>
   <div style="display:flex;gap:14px;flex-wrap:wrap">
     <div><label for="lat">Latitude</label><input type="text" id="lat" name="lat" value="{{ f.lat if f.lat is not none else '' }}" style="max-width:170px"></div>

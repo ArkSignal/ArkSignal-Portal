@@ -176,7 +176,7 @@ def station_page(sid):
         ("Temperature", wx.chart_svg(pts, [("temp", "var(--acc2)", "Temperature"), ("dew", "var(--acc)", "Dew point")], period, cvt["temp"], unit=wx.show("temp_f", 0, units)[1]), "Temperature and dew point (" + wx.show("temp_f", 0, units)[1] + ")", [("var(--acc2)", "Temperature"), ("var(--acc)", "Dew point")]),
         ("Humidity", wx.chart_svg(pts, [("hum", "#6fb3ff", "Humidity")], period, lambda v: v, unit="%", zero=True), "Relative humidity (%)", []),
         ("Pressure", wx.chart_svg(pts, [("press", "#c79bff", "Pressure")], period, cvt["press"], unit=wx.show("press_in", 0, units)[1]), "Pressure (" + wx.show("press_in", 0, units)[1] + ")", []),
-        ("Wind", wx.chart_svg(pts, [("gust", "#ff9f43", "Gust"), ("wind", "var(--acc)", "Wind")], period, cvt["speed"], unit=wx.show("wind_mph", 0, units)[1], zero=True), "Wind and gust (" + wx.show("wind_mph", 0, units)[1] + ")", [("var(--acc)", "Wind"), ("#ff9f43", "Gust")]),
+        ("Wind", wx.chart_svg(pts, [("gust", "#ff9f43", "Gust"), ("wind", "#3ee6a8", "Wind")], period, cvt["speed"], unit=wx.show("wind_mph", 0, units)[1], zero=True), "Wind and gust (" + wx.show("wind_mph", 0, units)[1] + ")", [("#3ee6a8", "Wind"), ("#ff9f43", "Gust")]),
         ("Rain", wx.chart_svg(pts, [("rain", "#4fb3ff", "Rain today")], period, cvt["rain"], unit=wx.show("rain_day_in", 0, units)[1], zero=True, bars=period != "24h"), "Rain so far that day (" + wx.show("rain_day_in", 0, units)[1] + ")", []),
         ("Sun", wx.chart_svg(pts, [("solar", "#ffd24f", "Solar radiation")], period, lambda v: v, unit="W/m²", zero=True), "Solar radiation (W/m²) and UV index", []),
     ]

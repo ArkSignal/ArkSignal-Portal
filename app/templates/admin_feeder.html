@@ -31,8 +31,8 @@
   <table>
     <tr><th style="width:180px">Station ID</th><td class="mono">{{ f.station_id or '' }}{% if f.station_id_kind %} <span class="dim">({{ f.station_id_kind }})</span>{% endif %}</td></tr>
     <tr><th>Name</th><td>{{ f.name or '' }}</td></tr>
-    <tr><th>Website</th><td>{% if f.website %}<a href="{{ f.website }}" target="_blank" rel="noopener nofollow">{{ f.website }}</a> <span class="dim">({{ 'shown publicly' if f.website_public else 'not shown' }})</span>{% endif %}</td></tr>
-    <tr><th>Location</th><td class="mono">{% if f.lat is not none %}{{ '%.5f' % f.lat }}, {{ '%.5f' % f.lon }}{% endif %} <span class="dim">{{ f.privacy or '' }}</span></td></tr>
+    <tr><th>Website</th><td>{% if f.website %}<a href="{{ f.website }}" target="_blank" rel="noopener nofollow">{{ f.website }}</a> <span class="dim">({{ 'not shown' if not f.website_public else 'waiting for approval: save it below with Show publicly ticked to approve it' if review and not f.website_approved else 'shown publicly' }})</span>{% endif %}</td></tr>
+    <tr><th>Location</th><td class="mono">{% if f.lat is not none %}{{ '%.5f' % f.lat }}, {{ '%.5f' % f.lon }}{% endif %} <span class="dim">{{ f.privacy or '' }}</span>{% if outside %} <b style="color:var(--bad)">Outside the allowed area</b> <span class="dim">(left off the public Feeders pages and totals; Settings > Feeders and Claiming)</span>{% endif %}</td></tr>
     <tr><th>Antenna</th><td>{% if f.antenna_height_ft is not none %}{{ f.antenna_height_ft | u_ft }} {{ (f.height_ref or '') | upper }}{% endif %}</td></tr>
     <tr><th>Claimed</th><td class="dim">{{ f.claimed_at | localtime if f.claimed_at else 'Not claimed' }}{% if f.claim_method %} ({{ f.claim_method }}){% endif %}</td></tr>
   </table>

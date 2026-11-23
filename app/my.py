@@ -249,10 +249,12 @@ def feeder(uuid):
 @bp.route("/feeders/<uuid>/save", methods=["POST"])
 @login_required
 def feeder_save(uuid):
-    _owned_or_404(uuid)
+    old = _owned_or_404(uuid)
     values, err = st.parse_details(request.form)
     if err:
         return action_response(False, err, redirect_endpoint="my.feeder", redirect_kwargs={"uuid": uuid})
+    if (values.get("website") or "") != (old["website"] or ""):
+        values["website_approved"] = False   # a new address is looked at by an administrator before it is shown
     st.save_details(uuid, values)
     audit("feeder.update", target=uuid)
     return action_response(True, "Station details saved.", redirect_endpoint="my.feeder", redirect_kwargs={"uuid": uuid})

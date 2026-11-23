@@ -112,7 +112,22 @@ def line_chart(points, period="24h", width=720, height=200):
 PUBLIC_PERIODS = {"24h": ("24 hours", timedelta(hours=24)), "7d": ("7 days", timedelta(days=7)), "30d": ("30 days", timedelta(days=30))}
 SORTS = {"positions": ("Positions per Day", "positions_per_day"), "messages": ("Messages per Day", "messages_per_day"),
          "uptime": ("Uptime", "uptime"), "range": ("Maximum Range (30 Days)", "max_range_30d")}
-PUBLIC_WHERE = "f.owner_id IS NOT NULL AND f.station_id IS NOT NULL AND NOT f.banned"
+_PUBLIC_BASE = "f.owner_id IS NOT NULL AND f.station_id IS NOT NULL AND NOT f.banned"
+
+
+def public_where():
+    """The rows of the public Feeders pages: claimed, named, not banned and (when Settings limits the area) not placed outside it."""
+    from . import stations
+    a = stations.area()
+    if a is None:
+        return _PUBLIC_BASE
+    return _PUBLIC_BASE + f" AND (f.lat IS NULL OR f.lon IS NULL OR (f.lat BETWEEN {a[0]!r} AND {a[2]!r} AND f.lon BETWEEN {a[1]!r} AND {a[3]!r}))"
+
+
+def site_shown(r):
+    """Whether a feeder's website link may be shown: the owner ticked Show publicly and (when Settings asks for it) an administrator approved the address."""
+    from .settings import cfg
+    return bool(r["website"] and r["website_public"] and (cfg("feeder_website_review") != "1" or r["website_approved"]))
 
 
 def public_location(f):
@@ -138,7 +153,7 @@ def _public_feeders(period, sort):
     start = now - window
     d = get_db()
     rows = d.execute(
-        "SELECT f.uuid, f.station_id, f.name, f.description, f.website, f.website_public, f.official, f.official_order, f.online, f.first_seen, f.last_seen, f.lat, f.lon, f.privacy, "
+        "SELECT f.uuid, f.station_id, f.name, f.description, f.website, f.website_public, f.website_approved, f.official, f.official_order, f.online, f.first_seen, f.last_seen, f.lat, f.lon, f.privacy, "
         "u.username AS owner_name, u.display_name AS owner_display, u.callsign AS owner_callsign, "
         "COALESCE(st.pos, 0) AS pos_total, COALESCE(st.msg, 0) AS msg_total, COALESCE(st.buckets, 0) AS buckets, "
         "cur.msg_per_s, cur.pos_per_s "
@@ -148,10 +163,11 @@ def _public_feeders(period, sort):
         "  SELECT pos_per_s * 30 AS pos, msg_per_s * 30 AS msg, 1.0 AS b FROM feeder_samples WHERE feeder_uuid = f.uuid AND ts >= %s "
         "  UNION ALL SELECT pos_per_s * samples * 30, msg_per_s * samples * 30, samples::float FROM feeder_hourly WHERE feeder_uuid = f.uuid AND hour >= %s"
         ") x) st ON TRUE "
-        f"WHERE {PUBLIC_WHERE}", (start, start)).fetchall()
+        f"WHERE {public_where()}", (start, start)).fetchall()
     out = []
     for r in rows:
         r = dict(r)
+        r["website_public"] = site_shown(r)
         seen_for = min(window, now - r["first_seen"])
         days = max(seen_for.total_seconds() / 86400, 1 / 24)
         r["positions_per_day"] = r["pos_total"] / days
@@ -198,10 +214,15 @@ def online_in_state():
 
 
 def public_feeder(station_id):
-    return get_db().execute(
+    r = get_db().execute(
         "SELECT f.*, u.username AS owner_name, u.display_name AS owner_display, u.callsign AS owner_callsign "
-        f"FROM feeders f JOIN users u ON u.id = f.owner_id WHERE {PUBLIC_WHERE} AND lower(f.station_id) = lower(%s)",
+        f"FROM feeders f JOIN users u ON u.id = f.owner_id WHERE {public_where()} AND lower(f.station_id) = lower(%s)",
         (station_id,)).fetchone()
+    if r is None:
+        return None
+    r = dict(r)
+    r["website_public"] = site_shown(r)
+    return r
 
 
 def feeders_for_ip(ip, hours):

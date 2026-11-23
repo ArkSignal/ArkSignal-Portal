@@ -39,16 +39,22 @@
   <p class="help" style="margin-bottom:0">Tick the satellites you want and choose Show Passes. None clears every box; nothing ticked shows no passes.</p>
 {% endcall %}
 
+{% macro stat(s) %}{% if s %}<span class="sp-st sp-{{ s.level }}">{{ s.label }}</span> <time class="ts dim" datetime="{{ s.when }}" data-fmt="dt" style="font-size:.8rem">{{ s.when[:16].replace('T', ' ') }}</time><br><span class="dim" style="font-size:.76rem">{{ s.text }}</span>{% elif status_on %}<span class="dim">No reports in {{ status_hours }} hours</span>{% else %}<span class="dim">-</span>{% endif %}{% endmacro %}
 {% call sec('radio', 'How to Work the Chosen Satellites', narrowed) %}
+  <style>.sp-st{display:inline-block;padding:1px 9px;border-radius:999px;font-size:.78rem;font-weight:600;border:1px solid currentColor}.sp-ok{color:#3ee6a8}.sp-warn{color:#ffd24f}.sp-bad{color:#ff6b6b}.sp-dim{color:var(--dim)}</style>
   <p class="dim" id="sp-find-none" style="margin:0 0 8px" data-t="Choose some satellites above, or type part of a name in the Find box, to see how to work them here.">Choose some satellites above, or type part of a name in the Find box, to see how to work them here.</p>
 <div id="sp-cards">
   {% for e in els %}{% set r = radio.get(e.norad) %}{% if r %}<div class="panel sp-card" data-name="{{ e.name | lower }} {{ r.kind | lower }}" data-n="{{ e.norad }}" {{ '' if narrowed and e.norad|string in picked else 'hidden' }} style="margin:10px 0 0">
     <b>{{ e.name }}</b> <span class="dim">{{ r.kind }}</span>
-    <table style="width:100%;margin-top:6px"><tr><th>Uplink (MHz)</th><th>Downlink (MHz)</th><th>Mode</th><th>Tone</th><th>To Transmit</th></tr>
-    <tr><td class="mono">{{ '%.3f' % r.up if r.up else 'none' }}</td><td class="mono">{{ '%.3f' % r.down if r.down else 'none' }}</td><td>{{ r.mode }}</td><td class="mono">{{ r.tone or '-' }}</td><td>{{ 'License needed' if r.lic else 'Receive only, no license' }}</td></tr></table>
-    <p style="margin:6px 0 0">{{ r.note }} <b>What you need:</b> {{ r.need }}</p></div>{% endif %}{% endfor %}
+    {% if r.radios %}<div class="scrollx"><table style="width:100%;margin-top:6px"><tr><th>Radio</th><th>Uplink (MHz)</th><th>Downlink (MHz)</th><th>Mode</th><th>Tone</th><th>To Transmit</th><th>Operators Report</th></tr>
+    {% for x in r.radios %}{% set s = status.get(x.amsat) %}<tr><td><b>{{ x.name }}</b><br><span class="dim" style="font-size:.8rem">{{ x.note }}</span></td><td class="mono">{{ '%.3f' % x.up if x.up else 'none' }}</td><td class="mono">{{ '%.3f' % x.down }}</td><td>{{ x.mode }}</td><td class="mono">{{ x.tone or '-' }}</td><td>{{ 'License needed' if x.lic else 'Receive only, no license' }}</td>
+      <td>{{ stat(s) }}</td></tr>{% endfor %}</table></div>
+    <p style="margin:6px 0 0">{{ r.note }} <b>What you need:</b> {{ r.need }}</p>
+    {% else %}<table style="width:100%;margin-top:6px"><tr><th>Uplink (MHz)</th><th>Downlink (MHz)</th><th>Mode</th><th>Tone</th><th>To Transmit</th>{% if r.amsat %}<th>Operators Report</th>{% endif %}</tr>
+    <tr><td class="mono">{{ '%.3f' % r.up if r.up else 'none' }}</td><td class="mono">{{ '%.3f' % r.down if r.down else 'none' }}</td><td>{{ r.mode }}</td><td class="mono">{{ r.tone or '-' }}</td><td>{{ 'License needed' if r.lic else 'Receive only, no license' }}</td>{% if r.amsat %}<td>{% for n in r.amsat %}{% if r.amsat | length > 1 %}<span class="dim">{{ n.split('_')[1] | replace('[', '') | replace(']', '') }}:</span> {% endif %}{{ stat(status.get(n)) }}{% if not loop.last %}<br>{% endif %}{% endfor %}</td>{% endif %}</tr></table>
+    <p style="margin:6px 0 0">{{ r.note }} <b>What you need:</b> {{ r.need }}</p>{% endif %}</div>{% endif %}{% endfor %}
   </div>
-  <p class="dim" style="margin:10px 0 0">Frequencies and which satellites are working change over time: check <a href="https://www.amsat.org/status/" target="_blank" rel="noopener">AMSAT's status page</a> before you try. The <a href="/frequencies">Frequencies</a> page lists the common ones. The Doppler shift is how far the downlink moves during a pass: it starts high as the satellite comes toward you, passes through the listed frequency at the closest point and ends low.</p>
+  <p class="dim" style="margin:10px 0 0">Frequencies and which satellites are working change over time: check <a href="https://www.amsat.org/status/" target="_blank" rel="noopener">AMSAT's status page</a> and, for the space station, <a href="https://www.ariss.org/current-status-of-iss-stations.html" target="_blank" rel="noopener">ARISS's status page</a> before you try. The Operators Report column is what amateur radio operators told AMSAT they heard lately (the newest report, then how many in the last {{ status_hours // 24 if status_hours % 24 == 0 else status_hours }} {{ 'days' if status_hours % 24 == 0 else 'hours' }}): it shows whether a radio is switched on, not a promise. The <a href="/frequencies">Frequencies</a> page lists the common ones. The Doppler shift is how far the downlink moves during a pass: it starts high as the satellite comes toward you, passes through the listed frequency at the closest point and ends low.</p>
 {% endcall %}
 {% endif %}
 
@@ -62,6 +68,14 @@
 {% endcall %}
 {% endif %}
 
+{% if fixed %}
+{% call sec('fixed', 'Fixed in the Sky (GOES)', True) %}
+  <table id="sp-fixed"><tr><th>Satellite</th><th>Where to Point</th><th>Height Above the Horizon</th><th>Distance</th><th>Downlink (MHz)</th></tr>
+  {% for s in fixed %}<tr><td><b><a href="#sp-radio" class="sp-open" data-n="{{ s.norad }}" title="How to receive {{ s.name }}">{{ s.name }}</a></b></td><td>{{ compass(s.az) }} ({{ '%.0f' % s.az }}&deg;)</td><td class="mono">{% if s.el > 0 %}{{ '%.0f' % s.el }}&deg;{% else %}<span class="dim">below the horizon</span>{% endif %}</td><td class="mono">{{ s.range | u_dist(0) }}</td><td class="mono">{{ '%.3f' % s.down }}<br><span class="dim">{{ s.mode }}</span></td></tr>{% endfor %}</table>
+  <div class="help">The GOES weather satellites orbit the equator once a day, so each one hangs over a single spot and never rises or sets: there are no passes, and a dish aimed at it once stays on it. Each row is where to aim from the chosen place. A satellite below the horizon cannot be received from here.</div>
+{% endcall %}
+{% endif %}
+
 {% call sec('passes', 'Upcoming Passes (' ~ rows | length ~ ')', True, True) %}
   {% if rows %}
   <table id="sp-passes" class="sortable"><thead><tr><th data-sort="text">Satellite</th><th data-sort="text">Rises</th><th>From</th><th data-sort="num">Highest</th><th>To</th><th data-sort="num">Length</th><th>Downlink</th><th>Doppler (kHz)</th><th>Sky</th></tr></thead><tbody>
@@ -72,7 +86,7 @@
     <td data-v="{{ p.max_el }}"><b class="mono">{{ '%.0f' % p.max_el }}&deg;</b> <span class="dim">to the {{ compass(p.az_max) }}</span></td>
     <td>{{ compass(p.az_los) }}</td>
     <td class="mono" data-v="{{ p.duration }}">{{ p.duration // 60 }}:{{ '%02d' % (p.duration % 60) }}</td>
-    <td class="mono">{% if p.down %}{{ '%.3f' % p.down }}<br><span class="dim">{{ p.mode }}</span>{% else %}-{% endif %}</td>
+    <td class="mono">{% if p.down %}{{ '%.3f' % p.down }}<br><span class="dim">{{ p.mode }}</span>{% if p.more %}<br><span class="dim" title="The station's other radios">also {% for m in p.more %}{{ '%.3f' % m }}{{ ', ' if not loop.last }}{% endfor %}</span>{% endif %}{% else %}-{% endif %}</td>
     <td class="mono">{% if p.dop_aos is not none %}{{ '%+.1f' % p.dop_aos }} to {{ '%+.1f' % p.dop_los }}{% else %}-{% endif %}</td>
     <td>{{ p.svg | safe }}</td></tr>{% endfor %}</tbody></table>
   <div class="help">Highest is the most the satellite climbs above the horizon (90&deg; is straight up); a low pass is hard to use with hills and trees in the way. Length is minutes:seconds above the horizon. In the sky chart north is up, the middle is straight overhead and the rim is the horizon; the green dot is where it rises.</div>

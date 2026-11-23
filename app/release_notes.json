@@ -9,6 +9,24 @@
     "security": []
   },
   {
+    "version": "1.9.8",
+    "released": "2026-11-22",
+    "title": "Satellite radios, more satellites and GOES, feeder area limits",
+    "added": [
+      "Satellite Passes lists all of the space station's radios (the voice repeater, the VHF and UHF APRS digipeaters, school contact voice, SSTV and Ham TV) with their frequencies, mode, tone and license need, and the newest reports from operators on whether each one is working (Heard, Not heard, Telemetry only, Crew active), read from AMSAT's status service. The amateur radio satellites show their reports too, the Satellites map card lists the radios, and the pass list shows the station's other downlinks.",
+      "Admin > Settings > Satellites can switch the operator reports off, change the address, the hours counted and how long an answer is kept; the source is on Service Status and credited on About.",
+      "Satellite Passes tracks more amateur satellites an Arkansas station can work: AO-123 and CAS-3H (FM voice), JO-97 and AO-73 (linear transponders) and SONATE-2 and NO-44 (APRS), each with its frequencies, notes and the newest operator reports.",
+      "The two working GOES weather satellites, GOES-19 (east) and GOES-18 (west), are listed in a Fixed in the Sky section that says where to aim a dish from the chosen place, with the 1694.1 MHz downlink and what it takes to receive it. They never rise or set, so they have no pass list.",
+      "Feeders are limited to an allowed area (Admin > Settings > Feeders and Claiming; North America, Central America and the Caribbean by default): a location outside it cannot be saved, and a feeder already placed outside is left off the public Feeders pages and the feed. The admin page flags it.",
+      "A website a member adds to a feeder is shown publicly only after an administrator approves it, and a changed address needs approval again. Feeder Website Links Need Approval turns this off."
+    ],
+    "improved": [],
+    "fixed": [
+      "The wind and gust lines on the weather station graphs (and the mesh weather graphs) are different colors: wind green, gust orange."
+    ],
+    "security": []
+  },
+  {
     "version": "1.9.7",
     "released": "2026-11-13",
     "title": "Hourly Weather Forecast",

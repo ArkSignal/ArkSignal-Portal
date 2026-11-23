@@ -573,6 +573,8 @@ def _sources():
         ("src_terrain", "Terrain Tiles (AWS)", "Sky View terrain", _tile(cfg("skyview_dem_url")), ""),
         ("src_imagery", "USGS Imagery", "Sky View satellite imagery", _tile(cfg("skyview_imagery_url")).replace("{z}/{y}/{x}", "0/0/0"), ""),
     ]
+    if cfg("satpass_enabled") == "1" and cfg("satstatus_enabled") == "1":
+        s.append(("src_amsat", "AMSAT Satellite Status", "operators' reports on whether satellite radios (the space station's too) are working", cfg("satstatus_url").rstrip("/") + "/health.php", ""))
     from . import schedules
     if schedules.configured():   # asked only when an administrator has switched it on with a key
         s.append(("src_schedules", "AeroDataBox Airline Schedules", "scheduled times of a flight number (My Flights, Look It Up)", schedules.base_url(), ""))

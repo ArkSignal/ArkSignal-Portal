@@ -134,7 +134,7 @@ def _node_charts(nid, period):
     add("Temperature", [("temp_c", "var(--acc2)", "Temperature")], ident if not imp else (lambda v: v * 9 / 5 + 32), "°F" if imp else "°C", "Temperature (" + ("°F" if imp else "°C") + ")")
     add("Humidity", [("humidity", "#6fb3ff", "Humidity")], ident, "%", "Relative humidity (%)", zero=True)
     add("Pressure", [("pressure_hpa", "#c79bff", "Pressure")], (lambda v: v * 0.02953) if imp else ident, "inHg" if imp else "hPa", "Barometric pressure (" + ("inHg" if imp else "hPa") + ")")
-    add("Wind", [("gust_ms", "#ff9f43", "Gust"), ("wind_ms", "var(--acc)", "Wind")], (lambda v: v * 2.236936) if imp else (lambda v: v * 3.6), "mph" if imp else "km/h", "Wind and gust (" + ("mph" if imp else "km/h") + ")", zero=True)
+    add("Wind", [("gust_ms", "#ff9f43", "Gust"), ("wind_ms", "#3ee6a8", "Wind")], (lambda v: v * 2.236936) if imp else (lambda v: v * 3.6), "mph" if imp else "km/h", "Wind and gust (" + ("mph" if imp else "km/h") + ")", zero=True)
     add("Rain", [("rain_1h_mm", "#4fb3ff", "Rain in the last hour")], (lambda v: v / 25.4) if imp else ident, "in" if imp else "mm", "Rain in the last hour (" + ("in" if imp else "mm") + ")", zero=True, bars=True)
     add("Light", [("lux", "#ffd24f", "Light")], ident, "lux", "Light level (lux)", zero=True)
     add("Air Quality", [("iaq", "#3ee6a8", "Air quality index")], ident, "", "Indoor air quality index (lower is cleaner)", zero=True)

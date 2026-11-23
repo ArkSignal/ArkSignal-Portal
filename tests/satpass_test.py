@@ -102,13 +102,36 @@ ft = gj["features"]
 pts = [f for f in ft if f["geometry"]["type"] == "Point"]
 check("the Satellites map layer gives each satellite as a dot with a path ahead and the part of the earth it can see", len(pts) >= 4 and any(f["geometry"]["type"] == "LineString" for f in ft) and any(f["geometry"]["type"] == "Polygon" for f in ft), [f["geometry"]["type"] for f in ft][:6])
 iss_ = [f["properties"] for f in pts if f["properties"]["event"].startswith("ISS")]
-check("a dot's card has its height, speed, the next pass over the map center and how to work it (frequencies, license, equipment)", bool(iss_) and (lambda r: all(x in r for x in ("Height", "Speed", "Downlink", "To transmit", "What you need")))(dict((r[0], r[1]) for r in iss_[0]["rows"])), iss_[:1])
+check("a dot's card has its height, speed, the next pass over the map center and how to work it (frequencies, license, equipment)", bool(iss_) and (lambda r: all(x in r for x in ("Height", "Speed", "To transmit", "What you need")) and ("Downlink" in r or "Voice Repeater (Columbus, NA1SS)" in r))(dict((r[0], r[1]) for r in iss_[0]["rows"])), iss_[:1])
 check("the dots are colored by kind and link to the pass page", all(f["properties"]["KIND"] in ("iss", "ham", "wx") and f["properties"]["link"].startswith("/radio/satellites?sat=") for f in pts))
 ly = psql("select count(*) from map_layers where slug = 'satellites' and kind = 'geojson'")
 check("the layer is in the layer list for every map (Radio group, off until chosen)", ly == "1" and psql("select default_on from map_layers where slug = 'satellites'") == "f")
 check("its settings are in Admin > Settings", all(x in adm.get(B + "/admin/settings").text for x in ("Satellites Map Layer", "Satellites Map: Path Ahead", "Satellites Map: Show What Each Can See", "Satellites Map: Refresh Every")))
 iss = anon.get(B + "/radio/satellites?sat=25544&hours=72&min=5").text
 check("choosing one satellite shows only it, for the hours and lowest peak asked", "ISS" in iss and "NOAA" not in iss.split('id="sp-passes"')[1].split("</table>")[0] if 'id="sp-passes"' in iss else "ISS" in iss)
+# the space station's several radios, and the operators' reports on them
+issp = anon.get(B + "/radio/satellites?sel=1&sat=25544&hours=168&min=0").text
+check("the space station's card lists each of its radios with its frequencies", all(x in issp for x in ("Voice Repeater (Columbus, NA1SS)", "APRS Digipeater (VHF)", "APRS Digipeater (UHF, Zvezda, RS0ISS)", "Crew Voice Contacts with Schools", "SSTV Picture Events (Zvezda)", "Ham TV (Columbus)", "145.990", "437.800", "145.825", "437.825", "145.800", "2395.000", "144.490", "67.0 Hz")))
+check("it has an Operators Report column, with a report or a plain 'no reports' for every radio", "Operators Report" in issp and issp.count("sp-st sp-") + issp.count("No reports in") >= 6, issp.count("sp-st sp-"))
+check("a satellite with one radio shows the operators' report too", "Operators Report" in anon.get(B + "/radio/satellites?sel=1&sat=27607").text)
+check("the passes list the other radios' downlinks of the space station", "also 2395.000" in issp or "no pass" in issp.lower() or "No pass climbs" in issp, issp[:100])
+# the amateur satellites an Arkansas station can work, and the fixed GOES weather satellites
+check("the orbit data holds the added amateur satellites and the two GOES satellites", int(psql("select count(*) from sat_tle where norad in (61781,43803,39444,59112,26931,40908,60133,51850)") or 0) >= 6, psql("select norad from sat_tle order by norad"))
+am_ = anon.get(B + "/radio/satellites?sel=1&sat=61781&sat=43803&sat=39444&sat=59112&sat=26931").text
+check("AO-123, JO-97, AO-73, SONATE-2 and NO-44 each show frequencies and an Operators Report", all(x in am_ for x in ("145.850", "435.400", "435.100", "145.865", "435.130", "145.825", "Operators Report")), am_[:80])
+gz = anon.get(B + "/radio/satellites?sel=1&sat=60133&sat=51850&hours=48&min=0").text
+check("the GOES satellites have a Fixed in the Sky section (where to point, height, distance, 1694.100) and no passes", 'id="sp-fixed"' in gz and "1694.100" in gz and "GOES" in gz and 'id="sp-passes"' not in gz.split("Fixed in the Sky")[0] and "never rises or sets" in gz, gz[:80])
+check("GOES is never listed as overhead right now and its card says what a dish needs", 'id="sp-now"' not in gz and "1.7 GHz dish" in gz)
+gm = [f["properties"] for f in anon.get(B + "/api/satellites.geojson?sat=60133").json()["features"] if f["geometry"]["type"] == "Point"]
+check("the GOES dot is on the map without a next pass", bool(gm) and not any(r[0] == "Next pass there" for r in gm[0]["rows"]) and any(r[0] == "Downlink" for r in gm[0]["rows"]), gm[:1])
+iss2 = [f["properties"] for f in anon.get(B + "/api/satellites.geojson?sat=25544").json()["features"] if f["geometry"]["type"] == "Point"]
+check("the space station's dot lists the radios in its card", bool(iss2) and any(r[0] == "Voice Repeater (Columbus, NA1SS)" and "437.800" in r[1] and "145.990" in r[1] for r in iss2[0]["rows"]) and any(r[0] == "Ham TV (Columbus)" for r in iss2[0]["rows"]), iss2[:1])
+st_ = adm.get(B + "/admin/settings").text
+check("the report source is in Admin > Settings and credited on About", all(x in st_ for x in ("Show Operator Reports on Satellite Radios", "Satellite Radio Reports Address", "Satellite Radio Reports: Hours Counted", "Satellite Radio Reports: Minutes Kept")) and "AMSAT" in anon.get(B + "/about").text)
+psql("INSERT INTO settings (key, value) VALUES ('satstatus_enabled','0') ON CONFLICT (key) DO UPDATE SET value='0'")
+off_ = anon.get(B + "/radio/satellites?sel=1&sat=25544").text
+check("with the reports switched off no report is shown", "sp-st sp-" not in off_ and "No reports in" not in off_)
+psql("DELETE FROM settings WHERE key='satstatus_enabled'")
 for q, want in (("lat=34.7&lon=-92.3", "34.700"), ("q=Conway+AR", "Conway"), ("lat=999&lon=0", "this site"), ("hours=abc&min=xyz", "Passes for"), ("hours=99999", "Passes for")):
     rr = anon.get(B + "/radio/satellites?" + q)
     check(f"the place or number '{q}' is handled", rr.status_code == 200 and want in rr.text, rr.status_code)

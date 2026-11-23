@@ -1,5 +1,5 @@
 {
-  "updated": "2026-11-13",
+  "updated": "2026-11-22",
   "items": [
     {
       "title": "Off-site copy to a NAS over HTTPS",
@@ -1393,6 +1393,24 @@
       "summary": "A sideways-scrolling hour-by-hour strip with icons, temperature, sky, wind and rain chance, opening on today; click another day of the forecast to see its hours; a vertical list on phones. Each hour shows its chance of rain or snow, and sunrise and sunset markers sit where they happen. The expected amount of rain, snow or ice is shown for each hour and as a total for the day.",
       "status": "done",
       "area": "Weather"
+    },
+    {
+      "title": "Space station radios and their status on Satellite Passes",
+      "summary": "The space station's six amateur radios (voice repeater, two APRS digipeaters, school contacts, SSTV, Ham TV) with their frequencies, and the newest operator reports on whether each is working, from AMSAT's status service; the amateur radio satellites show their reports too.",
+      "status": "done",
+      "area": "Radio"
+    },
+    {
+      "title": "More amateur satellites and the GOES weather satellites",
+      "summary": "Satellite Passes adds AO-123, CAS-3H, JO-97, AO-73, SONATE-2 and NO-44 with frequencies and operator reports, and GOES-19 and GOES-18 with where to aim from the chosen place.",
+      "status": "done",
+      "area": "Radio"
+    },
+    {
+      "title": "Feeders limited to North America and website links approved",
+      "summary": "A feeder's location must be inside an allowed area (default North America); feeders outside are left off the public pages; a feeder's website link waits for an administrator's approval before it is shown.",
+      "status": "done",
+      "area": "Feeders"
     }
   ]
 }

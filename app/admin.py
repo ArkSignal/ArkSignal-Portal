@@ -829,7 +829,7 @@ def feeder_detail(uuid):
     if period not in fd.PERIODS:
         period = "24h"
     points, uptime = fd.series(uuid, period)
-    return render_template("admin_feeder.html", active="feeders", f=f, events=fd.feeder_events(uuid),
+    return render_template("admin_feeder.html", active="feeders", f=f, outside=not st.in_area(f["lat"], f["lon"]), review=cfg("feeder_website_review") == "1", events=fd.feeder_events(uuid),
                            chart=fd.line_chart(points, period), uptime=uptime, period=period, periods=fd.PERIODS,
                            latest=points[-1] if points else None, mlat=_mlat_row(uuid), uat=__import__("app.uatfeed", fromlist=["x"]).station_state(uuid),
                            all_users=get_db().execute("SELECT id, username FROM users ORDER BY lower(username)").fetchall())
@@ -1291,7 +1291,7 @@ def feeder_manage(uuid):
             if u.scheme not in ("http", "https") or not u.netloc or len(site) > 200:
                 return action_response(False, "Website must be a full http:// or https:// address.", redirect_endpoint="admin.feeder_detail", redirect_kwargs={"uuid": uuid})
         public = bool(request.form.get("website_public")) and bool(site)
-        d.execute("UPDATE feeders SET website=%s, website_public=%s WHERE uuid=%s", (site or None, public, uuid))
+        d.execute("UPDATE feeders SET website=%s, website_public=%s, website_approved=%s WHERE uuid=%s", (site or None, public, bool(site), uuid))   # saved by an administrator: approved
         d.commit()
         msg = ("Website saved and shown publicly." if public else "Website saved, not shown publicly.") if site else "Website cleared."
         audit("feeder.website", target=uuid, detail=(site or "(cleared)") + (" public" if public else ""))
