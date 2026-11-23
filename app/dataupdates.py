@@ -284,11 +284,22 @@ def run_in_background(app, key):
     threading.Thread(target=run_job, args=(app, key), name=f"update-{key}", daemon=True).start()
 
 
+def _satpass_missing():
+    from . import satpass
+    have = {r["norad"] for r in satpass.elements()}
+    return any(n not in have for n in satpass.tracked())
+
+
 def due(key, now, tz):
     from . import airports as ap
     days = days_of(key)
     if days <= 0 or (key == "trauma" and not (cfg("trauma_source_url") or "").strip()):
         return False
+    if key == "satpass" and _satpass_missing():
+        last, attempt = last_ok(key), get_setting(f"{key}_last_attempt") or None
+        now_ = now if now.tzinfo else now.replace(tzinfo=timezone.utc)
+        if not (last and now_ - datetime.fromisoformat(last) < timedelta(hours=6)) and not (attempt and now_ - datetime.fromisoformat(attempt) < timedelta(hours=6)):
+            return True   # a satellite was added to the chosen list: fetch its orbit data now, not at the next daily time
     job = next((j for j in JOBS if j.key == key), None)
     hhmm = "00:00" if job and job.first_now and not last_ok(key) else cfg("airports_update_time")   # a job that has never run does not wait for the daily time
     return ap.update_due(now, last_ok(key), get_setting(f"{key}_last_attempt") or None, days, hhmm, tz)

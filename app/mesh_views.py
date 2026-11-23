@@ -130,7 +130,7 @@ def _node_charts(nid, period):
             out.append((title, wx.chart_svg(pts, lines, period, convert, unit=unit, zero=zero, bars=bars, spacing=spacing), caption, [(c, l) for _k, c, l in lines] if len(lines) > 1 else []))
     add("Battery", [("battery", "var(--acc)", "Battery")], ident, "%", "Battery level (%); a node on external power reports 101", zero=True)
     add("Voltage", [("voltage", "var(--acc2)", "Voltage")], ident, "V", "Battery or supply voltage (V)")
-    add("Channel Use", [("channel_util", "#ff9f43", "Channel use"), ("air_util", "var(--acc)", "Airtime used by this node")], ident, "%", "How busy the radio channel is around the node, and how much of it this node used (%)", zero=True)
+    add("Channel Use", [("channel_util", "#ff9f43", "Channel use"), ("air_util", "#4fb3ff", "Airtime used by this node")], ident, "%", "How busy the radio channel is around the node, and how much of it this node used (%)", zero=True)
     add("Temperature", [("temp_c", "var(--acc2)", "Temperature")], ident if not imp else (lambda v: v * 9 / 5 + 32), "°F" if imp else "°C", "Temperature (" + ("°F" if imp else "°C") + ")")
     add("Humidity", [("humidity", "#6fb3ff", "Humidity")], ident, "%", "Relative humidity (%)", zero=True)
     add("Pressure", [("pressure_hpa", "#c79bff", "Pressure")], (lambda v: v * 0.02953) if imp else ident, "inHg" if imp else "hPa", "Barometric pressure (" + ("inHg" if imp else "hPa") + ")")

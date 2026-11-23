@@ -243,6 +243,43 @@ def doppler(sat, obs, t, mhz):
     return -mhz * 1000.0 * ((b[2] - a[2]) / 10.0) / 299792.458
 
 
+def _range_rate(sat, obs, t):
+    """How fast the distance to the satellite is changing at time t, in km/s (positive while it moves away); None when the propagator gives up."""
+    a, b = look(sat, obs, t - timedelta(seconds=5)), look(sat, obs, t + timedelta(seconds=5))
+    if a is None or b is None:
+        return None
+    return (b[2] - a[2]) / 10.0
+
+
+TUNE_POINTS = 8   # tuning steps through a pass (the rise and the set included: one more row than this)
+
+
+def tuning(sat, obs, p, radios):
+    """What to dial in through one pass for each radio: [{name, rows: [(seconds from rise, elevation, downlink MHz, uplink MHz or None)]}]. The downlink is the nominal frequency moved by the shift you hear; the uplink is moved the opposite way, so
+    that the satellite receives you on its own frequency. Times are spread evenly from rise to set."""
+    dur = (p["los"] - p["aos"]).total_seconds()
+    if dur <= 0:
+        return []
+    steps = []
+    for i in range(TUNE_POINTS + 1):
+        t = p["aos"] + timedelta(seconds=dur * i / TUNE_POINTS)
+        rr, st = _range_rate(sat, obs, t), look(sat, obs, t)
+        if rr is None or st is None:
+            return []
+        steps.append((round(dur * i / TUNE_POINTS), max(0.0, st[1]), rr))
+    out = []
+    for r in radios:
+        if not r.get("down") and not r.get("up"):
+            continue
+        rows = []
+        for sec, el, rr in steps:
+            dn = r["down"] * (1 - rr / 299792.458) if r.get("down") else None
+            up = r["up"] * (1 + rr / 299792.458) if r.get("up") else None
+            rows.append((sec, el, dn, up))
+        out.append({"name": r.get("name", ""), "rows": rows})
+    return out
+
+
 def _finish(c):
     pts = c.pop("pts")
     t0 = c["aos"]
@@ -538,7 +575,7 @@ def page():
             r = RADIO.get(e["norad"]) or {}
             dn = r.get("down")
             more = sorted({x["down"] for x in r.get("radios", []) if x["down"] and x["down"] != dn})
-            rows.append(dict(p, name=e["name"], norad=e["norad"], svg=polar_svg(p["track"]), age=(now - e["epoch"]).days, down=dn, mode=r.get("mode", ""), more=more,
+            rows.append(dict(p, name=e["name"], norad=e["norad"], svg=polar_svg(p["track"]), age=(now - e["epoch"]).days, down=dn, mode=r.get("mode", ""), more=more, tune=tuning(sat, obs, p, r.get("radios") or [dict(name="", up=r.get("up"), down=dn)]),
                              dop_aos=doppler(sat, obs, p["aos"], dn) if dn else None, dop_los=doppler(sat, obs, p["los"], dn) if dn else None))
     rows.sort(key=lambda r: r["aos"])
     return render_template("satellites.html", rows=rows, up_now=up_now, fixed=fixed, els=els, picked=picked, lat=lat, lon=lon, label=label, others=others, hours=hours, min_el=min_el, now=now, info=INFO, radio=RADIO, compass=compass,

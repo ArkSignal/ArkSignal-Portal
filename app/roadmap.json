@@ -1,5 +1,5 @@
 {
-  "updated": "2026-11-22",
+  "updated": "2026-11-23",
   "items": [
     {
       "title": "Off-site copy to a NAS over HTTPS",
@@ -1411,6 +1411,24 @@
       "summary": "A feeder's location must be inside an allowed area (default North America); feeders outside are left off the public pages; a feeder's website link waits for an administrator's approval before it is shown.",
       "status": "done",
       "area": "Feeders"
+    },
+    {
+      "title": "Satellite orbit data fetched as soon as a satellite is added",
+      "summary": "The Satellite Orbits update now runs by itself when a chosen satellite has no orbit data yet, so newly added satellites appear on Satellite Passes without waiting for the next daily run.",
+      "status": "done",
+      "area": "Radio"
+    },
+    {
+      "title": "Doppler shift for every satellite radio",
+      "summary": "Every pass lists the frequencies to dial for each radio, nine steps from rise to set: what to listen on and, for radios you transmit to, what to send on.",
+      "status": "done",
+      "area": "Radio"
+    },
+    {
+      "title": "Different colors for the two lines on mesh and weather charts",
+      "summary": "Channel use and airtime on the mesh node page, and temperature and dew point on weather station pages, keep two distinct colors in every theme.",
+      "status": "done",
+      "area": "Mesh"
     }
   ]
 }

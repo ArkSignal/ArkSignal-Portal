@@ -91,6 +91,8 @@ page = anon.get(B + f"/mesh/{slug}")
 check("the node page has a Readings section with the charts it has data for", page.status_code == 200 and 'id="sec-readings"' in page.text and page.text.count('class="chart"') >= 6, page.status_code)
 for title in ("Battery", "Voltage", "Channel Use", "Temperature", "Humidity", "Pressure", "Wind", "Rain", "Light"):
     check(f"chart: {title}", f"<h3>{title}</h3>" in page.text)
+_cu = page.text.split("<h3>Channel Use</h3>")[1].split("</section>")[0] if "<h3>Channel Use</h3>" in page.text else ""
+check("the channel use chart draws the two lines in different colors, whatever the theme (orange and blue), and the key matches", "#ff9f43" in _cu and "#4fb3ff" in _cu and "var(--acc)" not in _cu, _cu[:300])
 check("no chart for what the node never reported (air quality)", "<h3>Air Quality</h3>" not in page.text)
 check("readings half an hour apart are joined into a line (not left as dots)", re.search(r'<path d="M[^"]* L', page.text) is not None)
 check("the charts use the shared hover read-out", "/static/chartinspect.js" in page.text and 'data-chart="' in page.text)

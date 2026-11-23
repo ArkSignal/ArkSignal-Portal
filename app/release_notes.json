@@ -9,6 +9,20 @@
     "security": []
   },
   {
+    "version": "1.9.9",
+    "released": "2026-11-23",
+    "title": "Dial settings for every satellite radio, new satellites appear sooner, distinct chart colors",
+    "added": [
+      "Every pass on Satellite Passes has a Frequencies to dial list for each radio of the satellite (all six of the space station's): nine steps from rise to set with the frequency to listen on and, for radios you transmit to, the frequency to send on, moved the other way so the satellite hears you on its own frequency."
+    ],
+    "improved": [],
+    "fixed": [
+      "Satellites added to the chosen list (for example the new amateur satellites and GOES) show up on Satellite Passes soon after, because the Satellite Orbits update now runs by itself when a chosen satellite has no orbit data yet, instead of waiting for its daily time.",
+      "The Channel Use graph on the mesh node page draws channel use in orange and the airtime the node used in blue (both were orange in some themes); the Temperature and Dew point lines on weather station pages are orange and blue in every theme too."
+    ],
+    "security": []
+  },
+  {
     "version": "1.9.8",
     "released": "2026-11-22",
     "title": "Satellite radios, more satellites and GOES, feeder area limits",

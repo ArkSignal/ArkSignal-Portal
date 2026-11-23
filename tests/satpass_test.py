@@ -67,6 +67,7 @@ check("the point under it stays within the orbit's latitudes, the sky chart draw
 adm = sess("marty", PW)
 anon = requests.Session()
 psql("DELETE FROM sat_tle")
+psql("DELETE FROM settings WHERE key IN ('satpass_last_result', 'satpass_last_import', 'satpass_last_attempt', 'satpass_last_error')")   # the wait below must not read the result of an earlier run
 pg = anon.get(B + "/radio/satellites")
 check("with no orbit data the page says so and points to Data Updates", pg.status_code == 200 and "No orbit data has been loaded yet" in pg.text)
 du = adm.get(B + "/admin/data-updates/").text
@@ -96,7 +97,14 @@ sel_ = anon.get(B + "/radio/satellites?sel=1&hours=24").text
 check("the form's sel flag with nothing ticked means no satellites (not all of them): no passes, 0 chosen, and a plain message", "0 of" in sel_ and 'id="sp-passes"' not in sel_ and "No pass climbs" in sel_)
 check("the picker has grouped toggle buttons, All, None, Only These, a filter box and a count", all(x in t for x in ('id="sp-all"', 'id="sp-none"', 'id="sp-filter"', "sp-only", 'class="sp-pill"', "Space Station", "Weather Satellites", "Amateur Radio Satellites", 'id="sp-count"')) and t.index('class="sp-pill"') < t.index('id="sp-passes"'))
 check("every satellite's name in the passes opens its card", 'class="sp-open"' in t and "How to work" in t)
-check("the passes carry the downlink and the Doppler shift from rise to set (high to low)", "Doppler (kHz)" in t and (lambda m: len(m) > 5 and sum(1 for a, b in m if not float(a) > 0 > float(b)) <= 1)(re.findall(r'class="mono">([+-]\d+\.\d) to ([+-]\d+\.\d)<', t)))
+check("the passes carry the downlink and the Doppler shift from rise to set (high to low)", "Doppler (kHz)" in t and (lambda m: len(m) > 5 and sum(1 for a, b in m if not float(a) > 0 > float(b)) <= 1)(re.findall(r'class="mono">([+-]\d+\.\d) to ([+-]\d+\.\d)', t)))
+
+_tb = re.findall(r'<div class="sp-cap">([^<]*)</div>', t)
+_one = re.search(r'<div class="sp-cap">Voice Repeater[^<]*</div>(.*?)</div></div>', t, re.S)
+_cells = re.findall(r"<span>(\d+\.\d{4})</span><span>(\d+\.\d{4})</span>", _one.group(1)) if _one else []
+check("each pass has a Frequencies to dial table for every radio of the station (voice repeater, digipeaters, schools, SSTV, Ham TV)", "Frequencies to dial" in t and len(set(_tb)) >= 6, set(_tb))
+check("the voice repeater table has nine steps: hear falls through the pass from above 437.800 to below it, and send rises from below 145.990 to above it", len(_cells) >= 9 and float(_cells[0][0]) > 437.8 > float(_cells[8][0]) and float(_cells[0][1]) < 145.99 < float(_cells[8][1]), _cells[:9])
+check("a receive-only radio (SSTV) shows only a Hear column", re.search(r'<div class="sp-cap">SSTV[^<]*</div><div class="sp-g"[^>]*><b>Time, elev.</b><b>Hear \(MHz\)</b><span>', t) is not None)
 gj = anon.get(B + "/api/satellites.geojson").json()
 ft = gj["features"]
 pts = [f for f in ft if f["geometry"]["type"] == "Point"]

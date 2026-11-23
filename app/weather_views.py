@@ -173,7 +173,7 @@ def station_page(sid):
     cvt = {"temp": (lambda v: v) if imp else (lambda v: (v - 32) * 5 / 9), "press": (lambda v: v) if imp else (lambda v: v / 0.0295300), "speed": (lambda v: v) if imp else (lambda v: v * 1.609344),
            "rain": (lambda v: v) if imp else (lambda v: v * 25.4)}
     charts = [
-        ("Temperature", wx.chart_svg(pts, [("temp", "var(--acc2)", "Temperature"), ("dew", "var(--acc)", "Dew point")], period, cvt["temp"], unit=wx.show("temp_f", 0, units)[1]), "Temperature and dew point (" + wx.show("temp_f", 0, units)[1] + ")", [("var(--acc2)", "Temperature"), ("var(--acc)", "Dew point")]),
+        ("Temperature", wx.chart_svg(pts, [("temp", "#ff9f43", "Temperature"), ("dew", "#4fb3ff", "Dew point")], period, cvt["temp"], unit=wx.show("temp_f", 0, units)[1]), "Temperature and dew point (" + wx.show("temp_f", 0, units)[1] + ")", [("#ff9f43", "Temperature"), ("#4fb3ff", "Dew point")]),
         ("Humidity", wx.chart_svg(pts, [("hum", "#6fb3ff", "Humidity")], period, lambda v: v, unit="%", zero=True), "Relative humidity (%)", []),
         ("Pressure", wx.chart_svg(pts, [("press", "#c79bff", "Pressure")], period, cvt["press"], unit=wx.show("press_in", 0, units)[1]), "Pressure (" + wx.show("press_in", 0, units)[1] + ")", []),
         ("Wind", wx.chart_svg(pts, [("gust", "#ff9f43", "Gust"), ("wind", "#3ee6a8", "Wind")], period, cvt["speed"], unit=wx.show("wind_mph", 0, units)[1], zero=True), "Wind and gust (" + wx.show("wind_mph", 0, units)[1] + ")", [("#3ee6a8", "Wind"), ("#ff9f43", "Gust")]),
