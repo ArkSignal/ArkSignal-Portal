@@ -5,9 +5,15 @@
 {% block content %}
 {# The same map page as every other map: partials/_mapshell.html carries the layout; the satellites chosen on the Satellite Passes page are drawn below, and nothing else. #}
 {% call shell("Search a satellite", "Search satellites", "Satellites", "Pass Times", map_type="satellites") %}
+    <details class="fsec" data-k="pick" open><summary><span class="ic">&#9737;</span>Choose Satellites</summary><div class="fbody">
+      <div class="lv-row"><button type="button" class="btn sm" id="sm-all">All</button> <button type="button" class="btn sm" id="sm-none">None</button> <button type="button" class="btn sm" id="sm-apply">Show These</button></div>
+      <div id="sm-pick" style="max-height:220px;overflow:auto;margin-top:6px"></div>
+      <div class="help dim" style="font-size:.78rem;margin-top:6px">The passes, paths and list follow your choice. It is kept in the address, so you can share it.</div>
+    </div></details>
     <details class="fsec" data-k="show" open><summary><span class="ic">&#9737;</span>Satellites<span class="fbadge" data-fb="show"></span></summary><div class="fbody">
       <div class="help" style="font-size:.82rem;margin:0 0 8px"><b>Passes over {{ place.label }}</b> ({{ '%.3f' % place.lat }}, {{ '%.3f' % place.lon }}) in the next {{ hours }} hours, at least {{ min_el }}&deg; high: {{ pass_list | length }}. The same place and choices as on the Satellite Passes page.</div>
       <div class="lv-row"><label><input type="checkbox" id="sm-passes" checked> Show the paths of the passes</label></div>
+      <div class="lv-row"><label>Passes drawn <select id="sm-npass"><option value="5">Next 5</option><option value="10">Next 10</option><option value="25">Next 25</option><option value="0">All</option></select></label></div>
       <div class="lv-row"><label><input type="checkbox" id="sm-path" checked> Show the path ahead</label></div>
       <div class="lv-row"><label><input type="checkbox" id="sm-foot" checked> Show the part of the earth each can see</label></div>
       <div class="lv-row"><label>Icon Size <select id="sm-dot"><option value="75">Small</option><option value="100">Medium</option><option value="130">Large</option><option value="170">Extra large</option></select></label></div>
@@ -22,13 +28,20 @@
   var q = new URLSearchParams(location.search), CHOSEN = {{ chosen | tojson }}, NAMES = {{ names | tojson }}, PASSES = {{ pass_list | tojson }}, PLACE = {{ place | tojson }};
   var map = L.map("lvmap", {zoomControl: false, zoomSnap: 0.25}).setView([parseFloat(q.get("lat")) || {{ map_lat | float }}, parseFloat(q.get("lon")) || {{ map_lon | float }}], parseFloat(q.get("zoom")) || 2);
   L.control.zoom({position: "bottomright"}).addTo(map);
+  var npass = parseInt(S.pref("sm.np"), 10); if (isNaN(npass)) npass = 10;
   var state = {q: "", path: true, foot: true, passes: true}, selPass = -1, passG = L.layerGroup().addTo(map), dot = parseInt(S.pref("sm.dot"), 10) || 100, cardId = null, sats = [], lines = [], feet = [];
   var shell = S.start({map: map, layers: {{ layers | tojson }}, key: "sm", url: "/radio/satellites/map", cfg: {tile: {{ tile_url | tojson }}, attr: {{ tile_attr | tojson }}, labelScale: {{ label_scale | int }}, labelBg: {{ label_bg | tojson }}, wxRefresh: {{ wx_refresh | int }}},
     share: function () { return {q: state.q, id: cardId || "", sat: CHOSEN.join(",")}; }, legend: function () { return legend(); }});
   var COLOR = {iss: "#7fd1ff", ham: "#4dff88", wx: "#ffb347"}, group = L.layerGroup().addTo(map), under = L.layerGroup().addTo(map), marks = {};
-  $("m-display").innerHTML = ""; $("sm-dot").value = String(dot); $("q").value = state.q;
+  $("m-display").innerHTML = ""; $("sm-dot").value = String(dot); $("sm-npass").value = String(npass); $("q").value = state.q;
   function color(p) { return COLOR[p.KIND] || "#4dff88"; }
-  function legend() { return "<h6>Satellites</h6>" + [["iss", "Space station"], ["ham", "Amateur radio"], ["wx", "Weather"]].map(function (k) { return '<div style="display:flex;gap:8px;align-items:center;margin:3px 0"><span style="width:12px;height:12px;border-radius:50%;background:' + COLOR[k[0]] + ';display:inline-block"></span>' + k[1] + "</div>"; }).join("") + '<div class="dim" style="font-size:.76rem;margin-top:6px">The dashed line is the path ahead; the faint circle is the part of the earth the satellite can see.</div>'; }
+  function legend() { return "<h6>Satellites</h6>" + [["iss", "Space station"], ["ham", "Amateur radio"], ["wx", "Weather"]].map(function (k) { return '<div style="display:flex;gap:8px;align-items:center;margin:3px 0"><span style="width:18px;height:18px;display:inline-block">' + glyph(k[0], COLOR[k[0]]) + '</span>' + k[1] + "</div>"; }).join("") + '<div class="dim" style="font-size:.76rem;margin-top:6px">The dashed line is the path ahead; the faint circle is the part of the earth the satellite can see.</div>'; }
+  function glyph(kind, c) {   // a small drawing per kind of satellite: the station with its long truss, a weather satellite with a dish, an amateur satellite with an antenna
+    var b = '<svg viewBox="0 0 32 32" width="100%" height="100%" fill="' + c + '" stroke="#0b1422" stroke-width="1" stroke-linejoin="round">';
+    if (kind === "iss") return b.replace(/stroke-width="1"/, 'stroke-width=".6"') + '<g fill="' + c + '"><rect x="1.5" y="1.5" width="4.5" height="13"/><rect x="1.5" y="17.5" width="4.5" height="13"/><rect x="7" y="2.5" width="4" height="11"/><rect x="7" y="18.5" width="4" height="11"/><rect x="21" y="2.5" width="4" height="11"/><rect x="21" y="18.5" width="4" height="11"/><rect x="26" y="1.5" width="4.5" height="13"/><rect x="26" y="17.5" width="4.5" height="13"/></g><g fill="#e8eef7"><rect x="1" y="15" width="30" height="2"/><rect x="14.5" y="7" width="3" height="18"/><rect x="11.5" y="13" width="9" height="6" rx="1"/><rect x="12.5" y="9" width="7" height="1.6"/><rect x="12.5" y="21.4" width="7" height="1.6"/></g></svg>';
+    if (kind === "wx") return b + '<rect x="1" y="12" width="9" height="8"/><rect x="22" y="12" width="9" height="8"/><rect x="10" y="9" width="12" height="14" rx="2"/><path d="M16 9 L16 4" fill="none" stroke="' + c + '" stroke-width="2"/><path d="M9 4 Q16 -1 23 4 Q16 8 9 4Z"/></svg>';
+    return b + '<rect x="1" y="12" width="8" height="8"/><rect x="23" y="12" width="8" height="8"/><rect x="10" y="10" width="12" height="12" rx="2"/><path d="M16 10 L16 1 M12 3 L20 3" fill="none" stroke="' + c + '" stroke-width="2"/></svg>';
+  }
   function match(p) { var t = state.q.trim().toLowerCase(); return !t || ((p.event || "") + " " + p.norad).toLowerCase().indexOf(t) >= 0; }
   function render() {
     group.clearLayers(); under.clearLayers(); marks = {};
@@ -38,8 +51,9 @@
     if (state.path) lines.forEach(function (f) { if (ok[f.properties.norad]) L.polyline(f.geometry.coordinates.map(function (c) { return [c[1], c[0]]; }), {color: color(f.properties), weight: 2, opacity: .75, dashArray: "6 6", interactive: false}).addTo(under); });
     vis.forEach(function (f) {
       var p = f.properties, c = f.geometry.coordinates, sel = String(p.norad) === String(cardId);
-      var m = L.circleMarker([c[1], c[0]], {radius: 8 * dot / 100, color: sel ? "#fff" : color(p), weight: sel ? 3 : 2, fillColor: color(p), fillOpacity: .75}).addTo(group);
-      m.bindTooltip("<b>" + esc(p.event) + "</b> " + esc(p.headline || ""), {className: "lv-tip", permanent: map.getZoom() >= 3, direction: "right", offset: [8, 0]});
+      var sz = Math.round((p.KIND === "iss" ? 34 : 26) * dot / 100), col = color(p);
+      var m = L.marker([c[1], c[0]], {keyboard: false, zIndexOffset: sel ? 800 : 500, icon: L.divIcon({className: "", iconSize: [sz, sz], iconAnchor: [sz / 2, sz / 2],
+        html: '<div style="position:relative;width:' + sz + 'px;height:' + sz + 'px;filter:drop-shadow(0 0 2px #000)' + (sel ? ' drop-shadow(0 0 4px #fff)' : '') + '">' + glyph(p.KIND, col) + '<span class="lv-label" style="position:absolute;left:' + (sz + 3) + 'px;top:50%;transform:translateY(-50%);pointer-events:none">' + esc(p.event) + "</span></div>"})}).addTo(group);
       m.on("click", function () { select(p.norad, false); });
       marks[p.norad] = m;
     });
@@ -55,19 +69,22 @@
   function renderPasses() {   // the place that was entered, and every pass of the chosen satellites over it in the look-ahead, with its times
     passG.clearLayers();
     L.circleMarker([PLACE.lat, PLACE.lon], {radius: 7, color: "#fff", weight: 3, fillColor: "#ff8c42", fillOpacity: 1}).addTo(passG).bindTooltip("<b>" + esc(PLACE.label) + "</b><br>the place the passes are for", {className: "lv-tip", permanent: true, direction: "top", offset: [0, -8]});
-    var rows = [];
+    var rows = [], vis = Math.min(PASSES.filter(matchPass).length, npass || 999);   // the order is the order of the table: by rise time
     PASSES.forEach(function (p, i) {
       if (!matchPass(p)) return;
       rows.push(i);
-      if (!state.passes) return;
+      if (!state.passes || (npass && rows.length > npass && i !== selPass)) return;   // the table lists them all; the map draws the next few, numbered as in the table
       var sel = i === selPass, col = COLOR[colorKind(p.norad)] || "#4dff88";
       var line = L.polyline(p.path, {color: sel ? "#fff" : col, weight: sel ? 5 : 3, opacity: sel ? 1 : .8}).addTo(passG);
       line.bindTooltip("<b>" + esc(p.name) + "</b><br>rises " + esc(tmShort(p.aos)) + " in the " + esc(p.az_aos) + "<br>peaks at " + p.max_el + "&deg; at " + esc(tmShort(p.tca)) + "<br>sets " + esc(tmShort(p.los)) + " in the " + esc(p.az_los), {className: "lv-tip", sticky: true});
       line.on("click", function () { selectPass(i, false); });
-      L.circleMarker(p.path[0], {radius: 4, color: col, fillColor: "#0b1422", fillOpacity: 1, weight: 2, interactive: false}).addTo(passG);
+      var n = rows.length, showName = sel;   // a numbered badge each, as in the table; the name and time only on the chosen one
+      L.marker(p.path[0], {keyboard: false, zIndexOffset: sel ? 700 : 400, icon: L.divIcon({className: "", iconSize: [22, 22], iconAnchor: [11, 11],
+        html: '<div style="position:relative;width:22px;height:22px"><div style="width:22px;height:22px;border-radius:50%;box-sizing:border-box;background:#0b1422;color:#fff;border:2px solid ' + (sel ? "#fff" : col) + ';font:700 11px/18px Inter,sans-serif;text-align:center">' + n + "</div>" +
+          (showName ? '<span class="lv-label" style="position:absolute;left:26px;top:50%;transform:translateY(-50%);pointer-events:none">' + esc(p.name) + " <small>" + esc(tmShort(p.aos)) + "</small></span>" : "") + "</div>"})}).addTo(passG).on("click", function () { selectPass(i, false); });
     });
-    $("lv-tbl").querySelector("thead").innerHTML = "<tr><th>Rises</th><th>Satellite</th><th>Peak</th></tr>";
-    $("lv-tbl").querySelector("tbody").innerHTML = rows.map(function (i) { var p = PASSES[i]; return '<tr class="it' + (i === selPass ? " sel" : "") + '" data-p="' + i + '"><td>' + esc(tm(p.aos)) + "</td><td>" + esc(p.name) + "</td><td>" + p.max_el + "&deg;</td></tr>"; }).join("") || '<tr><td colspan="3" class="dim" style="text-align:left;padding:12px">No pass in this time at this height. Change the look-ahead or the lowest peak on the Satellite Passes page.</td></tr>';
+    $("lv-tbl").querySelector("thead").innerHTML = "<tr><th>#</th><th>Rises</th><th>Satellite</th><th>Peak</th></tr>";
+    $("lv-tbl").querySelector("tbody").innerHTML = rows.map(function (i, k) { var p = PASSES[i]; return '<tr class="it' + (i === selPass ? " sel" : "") + '" data-p="' + i + '"><td>' + (k + 1) + "</td><td>" + esc(tm(p.aos)) + "</td><td>" + esc(p.name) + "</td><td>" + p.max_el + "&deg;</td></tr>"; }).join("") || '<tr><td colspan="4" class="dim" style="text-align:left;padding:12px">No pass in this time at this height. Change the look-ahead or the lowest peak on the Satellite Passes page.</td></tr>';
   }
   function colorKind(norad) { var f = sats.filter(function (x) { return String(x.properties.norad) === String(norad); })[0]; return f ? f.properties.KIND : ""; }
   function selectPass(i, zoom) {
@@ -98,10 +115,23 @@
   $("lv-chips").addEventListener("click", function (e) { if (e.target.closest(".chip")) { state.q = ""; $("q").value = ""; render(); } });
   $("lv-tbl").querySelector("tbody").addEventListener("click", function (e) { var tr = e.target.closest("tr.it"); if (tr && tr.getAttribute("data-p") != null) selectPass(parseInt(tr.getAttribute("data-p"), 10), true); });
   $("sm-passes").addEventListener("change", function () { state.passes = this.checked; render(); });
+  $("sm-npass").addEventListener("change", function () { npass = parseInt(this.value, 10); S.pref("sm.np", this.value); render(); });
   $("q").addEventListener("input", function () { state.q = this.value; render(); });
   $("sm-path").addEventListener("change", function () { state.path = this.checked; render(); });
   $("sm-foot").addEventListener("change", function () { state.foot = this.checked; render(); });
   $("sm-dot").addEventListener("change", function () { dot = parseInt(this.value, 10); S.pref("sm.dot", this.value); render(); });
+  (function () {   // choose which satellites are drawn: the choice goes into the address (sat=...), and the page works out the passes for exactly those
+    var ids = Object.keys(NAMES).sort(function (a, b) { return NAMES[a].localeCompare(NAMES[b]); }), box = $("sm-pick"), on = {};
+    CHOSEN.forEach(function (n) { on[n] = 1; });
+    box.innerHTML = ids.map(function (n) { return '<div class="lv-row"><label><input type="checkbox" data-n="' + n + '"' + (on[n] ? " checked" : "") + "> " + esc(NAMES[n]) + "</label></div>"; }).join("");
+    function set(v) { box.querySelectorAll("input").forEach(function (i) { i.checked = v; }); }
+    $("sm-all").onclick = function () { set(true); }; $("sm-none").onclick = function () { set(false); };
+    $("sm-apply").onclick = function () {
+      var pick = [].slice.call(box.querySelectorAll("input:checked")).map(function (i) { return i.getAttribute("data-n"); });
+      if (!pick.length) { alert("Choose at least one satellite."); return; }
+      var u = new URL(location.href); u.searchParams.delete("sat"); u.searchParams.delete("id"); if (pick.length < ids.length) u.searchParams.set("sat", pick.join(",")); location.href = u.toString();
+    };
+  })();
   var first = true;
   function load() {
     return fetch("/api/satellites.geojson?sat=" + encodeURIComponent(CHOSEN.join(","))).then(function (r) { return r.json(); }).then(function (d) {

@@ -9,6 +9,20 @@
     "security": []
   },
   {
+    "version": "1.9.10",
+    "released": "2026-11-24",
+    "title": "Satellite map: icons and names, numbered passes, choose your satellites",
+    "added": [
+      "The Satellite Map has a Choose Satellites section: tick the satellites to draw, and the passes and list follow. The choice is kept in the address so it can be shared.",
+      "Each pass on the Satellite Map is a numbered badge, numbered as in the list, and a Passes drawn control (next 5, 10, 25 or all) keeps the map readable."
+    ],
+    "improved": [
+      "Satellites on the map are small drawings by kind (space station, weather, amateur radio) with their names always shown; the space station is drawn as the real station with its truss, four pairs of solar wings and central modules."
+    ],
+    "fixed": [],
+    "security": []
+  },
+  {
     "version": "1.9.9",
     "released": "2026-11-23",
     "title": "Dial settings for every satellite radio, new satellites appear sooner, distinct chart colors",
