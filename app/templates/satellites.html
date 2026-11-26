@@ -27,6 +27,11 @@
     .sp-group{margin:10px 0 0}.sp-group h3{margin:0 0 6px;font-size:.95rem;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
     .sp-tools{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.sp-tools .btn{margin:0}
   </style>
+  <div class="sp-tools" id="sp-filters" style="margin-bottom:8px">
+    <span style="display:inline-flex;gap:6px;align-items:center"><label for="sp-act" class="dim" style="font-size:.85rem">Status</label><select id="sp-act"><option value="">Any status</option><option value="heard">Heard recently</option><option value="quiet">Not heard lately</option><option value="unknown">No recent reports</option></select></span>
+    <span style="display:inline-flex;gap:6px;align-items:center"><label for="sp-tag" class="dim" style="font-size:.85rem">Use</label><select id="sp-tag"><option value="">Anything</option>{% for k, l in tag_list %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></span>
+    <span class="dim" style="font-size:.8rem">Status is the newest operator reports to AMSAT{% if not status_on %} (switched off on this site){% endif %}. The filters narrow the satellites below, the passes and the cards.</span>
+  </div>
   <div class="sp-tools" id="sp-tools">
     <input type="search" id="sp-filter" placeholder="Find a satellite" aria-label="Find a satellite" style="width:200px;max-width:100%">
     <button type="button" class="btn small neutral" id="sp-all">All</button><button type="button" class="btn small neutral" id="sp-none">None</button>
@@ -35,7 +40,7 @@
     <span class="dim" id="sp-count"></span>
   </div>
   {% for g, items in groups %}<div class="sp-group" data-group="{{ g }}"><h3>{{ g }} <button type="button" class="btn small neutral sp-only" style="margin:0">Only These</button></h3>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">{% for e in items %}<label class="sp-pill" data-name="{{ e.name | lower }}"><input type="checkbox" name="sat" value="{{ e.norad }}" form="sp-form" {{ 'checked' if e.norad|string in picked }}><span>{{ e.name }}</span></label>{% endfor %}</div></div>{% endfor %}
+    <div style="display:flex;gap:8px;flex-wrap:wrap">{% for e in items %}{% set m = meta[e.norad|string] %}<label class="sp-pill" data-name="{{ e.name | lower }}" data-n="{{ e.norad }}" data-tags="{{ m.tags | join(' ') }}" data-act="{{ m.act[0] }}" title="{{ m.act[1] }}"><input type="checkbox" name="sat" value="{{ e.norad }}" form="sp-form" {{ 'checked' if e.norad|string in picked }}><span>{{ e.name }}</span>{% if m.act[0] == 'heard' %}<span class="sp-ok" aria-label="Heard recently">&#9679;</span>{% elif m.act[0] == 'quiet' %}<span class="sp-bad" aria-label="Not heard lately">&#9679;</span>{% endif %}</label>{% endfor %}</div></div>{% endfor %}
   <p class="help" style="margin-bottom:0">Tick the satellites you want and choose Show Passes. None clears every box; nothing ticked shows no passes.</p>
 {% endcall %}
 
@@ -79,8 +84,10 @@
 {% call sec('passes', 'Upcoming Passes (' ~ rows | length ~ ')', True, True) %}
   {% if rows %}
   <table id="sp-passes" class="sortable"><thead><tr><th data-sort="text">Satellite</th><th data-sort="text">Rises</th><th>From</th><th data-sort="num">Highest</th><th>To</th><th data-sort="num">Length</th><th>Downlink</th><th>Doppler (kHz)</th><th>Sky</th></tr></thead><tbody>
-  {% for p in rows %}<tr>
-    <td><b><a href="#sp-radio" class="sp-open" data-n="{{ p.norad }}" title="How to work {{ p.name }}">{{ p.name }}</a></b></td>
+  {% for p in rows %}{% set m = meta[p.norad|string] %}<tr class="sp-row" data-n="{{ p.norad }}">
+    <td><b><a href="#sp-radio" class="sp-open" data-n="{{ p.norad }}" title="How to work {{ p.name }}">{{ p.name }}</a></b>{% if m.act[0] != 'unknown' %}<br><span class="sp-st sp-{{ 'ok' if m.act[0] == 'heard' else 'bad' }}" style="margin-top:3px">{{ m.act[1] }}</span>{% endif %}
+      {% if p.light %}<div class="sp-{{ p.light[0] }}" style="font-size:.78rem;margin-top:3px;max-width:260px">{{ p.light[1] }}</div>{% endif %}
+      {% if p.op %}<div class="dim" style="font-size:.76rem;margin-top:3px;max-width:260px">{{ p.op }}</div>{% endif %}</td>
     <td data-v="{{ p.aos.isoformat() }}"><time class="ts" datetime="{{ p.aos.isoformat() }}" data-fmt="dt">{{ p.aos | localtime }}</time></td>
     <td>{{ compass(p.az_aos) }}</td>
     <td data-v="{{ p.max_el }}"><b class="mono">{{ '%.0f' % p.max_el }}&deg;</b> <span class="dim">to the {{ compass(p.az_max) }}</span></td>
@@ -117,6 +124,27 @@
     pills.forEach(function (p) { p.style.display = !q || p.dataset.name.indexOf(q) >= 0 ? "" : "none"; });
     document.querySelectorAll(".sp-group").forEach(function (g) { g.style.display = [].some.call(g.querySelectorAll(".sp-pill"), function (p) { return p.style.display !== "none"; }) ? "" : "none"; });
   });
+  var fAct = document.getElementById("sp-act"), fTag = document.getElementById("sp-tag"), fKey = "sp.filters";
+  try { var sv = JSON.parse(localStorage.getItem(fKey) || "{}"); if (fAct && sv.a) fAct.value = sv.a; if (fTag && sv.t) fTag.value = sv.t; } catch (e) {}
+  var metaOk = {};   // satellite number -> passes the Status and Use filters
+  function filt() {
+    var a = fAct ? fAct.value : "", t = fTag ? fTag.value : "", q = flt ? flt.value.trim().toLowerCase() : "";
+    try { localStorage.setItem(fKey, JSON.stringify({a: a, t: t})); } catch (e) {}
+    pills.forEach(function (p) {
+      var ok = (!a || p.dataset.act === a) && (!t || (" " + p.dataset.tags + " ").indexOf(" " + t + " ") >= 0);
+      metaOk[p.dataset.n] = ok;
+      p.style.display = ok && (!q || p.dataset.name.indexOf(q) >= 0) ? "" : "none";
+    });
+    document.querySelectorAll(".sp-group").forEach(function (g) { g.style.display = [].some.call(g.querySelectorAll(".sp-pill"), function (p) { return p.style.display !== "none"; }) ? "" : "none"; });
+    var shown = 0;
+    document.querySelectorAll("tr.sp-row").forEach(function (r) { var ok = metaOk[r.dataset.n] !== false; r.style.display = ok ? "" : "none"; if (ok) shown++; });
+    var ps = document.getElementById("sec-passes"), h = ps ? ps.querySelector("summary .role-name") : null;
+    if (h) h.textContent = "Upcoming Passes (" + shown + ")";
+  }
+  if (fAct) fAct.addEventListener("change", function () { filt(); look(); });
+  if (fTag) fTag.addEventListener("change", function () { filt(); look(); });
+  if (flt) flt.addEventListener("input", filt);
+  filt();
   count();
   // how to work a satellite: the satellites ticked above that match the Find box (nothing while every satellite is ticked and the box is empty)
   var cards = [].slice.call(document.querySelectorAll(".sp-card")), none2 = document.getElementById("sp-find-none"), focus = "";
@@ -125,7 +153,7 @@
     pills.forEach(function (p) { var i = p.querySelector("input"); if (i.checked) { ticked[i.value] = 1; nt++; } });
     var all = nt === pills.length, shown = 0;
     cards.forEach(function (c) {
-      var on = focus ? c.dataset.n === focus : (ticked[c.dataset.n] && (!all || q) && (!q || c.dataset.name.indexOf(q) >= 0));
+      var on = focus ? c.dataset.n === focus : (ticked[c.dataset.n] && metaOk[c.dataset.n] !== false && (!all || q || (fAct && fAct.value) || (fTag && fTag.value)) && (!q || c.dataset.name.indexOf(q) >= 0));
       c.hidden = !on; if (on) shown++;
     });
     var sec = document.getElementById("sec-radio"), h = sec ? sec.querySelector("summary .role-name") : null;

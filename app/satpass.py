@@ -74,6 +74,108 @@ for _n, _a in ((27607, ["SO-50_[FM]"]), (43017, ["AO-91_[FM]"]), (44909, ["RS-44
                (61781, ["AO-123_[FM]"]), (40908, ["CAS-3H_[FM]"]), (43803, ["JO-97_[U/v]"]), (39444, ["AO-73_[U/v]"]), (59112, ["SONATE-2_[VHF_Digi]"]), (26931, ["NO-44_[VHF_Digi]"])):
     RADIO[_n]["amsat"] = _a
 INFO = {k: v["note"] for k, v in RADIO.items()}
+# when a satellite can be used, where that depends on more than being above the horizon: `light` "sun" means its radio works only while the satellite is in sunlight
+# (old batteries that no longer hold a charge), "shadow" means it is usually switched on only in the earth's shadow; `op` is a short note for the pass list.
+for _n, _l, _o in ((26931, "sun", "Works only while in sunlight: its batteries no longer hold a charge."),
+                   (7530, "sun", "Works only while in sunlight: its batteries failed in 1981, and mode B is on certain days only."),
+                   (39444, "shadow", "The transponder is usually on only while the satellite is in the earth's shadow."),
+                   (24278, None, "Often switched to digital mode: check AMSAT's status before a pass."),
+                   (40908, None, "No set schedule: when the repeater is off, only the telemetry beacon is heard."),
+                   (25544, None, "Each radio is switched on and off on its own; the voice repeater is off during spacewalks, and SSTV pictures come only on event days.")):
+    if _n in RADIO:
+        RADIO[_n]["op"] = _o
+        if _l:
+            RADIO[_n]["light"] = _l
+# what each satellite can be used for, for the filters on the passes page: (key, label), worked out from the kind and the modes of its radios
+TAGS = [("aprs", "APRS"), ("fm", "FM voice"), ("linear", "Linear (SSB and CW)"), ("wx", "Weather pictures"), ("sstv", "SSTV pictures"), ("rx", "Receive only, no license")]
+
+
+def tags(norad):
+    r = RADIO.get(norad) or {}
+    texts = [r.get("kind", ""), r.get("mode", "")] + [x["name"] + " " + x["mode"] for x in r.get("radios", [])]
+    t = " ".join(texts).lower()
+    out = []
+    if "aprs" in t or "ax.25" in t or "digipeater" in t or "aprs digipeater" in r.get("note", "").lower():   # a second radio named only in the note (CAS-3H)
+        out.append("aprs")
+    if "fm voice" in t or "fm crossband" in t or ("voice repeater" in t):
+        out.append("fm")
+    if "ssb" in t or "linear" in t:
+        out.append("linear")
+    if "weather" in t:
+        out.append("wx")
+    if "sstv" in t or "slow-scan" in t:
+        out.append("sstv")
+    if r and not r.get("lic", True) or (r.get("radios") and any(not x.get("lic", True) for x in r["radios"])):
+        out.append("rx")
+    return out
+
+
+def activity(norad, st):
+    """('heard' | 'quiet' | 'unknown', label) from the newest AMSAT reports of the satellite's radios: heard when any radio's newest report is Heard or Crew active."""
+    r = RADIO.get(norad) or {}
+    names = [x["amsat"] for x in r.get("radios", [])] if r.get("radios") else r.get("amsat", [])
+    got = [st[n] for n in names if n in st]
+    if not got:
+        return "unknown", "No recent reports"
+    if any(g["level"] == "ok" for g in got):
+        return "heard", "Heard recently"
+    newest = max(got, key=lambda g: g["when"])
+    return "quiet", newest["label"]
+
+
+def _sun_dir(jd):
+    """Unit vector toward the sun in the earth-centered inertial frame (the Astronomical Almanac's low-precision formula, about 0.01 degree: plenty for the earth's shadow)."""
+    n = jd - 2451545.0
+    L = math.radians((280.460 + 0.9856474 * n) % 360)
+    g = math.radians((357.528 + 0.9856003 * n) % 360)
+    lam = L + math.radians(1.915) * math.sin(g) + math.radians(0.020) * math.sin(2 * g)
+    eps = math.radians(23.439 - 0.0000004 * n)
+    return math.cos(lam), math.cos(eps) * math.sin(lam), math.sin(eps) * math.sin(lam)
+
+
+def sunlit(sat, t):
+    """True when the satellite is in sunlight at time t (UTC), False in the earth's shadow (a cylindrical shadow), None when the propagator gives up."""
+    jd, fr = _jd(t)
+    err, r, _v = sat.sgp4(jd, fr)
+    if err != 0:
+        return None
+    sx, sy, sz = _sun_dir(jd + fr)
+    d = r[0] * sx + r[1] * sy + r[2] * sz
+    if d >= 0:
+        return True
+    px, py, pz = r[0] - d * sx, r[1] - d * sy, r[2] - d * sz
+    return math.sqrt(px * px + py * py + pz * pz) > R_EARTH
+
+
+def light_note(sat, p, need):
+    """For a satellite that works only in sunlight (need 'sun') or only in shadow ('shadow'): (level, text) for this pass, or None."""
+    if not need:
+        return None
+    pts, t = [], p["aos"]
+    while t <= p["los"]:
+        pts.append((t, sunlit(sat, t)))
+        t += timedelta(seconds=30)
+    pts.append((p["los"], sunlit(sat, p["los"])))
+    pts = [(a, b) for a, b in pts if b is not None]
+    if not pts:
+        return None
+    want = need == "sun"
+    good = [a for a, b in pts if b == want]
+    part = "first" if pts[0][1] == want else "last"
+    pct = round(100 * len(good) / len(pts))
+    if want:
+        if len(good) == len(pts):
+            return "ok", "In sunlight the whole pass: it should work."
+        if not good:
+            return "bad", "In the earth's shadow the whole pass: it will not work."
+        return "warn", f"In sunlight for about {pct}% of this pass (the {part} part): it works only then."
+    if len(good) == len(pts):
+        return "ok", "In the earth's shadow the whole pass: the transponder is usually on."
+    if not good:
+        return "bad", "In sunlight the whole pass: the transponder is usually off."
+    return "warn", f"In the earth's shadow for about {pct}% of this pass (the {part} part): the transponder is usually on only then."
+
+
 STATUS_WORDS = {"Heard": ("Heard", "ok"), "Crew Active": ("Crew active", "ok"), "Telemetry Only": ("Telemetry only", "warn"), "Not Heard": ("Not heard", "bad")}
 
 
@@ -575,8 +677,11 @@ def page():
             r = RADIO.get(e["norad"]) or {}
             dn = r.get("down")
             more = sorted({x["down"] for x in r.get("radios", []) if x["down"] and x["down"] != dn})
-            rows.append(dict(p, name=e["name"], norad=e["norad"], svg=polar_svg(p["track"]), age=(now - e["epoch"]).days, down=dn, mode=r.get("mode", ""), more=more, tune=tuning(sat, obs, p, r.get("radios") or [dict(name="", up=r.get("up"), down=dn)]),
+            rows.append(dict(p, name=e["name"], norad=e["norad"], op=r.get("op", ""), light=light_note(sat, p, r.get("light")), svg=polar_svg(p["track"]), age=(now - e["epoch"]).days, down=dn, mode=r.get("mode", ""), more=more, tune=tuning(sat, obs, p, r.get("radios") or [dict(name="", up=r.get("up"), down=dn)]),
                              dop_aos=doppler(sat, obs, p["aos"], dn) if dn else None, dop_los=doppler(sat, obs, p["los"], dn) if dn else None))
     rows.sort(key=lambda r: r["aos"])
-    return render_template("satellites.html", rows=rows, up_now=up_now, fixed=fixed, els=els, picked=picked, lat=lat, lon=lon, label=label, others=others, hours=hours, min_el=min_el, now=now, info=INFO, radio=RADIO, compass=compass,
-                           max_hours=cfg_int("satpass_max_hours"), groups=[(g, groups[g]) for g in order], narrowed=narrowed, status=radio_status(), status_on=cfg("satstatus_enabled") == "1", status_hours=max(6, cfg_int("satstatus_hours")))
+    st_all = radio_status()
+    meta = {str(e["norad"]): {"tags": tags(e["norad"]), "act": activity(e["norad"], st_all)} for e in els}
+    tag_list = [t for t in TAGS if any(t[0] in m["tags"] for m in meta.values())]
+    return render_template("satellites.html", meta=meta, tag_list=tag_list, rows=rows, up_now=up_now, fixed=fixed, els=els, picked=picked, lat=lat, lon=lon, label=label, others=others, hours=hours, min_el=min_el, now=now, info=INFO, radio=RADIO, compass=compass,
+                           max_hours=cfg_int("satpass_max_hours"), groups=[(g, groups[g]) for g in order], narrowed=narrowed, status=st_all, status_on=cfg("satstatus_enabled") == "1", status_hours=max(6, cfg_int("satstatus_hours")))

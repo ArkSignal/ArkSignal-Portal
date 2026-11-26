@@ -9,6 +9,18 @@
     "security": []
   },
   {
+    "version": "1.9.11",
+    "released": "2026-11-26",
+    "title": "Satellite Passes: status and use filters, operating notes, sunlight check",
+    "added": [
+      "Satellite Passes has Status and Use filters: show only satellites operators heard recently (from AMSAT reports), or only those used for APRS, FM voice, linear transponders, weather pictures, SSTV pictures or receive-only listening. The filters narrow the satellite list, the passes and the how-to cards.",
+      "Each pass shows the satellite's newest AMSAT status and its operating notes, and for satellites that work only in sunlight (PCSAT NO-44, AO-7) or only in the earth's shadow (AO-73) whether this pass is in sunlight, in shadow or partly in each."
+    ],
+    "improved": [],
+    "fixed": [],
+    "security": []
+  },
+  {
     "version": "1.9.10",
     "released": "2026-11-24",
     "title": "Satellite map: icons and names, numbered passes, choose your satellites",
