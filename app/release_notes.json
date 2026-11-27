@@ -9,6 +9,17 @@
     "security": []
   },
   {
+    "version": "1.9.12",
+    "released": "2026-11-27",
+    "title": "The footer no longer covers the side menu",
+    "added": [],
+    "improved": [],
+    "fixed": [
+      "On admin and account pages with the side menu, the footer no longer covers the menu: it sits below the menu instead of floating over it, and two admin pages (Feeders and Weather Stations) that left a section unclosed no longer pull the footer into the page body."
+    ],
+    "security": []
+  },
+  {
     "version": "1.9.11",
     "released": "2026-11-26",
     "title": "Satellite Passes: status and use filters, operating notes, sunlight check",

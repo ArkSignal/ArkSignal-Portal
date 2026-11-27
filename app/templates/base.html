@@ -130,7 +130,7 @@ main:has(.acct-head)>h1:not(.acct-head){font-size:1.55rem;margin:4px 0 8px}   /*
   main:has(.my-side)>*{grid-column:2}
   main:has(.my-side)>:has(~ .my-side){grid-column:1 / -1}   /* the top bar, banners, the title and its line run across the whole width; the menu starts under them */
   main:has(.my-side)>.my-side{grid-column:1;grid-row:span 80;align-self:start;position:sticky;top:12px;max-height:calc(100dvh - 24px);overflow-y:auto;overscroll-behavior:contain;margin:6px 0 0;padding-right:4px}
-  main:has(.my-side)>footer{grid-column:1 / -1;align-self:end}
+  main:has(.my-side)>footer{grid-column:1 / -1;grid-row:100;align-self:end;position:static}   /* below the menu (which spans 80 rows), never beside it: and not pinned to the window bottom, where it hid the end of the menu */
 }
 @media (max-width:900px){
   .my-side{position:relative}
